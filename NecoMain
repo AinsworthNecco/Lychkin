@@ -1,217 +1,142 @@
---[[
-    ================================================================================================
-    SCRIPT SERVER HOP VỚI RAYFIELD UI - PHIÊN BẢN SỬA LỖI KHÔNG LƯU SETTING
-    Cập nhật bởi Gemini (Google AI) để đồng bộ hóa cài đặt khi khởi chạy.
-    ================================================================================================
-]]
+-- =================================================================
+--         SCRIPT SPIN ĐƠN GIẢN VỚI FLUENT UI
+--         Tạo bởi Gemini theo yêu cầu của Lychkin
+-- =================================================================
 
--- --- Tải Thư viện Rayfield UI ---
-local Rayfield = loadstring(game:HttpGet("https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/MainUI"))()
-
--- --- Các service cần thiết ---
-local TeleportService = game:GetService("TeleportService")
+--# Lib
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/Fluent.lua"))()
 local HttpService = game:GetService("HttpService")
-local Players = game:GetService("Players")
-local Lighting = game:GetService("Lighting")
-local SoundService = game:GetService("SoundService")
 local RunService = game:GetService("RunService")
 
-local LocalPlayer = Players.LocalPlayer
-local placeId = game.PlaceId
-local currentJobId = game.JobId
+--# Tên file để lưu cài đặt
+local CONFIG_FILENAME = "LychkinSetting.txt"
 
--- --- Các hằng số và tên định danh ---
-local SERVER_HISTORY_FILENAME = "server_hop_history.txt"
-local AFK_PLATFORM_NAME = "MySafeAFKPlatform"
-local STATIC_HEAD_ANCHOR_PART_NAME = "AFK_HeadAnchor_StaticCam"
-local STATIC_BLACK_SCREEN_PART_NAME = "AFK_BlackScreen_StaticCam"
-
--- --- Bảng Cấu hình mặc định ---
--- Script sẽ luôn bắt đầu với các giá trị này, sau đó hàm SyncConfigWithUI sẽ ghi đè chúng bằng các giá trị đã lưu.
-local Config = {
-    WaitMinutes = 10, MinPlayerPercentage = 0.50, MaxPlayerPercentage = 0.90, WaitBetweenScans = 7,
-    WaitBetweenFetches = 0.75, EnableHopLogic = false, EnableFileHistory = true, EnableDonateReset = true,
-    EnableSafePlatform = true, EnableStaticAFK = true, EnableGraphicsOpt = true, TargetFPS = 7,
+--# Bảng chứa các cài đặt mặc định
+local Options = {
+    SpinEnabled = false, -- Trạng thái bật/tắt spin
+    SpinSpeed = 10 -- Tốc độ spin mặc định
 }
 
--- (Toàn bộ các hàm logic cốt lõi như ShowNotification, manageSafePlatform, searchForServer... được giữ nguyên y hệt)
--- --- BẮT ĐẦU CÁC HÀM LOGIC (KHÔNG THAY ĐỔI) ---
-local serverHistoryCache = {}
-local chosenServer = nil
-local countdownCoroutine = nil
-local isHoppingProcessActive = false
-local statusLabelRef 
-local function ShowNotification(title, content, duration, buttontext)
-    Rayfield:Notify({Title = title or "Thông báo", Content = content or "...", Duration = duration or 5, Button = buttontext or "Đóng",})
-    print("[" .. title .. "] " .. content)
+--# Hệ thống lưu và tải cài đặt
+local canAccessFiles, writefile_func, readfile_func = pcall(function() return writefile, readfile end)
+
+local function SaveSettings()
+    if not canAccessFiles then return end
+    pcall(function()
+        local data = HttpService:JSONEncode(Options)
+        writefile_func(CONFIG_FILENAME, data)
+    end)
 end
-local canAccessFiles = false
-local writefile_func, readfile_func
-pcall(function()
-    if writefile and readfile then canAccessFiles, writefile_func, readfile_func = true, writefile, readfile; print("[FileIO] Quyền truy cập file có sẵn.") else print("[FileIO] Quyền truy cập file KHÔNG có sẵn.") end
-end)
-local function loadServerHistory()
-    if not canAccessFiles or not Config.EnableFileHistory then return {} end; local historySet = {}; local success, content = pcall(readfile_func, SERVER_HISTORY_FILENAME)
-    if success and content then for line in string.gmatch(content, "[^" .. "\r\n" .. "]+") do local trimmedLine = line:match("^%s*(.-)%s*$"); if trimmedLine and #trimmedLine > 0 then historySet[trimmedLine] = true end end end
-    serverHistoryCache = historySet; return historySet
-end
-local function addJobIdToHistoryAndSave(jobId)
-    if not jobId or not canAccessFiles or not Config.EnableFileHistory then return end; serverHistoryCache[jobId] = true; local lines = {}; for id in pairs(serverHistoryCache) do table.insert(lines, id) end
-    pcall(writefile_func, SERVER_HISTORY_FILENAME, table.concat(lines, "\n"))
-end
-function manageSafePlatform(enable)
-    if enable then
-        if workspace:FindFirstChild(AFK_PLATFORM_NAME) then ShowNotification("Thông tin", "Platform đã tồn tại.", 3); return end; ShowNotification("Platform", "Đang tạo platform an toàn...", 3)
-        local platform = Instance.new("Part"); platform.Name = AFK_PLATFORM_NAME; platform.Anchored = true; platform.CanCollide = true; platform.Size = Vector3.new(20000, 40, 20000); platform.Color = Color3.fromRGB(50, 50, 50); platform.Transparency = 0.5
-        local char = LocalPlayer.Character; local hrp = char and char:FindFirstChild("HumanoidRootPart"); if hrp then platform.Position = hrp.Position - Vector3.new(0, 25, 0) else platform.Position = Vector3.new(0, -50, 0) end
-        platform.Parent = workspace; ShowNotification("Thành công", "Platform đã được tạo.", 5)
-    else local platform = workspace:FindFirstChild(AFK_PLATFORM_NAME); if platform then platform:Destroy(); ShowNotification("Platform", "Đã xóa platform an toàn.", 5) end end
-end
-function manageStaticAfkView(enable)
-    local camera = workspace.CurrentCamera; if not camera then return end
-    if enable then
-        ShowNotification("AFK View", "Thiết lập view AFK tĩnh...", 3); local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait(); local head = character and character:WaitForChild("Head", 10)
-        if not head then ShowNotification("Lỗi", "Không tìm thấy đầu của nhân vật.", 5); return end
-        local staticHeadAnchor = Instance.new("Part"); staticHeadAnchor.Name = STATIC_HEAD_ANCHOR_PART_NAME; staticHeadAnchor.Size = Vector3.new(0.1, 0.1, 0.1); staticHeadAnchor.Transparency = 1; staticHeadAnchor.CanCollide = false; staticHeadAnchor.Anchored = true; staticHeadAnchor.CFrame = CFrame.new(head.Position); staticHeadAnchor.Parent = workspace
-        local blackTarget = Instance.new("Part"); blackTarget.Name = STATIC_BLACK_SCREEN_PART_NAME; blackTarget.Size = Vector3.new(2500, 2500, 10); blackTarget.Color = Color3.new(0, 0, 0); blackTarget.CanCollide = false; blackTarget.Anchored = true; blackTarget.CFrame = CFrame.new(staticHeadAnchor.Position + Vector3.new(150, 0, 0)); blackTarget.Parent = workspace
-        camera.CameraType = Enum.CameraType.Scriptable; camera.CFrame = CFrame.new(staticHeadAnchor.Position, blackTarget.Position); camera.Focus = blackTarget.CFrame; ShowNotification("Thành công", "View AFK tĩnh đã được thiết lập.", 5)
-    else
-        camera.CameraType = Enum.CameraType.Custom; local headAnchor = workspace:FindFirstChild(STATIC_HEAD_ANCHOR_PART_NAME); local blackScreen = workspace:FindFirstChild(STATIC_BLACK_SCREEN_PART_NAME)
-        if headAnchor then headAnchor:Destroy() end; if blackScreen then blackScreen:Destroy() end; ShowNotification("AFK View", "Đã tắt view AFK tĩnh.", 5)
-    end
-end
-function optimizeGraphics()
-    ShowNotification("Tối ưu", "Bắt đầu tối ưu hóa đồ họa...", 3)
-    local success, err = pcall(function()
-        Lighting.GlobalShadows = false; Lighting.Brightness = 0; Lighting.Ambient = Color3.new(0,0,0); Lighting.OutdoorAmbient = Color3.new(0,0,0); Lighting.ExposureCompensation = -2
-        pcall(function() if Lighting.Atmosphere then Lighting.Atmosphere:Destroy() end end); pcall(function() if Lighting.Sky then Lighting.Sky:Destroy() end end)
-        if LocalPlayer.PlayerGui then for _, gui in pairs(LocalPlayer.PlayerGui:GetChildren()) do if gui ~= Rayfield.Gui then pcall(function() gui:Destroy() end) end end end
-        local sO = settings(); if sO and sO.Rendering then sO.Rendering.QualityLevel = Enum.QualityLevel.Level01; pcall(function() if RunService:IsClient() then RunService:Set3dRenderingEnabled(false) end end) end
-        SoundService.AmbientReverb = Enum.ReverbType.NoReverb; for _, sound in pairs(game:GetDescendants()) do if sound:IsA("Sound") then sound.Volume = 0; sound:Stop() end end
-        ShowNotification("Thành công", "Đồ họa đã được tối ưu. Rejoin để hoàn tác.", 8)
-    end); if not success then ShowNotification("Lỗi", "Lỗi khi tối ưu hóa đồ họa: " .. tostring(err), 8) end
-end
-function searchForServer()
-    if not isHoppingProcessActive then return end; if Config.EnableFileHistory then loadServerHistory() end
-    local historyCount = 0; for _ in pairs(serverHistoryCache) do historyCount = historyCount + 1 end; statusLabelRef:Set("Trạng thái: Đang tìm server... (Tránh " .. tostring(historyCount + 1) .. " server)")
-    ShowNotification("Server Hop", "Bắt đầu tìm kiếm server...", 3); local serversUrlBase = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Asc&limit=100"; chosenServer = nil
-    task.spawn(function()
-        local searchLoopActive = true
-        while searchLoopActive and not chosenServer and isHoppingProcessActive do
-            local nextCursor, allScanned = nil, false
-            while not allScanned and not chosenServer and isHoppingProcessActive do
-                local reqUrl = serversUrlBase .. (nextCursor and "&cursor=" .. nextCursor or ""); local success, response = pcall(game.HttpGet, game, reqUrl, true)
-                if success then
-                    local decodedResponse = pcall(HttpService.JSONDecode, HttpService, response)
-                    if decodedResponse and type(decodedResponse) == "table" and decodedResponse.data then
-                        local potentialServers = {}; for _, serverInfo in ipairs(decodedResponse.data) do if serverInfo.id ~= currentJobId and not serverHistoryCache[serverInfo.id] then if serverInfo.playing and serverInfo.maxPlayers and serverInfo.maxPlayers > 0 then local playerRatio = serverInfo.playing / serverInfo.maxPlayers; if playerRatio >= Config.MinPlayerPercentage and playerRatio < Config.MaxPlayerPercentage and serverInfo.playing < serverInfo.maxPlayers then table.insert(potentialServers, serverInfo) end end end end
-                        if #potentialServers > 0 then chosenServer = potentialServers[math.random(1, #potentialServers)]; allScanned = true; break end
-                        nextCursor = decodedResponse.nextPageCursor; if not nextCursor then allScanned = true end
-                    else ShowNotification("Lỗi API", "Dữ liệu server không hợp lệ.", 5) end
-                else ShowNotification("Lỗi API", "Không thể lấy danh sách server. Thử lại...", 5); task.wait(3) end
-                if chosenServer or allScanned or not isHoppingProcessActive then break end; task.wait(Config.WaitBetweenFetches)
+
+local function LoadSettings()
+    if not canAccessFiles then return end
+    local success, content = pcall(readfile_func, CONFIG_FILENAME)
+    if success and content and #content > 0 then
+        pcall(function()
+            local savedOptions = HttpService:JSONDecode(content)
+            if type(savedOptions) == "table" then
+                for key, value in pairs(savedOptions) do
+                    if Options[key] ~= nil then
+                        Options[key] = value
+                    end
+                end
+                print("Đã tải cài đặt từ " .. CONFIG_FILENAME)
             end
-            if chosenServer then statusLabelRef:Set("Trạng thái: ĐÃ TÌM THẤY SERVER!"); ShowNotification("Thành công", "Đã chọn server! Chuẩn bị dịch chuyển.", 5); searchLoopActive = false
-            elseif allScanned then statusLabelRef:Set("Trạng thái: Không tìm thấy. Chờ " .. Config.WaitBetweenScans .. "s."); task.wait(Config.WaitBetweenScans) end
-        end
-        if chosenServer and isHoppingProcessActive then
-            addJobIdToHistoryAndSave(currentJobId); task.wait(1)
-            local success, err = pcall(TeleportService.TeleportToPlaceInstance, TeleportService, placeId, chosenServer.id, LocalPlayer)
-            if not success then ShowNotification("Lỗi dịch chuyển", "Lỗi: " .. tostring(err), 8); serverHistoryCache[chosenServer.id] = true; chosenServer = nil; task.wait(5); searchForServer() end
-        elseif isHoppingProcessActive then ShowNotification("Thất bại", "Không tìm thấy server phù hợp. Dừng lại.", 8); statusLabelRef:Set("Trạng thái: Đã dừng. Không tìm thấy server."); Config.EnableHopLogic = false; isHoppingProcessActive = false end
-    end)
-end
-function performCountdownThenSearch(minutesToWait)
-    local totalSeconds, countdownShouldReset = minutesToWait * 60, false; local donateConnection = nil
-    if Config.EnableDonateReset then
-        local leaderstats = LocalPlayer:WaitForChild("leaderstats", 15); if leaderstats then local raised = leaderstats:WaitForChild("Raised", 15)
-            if raised then local lastRaised = raised.Value; donateConnection = raised.Changed:Connect(function(newValue) if newValue > lastRaised then lastRaised = newValue; countdownShouldReset = true; ShowNotification("Donate!", "Cảm ơn! Reset thời gian.", 5) end end) end
-        end
+        end)
     end
-    for i = totalSeconds, 0, -1 do
-        if not isHoppingProcessActive then break end
-        if countdownShouldReset then if donateConnection then donateConnection:Disconnect() end; performCountdownThenSearch(Config.WaitMinutes); return end
-        statusLabelRef:Set(string.format("Sẽ tìm server sau: %02d:%02d", math.floor(i/60), i%60)); task.wait(1)
-    end
-    if donateConnection then donateConnection:Disconnect() end
-    if isHoppingProcessActive then statusLabelRef:Set("Trạng thái: Hết giờ! Bắt đầu tìm server..."); searchForServer() end
 end
-function startMainProcess()
-    isHoppingProcessActive = true; statusLabelRef:Set("Trạng thái: Bắt đầu chu trình...")
-    countdownCoroutine = task.spawn(function()
-        local success, err = pcall(performCountdownThenSearch, Config.WaitMinutes)
-        if not success then ShowNotification("Lỗi Coroutine", "Lỗi: " .. tostring(err), 8); isHoppingProcessActive = false; statusLabelRef:Set("Trạng thái: Lỗi Coroutine. Đã dừng.") end
-    end)
-end
-function stopMainProcess()
-    isHoppingProcessActive = false
-    if countdownCoroutine then task.cancel(countdownCoroutine); countdownCoroutine = nil end
-    statusLabelRef:Set("Trạng thái: Đã dừng bởi người dùng."); ShowNotification("Thông báo", "Chu trình Server Hop đã dừng.", 5)
-end
--- --- KẾT THÚC CÁC HÀM LOGIC ---
 
+-- Tải cài đặt ngay khi script bắt đầu
+LoadSettings()
 
--- --- [[ GIAO DIỆN RAYFIELD ]] ---
-local Window = Rayfield:CreateWindow({
-    Name = "Advanced Server Hop by Gemini", LoadingTitle = "Đang tải giao diện...", LoadingSubtitle = "Dựa trên script của bạn",
-    ConfigurationSaving = { Enabled = true, FolderName = "ServerHopConfig", FileName = "MainConfig" }, KeySystem = false,
+--# Cửa sổ giao diện
+local Window = Fluent:CreateWindow({
+    Title = "Lychkin Spinner",
+    SubTitle = "v1.0",
+    TabWidth = 160,
+    Size = UDim2.fromOffset(580, 400),
+    Acrylic = false, -- Tắt hiệu ứng mờ để nhẹ hơn
+    Theme = "Dark",
+    MinimizeKey = Enum.KeyCode.LeftControl
 })
 
--- (Phần tạo UI không thay đổi, chỉ có phần xử lý sau khi tạo)
-local MainTab = Window:CreateTab("Server Hop", 4483362458)
-MainTab:CreateLabel("Điều khiển chu trình tự động")
-statusLabelRef = MainTab:CreateLabel("Trạng thái: Chưa hoạt động")
-MainTab:CreateToggle({Name = "Bắt đầu / Dừng Chu trình Server Hop", CurrentValue = Config.EnableHopLogic, Flag = "MainHopToggle", Callback = function(Value) Config.EnableHopLogic = Value; if Value then startMainProcess() else stopMainProcess() end end,})
-MainTab:CreateToggle({Name = "Reset thời gian khi có Donate", CurrentValue = Config.EnableDonateReset, Flag = "DonateResetToggle", Callback = function(Value) Config.EnableDonateReset = Value; ShowNotification("Cài đặt", "Reset khi có donate: " .. (Value and "Bật" or "Tắt"), 3) end,})
-local AFKTab = Window:CreateTab("AFK & Đồ họa", 5025235889)
-AFKTab:CreateLabel("Các tính năng hỗ trợ AFK và giảm lag")
-AFKTab:CreateToggle({Name = "Tạo Platform An Toàn", CurrentValue = Config.EnableSafePlatform, Flag = "SafePlatformToggle", Callback = function(Value) Config.EnableSafePlatform = Value; manageSafePlatform(Value) end,})
-AFKTab:CreateToggle({Name = "Bật View AFK Tĩnh (Màn hình đen)", CurrentValue = Config.EnableStaticAFK, Flag = "StaticAFKToggle", Callback = function(Value) Config.EnableStaticAFK = Value; manageStaticAfkView(Value) end,})
-AFKTab:CreateToggle({Name = "Tối ưu hóa đồ họa (Giảm lag)", CurrentValue = Config.EnableGraphicsOpt, Flag = "GraphicsOptToggle", Callback = function(Value) Config.EnableGraphicsOpt = Value; if Value then optimizeGraphics() else ShowNotification("Thông báo", "Rejoin game để hoàn tác.", 8) end end,})
-AFKTab:CreateInput({Name = "Giới hạn FPS (0 = không giới hạn)", PlaceholderText = "Nhập số...", NumbersOnly = true, CurrentValue = Config.TargetFPS, Flag = "TargetFPSInput", Callback = function(Value) local num = tonumber(Value); if num then Config.TargetFPS = num; ShowNotification("Cài đặt", "Đã đặt giới hạn FPS thành: " .. tostring(num), 3) end end,})
-local SettingsTab = Window:CreateTab("Cài đặt", 5025235889)
-SettingsTab:CreateLabel("Cấu hình chi tiết cho việc tìm server")
-SettingsTab:CreateSlider({Name = "Thời gian chờ trước khi tìm (phút)", Range = {1, 60}, CurrentValue = Config.WaitMinutes, Flag = "WaitMinutesSlider", Callback = function(Value) Config.WaitMinutes = math.floor(Value) end,})
-SettingsTab:CreateSlider({Name = "Tỉ lệ người chơi TỐI THIỂU (%)", Range = {0, 100}, CurrentValue = Config.MinPlayerPercentage * 100, Flag = "MinPlayerSlider", Callback = function(Value) Config.MinPlayerPercentage = Value / 100; SettingsTab:Get("MaxPlayerSlider"):SetMin(Value) end,})
-SettingsTab:CreateSlider({Name = "Tỉ lệ người chơi TỐI ĐA (%)", Range = {0, 100}, CurrentValue = Config.MaxPlayerPercentage * 100, Flag = "MaxPlayerSlider", Callback = function(Value) Config.MaxPlayerPercentage = Value / 100; SettingsTab:Get("MinPlayerSlider"):SetMax(Value) end,})
-SettingsTab:CreateToggle({Name = "Sử dụng lịch sử server (tránh server cũ)", CurrentValue = Config.EnableFileHistory, Flag = "FileHistoryToggle", Callback = function(Value) Config.EnableFileHistory = Value; if not canAccessFiles and Value then ShowNotification("Lưu ý", "Tính năng này yêu cầu quyền đọc/ghi file.", 8) end end,})
+--# Tab chính
+local MainTab = Window:AddTab({ Title = "Main", Icon = "loader-2" })
 
--- --- [[ SỬA LỖI ]] ---
--- Hàm này sẽ đồng bộ các giá trị đã được Rayfield lưu vào bảng Config của script
-local function SyncConfigWithUI()
-    pcall(function()
-        print("Bắt đầu đồng bộ hóa cài đặt từ UI...")
-        -- Lấy giá trị từ các element trong UI và cập nhật vào bảng Config
-        Config.EnableHopLogic = Window:Get("MainHopToggle").Value
-        Config.EnableDonateReset = Window:Get("DonateResetToggle").Value
-        Config.EnableSafePlatform = Window:Get("SafePlatformToggle").Value
-        Config.EnableStaticAFK = Window:Get("StaticAFKToggle").Value
-        Config.EnableGraphicsOpt = Window:Get("GraphicsOptToggle").Value
-        Config.TargetFPS = tonumber(Window:Get("TargetFPSInput").Value) or Config.TargetFPS
-        Config.WaitMinutes = math.floor(Window:Get("WaitMinutesSlider").Value)
-        Config.MinPlayerPercentage = Window:Get("MinPlayerSlider").Value / 100
-        Config.MaxPlayerPercentage = Window:Get("MaxPlayerSlider").Value / 100
-        Config.EnableFileHistory = Window:Get("FileHistoryToggle").Value
+--# Logic xoay nhân vật
+local spinConnection = nil
 
-        -- Kích hoạt lại logic bật/tắt cho các toggle có thể cần hành động ngay khi load
-        manageSafePlatform(Config.EnableSafePlatform)
-        manageStaticAfkView(Config.EnableStaticAFK)
-        if Config.EnableGraphicsOpt then optimizeGraphics() end
-        
-        print("Đồng bộ hóa hoàn tất.")
+function StartSpin()
+    local character = game.Players.LocalPlayer.Character
+    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
+
+    if not humanoid or not humanoid.RootPart then return end
+
+    -- Ngắt kết nối cũ nếu có để tránh chạy nhiều lần
+    if spinConnection then
+        spinConnection:Disconnect()
+        spinConnection = nil
+    end
+
+    -- Tạo một kết nối mới với sự kiện RenderStepped để xoay mượt mà
+    spinConnection = RunService.RenderStepped:Connect(function(deltaTime)
+        -- Kiểm tra xem chức năng có còn được bật không
+        if not Options.SpinEnabled then
+            if spinConnection then
+                spinConnection:Disconnect()
+                spinConnection = nil
+            end
+            return
+        end
+
+        -- Tính toán góc xoay dựa trên tốc độ và thời gian giữa các khung hình
+        local currentCFrame = humanoid.RootPart.CFrame
+        local rotation = CFrame.Angles(0, math.rad(Options.SpinSpeed * deltaTime * 10), 0)
+        humanoid.RootPart.CFrame = currentCFrame * rotation
     end)
 end
 
--- Chờ một chút để Rayfield tải xong rồi mới đồng bộ
-task.wait(1) 
-SyncConfigWithUI()
--- --- KẾT THÚC SỬA LỖI ---
-
-
--- --- Khởi chạy các tác vụ nền ---
-if type(setfpscap) == "function" then
-    task.spawn(function() while task.wait() do if Config.TargetFPS and Config.TargetFPS > 0 then pcall(setfpscap, Config.TargetFPS) end end end)
+function StopSpin()
+    if spinConnection then
+        spinConnection:Disconnect()
+        spinConnection = nil
+    end
 end
 
-ShowNotification("Hoàn tất", "Giao diện Server Hop đã sẵn sàng!", 8)
-print("[MainInit] Script Rayfield (đã sửa lỗi) hoàn tất khởi chạy.")
+--# Thêm các thành phần vào giao diện
+MainTab:AddToggle("SpinToggle", {
+    Title = "Bật/Tắt Spin",
+    Description = "Khiến nhân vật của bạn xoay tròn.",
+    Default = Options.SpinEnabled, -- Lấy giá trị đã tải
+    Callback = function(Value)
+        Options.SpinEnabled = Value -- Cập nhật trạng thái
+        SaveSettings() -- Lưu lại ngay khi thay đổi
+
+        if Value then
+            StartSpin()
+        else
+            StopSpin()
+        end
+    end
+})
+
+MainTab:AddSlider("SpinSpeedSlider", {
+    Title = "Tốc độ Spin",
+    Description = "Điều chỉnh tốc độ xoay của nhân vật.",
+    Min = 1,
+    Max = 100,
+    Default = Options.SpinSpeed, -- Lấy giá trị đã tải
+    Suffix = " deg/s",
+    Callback = function(Value)
+        Options.SpinSpeed = Value -- Cập nhật tốc độ
+        SaveSettings() -- Lưu lại ngay khi thay đổi
+    end
+})
+
+--# Khởi chạy logic ban đầu
+-- Nếu lần trước thoát ra mà spin đang bật, hãy bật lại nó
+if Options.SpinEnabled then
+    StartSpin()
+end
+
+print("Lychkin Spinner đã sẵn sàng!")
