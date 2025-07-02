@@ -1,86 +1,210 @@
 --[[
-    PHIÊN BẢN TỐI GIẢN
-    Chức năng: Tìm và chiếm booth nhanh nhất có thể. Không có GUI, không có tính năng phụ.
+    PHIÊN BẢN RÚT GỌN TỪ SCRIPT GỐC - SỬA LỖI
+    Chức năng: Chỉ tự động tìm, chiếm và đi đến gian hàng.
+    - Đã sửa lỗi "Không tìm thấy MapUI" bằng cách thêm lại logic tìm kiếm dự phòng.
 ]]
 
--- Khởi tạo tối thiểu cần thiết
+--================================================================
+-- PHẦN 1: KHỞI TẠO (GIỮ NGUYÊN TỪ SCRIPT GỐC ĐỂ ĐẢM BẢO TƯƠNG THÍCH)
+--================================================================
+
 repeat task.wait() until game:IsLoaded()
+
 if game.PlaceId ~= 8737602449 and game.PlaceId ~= 8943844393 then return end
 
 local cloneref = cloneref or function(o) return o end
 local Players = cloneref(game:GetService("Players"))
 local ReplicatedStorage = cloneref(game:GetService("ReplicatedStorage"))
 local Workspace = cloneref(game:GetService("Workspace"))
+local TPService = cloneref(game:GetService("TeleportService"))
+local HttpService = cloneref(game:GetService("HttpService"))
+
 local LocalPlayer = Players.LocalPlayer
+local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 local Remotes
 
--- Tìm Remotes
-pcall(function()
-    for i, v in next, ReplicatedStorage:GetChildren() do
-        if v.Name:find('Remote') and v:IsA('ModuleScript') then
-            if pcall(function() require(v).Event('PromotionBlimpGiftbux'):FireServer() end) then
-                Remotes = require(v)
-                break
-            end
+for i, v in next, ReplicatedStorage:GetChildren() do
+    if v.Name:find('Remote') and v:IsA('ModuleScript') then
+        local suc = pcall(function() require(v).Event('PromotionBlimpGiftbux'):FireServer() end)
+        if suc then
+            Remotes = require(v)
+            break
         end
     end
-end)
-
-if not Remotes then return end -- Nếu không tìm thấy Remotes, dừng lại
-
--- Tìm MapUI (bao gồm cả logic dự phòng)
-local boothLocation
-local suc, shuffled = pcall(function() return Workspace:WaitForChild('MapUI', 2) end)
-if not suc then
-    boothLocation = LocalPlayer.PlayerGui:WaitForChild('MapUIContainer', 2):WaitForChild('MapUI', 2)
-else
-    boothLocation = shuffled
+    task.wait()
 end
 
-if not boothLocation then return end -- Nếu không tìm thấy MapUI, dừng lại
+task.spawn(function()
+    local bb = game:GetService("VirtualUser")
+    Players.LocalPlayer.Idled:Connect(function()
+        bb:CaptureController()
+        bb:ClickButton2(Vector2.new())
+    end)
+end)
 
--- Tìm booth trống phù hợp
-local unclaimedBoothNumber
-local interactions = Workspace:WaitForChild("BoothInteractions")
+--================================================================
+-- PHẦN 2: THIẾT LẬP TỐI GIẢN VÀ GUI TRẠNG THÁI
+--================================================================
+
+getgenv().settings = { boothPosition = 3 }
+
+local statusLabel = nil
+local function createStatusGui()
+    if PlayerGui:FindFirstChild("ClaimStatusGUI_Lite") then PlayerGui.ClaimStatusGUI_Lite:Destroy() end
+    local screenGui = Instance.new("ScreenGui", PlayerGui)
+    screenGui.Name = "ClaimStatusGUI_Lite"
+    screenGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+    screenGui.ResetOnSpawn = false
+    
+    statusLabel = Instance.new("TextLabel", screenGui)
+    statusLabel.Size = UDim2.new(0.5, 0, 0.08, 0)
+    statusLabel.Position = UDim2.new(0.5, 0, 0.02, 0)
+    statusLabel.AnchorPoint = Vector2.new(0.5, 0)
+    statusLabel.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    statusLabel.BackgroundTransparency = 0.3
+    statusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    statusLabel.Font = Enum.Font.SourceSansBold
+    statusLabel.TextSize = 18
+    statusLabel.TextWrapped = true
+end
+
+local function updateStatus(newText)
+    if statusLabel and statusLabel.Parent then statusLabel.Text = newText end
+end
+
+--================================================================
+-- PHẦN 3: LOGIC CHÍNH (TÌM, CLAIM, ĐI BỘ)
+--================================================================
+
+local function simpleServerHop()
+    updateStatus("Không có booth trống. Đang chuyển server sau 5 giây...")
+    task.wait(5)
+    local servers = {}
+    pcall(function()
+        local req = HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/8737602449/servers/Public?sortOrder=Desc&limit=100"))
+        if req and req.data then
+            for i, v in next, req.data do
+                if type(v) == "table" and tonumber(v.playing) and v.playing > 19 then
+                    table.insert(servers, 1, v.id)
+                end
+            end
+        end
+        if #servers > 0 then
+            TPService:TeleportToPlaceInstance(8737602449, servers[math.random(1, #servers)], LocalPlayer)
+        end
+    end)
+end
+
+-- ---- Bắt đầu thực thi ----
+createStatusGui()
+updateStatus("Đang khởi chạy script...")
+task.wait(2)
+
+if not Remotes then
+    updateStatus("LỖI: Không tìm thấy Remotes Module. Script không thể chạy.")
+    return
+end
+
+updateStatus("Đã sẵn sàng. Bắt đầu tìm gian hàng...")
+task.wait(1)
+
+-- *** SỬA LỖI: THÊM LẠI LOGIC TÌM MAPUI DỰ PHÒNG TỪ SCRIPT GỐC ***
+local _boothlocation
+local suc, _shuffled = pcall(function() return workspace:WaitForChild('MapUI', 3) end)
+if not suc or not _shuffled then
+    -- Nếu không tìm thấy trong workspace, tìm trong PlayerGui
+    updateStatus("Không thấy MapUI trong Workspace, đang tìm trong PlayerGui...")
+    local suc2, res2 = pcall(function()
+        return PlayerGui:WaitForChild('MapUIContainer', 5):WaitForChild('MapUI', 5)
+    end)
+    if suc2 then
+        _boothlocation = res2
+    end
+else
+    _boothlocation = _shuffled
+end
+
+if not _boothlocation then
+    updateStatus("LỖI: Không thể tìm thấy MapUI ở bất cứ đâu. Game có thể đã cập nhật lớn.")
+    return
+end
+
+updateStatus("Đã tìm thấy MapUI. Bắt đầu quét booth trống...")
+
+-- Tiếp tục logic như cũ
+local unclaimed = {}
 local mainCheckPosition = Vector3.new(165.161, 0, 311.636)
+local boothUI = _boothlocation:WaitForChild("BoothUI")
+local interactions = workspace:WaitForChild("BoothInteractions")
 
-for _, uiFrame in ipairs(boothLocation.BoothUI:GetChildren()) do
+for _, uiFrame in ipairs(boothUI:GetChildren()) do
     if uiFrame.Details.Owner.Text == "unclaimed" then
         local boothNum = tonumber(uiFrame.Name:match("%d+"))
         if boothNum then
-            local interactPart = interactions:FindFirstChild("BoothInteraction" .. boothNum)
-            if interactPart and (Vector3.new(interactPart.Position.X, 0, interactPart.Position.Z) - mainCheckPosition).Magnitude < 92 then
-                unclaimedBoothNumber = boothNum
-                break -- Tìm thấy booth đầu tiên phù hợp là đủ
+            for _, interact in ipairs(interactions:GetChildren()) do
+                if interact:GetAttribute("BoothSlot") == boothNum then
+                    if (Vector3.new(interact.Position.X, 0, interact.Position.Z) - mainCheckPosition).Magnitude < 92 then
+                        table.insert(unclaimed, boothNum)
+                        break
+                    end
+                end
             end
         end
     end
 end
 
-if not unclaimedBoothNumber then return end -- Nếu không có booth trống, dừng lại
+if #unclaimed == 0 then
+    simpleServerHop()
+    return
+end
 
--- Claim booth và di chuyển
-if pcall(function() Remotes.Event("ClaimBooth"):InvokeServer(unclaimedBoothNumber) end) then
-    task.wait(1) -- Chờ server xác nhận
+updateStatus("Đã tìm thấy " .. #unclaimed .. " gian hàng phù hợp. Bắt đầu chiếm...")
+task.wait(1)
 
-    -- Xác nhận lại claim thành công
-    if not string.find(boothLocation.BoothUI:FindFirstChild("BoothUI" .. unclaimedBoothNumber).Details.Owner.Text, LocalPlayer.DisplayName) then
-        return
+local chosenBoothNumber = unclaimed[1]
+local claimSuccess = false
+if pcall(function()
+    Remotes.Event("ClaimBooth"):InvokeServer(chosenBoothNumber)
+    task.wait(1.5)
+    if not string.find(boothUI:FindFirstChild("BoothUI" .. chosenBoothNumber).Details.Owner.Text, LocalPlayer.DisplayName) then
+        error()
+    end
+end) then
+    claimSuccess = true
+    updateStatus("Thành công! Đã chiếm được gian hàng số " .. chosenBoothNumber)
+else
+    updateStatus("Thất bại khi chiếm gian hàng. Có thể người khác đã nhanh hơn.")
+    task.wait(3); statusLabel.Parent:Destroy()
+    return
+end
+
+task.wait(1)
+
+if claimSuccess then
+    updateStatus("Đang di chuyển đến gian hàng...")
+    local boothPos, mainPosX
+    for i, v in ipairs(workspace.BoothInteractions:GetChildren()) do
+        if v:GetAttribute("BoothSlot") == chosenBoothNumber then
+            mainPosX = v.CFrame
+            boothPos = v.CFrame * CFrame.new(0, 0, getgenv().settings.boothPosition)
+            break
+        end
     end
 
     local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-    local rootPart = character:WaitForChild("HumanoidRootPart")
     local humanoid = character:WaitForChild("Humanoid")
-    local boothInteractPart = interactions:FindFirstChild("BoothInteraction" .. unclaimedBoothNumber)
-
-    if boothInteractPart then
-        local standPosition = boothInteractPart.CFrame * CFrame.new(0, 0, 3) -- Đứng trước booth 3 stud
-        rootPart.CFrame = boothInteractPart.CFrame
-        humanoid:MoveTo(standPosition.Position)
-        
-        if humanoid.MoveToFinished:Wait(5) then
-            -- Xoay người về phía trung tâm
-            rootPart.CFrame = CFrame.new(standPosition.Position, Vector3.new(mainCheckPosition.X, rootPart.Position.Y, mainCheckPosition.Z))
-        end
+    local rootPart = character:WaitForChild("HumanoidRootPart")
+    rootPart.CFrame = mainPosX
+    humanoid:MoveTo(boothPos.Position)
+    local successMove = humanoid.MoveToFinished:Wait(8)
+    
+    if successMove then
+        rootPart.CFrame = CFrame.new(boothPos.Position, Vector3.new(mainCheckPosition.X, rootPart.Position.Y, mainCheckPosition.Z))
+        updateStatus("Đã đến nơi. Script hoàn tất!")
+    else
+        updateStatus("Không thể di chuyển đến booth. Vui lòng tự di chuyển.")
     end
+
+    task.wait(5)
+    statusLabel.Parent:Destroy()
 end
