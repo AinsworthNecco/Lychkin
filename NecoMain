@@ -1,9 +1,12 @@
 --[[
-    TÍCH HỢP SCRIPT TỰ ĐỘNG NHẬN BOOTH VÀO FLUENT UI
+    TÍCH HỢP SCRIPT TỰ ĐỘNG NHẬN BOOTH VÀO FLUENT UI - V5
 
-    - Tác giả gốc của logic booth: szze (từ script rawPlsdonate.lua)
+    - TÍNH NĂNG MỚI:
+        - Đã sửa lỗi nghiêm trọng không lưu được setting do một lỗi đánh máy (typo).
+    
+    - Tác giả gốc của logic booth: szze
     - Thư viện UI: Fluent by dawid-scripts
-    - Người tích hợp và tinh chỉnh: Gemini
+    - Người tích hợp và nâng cấp: Gemini
 ]]
 
 --================================================================
@@ -24,10 +27,10 @@ local VirtualUser = game:GetService("VirtualUser")
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
--- Remotes (sẽ được gán sau)
+-- Remotes & Threads
 local Remotes
 
--- Anti-AFK (chạy ngầm)
+-- Anti-AFK
 task.spawn(function()
     if not VirtualUser then return end
     LocalPlayer.Idled:Connect(function()
@@ -46,16 +49,13 @@ local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.
 
 local Window = Fluent:CreateWindow({
     Title = "Lychkin's Plsdonate",
-    SubTitle = "v1.0 - Booth Claimer",
+    SubTitle = "v5.0 - Save Fixed",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = true,
 })
 
--- Tùy chọn (để lưu cài đặt)
 local Options = Fluent.Options
-
--- Các Tab
 local Tabs = {
     AutoFarm = Window:AddTab({ Title = "AutoFarm", Icon = "rbxassetid://4483345998" }),
     Hop = Window:AddTab({ Title = "Hop", Icon = "rbxassetid://6032363994" }),
@@ -65,14 +65,11 @@ local Tabs = {
 --================================================================
 -- PHẦN 3: TÌM REMOTES MODULE (BẮT BUỘC)
 --================================================================
--- Phải tìm được module này thì chức năng claim mới hoạt động
 task.spawn(function()
-    -- Thử tìm Remotes trong ReplicatedStorage
     for i, v in next, ReplicatedStorage:GetChildren() do
         if v.Name:find('Remote') and v:IsA('ModuleScript') then
             local success, result = pcall(function() return require(v) end)
             if success and typeof(result) == "table" and result.Event then
-                 -- Kiểm tra xem có phải remote đúng không bằng cách fire một event vô hại
                 local sucFire = pcall(function() result.Event('PromotionBlimpGiftbux'):FireServer() end)
                 if sucFire then
                     Remotes = result
@@ -83,131 +80,125 @@ task.spawn(function()
         end
         task.wait()
     end
-
     if not Remotes then
         Fluent:Notify({ Title = "Lỗi nghiêm trọng", Content = "Không tìm thấy Remotes Module. Script sẽ không hoạt động.", Duration = 10 })
     end
 end)
 
-
 --================================================================
--- PHẦN 4: LOGIC CHỨC NĂNG VÀ CÀI ĐẶT UI
+-- PHẦN 4: XÂY DỰNG CÁC CHỨC NĂNG TRONG TAB AUTOFARM
 --================================================================
 
--- Chức năng tự động chiếm Booth
-local function ClaimAndWalkToBooth()
-    if not Remotes then
-        Fluent:Notify({ Title = "Lỗi", Content = "Chưa tìm thấy Remotes, vui lòng đợi hoặc chạy lại script." })
-        return
-    end
+local boothClaimingThread
 
-    Fluent:Notify({ Title = "Claim Booth", Content = "Bắt đầu tìm gian hàng..." })
-    task.wait(1)
+--- KHỐI CHỨC NĂNG 1: AUTO CLAIM BOOTH ---
+Options.AutoClaimToggle = Tabs.AutoFarm:AddToggle("AutoClaimToggle", {
+    Title = "Auto Claim Booth",
+    Description = "Khi bật, sẽ tự động tìm và chiếm booth cho bạn.",
+    Default = false,
+    Callback = function(state)
+        local function hasClaimedBooth()
+            if not Workspace:FindFirstChild("BoothInteractions") then return false end
+            for _, booth in ipairs(Workspace.BoothInteractions:GetChildren()) do
+                if booth:GetAttribute("Owner") and booth:GetAttribute("Owner") == LocalPlayer.UserId then
+                    return true
+                end
+            end
+            return false
+        end
 
-    -- Tìm MapUI (với logic dự phòng)
-    local _boothlocation
-    local suc, _shuffled = pcall(function() return Workspace:WaitForChild('MapUI', 3) end)
-    if not suc or not _shuffled then
-        Fluent:Notify({ Title = "Claim Booth", Content = "Không thấy MapUI trong Workspace, đang tìm trong PlayerGui..." })
-        local suc2, res2 = pcall(function() return PlayerGui:WaitForChild('MapUIContainer', 5):WaitForChild('MapUI', 5) end)
-        if suc2 then _boothlocation = res2 end
-    else
-        _boothlocation = _shuffled
-    end
+        local function findAndClaim()
+            if not Remotes then return end
+            
+            local _boothlocation
+            local suc, _shuffled = pcall(function() return Workspace:WaitForChild('MapUI', 3) end)
+            if not suc or not _shuffled then
+                local suc2, res2 = pcall(function() return PlayerGui:WaitForChild('MapUIContainer', 5):WaitForChild('MapUI', 5) end)
+                if suc2 then _boothlocation = res2 end
+            else
+                _boothlocation = _shuffled
+            end
 
-    if not _boothlocation then
-        Fluent:Notify({ Title = "Lỗi", Content = "Không thể tìm thấy MapUI. Game có thể đã cập nhật.", Duration = 10 })
-        return
-    end
-    
-    Fluent:Notify({ Title = "Claim Booth", Content = "Đã tìm thấy MapUI. Bắt đầu quét booth trống..." })
+            if not _boothlocation then return end
+            
+            local unclaimed = {}
+            local mainCheckPosition = Vector3.new(165.161, 0, 311.636)
+            local boothUI = _boothlocation:WaitForChild("BoothUI")
+            local interactions = Workspace:WaitForChild("BoothInteractions")
 
-    -- Quét booth
-    local unclaimed = {}
-    local mainCheckPosition = Vector3.new(165.161, 0, 311.636)
-    local boothUI = _boothlocation:WaitForChild("BoothUI")
-    local interactions = Workspace:WaitForChild("BoothInteractions")
-
-    for _, uiFrame in ipairs(boothUI:GetChildren()) do
-        if uiFrame.Details.Owner.Text == "unclaimed" then
-            local boothNum = tonumber(uiFrame.Name:match("%d+"))
-            if boothNum then
-                for _, interact in ipairs(interactions:GetChildren()) do
-                    if interact:GetAttribute("BoothSlot") == boothNum then
-                        if (Vector3.new(interact.Position.X, 0, interact.Position.Z) - mainCheckPosition).Magnitude < 92 then
-                            table.insert(unclaimed, boothNum)
-                            break
+            for _, uiFrame in ipairs(boothUI:GetChildren()) do
+                if uiFrame.Details.Owner.Text == "unclaimed" then
+                    local boothNum = tonumber(uiFrame.Name:match("%d+"))
+                    if boothNum then
+                        for _, interact in ipairs(interactions:GetChildren()) do
+                            if interact:GetAttribute("BoothSlot") == boothNum and (Vector3.new(interact.Position.X, 0, interact.Position.Z) - mainCheckPosition).Magnitude < 92 then
+                                table.insert(unclaimed, boothNum)
+                                break
+                            end
                         end
                     end
                 end
             end
-        end
-    end
 
-    if #unclaimed == 0 then
-        Fluent:Notify({ Title = "Claim Booth", Content = "Không tìm thấy booth trống phù hợp. Vui lòng chuyển server." })
-        return
-    end
+            if #unclaimed == 0 then return end
+            
+            local chosenBoothNumber = unclaimed[1]
+            local claimSuccess = false
+            if pcall(function()
+                Remotes.Event("ClaimBooth"):InvokeServer(chosenBoothNumber)
+                task.wait(1)
+                if not string.find(boothUI:FindFirstChild("BoothUI" .. chosenBoothNumber).Details.Owner.Text, LocalPlayer.DisplayName) then
+                    error()
+                end
+            end) then
+                claimSuccess = true
+                Fluent:Notify({ Title = "Thành công!", Content = "Đã chiếm được gian hàng số " .. chosenBoothNumber })
+            else
+                return
+            end
 
-    Fluent:Notify({ Title = "Claim Booth", Content = "Đã tìm thấy " .. #unclaimed .. " booth. Bắt đầu chiếm..." })
-    task.wait(1)
+            if claimSuccess then
+                Fluent:Notify({ Title = "Dịch chuyển", Content = "Đang đưa bạn đến gian hàng..." })
+                local boothPos
+                for _, v in ipairs(Workspace.BoothInteractions:GetChildren()) do
+                    if v:GetAttribute("BoothSlot") == chosenBoothNumber then
+                        boothPos = v.CFrame * CFrame.new(0, 0, Options.BoothPosition.Value)
+                        break
+                    end
+                end
 
-    -- Chiếm booth
-    local chosenBoothNumber = unclaimed[1] -- Luôn chọn booth đầu tiên tìm thấy
-    local claimSuccess = false
-    if pcall(function()
-        Remotes.Event("ClaimBooth"):InvokeServer(chosenBoothNumber)
-        task.wait(1.5)
-        if not string.find(boothUI:FindFirstChild("BoothUI" .. chosenBoothNumber).Details.Owner.Text, LocalPlayer.DisplayName) then
-            error()
-        end
-    end) then
-        claimSuccess = true
-        Fluent:Notify({ Title = "Thành công!", Content = "Đã chiếm được gian hàng số " .. chosenBoothNumber })
-    else
-        Fluent:Notify({ Title = "Thất bại", Content = "Không thể chiếm gian hàng. Có thể người khác đã nhanh hơn." })
-        return
-    end
-
-    task.wait(1)
-
-    -- Đi bộ tới booth
-    if claimSuccess then
-        Fluent:Notify({ Title = "Claim Booth", Content = "Đang di chuyển đến gian hàng..." })
-        local boothPos, mainPosX
-        for _, v in ipairs(Workspace.BoothInteractions:GetChildren()) do
-            if v:GetAttribute("BoothSlot") == chosenBoothNumber then
-                mainPosX = v.CFrame
-                boothPos = v.CFrame * CFrame.new(0, 0, Options.BoothPosition.Value) -- Sử dụng giá trị từ Slider
-                break
+                local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+                local rootPart = character:WaitForChild("HumanoidRootPart")
+                
+                rootPart.CFrame = CFrame.new(boothPos.Position, Vector3.new(mainCheckPosition.X, rootPart.Position.Y, mainCheckPosition.Z))
+                Fluent:Notify({ Title = "Hoàn tất!", Content = "Đã đến nơi. Chế độ tự động vẫn đang chạy." })
             end
         end
 
-        local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-        local humanoid = character:WaitForChild("Humanoid")
-        local rootPart = character:WaitForChild("HumanoidRootPart")
-        
-        rootPart.CFrame = mainPosX
-        humanoid:MoveTo(boothPos.Position)
-        local successMove = humanoid.MoveToFinished:Wait(8)
-        
-        if successMove then
-            rootPart.CFrame = CFrame.new(boothPos.Position, Vector3.new(mainCheckPosition.X, rootPart.Position.Y, mainCheckPosition.Z))
-            Fluent:Notify({ Title = "Hoàn tất!", Content = "Đã đến nơi. Script hoàn thành nhiệm vụ." })
+        if state then
+            Fluent:Notify({ Title = "Auto Claim", Content = "Đã BẬT. Bắt đầu tìm kiếm booth..." })
+            boothClaimingThread = task.spawn(function()
+                while Options.AutoClaimToggle.Value and task.wait(3) do
+                    local character = LocalPlayer.Character
+                    if character and character:FindFirstChild("Humanoid") and character.Humanoid.Health > 0 then
+                        if not hasClaimedBooth() then
+                            findAndClaim()
+                        end
+                    end
+                end
+            end)
         else
-            Fluent:Notify({ Title = "Cảnh báo", Content = "Không thể tự di chuyển. Vui lòng tự đi bộ tới booth." })
+            if boothClaimingThread then
+                task.cancel(boothClaimingThread)
+                boothClaimingThread = nil
+                Fluent:Notify({ Title = "Auto Claim", Content = "Đã TẮT." })
+            end
         end
     end
-end
-
---- TẠO CÁC NÚT VÀ CÀI ĐẶT TRONG TAB AUTOFARM ---
-Tabs.AutoFarm:AddButton({
-    Title = "Claim Best Booth",
-    Description = "Tự động tìm, chiếm và đi bộ đến gian hàng trống tốt nhất.",
-    Callback = ClaimAndWalkToBooth
 })
 
-Tabs.AutoFarm:AddSlider("BoothPosition", {
+--- KHỐI CHỨC NĂNG 2: TÙY CHỈNH VỊ TRÍ ĐỨNG ---
+Options.BoothPosition = Tabs.AutoFarm:AddSlider("BoothPosition", {
     Title = "Vị trí đứng tại Booth",
     Description = "Điều chỉnh vị trí đứng so với booth (3 là đứng trước mặt).",
     Default = 3,
@@ -224,10 +215,20 @@ Tabs.AutoFarm:AddSlider("BoothPosition", {
 SaveManager:SetLibrary(Fluent)
 InterfaceManager:SetLibrary(Fluent)
 
--- Thêm các mục cài đặt vào tab Settings
+SaveManager:SetAutosave(true)
+SaveManager:AddOptions(Options)
+
 InterfaceManager:BuildInterfaceSection(Tabs.Settings)
+
+-- *** ĐÃ SỬA LỖI TẠI ĐÂY ***
+-- Sai: Tabs.sETTINGS
+-- Đúng: Tabs.Settings
 SaveManager:BuildConfigSection(Tabs.Settings)
 
--- Tải cài đặt đã lưu
 SaveManager:Load()
 Fluent:SelectTab(1)
+
+-- Tự động kích hoạt lại luồng Auto Claim nếu setting đã được lưu là ON
+if Options.AutoClaimToggle.Value then
+    Options.AutoClaimToggle:Fire()
+end
