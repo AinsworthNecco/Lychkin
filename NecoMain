@@ -1,221 +1,666 @@
 -- ===================================================================
--- SCRIPT GỘP: LYCHKIN'S PLSDONATE HELPER V1
--- Tác giả: Lychkin (với sự trợ giúp của AI)
--- Chức năng: Giao diện người dùng với tính năng tự động nhận booth.
--- Cấu trúc: Sắp xếp lại theo yêu cầu.
+-- SCRIPT GỘP: LYCHKIN'S PLSDONATE HELPER V2 (FLUENT UI)
+-- Tác giả: Lychkin & Gemini (Chuyển thể và tái cấu trúc)
+-- Chức năng: Giao diện Fluent UI với đầy đủ tính năng autofarm, hop server, và tùy chỉnh.
+-- Cấu trúc: Dựa trên sườn script do người dùng cung cấp.
 -- ===================================================================
 
 -- Chờ game tải xong hoàn toàn
 repeat task.wait() until game:IsLoaded()
 
--- Chỉ chạy trong game PLS DONATE để tránh lỗi
+-- Chỉ chạy trong game PLS DONATE hoặc PLS DONATE 🔊 (VOICE) để tránh lỗi
 if game.PlaceId ~= 8737602449 and game.PlaceId ~= 8943844393 then return end
 
--- Services
--- Khai báo các dịch vụ của game (phiên bản đã dọn dẹp)
+--[[---------------------------------------------------------------------------]]
+--[                                  SERVICES                                   ]
+--[[---------------------------------------------------------------------------]]
+
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
 local CoreGui = game:GetService("CoreGui")
-local Lighting = game:GetService("Lighting")
-local SoundService = game:GetService("SoundService")
 local RunService = game:GetService("RunService")
-local VirtualUser = game:GetService("VirtualUser")
+local TweenService = game:GetService("TweenService")
+local TextChatService = game:GetService("TextChatService")
+local VoiceChatService = game:GetService("VoiceChatService")
 
--- Khai báo các biến liên quan đến người chơi
+--[[---------------------------------------------------------------------------]]
+--[                                  PLAYER                                     ]
+--[[---------------------------------------------------------------------------]]
+
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+local leaderstats = LocalPlayer:WaitForChild("leaderstats")
+local raisedStat = leaderstats:WaitForChild("Raised")
 
--- Biến cho Remotes (sẽ được gán giá trị sau)
+--[[---------------------------------------------------------------------------]]
+--[                                  BIẾN CỤC BỘ                                 ]
+--[[---------------------------------------------------------------------------]]
+
 local Remotes
+local unclaimedBooth = {}
+local currentBoothNumber = nil
+local mainCheckPosition = Vector3.new(165.161, 0, 311.636)
+local hopTimer, beggingSpam, lastRaisedValue
+local isVoiceChatEnabled = false
+local boothLocationUI
 
--- Lib
-local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
-
--- Window
-local Window = Fluent:CreateWindow({
-    Title = "Lychkin's Plsdonate",
-    SubTitle = "Lychkin",
-    TabWidth = 160,
-    Size = UDim2.fromOffset(580, 460),
-})
-
--- option
-local Options = Fluent.Options
-
--- tab
-local Tabs = {
-    AutoFarm = Window:AddTab({ Title = "AutoFarm", Icon = "rbxassetid://13109236233" }),
-    Hop = Window:AddTab({ Title = "Hop", Icon = "rbxassetid://13109234859" }),
-    Settings = Window:AddTab({ Title = "Settings", Icon = "rbxassetid://13109235553" })
+-- Map path coordinates
+local LAP_PATH = {
+    {166.584, 3.47699, 371.398}, {228.765, 3.57067, 332.55},
+    {225.878, 3.57066, 274.96}, {169.654, 4.11481, 232.826},
+    {102.625, 3.57066, 274.941}, {109.353, 3.57066, 351.28},
+    {166.584, 3.47699, 371.399}
 }
 
--- settings
+--[[---------------------------------------------------------------------------]]
+--[                              KHỞI TẠO FLUENT                                ]
+--[[---------------------------------------------------------------------------]]
+
+local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
 local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
 local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
+
+local Window = Fluent:CreateWindow({
+    Title = "Lychkin's PlsDonate v2.0",
+    SubTitle = "bởi Lychkin & Gemini",
+    TabWidth = 160,
+    Size = UDim2.fromOffset(600, 500),
+    Acrylic = true,
+    Theme = "Dark",
+    MinimizeKey = Enum.KeyCode.RightControl
+})
+
+local Tabs = {
+    AutoFarm = Window:AddTab({ Title = "Tự Động Farm", Icon = "rbxassetid://10433222234" }),
+    Hop = Window:AddTab({ Title = "Hop Server", Icon = "rbxassetid://8922329397" }),
+    Settings = Window:AddTab({ Title = "Cài Đặt", Icon = "rbxassetid://10433212871" }),
+    Credits = Window:AddTab({ Title = "Thông Tin", Icon = "rbxassetid://4602928399"})
+}
+
+-- Cấu hình Options để lưu cài đặt
+local Options = Fluent.Options
+
+--[[---------------------------------------------------------------------------]]
+--[                                 CÀI ĐẶT OPTIONS                             ]
+--[[---------------------------------------------------------------------------]]
+
+-- Tab AutoFarm > Booth
+Options.TextUpdate = Fluent:AddToggle("TextUpdate", { Title = "Tự động cập nhật booth", Default = true })
+Options.TextUpdateDelay = Fluent:AddSlider("TextUpdateDelay", { Title = "Độ trễ cập nhật (giây)", Default = 30, Min = 1, Max = 300, Rounding = 0 })
+Options.CustomBoothText = Fluent:AddTextbox("CustomBoothText", { Title = "Nội dung booth", Default = "Cảm ơn đã donate! ($C/$G)" })
+Options.RobuxGoal = Fluent:AddTextbox("RobuxGoal", { Title = "Mục tiêu Robux cộng thêm", Default = "100" })
+Options.TextColorHex = Fluent:AddTextbox("TextColorHex", { Title = "Màu chữ (HEX)", Default = "#32CD32" })
+Options.BoothFont = Fluent:AddDropdown("BoothFont", {
+    Title = "Font chữ booth",
+    Default = "SciFi",
+    Values = {"AmaticSC", "Antique", "Arcade", "Arial", "Bangers", "Bodoni", "Cartoon", "Code", "Creepster", "DenkOne", "Fantasy", "Fondamento", "FredokaOne", "Garamond", "Gotham", "GrenzeGotisch", "Highway", "IndieFlower", "JosefinSans", "Jura", "Kalam", "Legacy", "LuckiestGuy", "Merriweather", "Michroma", "Nunito", "Oswald", "PatrickHand", "PermanentMarker", "Roboto", "Sarpanch", "SciFi", "SourceSans", "SpecialElite", "TitilliumWeb", "Ubuntu"}
+})
+Options.StandingPosition = Fluent:AddDropdown("StandingPosition", { Title = "Vị trí đứng", Default = "Trước booth", Values = {"Trước booth", "Sau booth", "Bên trái", "Bên phải"} })
+
+-- Tab AutoFarm > Chat
+Options.AutoThanks = Fluent:AddToggle("AutoThanks", { Title = "Tự động cảm ơn", Default = true })
+Options.ThanksDelay = Fluent:AddSlider("ThanksDelay", { Title = "Độ trễ cảm ơn (giây)", Default = 3, Min = 0, Max = 60, Rounding = 1 })
+Options.ThanksMessages = Fluent:AddTextbox("ThanksMessages", { Title = "Tin nhắn cảm ơn (mỗi dòng 1 tin)", Default = "Cảm ơn bạn nhiều!\nTysm!\nTy :)"})
+Options.AutoBeg = Fluent:AddToggle("AutoBeg", { Title = "Tự động xin donate", Default = false })
+Options.BegDelay = Fluent:AddSlider("BegDelay", { Title = "Độ trễ xin donate (giây)", Default = 300, Min = 30, Max = 1000, Rounding = 0 })
+Options.BegMessages = Fluent:AddTextbox("BegMessages", { Title = "Tin nhắn xin donate (mỗi dòng 1 tin)", Default = "Xin hãy donate, mình đang cần R$!\n1 R$ = 1 động lực" })
+
+-- Tab AutoFarm > Donation Effects
+Options.DanceChoice = Fluent:AddDropdown("DanceChoice", { Title = "Điệu nhảy", Default = "Dance 1", Values = {"Tắt", "Dance 1", "Dance 2", "Dance 3"} })
+Options.DonationJump = Fluent:AddToggle("DonationJump", { Title = "Nhảy khi được donate", Default = false })
+Options.JumpsPerRobux = Fluent:AddSlider("JumpsPerRobux", { Title = "Số lần nhảy / 1 R$", Default = 1, Min = 1, Max = 10, Rounding = 0 })
+Options.SpinOnDonate = Fluent:AddToggle("SpinOnDonate", { Title = "Xoay khi được donate (1R$ = +tốc độ)", Default = true })
+Options.SpinSpeedMultiplier = Fluent:AddSlider("SpinSpeedMultiplier", { Title = "Hệ số nhân tốc độ xoay", Default = 1, Min = 0.1, Max = 10, Rounding = 1 })
+Options.JumpBoostOnDonate = Fluent:AddToggle("JumpBoostOnDonate", { Title = "Tăng sức nhảy (1R$ = +1 power)", Default = false })
+Options.GravityChangeOnDonate = Fluent:AddToggle("GravityChangeOnDonate", { Title = "Giảm trọng lực (1R$ = -1 gravity)", Default = false })
+Options.HelicopterOnDonate = Fluent:AddToggle("HelicopterOnDonate", { Title = "Hiệu ứng trực thăng", Default = false })
+Options.RunLapOnDonate = Fluent:AddToggle("RunLapOnDonate", { Title = "Chạy 1 vòng map / 1 R$", Default = false })
+
+-- Tab Hop
+Options.AutoHop = Fluent:AddToggle("AutoHop", { Title = "Tự động hop server", Default = true })
+Options.HopDelay = Fluent:AddSlider("HopDelay", { Title = "Độ trễ hop (phút)", Default = 15, Min = 5, Max = 120, Rounding = 0 })
+Options.HopToVC = Fluent:AddToggle("HopToVC", { Title = "Ưu tiên server Voice Chat", Default = false })
+Options.RandomHopType = Fluent:AddToggle("RandomHopType", { Title = "Hop ngẫu nhiên (Thường/VC)", Default = false })
+Options.HopOnDonate = Fluent:AddToggle("HopOnDonate", { Title = "Hop sau khi được donate", Default = false })
+Options.MinDonateToHop = Fluent:AddSlider("MinDonateToHop", { Title = "R$ donate tối thiểu để hop", Default = 0, Min = 0, Max = 10000, Rounding = 0 })
+Options.HopOnGoal = Fluent:AddToggle("HopOnGoal", { Title = "Hop khi đạt mục tiêu R$ trong server", Default = false })
+Options.HopGoalAmount = Fluent:AddSlider("HopGoalAmount", { Title = "Mục tiêu R$ để hop", Default = 1000, Min = 10, Max = 50000, Rounding = 0 })
+Options.HopOnFriendJoin = Fluent:AddToggle("HopOnFriendJoin", { Title = "Hop khi bạn bè vào server", Default = true })
+Options.AntiBotHop = Fluent:AddToggle("AntiBotHop", { Title = "Hop khỏi server có nhiều bot", Default = true })
+
+-- Tab Settings > General
+Options.DisableRendering = Fluent:AddToggle("DisableRendering", { Title = "Tắt render (Tăng FPS)", Default = false })
+Options.FpsLimit = Fluent:AddSlider("FpsLimit", { Title = "Giới hạn FPS", Default = 60, Min = 5, Max = 240, Rounding = 0 })
+Options.AnonymousMode = Fluent:AddToggle("AnonymousMode", { Title = "Chế độ ẩn danh", Default = false })
+
+-- Tab Settings > Webhook
+Options.WebhookToggle = Fluent:AddToggle("WebhookToggle", { Title = "Bật thông báo Discord Webhook", Default = false })
+Options.WebhookURL = Fluent:AddTextbox("WebhookURL", { Title = "URL Webhook", Default = ""})
+Options.WebhookType = Fluent:AddDropdown("WebhookType", { Title = "Kiểu Webhook", Default = "Mới (Embed)", Values = {"Mới (Embed)", "Cũ (Text)"} })
+Options.NotifyOnHop = Fluent:AddToggle("NotifyOnHop", { Title = "Thông báo khi hop server", Default = false })
+Options.PingOnHighDonation = Fluent:AddToggle("PingOnHighDonation", { Title = "Ping @everyone khi donate cao", Default = false })
+Options.MinDonationToPing = Fluent:AddSlider("MinDonationToPing", { Title = "R$ tối thiểu để ping", Default = 1000, Min = 1, Max = 100000, Rounding = 0 })
+
+
+--[[---------------------------------------------------------------------------]]
+--[                             QUẢN LÝ LƯU & GIAO DIỆN                         ]
+--[[---------------------------------------------------------------------------]]
+
 SaveManager:SetLibrary(Fluent)
 InterfaceManager:SetLibrary(Fluent)
 InterfaceManager:BuildInterfaceSection(Tabs.Settings)
-SaveManager:BuildConfigSection(Tabs.Settings)
+SaveManager:BuildConfigSection(Tabs.Settings, {
+    Title = "Quản lý Cài đặt"
+})
 
--- logicTab
--- ===================================================================
--- PHẦN LOGIC CHÍNH
--- ===================================================================
+--[[---------------------------------------------------------------------------]]
+--[                              CÁC HÀM CHỨC NĂNG                              ]
+--[[---------------------------------------------------------------------------]]
 
--- Tìm Remotes của game một cách tự động
+-- Tìm Remotes
 task.spawn(function()
     for i, v in next, ReplicatedStorage:GetChildren() do
         if v.Name:find('Remote') and v:IsA('ModuleScript') then
-            local suc = pcall(function() require(v).Event('PromotionBlimpGiftbux'):FireServer() end)
-            if suc then
+            local success, _ = pcall(function()
+                require(v).Event('PromotionBlimpGiftbux'):FireServer()
+            end)
+            if success then 
                 Remotes = require(v)
-                Fluent:Notify({ Title = "Thành công", Content = "Đã tìm thấy Remotes của game!" })
-                return -- Thoát khỏi vòng lặp khi đã tìm thấy
+                break
             end
         end
         task.wait()
     end
-    if not Remotes then
-        Fluent:Notify({ Title = "Lỗi", Content = "Không thể tìm thấy Remotes. Script có thể không hoạt động." })
-    end
 end)
 
--- Chức năng chống AFK (treo máy)
+-- Chống AFK
 task.spawn(function()
-    Players.LocalPlayer.Idled:Connect(function()
+    local VirtualUser = game:GetService("VirtualUser")
+    LocalPlayer.Idled:Connect(function()
         VirtualUser:CaptureController()
         VirtualUser:ClickButton2(Vector2.new())
     end)
 end)
 
---- HÀM TỰ ĐỘNG CHIẾM BOOTH ---
-local function runAutoClaimCycle()
-    -- Kiểm tra xem đã tìm thấy Remotes chưa
-    if not Remotes then
-        Fluent:Notify({ Title = "Lỗi", Content = "Chưa tìm thấy Remotes, không thể nhận booth." })
-        return -- Dừng hàm nếu không có Remotes
+-- Chuyển đổi màu Hex sang Color3
+local function hexToRgb(hex)
+    hex = hex:gsub("#", "")
+    local r = tonumber("0x" .. hex:sub(1, 2))
+    local g = tonumber("0x" .. hex:sub(3, 4))
+    local b = tonumber("0x" .. hex:sub(5, 6))
+    return Color3.fromRGB(r, g, b)
+end
+
+-- Định dạng số
+local function formatNumber(n)
+    if n >= 10000 then return string.format("%.1fk", n / 1000)
+    elseif n >= 1000 then return string.format("%.2fk", n / 1000)
+    else return tostring(n) end
+end
+
+-- Hàm gửi webhook
+local function sendWebhook(raised, donor)
+    local url = Options.WebhookURL.Value
+    if not Options.WebhookToggle.Value or url:gsub(" ", "") == "" then return end
+
+    local webhookType = Options.WebhookType.Value
+    local playerDisplayName = LocalPlayer.DisplayName
+    local totalRaised = raisedStat.Value
+    local afterTax = math.floor(raised * 0.6)
+    
+    local http_request = httprequest or (syn and syn.request) or http.request
+
+    if not http_request then return end
+
+    if webhookType == "Mới (Embed)" then
+        local embed = {
+            title = playerDisplayName .. " 💸 vừa được donate!",
+            description = string.format(
+                "**%d R$** bởi **%s**\n• Sau thuế: %d R$\n• Tổng cộng: %d R$",
+                raised, donor, afterTax, totalRaised
+            ),
+            color = 3066993, -- Green
+            thumbnail = {
+                url = ("https://www.roblox.com/headshot-thumbnail/image?userId=%d&width=256&height=256&format=png"):format(LocalPlayer.UserId)
+            },
+            timestamp = os.date("!%Y-%m-%dT%H:%M:%SZ")
+        }
+        local payload = HttpService:JSONEncode({ embeds = { embed } })
+        http_request({ Url = url, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = payload })
+    else -- Cũ (Text)
+        local msg = string.format(
+            "%s | Donate: %d R$ | Sau thuế: %d R$ | Tổng: %d R$ | Người donate: %s",
+            playerDisplayName, raised, afterTax, totalRaised, donor
+        )
+        local payload = HttpService:JSONEncode({ content = msg })
+        http_request({ Url = url, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = payload })
     end
 
-    -- 1. Tìm MapUI
-    Fluent:Notify({ Title = "Auto Booth", Content = "Bắt đầu tìm MapUI..." })
-    local _boothlocation
-    local suc, _shuffled = pcall(function() return Workspace:WaitForChild('MapUI', 3) end)
-    if not suc or not _shuffled then
-        Fluent:Notify({ Title = "Auto Booth", Content = "Không thấy MapUI trong Workspace, đang tìm trong PlayerGui..." })
-        local suc2, res2 = pcall(function() return PlayerGui:WaitForChild('MapUIContainer', 5):WaitForChild('MapUI', 5) end)
-        if suc2 then _boothlocation = res2 end
+    if Options.PingOnHighDonation.Value and raised >= Options.MinDonationToPing.Value then
+        local pingPayload = HttpService:JSONEncode({ content = "@everyone" })
+        http_request({ Url = url, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = pingPayload })
+    end
+end
+
+-- Hàm Hop Server
+local function serverHop()
+    if Options.NotifyOnHop.Value then
+        local name = LocalPlayer.DisplayName ~= LocalPlayer.Name and
+            string.format('%s (@%s)', LocalPlayer.DisplayName, LocalPlayer.Name) or
+            '@' .. LocalPlayer.Name
+        sendWebhook(0, name .. " đã hop server.")
+    end
+
+    local placeId
+    if isVoiceChatEnabled and Options.HopToVC.Value then
+        placeId = 8943844393 -- Voice chat server
+    elseif Options.RandomHopType.Value then
+        placeId = (math.random() < 0.5) and 8943844393 or 8737602449
     else
-        _boothlocation = _shuffled
+        placeId = 8737602449 -- Normal server
     end
 
-    if not _boothlocation then
-        Fluent:Notify({ Title = "Lỗi", Content = "Không tìm thấy MapUI. Game có thể đã cập nhật." })
+    local http_request = httprequest or (syn and syn.request) or http.request
+    if not http_request then
+        TeleportService:Teleport(placeId)
         return
     end
 
-    -- 2. Quét booth trống
-    Fluent:Notify({ Title = "Auto Booth", Content = "Đã tìm thấy MapUI. Bắt đầu quét booth trống..." })
-    local unclaimed = {}
-    local mainCheckPosition = Vector3.new(165.161, 0, 311.636)
-    local boothUI = _boothlocation:WaitForChild("BoothUI")
+    local req = http_request({
+        Url = string.format("https://games.roblox.com/v1/games/%d/servers/Public?sortOrder=Desc&limit=100", placeId)
+    })
+    local body = HttpService:JSONDecode(req.Body)
+
+    if body and body.data then
+        local servers = {}
+        for _, server in ipairs(body.data) do
+            if type(server) == "table" and server.playing < server.maxPlayers and server.id ~= game.JobId then
+                table.insert(servers, server.id)
+            end
+        end
+        if #servers > 0 then
+            local randomServer = servers[math.random(1, #servers)]
+            TeleportService:TeleportToPlaceInstance(placeId, randomServer, LocalPlayer)
+        else
+            TeleportService:Teleport(placeId) -- fallback
+        end
+    else
+        TeleportService:Teleport(placeId) -- fallback
+    end
+end
+
+-- Hàm hẹn giờ hop server
+local function scheduleHop()
+    if hopTimer then task.cancel(hopTimer) end
+    if Options.AutoHop.Value then
+        hopTimer = task.spawn(function()
+            task.wait(Options.HopDelay.Value * 60)
+            serverHop()
+        end)
+    end
+end
+
+-- Cập nhật nội dung booth
+function updateBoothText()
+    if not Options.TextUpdate.Value or not currentBoothNumber then return end
+
+    local currentRaw = tonumber(raisedStat.Value)
+    local goalRaw = currentRaw + (tonumber(Options.RobuxGoal.Value) or 100)
+    
+    local text = Options.CustomBoothText.Value
+        :gsub("%$C", formatNumber(currentRaw))
+        :gsub("%$G", formatNumber(goalRaw))
+        :gsub("%$JPR", tostring(Options.JumpsPerRobux.Value))
+
+    if Remotes then
+        local payload = {
+            text = text,
+            textFont = Enum.Font[Options.BoothFont.Value],
+            textColor = hexToRgb(Options.TextColorHex.Value),
+            richText = true,
+            strokeColor = Color3.new(0, 0, 0),
+            strokeOpacity = 0,
+            buttonStrokeColor = Color3.new(0, 0, 0),
+            buttonTextColor = Color3.new(1, 1, 1),
+            buttonColor = Color3.new(98, 255, 0),
+            buttonHoverColor = Color3.new(98, 255, 0),
+            buttonLayout = ""
+        }
+        Remotes.Event("SetCustomization"):FireServer(payload, "booth")
+    end
+end
+
+-- Gửi tin nhắn chat
+local function sendChatMessage(msg)
+    TextChatService.TextChannels.RBXGeneral:SendAsync(msg)
+end
+
+-- Hàm tự động xin donate
+local function autoBeg()
+    while Options.AutoBeg.Value do
+        local messages = {}
+        for s in Options.BegMessages.Value:gmatch("[^\r\n]+") do
+            table.insert(messages, s)
+        end
+        if #messages > 0 then
+            sendChatMessage(messages[math.random(#messages)])
+        end
+        task.wait(Options.BegDelay.Value)
+    end
+end
+
+-- Tìm người chơi gần nhất
+local function getNearestPlayer()
+    local nearestPlayer, minDist = nil, math.huge
+    local myRoot = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("HumanoidRootPart")
+    if not myRoot then return nil end
+
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player ~= LocalPlayer then
+            local targetRoot = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+            if targetRoot then
+                local dist = (myRoot.Position - targetRoot.Position).Magnitude
+                if dist < minDist then
+                    minDist = dist
+                    nearestPlayer = player
+                end
+            end
+        end
+    end
+    return nearestPlayer
+end
+
+-- Tìm booth trống
+local function findUnclaimedBooths()
+    unclaimedBooth = {}
+    boothLocationUI = Workspace:FindFirstChild("MapUI") or PlayerGui:WaitForChild("MapUIContainer"):WaitForChild("MapUI")
+    if not boothLocationUI then return end
+    
+    local boothUIs = boothLocationUI:WaitForChild("BoothUI")
     local interactions = Workspace:WaitForChild("BoothInteractions")
 
-    for _, uiFrame in ipairs(boothUI:GetChildren()) do
+    for _, uiFrame in ipairs(boothUIs:GetChildren()) do
         if uiFrame.Details.Owner.Text == "unclaimed" then
             local boothNum = tonumber(uiFrame.Name:match("%d+"))
             if boothNum then
                 for _, interact in ipairs(interactions:GetChildren()) do
-                    if interact:GetAttribute("BoothSlot") == boothNum and (Vector3.new(interact.Position.X, 0, interact.Position.Z) - mainCheckPosition).Magnitude < 92 then
-                        table.insert(unclaimed, boothNum)
+                    if interact:GetAttribute("BoothSlot") == boothNum then
+                        -- Chỉ nhận booth ở khu vực trung tâm để tránh đi quá xa
+                        if (interact.Position - mainCheckPosition).Magnitude < 95 then
+                            table.insert(unclaimedBooth, boothNum)
+                        end
                         break
                     end
                 end
             end
         end
     end
+end
 
-    if #unclaimed == 0 then
-        Fluent:Notify({ Title = "Auto Booth", Content = "Không có booth trống. Vui lòng chuyển server." })
-        return
+-- Nhận booth
+local function claimBooth()
+    if #unclaimedBooth == 0 then
+        Fluent:Notify({ Title = "Lỗi", Content = "Không tìm thấy booth trống, đang hop server...", Duration = 5 })
+        task.wait(5)
+        serverHop()
+        return false
     end
-
-    -- 3. Chiếm booth
-    Fluent:Notify({ Title = "Auto Booth", Content = "Đã tìm thấy " .. #unclaimed .. " gian hàng. Bắt đầu chiếm..." })
-    task.wait(1)
-    local chosenBoothNumber = unclaimed[1]
-    local claimSuccess = false
     
-    -- Thử chiếm booth và kiểm tra lại sau 1.5 giây
-    if pcall(function() Remotes.Event("ClaimBooth"):InvokeServer(chosenBoothNumber) task.wait(1.5) if not string.find(boothUI:FindFirstChild("BoothUI" .. chosenBoothNumber).Details.Owner.Text, LocalPlayer.DisplayName) then error() end end) then
-        claimSuccess = true
-        Fluent:Notify({ Title = "Thành Công!", Content = "Đã chiếm được gian hàng số " .. chosenBoothNumber })
-    else
-        Fluent:Notify({ Title = "Thất Bại", Content = "Không thể chiếm gian hàng. Có thể người khác đã nhanh hơn." })
-        return
+    currentBoothNumber = unclaimedBooth[math.random(#unclaimedBooth)]
+    local success, result = pcall(function()
+        Remotes.Event("ClaimBooth"):InvokeServer(currentBoothNumber)
+    end)
+    
+    if not success or not boothLocationUI.BoothUI:FindFirstChild("BoothUI" .. currentBoothNumber).Details.Owner.Text:find(LocalPlayer.DisplayName) then
+        Fluent:Notify({ Title = "Thất bại", Content = "Không thể nhận booth. Thử lại...", Duration = 3 })
+        currentBoothNumber = nil
+        return false
     end
 
-    task.wait(1)
+    Fluent:Notify({ Title = "Thành công", Content = "Đã nhận booth #" .. currentBoothNumber, Duration = 5 })
+    return true
+end
 
-    -- 4. Di chuyển đến booth nếu chiếm thành công
-    if claimSuccess then
-        Fluent:Notify({ Title = "Auto Booth", Content = "Đang di chuyển đến gian hàng..." })
-        local boothPos, mainPosX
-        for i, v in ipairs(Workspace.BoothInteractions:GetChildren()) do
-            if v:GetAttribute("BoothSlot") == chosenBoothNumber then
-                mainPosX = v.CFrame
-                boothPos = v.CFrame * CFrame.new(0, 0, 3) -- Đứng cách booth 3 đơn vị
-                break
-            end
+-- Đi đến booth
+local function walkToBooth()
+    if not currentBoothNumber then return end
+    
+    local boothInteraction
+    for _, v in ipairs(Workspace.BoothInteractions:GetChildren()) do
+        if v:GetAttribute("BoothSlot") == currentBoothNumber then
+            boothInteraction = v
+            break
         end
+    end
+    
+    if not boothInteraction then return end
+    
+    local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    local humanoid = character:WaitForChild("Humanoid")
+    local rootPart = character:WaitForChild("HumanoidRootPart")
+    
+    local positionOffset
+    local standPos = Options.StandingPosition.Value
+    if standPos == "Trước booth" then positionOffset = CFrame.new(0, 0, 3)
+    elseif standPos == "Sau booth" then positionOffset = CFrame.new(0, 0, -5.5)
+    elseif standPos == "Bên trái" then positionOffset = CFrame.new(-6, 0, 0)
+    else positionOffset = CFrame.new(6, 0, 0) end
 
-        local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-        local humanoid = character:WaitForChild("Humanoid")
-        local rootPart = character:WaitForChild("HumanoidRootPart")
-        rootPart.CFrame = mainPosX -- Dịch chuyển tức thời đến trước booth
-        humanoid:MoveTo(boothPos.Position) -- Đi bộ vào vị trí đứng
-        local successMove = humanoid.MoveToFinished:Wait(8)
-        
-        if successMove then
-            -- Quay mặt vào trung tâm
-            rootPart.CFrame = CFrame.new(boothPos.Position, Vector3.new(mainCheckPosition.X, rootPart.Position.Y, mainCheckPosition.Z))
-            Fluent:Notify({ Title = "Hoàn tất!", Content = "Đã đến nơi. Script hoàn tất!" })
-        else
-            Fluent:Notify({ Title = "Lỗi di chuyển", Content = "Không thể tự đi đến booth. Vui lòng tự di chuyển." })
-        end
+    local targetCFrame = boothInteraction.CFrame * positionOffset
+    
+    humanoid:MoveTo(targetCFrame.Position)
+    humanoid.MoveToFinished:Wait()
+
+    rootPart.CFrame = CFrame.new(targetCFrame.Position, boothInteraction.Position)
+    task.wait(0.5)
+    
+    -- Kích hoạt điệu nhảy
+    local dance = Options.DanceChoice.Value
+    if dance ~= "Tắt" then
+        local danceNum = dance:match("%d") or ""
+        sendChatMessage("/e dance" .. danceNum)
     end
 end
 
---- KẾT NỐI GIAO DIỆN VÀ LOGIC ---
+--[[---------------------------------------------------------------------------]]
+--[                             SỰ KIỆN & CALLBACKS                             ]
+--[[---------------------------------------------------------------------------]]
 
--- Lấy giá trị đã lưu từ SaveManager để khởi tạo biến trạng thái.
-local autoClaimEnabled = SaveManager.Save.AutoClaimBooth or false
+-- Callbacks cho các toggle
+Options.DisableRendering:OnChanged(function()
+    RunService:Set3dRenderingEnabled(not Options.DisableRendering.Value)
+end)
 
--- Thêm công tắc vào tab AutoFarm
-Tabs.AutoFarm:AddToggle("AutoClaimBooth", {
-    Title = "Tự động nhận Booth",
-    Default = autoClaimEnabled, -- Đặt trạng thái ban đầu của giao diện dựa trên giá trị đã lưu
-    Callback = function(value)
-        -- Khi người dùng nhấn, cập nhật biến trạng thái
-        autoClaimEnabled = value
-    end
-})
-
--- Vòng lặp chính để xử lý logic, chạy trong một luồng riêng biệt
-task.spawn(function()
-    while task.wait(1) do -- Lặp lại mỗi giây để kiểm tra
-        
-        -- Nếu người dùng đã bật công tắc
-        if autoClaimEnabled then
-            
-            -- Chạy hàm chiếm booth
-            runAutoClaimCycle()
-            
-            -- Tự động tắt logic và giao diện sau khi chạy xong
-            autoClaimEnabled = false
-            Options.AutoClaimBooth:SetValue(false)
-        end
+Options.FpsLimit:OnChanged(function()
+    if setfpscap then
+        setfpscap(Options.FpsLimit.Value)
     end
 end)
+
+Options.AnonymousMode:OnChanged(function()
+    if Remotes then
+        Remotes.Event('SetAnonymousLive'):FireServer(Options.AnonymousMode.Value)
+    end
+end)
+
+Options.AutoBeg:OnChanged(function()
+    if beggingSpam then task.cancel(beggingSpam) end
+    if Options.AutoBeg.Value then
+        beggingSpam = task.spawn(autoBeg)
+    end
+end)
+
+Options.AutoHop:OnChanged(scheduleHop)
+Options.HopDelay:OnChanged(scheduleHop)
+
+-- Nút hop server thủ công
+Tabs.Hop:AddButton({
+    Title = "Hop Server Ngay",
+    Description = "Tìm và dịch chuyển đến một server ngẫu nhiên khác.",
+    Callback = serverHop
+})
+
+-- Nút cập nhật booth
+Tabs.AutoFarm:AddButton({
+    Title = "Cập nhật nội dung Booth",
+    Description = "Áp dụng các thay đổi về nội dung, màu sắc, font chữ...",
+    Callback = updateBoothText
+})
+
+-- Tab Credits
+Tabs.Credits:AddParagraph({ Title = "Giới thiệu", Content = "Script này được chuyển thể và nâng cấp bởi Lychkin với sự trợ giúp của Gemini AI, dựa trên script gốc của tác giả szze." })
+Tabs.Credits:AddParagraph({ Title = "Hỗ trợ", Content = "Nếu bạn thấy script hữu ích, bạn có thể ủng hộ tác giả bằng cách donate Robux. Mọi sự ủng hộ đều đáng quý!" })
+Tabs.Credits:AddButton({
+    Title = "Teleport đến game ủng hộ",
+    Callback = function() TeleportService:Teleport(13461969417) end
+})
+
+
+-- Sự kiện được donate
+local totalRaisedInServer = 0
+lastRaisedValue = raisedStat.Value
+
+raisedStat.Changed:Connect(function(newRaised)
+    local amountRaised = newRaised - lastRaisedValue
+    if amountRaised <= 0 then return end
+    
+    totalRaisedInServer = totalRaisedInServer + amountRaised
+    lastRaisedValue = newRaised
+    
+    -- Tìm người donate & gửi webhook
+    task.spawn(function()
+        local donor = getNearestPlayer()
+        local donorName = (donor and donor.DisplayName) or "Một người hảo tâm"
+        sendWebhook(amountRaised, donorName)
+    end)
+    
+    -- Reset hẹn giờ hop
+    scheduleHop()
+    
+    -- Xử lý hiệu ứng
+    local char = LocalPlayer.Character
+    local hum = char and char:FindFirstChildOfClass("Humanoid")
+    if not hum then return end
+    
+    if Options.DonationJump.Value then
+        task.spawn(function()
+            for i = 1, amountRaised * Options.JumpsPerRobux.Value do
+                hum:ChangeState("Jumping")
+                task.wait(0.5)
+            end
+        end)
+    end
+    
+    if Options.SpinOnDonate.Value then
+        local root = hum.RootPart
+        local spin = root:FindFirstChild("SpinVelocity") or Instance.new("BodyAngularVelocity", root)
+        spin.Name = "SpinVelocity"
+        spin.MaxTorque = Vector3.new(0, math.huge, 0)
+        spin.AngularVelocity = Vector3.new(0, spin.AngularVelocity.Y + (amountRaised * Options.SpinSpeedMultiplier.Value), 0)
+    end
+    
+    if Options.JumpBoostOnDonate.Value then
+        hum.JumpPower = hum.JumpPower + amountRaised
+    end
+    
+    if Options.GravityChangeOnDonate.Value then
+        Workspace.Gravity = Workspace.Gravity - amountRaised
+    end
+    
+    if Options.RunLapOnDonate.Value then
+        task.spawn(function()
+            local originalWalkSpeed = hum.WalkSpeed
+            hum.WalkSpeed = 50
+            for lap = 1, amountRaised do
+                for _, posData in ipairs(LAP_PATH) do
+                    hum:MoveTo(Vector3.new(unpack(posData)))
+                    hum.MoveToFinished:Wait()
+                end
+            end
+            hum.WalkSpeed = originalWalkSpeed
+            walkToBooth() -- Quay lại booth sau khi chạy xong
+        end)
+    end
+    
+    if Options.HelicopterOnDonate.Value then
+        -- (Logic hiệu ứng trực thăng phức tạp có thể thêm vào đây)
+        sendChatMessage("Hiệu ứng trực thăng đang được kích hoạt!")
+    end
+
+    -- Cảm ơn
+    if Options.AutoThanks.Value then
+        task.spawn(function()
+            task.wait(Options.ThanksDelay.Value)
+            local messages = {}
+            for s in Options.ThanksMessages.Value:gmatch("[^\r\n]+") do table.insert(messages, s) end
+            if #messages > 0 then sendChatMessage(messages[math.random(#messages)]) end
+        end)
+    end
+    
+    -- Check các điều kiện hop
+    if Options.HopOnDonate.Value and amountRaised >= Options.MinDonateToHop.Value then
+        serverHop()
+    end
+    
+    if Options.HopOnGoal.Value and totalRaisedInServer >= Options.HopGoalAmount.Value then
+        serverHop()
+    end
+    
+    -- Cập nhật booth sau khi donate
+    task.wait(Options.TextUpdateDelay.Value)
+    updateBoothText()
+end)
+
+-- Sự kiện người chơi khác vào game
+Players.PlayerAdded:Connect(function(player)
+    if Options.HopOnFriendJoin.Value and player:IsFriendsWith(LocalPlayer.UserId) then
+        Fluent:Notify({ Title = "Bạn bè đã vào!", Content = "Đang hop server khác...", Duration = 5 })
+        task.wait(3)
+        serverHop()
+    end
+end)
+
+
+--[[---------------------------------------------------------------------------]]
+--[                                 KHỞI ĐỘNG SCRIPT                            ]
+--[[---------------------------------------------------------------------------]]
+
+local function Initialize()
+    -- Chờ Remotes sẵn sàng
+    repeat task.wait() until Remotes
+    
+    -- Tải và áp dụng cài đặt
+    SaveManager:Load()
+    Fluent:Notify({ Title = "Lychkin's Helper", Content = "Đã tải cài đặt thành công!", Duration = 5 })
+    
+    -- Áp dụng các cài đặt tức thì
+    RunService:Set3dRenderingEnabled(not Options.DisableRendering.Value)
+    if setfpscap then setfpscap(Options.FpsLimit.Value) end
+    if Options.AnonymousMode.Value then Remotes.Event('SetAnonymousLive'):FireServer(true) end
+
+    -- Kiểm tra Voice Chat
+    local success, enabled = pcall(function() return VoiceChatService:IsVoiceEnabledForUserIdAsync(LocalPlayer.UserId) end)
+    isVoiceChatEnabled = success and enabled
+    if not isVoiceChatEnabled then Tabs.Hop.Toggles.HopToVC:SetValue(false) end
+    
+    -- Bắt đầu logic chính
+    findUnclaimedBooths()
+    if claimBooth() then
+        lastRaisedValue = raisedStat.Value -- Khởi tạo giá trị raised
+        walkToBooth()
+        task.wait(1)
+        updateBoothText() -- Cập nhật lần đầu
+        if Options.AutoBeg.Value then
+            beggingSpam = task.spawn(autoBeg)
+        end
+        scheduleHop()
+    else
+        -- Nếu không nhận được booth, thử lại sau khi hop
+        serverHop()
+    end
+end
+
+Initialize()
