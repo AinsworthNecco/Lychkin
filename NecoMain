@@ -10,6 +10,7 @@ local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
 local RunService = game:GetService("RunService")
 local VirtualUser = game:GetService("VirtualUser")
+local UserInputService = game:GetService("UserInputService")
 
 -- Biến người chơi
 local LocalPlayer = Players.LocalPlayer
@@ -45,11 +46,36 @@ local Options = Fluent.Options
 
 -- Tabs giao diện
 local Tabs = {
-    AutoFarm = Window:AddTab({ Title = "AutoFarm", Icon = "" }),
-    Hop      = Window:AddTab({ Title = "Hop",      Icon = "" }),
-	Booth      = Window:AddTab({ Title = "Booth",      Icon = "" }),
-    Settings = Window:AddTab({ Title = "Settings", Icon = "" }),
+    Booth    = Window:AddTab({ Title = "Booth", Icon = "rbxassetid://6031398289" }),
+    AutoFarm = Window:AddTab({ Title = "AutoFarm", Icon = "rbxassetid://6031398523" }),
+    Hop      = Window:AddTab({ Title = "Hop",      Icon = "rbxassetid://6031398453" }),
+    Settings = Window:AddTab({ Title = "Settings", Icon = "rbxassetid://6031398338" }),
 }
+
+--================================================================
+-- PHẦN 2.5: NÚT THU GỌN GIAO DIỆN (TÍNH NĂNG MỚI)
+--================================================================
+
+-- Tạo một ScreenGui riêng cho nút bấm để không bị ảnh hưởng
+local toggleGui = Instance.new("ScreenGui", PlayerGui)
+toggleGui.Name = "LychkinToggleUI"
+toggleGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
+toggleGui.ResetOnSpawn = false
+
+-- Tạo nút bấm
+local ToggleButton = Instance.new("ImageButton", toggleGui)
+ToggleButton.Name = "ToggleButton"
+ToggleButton.Image = "rbxassetid://9294623142"
+ToggleButton.Size = UDim2.fromOffset(52, 52) -- Kích thước cố định
+ToggleButton.Position = UDim2.new(0, 20, 1, -72) -- Vị trí góc dưới bên trái
+ToggleButton.BackgroundTransparency = 1
+ToggleButton.ZIndex = 999 -- Luôn ở trên cùng
+ToggleButton.Draggable = true -- Cho phép kéo thả
+
+-- Logic ẩn/hiện giao diện
+ToggleButton.MouseButton1Click:Connect(function()
+    Window.Visible = not Window.Visible
+end)
 
 --================================================================
 -- PHẦN 3: SAVE MANAGER 
@@ -60,28 +86,15 @@ local FOLDER_NAME = "Lychkin"
 local FILE_NAME = "LychkinPlsdonate.txt"
 local FILE_PATH = FOLDER_NAME .. "/" .. FILE_NAME
 
--- Đảm bảo thư mục tồn tại
-if not isfolder(FOLDER_NAME) then
-    makefolder(FOLDER_NAME)
-end
+if not isfolder(FOLDER_NAME) then makefolder(FOLDER_NAME) end
 
--- Hàm này chỉ đọc file và trả về dữ liệu dưới dạng bảng
 function SaveManager:LoadData()
     if not isfile(FILE_PATH) then return {} end
-
     local success, fileContent = pcall(readfile, FILE_PATH)
     if not success or fileContent == "" then return {} end
-
-    local success, decodedData = pcall(function()
-        return HttpService:JSONDecode(fileContent)
-    end)
-
+    local success, decodedData = pcall(function() return HttpService:JSONDecode(fileContent) end)
     if success and type(decodedData) == "table" then
-        Fluent:Notify({
-            Title = "Tải thành công",
-            Content = "Đã áp dụng cài đặt đã lưu.",
-            Duration = 3
-        })
+        Fluent:Notify({ Title = "Tải thành công", Content = "Đã áp dụng cài đặt đã lưu.", Duration = 3 })
         return decodedData
     else
         warn("Lỗi file cài đặt, sử dụng cài đặt mặc định.")
@@ -89,17 +102,10 @@ function SaveManager:LoadData()
     end
 end
 
--- Hàm lưu không thay đổi nhiều
 function SaveManager:Save()
     local dataToSave = {}
-    for name, option in pairs(Options) do
-        dataToSave[name] = option.Value
-    end
-
-    local success, encodedData = pcall(function()
-        return HttpService:JSONEncode(dataToSave)
-    end)
-
+    for name, option in pairs(Options) do dataToSave[name] = option.Value end
+    local success, encodedData = pcall(function() return HttpService:JSONEncode(dataToSave) end)
     if success then
         writefile(FILE_PATH, encodedData)
         Fluent:Notify({ Title = "Đã lưu!", Content = "Cài đặt của bạn đã được lưu.", Duration = 2 })
@@ -108,7 +114,6 @@ function SaveManager:Save()
     end
 end
 
---SaveData
 local savedData = SaveManager:LoadData()
 
 --================================================================
@@ -129,25 +134,19 @@ local function walkToBooth(boothNumber)
     for i, v in ipairs(Workspace.BoothInteractions:GetChildren()) do
         if v:GetAttribute("BoothSlot") == boothNumber then
             mainPosX = v.CFrame
-            -- Vị trí đứng mặc định, bạn có thể thay đổi số 3
             boothPos = v.CFrame * CFrame.new(0, 0, 3) 
             break
         end
     end
-
     if not boothPos then return end
-
     local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
     local humanoid = character:WaitForChild("Humanoid")
     local rootPart = character:WaitForChild("HumanoidRootPart")
-    
     Fluent:Notify({ Title = "Auto Claim", Content = "Đang di chuyển đến gian hàng...", Duration = 3 })
     rootPart.CFrame = mainPosX
     humanoid:MoveTo(boothPos.Position)
     local successMove = humanoid.MoveToFinished:Wait(8)
-    
     if successMove then
-        -- Xoay người về phía trước
         rootPart.CFrame = CFrame.new(boothPos.Position, mainPosX.Position - Vector3.new(0,0,5))
         Fluent:Notify({ Title = "Auto Claim", Content = "Đã đến nơi. Hoàn tất!", Duration = 5 })
     else
@@ -177,9 +176,8 @@ end
 
 -- Hàm chính để thực hiện việc chiếm booth
 local function executeAutoClaim()
-    if isProcessingClaim then return end -- Nếu đang xử lý thì không chạy lại
+    if isProcessingClaim then return end
     isProcessingClaim = true
-
     local Remotes
     for i, v in next, ReplicatedStorage:GetChildren() do
         if v.Name:find('Remote') and v:IsA('ModuleScript') then
@@ -189,29 +187,19 @@ local function executeAutoClaim()
         end
         task.wait()
     end
-
     if not Remotes then
         Fluent:Notify({ Title = "Lỗi", Content = "Không tìm thấy Remotes của game.", Duration = 5 })
         Options.AutoClaimBooth:set(false); isProcessingClaim = false
         return
     end
-
-    -- Vòng lặp tìm kiếm, chỉ chạy khi được bật
     claimBoothConnection = RunService.Heartbeat:Connect(function()
-        -- Ngừng ngay nếu người dùng đã tắt
         if not Options.AutoClaimBooth.Value then
-            isProcessingClaim = false
-            claimBoothConnection:Disconnect()
-            claimBoothConnection = nil
-            return
+            isProcessingClaim = false; claimBoothConnection:Disconnect(); claimBoothConnection = nil; return
         end
-
         if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("MyBooth") and LocalPlayer.Character.MyBooth.Value then
             Fluent:Notify({ Title = "Auto Claim", Content = "Đã có booth. Chức năng tự tắt.", Duration = 5 })
-            Options.AutoClaimBooth:set(false) -- Tự động tắt nút
-            return
+            Options.AutoClaimBooth:set(false); return
         end
-
         local boothLocation
         local suc, res = pcall(function() return Workspace:WaitForChild('MapUI', 0) end)
         if suc and res then boothLocation = res else
@@ -219,53 +207,32 @@ local function executeAutoClaim()
             if suc2 and res2 then boothLocation = res2 end
         end
         if not boothLocation then return end
-
         local boothUI = boothLocation:FindFirstChild("BoothUI")
         local interactions = Workspace:FindFirstChild("BoothInteractions")
         if not (boothUI and interactions) then return end
-
         local unclaimed = {}
         for _, uiFrame in ipairs(boothUI:GetChildren()) do
             if uiFrame:IsA("Frame") and uiFrame:FindFirstChild("Details") and uiFrame.Details.Owner.Text == "unclaimed" then
                 table.insert(unclaimed, tonumber(uiFrame.Name:match("%d+")))
             end
         end
-
         if #unclaimed == 0 then
-            -- Nếu không có booth nào, ngắt vòng lặp và chuyển server
-            claimBoothConnection:Disconnect(); claimBoothConnection = nil
-            simpleServerHop()
-            isProcessingClaim = false
-            return
+            claimBoothConnection:Disconnect(); claimBoothConnection = nil; simpleServerHop(); isProcessingClaim = false; return
         end
-        
-        -- Nếu có booth, ngắt vòng lặp để bắt đầu chiếm
         claimBoothConnection:Disconnect(); claimBoothConnection = nil
-        
         local chosenBooth = unclaimed[1]
         Fluent:Notify({ Title = "Auto Claim", Content = "Tìm thấy booth trống! Đang chiếm số " .. chosenBooth, Duration = 3 })
-        
-        -- Thử chiếm và xác nhận
         local claimSuccess = pcall(function()
             Remotes.Event("ClaimBooth"):InvokeServer(chosenBooth)
-            task.wait(0.5) -- Đợi game xử lý
+            task.wait(0.5)
             if not string.find(boothUI:FindFirstChild("BoothUI" .. chosenBooth).Details.Owner.Text, LocalPlayer.DisplayName) then
                 error("Claim failed")
             end
         end)
-
-        if claimSuccess then
-            walkToBooth(chosenBooth)
-        else
-            Fluent:Notify({ Title = "Auto Claim", Content = "Chiếm thất bại, có thể người khác đã nhanh hơn. Tìm lại...", Duration = 4 })
-        end
-        
-        -- Cho phép chạy lại chức năng
+        if claimSuccess then walkToBooth(chosenBooth)
+        else Fluent:Notify({ Title = "Auto Claim", Content = "Chiếm thất bại, có thể người khác đã nhanh hơn. Tìm lại...", Duration = 4 }) end
         isProcessingClaim = false
-        -- Tự động bật lại để tìm tiếp nếu chiếm thất bại
-        if Options.AutoClaimBooth.Value then
-            executeAutoClaim()
-        end
+        if Options.AutoClaimBooth.Value then executeAutoClaim() end
     end)
 end
 
@@ -275,13 +242,9 @@ Tabs.Booth:AddToggle("AutoClaimBooth", {
     Description = "Luôn tự động tìm và chiếm gian hàng trống. Sẽ tự chuyển server nếu hết.",
     Default = savedData.AutoClaimBooth or false,
 }):OnChanged(function(newValue)
-    if newValue == true then
-        executeAutoClaim()
+    if newValue == true then executeAutoClaim()
     else
-        if claimBoothConnection then
-            claimBoothConnection:Disconnect()
-            claimBoothConnection = nil
-        end
+        if claimBoothConnection then claimBoothConnection:Disconnect(); claimBoothConnection = nil end
         isProcessingClaim = false
         Fluent:Notify({ Title = "Auto Claim", Content = "Đã tắt.", Duration = 5 })
     end
