@@ -1,34 +1,19 @@
---[[
-    TÍCH HỢP SCRIPT TỰ ĐỘNG NHẬN BOOTH VÀO FLUENT UI - V5
-
-    - TÍNH NĂNG MỚI:
-        - Đã sửa lỗi nghiêm trọng không lưu được setting do một lỗi đánh máy (typo).
-    
-    - Tác giả gốc của logic booth: szze
-    - Thư viện UI: Fluent by dawid-scripts
-    - Người tích hợp và nâng cấp: Gemini
-]]
-
 --================================================================
 -- PHẦN 1: KHAI BÁO DỊCH VỤ VÀ BIẾN
 --================================================================
 
--- Services
+-- Dịch vụ Roblox
 local Players = game:GetService("Players")
 local ReplicatedStorage = game:GetService("ReplicatedStorage")
 local Workspace = game:GetService("Workspace")
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
-local CoreGui = game:GetService("CoreGui")
 local RunService = game:GetService("RunService")
 local VirtualUser = game:GetService("VirtualUser")
 
--- Player
+-- Biến người chơi
 local LocalPlayer = Players.LocalPlayer
 local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
-
--- Remotes & Threads
-local Remotes
 
 -- Anti-AFK
 task.spawn(function()
@@ -40,195 +25,188 @@ task.spawn(function()
 end)
 
 --================================================================
--- PHẦN 2: THIẾT LẬP GIAO DIỆN (FLUENT UI)
+-- PHẦN 2: GIAO DIỆN FLUENT UI
 --================================================================
 
+-- Tải thư viện Fluent
 local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
-local SaveManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/SaveManager.lua"))()
-local InterfaceManager = loadstring(game:HttpGet("https://raw.githubusercontent.com/dawid-scripts/Fluent/master/Addons/InterfaceManager.lua"))()
 
+-- Tạo cửa sổ chính
 local Window = Fluent:CreateWindow({
     Title = "Lychkin's Plsdonate",
-    SubTitle = "v5.0 - Save Fixed",
+    SubTitle = "Lưu và Tải Cài Đặt",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
     Acrylic = true,
 })
 
+-- Tùy chọn (lưu giá trị UI)
 local Options = Fluent.Options
+
+-- Tabs giao diện
 local Tabs = {
-    AutoFarm = Window:AddTab({ Title = "AutoFarm", Icon = "rbxassetid://4483345998" }),
-    Hop = Window:AddTab({ Title = "Hop", Icon = "rbxassetid://6032363994" }),
-    Settings = Window:AddTab({ Title = "Settings", Icon = "rbxassetid://4483329248" })
+    AutoFarm = Window:AddTab({ Title = "AutoFarm", Icon = "" }),
+    Hop      = Window:AddTab({ Title = "Hop",      Icon = "" }),
+	Booth      = Window:AddTab({ Title = "Booth",      Icon = "" }),
+    Settings = Window:AddTab({ Title = "Settings", Icon = "" }),
 }
 
 --================================================================
--- PHẦN 3: TÌM REMOTES MODULE (BẮT BUỘC)
+-- PHẦN 3: SAVE MANAGER (KIẾN TRÚC MỚI)
 --================================================================
-task.spawn(function()
+
+local SaveManager = {}
+local FOLDER_NAME = "Lychkin"
+local FILE_NAME = "LychkinPlsdonate.txt"
+local FILE_PATH = FOLDER_NAME .. "/" .. FILE_NAME
+
+-- Đảm bảo thư mục tồn tại
+if not isfolder(FOLDER_NAME) then
+    makefolder(FOLDER_NAME)
+end
+
+-- Hàm này chỉ đọc file và trả về dữ liệu dưới dạng bảng
+function SaveManager:LoadData()
+    if not isfile(FILE_PATH) then return {} end
+
+    local success, fileContent = pcall(readfile, FILE_PATH)
+    if not success or fileContent == "" then return {} end
+
+    local success, decodedData = pcall(function()
+        return HttpService:JSONDecode(fileContent)
+    end)
+
+    if success and type(decodedData) == "table" then
+        Fluent:Notify({
+            Title = "Tải thành công",
+            Content = "Đã áp dụng cài đặt đã lưu.",
+            Duration = 3
+        })
+        return decodedData
+    else
+        warn("Lỗi file cài đặt, sử dụng cài đặt mặc định.")
+        return {}
+    end
+end
+
+-- Hàm lưu không thay đổi nhiều
+function SaveManager:Save()
+    local dataToSave = {}
+    for name, option in pairs(Options) do
+        dataToSave[name] = option.Value
+    end
+
+    local success, encodedData = pcall(function()
+        return HttpService:JSONEncode(dataToSave)
+    end)
+
+    if success then
+        writefile(FILE_PATH, encodedData)
+        Fluent:Notify({ Title = "Đã lưu!", Content = "Cài đặt của bạn đã được lưu.", Duration = 2 })
+    else
+        warn("Lỗi khi lưu cài đặt:", encodedData)
+    end
+end
+
+--SaveData
+local savedData = SaveManager:LoadData()
+
+--================================================================
+-- PHẦN 4: LOGIC AND TABS (KIẾN TRÚC MỚI)
+--================================================================
+
+------------------------------------------------------------------
+--- BoothSettings
+------------------------------------------------------------------
+
+-- AutoClaimBooth
+
+-- Biến quản lý vòng lặp cho chức năng này
+local claimBoothConnection = nil
+
+-- Hàm chính để thực hiện việc chiếm booth
+local function executeAutoClaim()
+    -- Tìm Remotes một lần và lưu lại để dùng sau
+    local Remotes
     for i, v in next, ReplicatedStorage:GetChildren() do
         if v.Name:find('Remote') and v:IsA('ModuleScript') then
-            local success, result = pcall(function() return require(v) end)
-            if success and typeof(result) == "table" and result.Event then
-                local sucFire = pcall(function() result.Event('PromotionBlimpGiftbux'):FireServer() end)
-                if sucFire then
-                    Remotes = result
-                    Fluent:Notify({ Title = "Hệ thống", Content = "Đã tìm thấy Remotes Module!" })
-                    break
-                end
+            if pcall(function() require(v).Event('PromotionBlimpGiftbux'):FireServer() end) then
+                Remotes = require(v)
+                break
             end
         end
         task.wait()
     end
+
     if not Remotes then
-        Fluent:Notify({ Title = "Lỗi nghiêm trọng", Content = "Không tìm thấy Remotes Module. Script sẽ không hoạt động.", Duration = 10 })
+        Fluent:Notify({ Title = "Lỗi", Content = "Không tìm thấy Remotes của game.", Duration = 5 })
+        Options.AutoClaimBooth:set(false) -- Tự động tắt nút nếu lỗi
+        return
     end
+
+    -- Vòng lặp chính của chức năng, chạy mỗi Heartbeat
+    claimBoothConnection = RunService.Heartbeat:Connect(function()
+        -- Kiểm tra xem mình đã có booth chưa
+        local myBooth = LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("MyBooth")
+        if myBooth and myBooth.Value then
+            Fluent:Notify({ Title = "Auto Claim", Content = "Đã có booth. Chức năng tự tắt.", Duration = 5 })
+            Options.AutoClaimBooth:set(false) -- Tự động tắt nút (sẽ ngắt kết nối trong OnChanged)
+            return
+        end
+
+        -- Tìm MapUI
+        local boothLocation
+        local suc, res = pcall(function() return Workspace:WaitForChild('MapUI', 0) end)
+        if suc and res then
+            boothLocation = res
+        else
+            local suc2, res2 = pcall(function() return PlayerGui:WaitForChild('MapUIContainer', 0):WaitForChild('MapUI', 0) end)
+            if suc2 and res2 then boothLocation = res2 end
+        end
+
+        if not boothLocation then return end -- Đợi frame sau nếu chưa có
+
+        -- Quét các booth trống
+        local boothUI = boothLocation:FindFirstChild("BoothUI")
+        local interactions = Workspace:FindFirstChild("BoothInteractions")
+        if not (boothUI and interactions) then return end
+
+        for _, uiFrame in ipairs(boothUI:GetChildren()) do
+            if uiFrame:IsA("Frame") and uiFrame:FindFirstChild("Details") and uiFrame.Details.Owner.Text == "unclaimed" then
+                local boothNum = tonumber(uiFrame.Name:match("%d+"))
+                if boothNum then
+                    Fluent:Notify({ Title = "Auto Claim", Content = "Tìm thấy booth trống! Đang chiếm số " .. boothNum, Duration = 3 })
+                    Remotes.Event("ClaimBooth"):InvokeServer(boothNum)
+                    task.wait(1.5) -- Đợi game xử lý
+                    -- Sau khi chiếm, vòng lặp sẽ tự dừng ở lần kiểm tra tiếp theo
+                    return -- Thoát khỏi vòng lặp for, đợi Heartbeat tiếp theo kiểm tra lại
+                end
+            end
+        end
+    end)
+end
+
+-- Tạo nút Toggle trong tab Booth
+Tabs.Booth:AddToggle("AutoClaimBooth", {
+    Title = "Tự động chiếm Booth",
+    Description = "Luôn tự động tìm và chiếm gian hàng trống khi bạn chưa có.",
+    Default = savedData.AutoClaimBooth or false,
+}):OnChanged(function(newValue)
+    if newValue == true then
+        Fluent:Notify({ Title = "Auto Claim", Content = "Đã bật! Bắt đầu tìm booth.", Duration = 5 })
+        executeAutoClaim()
+    else
+        -- Ngắt kết nối để dừng vòng lặp
+        if claimBoothConnection then
+            claimBoothConnection:Disconnect()
+            claimBoothConnection = nil
+            Fluent:Notify({ Title = "Auto Claim", Content = "Đã tắt.", Duration = 5 })
+        end
+    end
+    task.wait(); SaveManager:Save()
 end)
 
---================================================================
--- PHẦN 4: XÂY DỰNG CÁC CHỨC NĂNG TRONG TAB AUTOFARM
---================================================================
-
-local boothClaimingThread
-
---- KHỐI CHỨC NĂNG 1: AUTO CLAIM BOOTH ---
-Options.AutoClaimToggle = Tabs.AutoFarm:AddToggle("AutoClaimToggle", {
-    Title = "Auto Claim Booth",
-    Description = "Khi bật, sẽ tự động tìm và chiếm booth cho bạn.",
-    Default = false,
-    Callback = function(state)
-        local function hasClaimedBooth()
-            if not Workspace:FindFirstChild("BoothInteractions") then return false end
-            for _, booth in ipairs(Workspace.BoothInteractions:GetChildren()) do
-                if booth:GetAttribute("Owner") and booth:GetAttribute("Owner") == LocalPlayer.UserId then
-                    return true
-                end
-            end
-            return false
-        end
-
-        local function findAndClaim()
-            if not Remotes then return end
-            
-            local _boothlocation
-            local suc, _shuffled = pcall(function() return Workspace:WaitForChild('MapUI', 3) end)
-            if not suc or not _shuffled then
-                local suc2, res2 = pcall(function() return PlayerGui:WaitForChild('MapUIContainer', 5):WaitForChild('MapUI', 5) end)
-                if suc2 then _boothlocation = res2 end
-            else
-                _boothlocation = _shuffled
-            end
-
-            if not _boothlocation then return end
-            
-            local unclaimed = {}
-            local mainCheckPosition = Vector3.new(165.161, 0, 311.636)
-            local boothUI = _boothlocation:WaitForChild("BoothUI")
-            local interactions = Workspace:WaitForChild("BoothInteractions")
-
-            for _, uiFrame in ipairs(boothUI:GetChildren()) do
-                if uiFrame.Details.Owner.Text == "unclaimed" then
-                    local boothNum = tonumber(uiFrame.Name:match("%d+"))
-                    if boothNum then
-                        for _, interact in ipairs(interactions:GetChildren()) do
-                            if interact:GetAttribute("BoothSlot") == boothNum and (Vector3.new(interact.Position.X, 0, interact.Position.Z) - mainCheckPosition).Magnitude < 92 then
-                                table.insert(unclaimed, boothNum)
-                                break
-                            end
-                        end
-                    end
-                end
-            end
-
-            if #unclaimed == 0 then return end
-            
-            local chosenBoothNumber = unclaimed[1]
-            local claimSuccess = false
-            if pcall(function()
-                Remotes.Event("ClaimBooth"):InvokeServer(chosenBoothNumber)
-                task.wait(1)
-                if not string.find(boothUI:FindFirstChild("BoothUI" .. chosenBoothNumber).Details.Owner.Text, LocalPlayer.DisplayName) then
-                    error()
-                end
-            end) then
-                claimSuccess = true
-                Fluent:Notify({ Title = "Thành công!", Content = "Đã chiếm được gian hàng số " .. chosenBoothNumber })
-            else
-                return
-            end
-
-            if claimSuccess then
-                Fluent:Notify({ Title = "Dịch chuyển", Content = "Đang đưa bạn đến gian hàng..." })
-                local boothPos
-                for _, v in ipairs(Workspace.BoothInteractions:GetChildren()) do
-                    if v:GetAttribute("BoothSlot") == chosenBoothNumber then
-                        boothPos = v.CFrame * CFrame.new(0, 0, Options.BoothPosition.Value)
-                        break
-                    end
-                end
-
-                local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-                local rootPart = character:WaitForChild("HumanoidRootPart")
-                
-                rootPart.CFrame = CFrame.new(boothPos.Position, Vector3.new(mainCheckPosition.X, rootPart.Position.Y, mainCheckPosition.Z))
-                Fluent:Notify({ Title = "Hoàn tất!", Content = "Đã đến nơi. Chế độ tự động vẫn đang chạy." })
-            end
-        end
-
-        if state then
-            Fluent:Notify({ Title = "Auto Claim", Content = "Đã BẬT. Bắt đầu tìm kiếm booth..." })
-            boothClaimingThread = task.spawn(function()
-                while Options.AutoClaimToggle.Value and task.wait(3) do
-                    local character = LocalPlayer.Character
-                    if character and character:FindFirstChild("Humanoid") and character.Humanoid.Health > 0 then
-                        if not hasClaimedBooth() then
-                            findAndClaim()
-                        end
-                    end
-                end
-            end)
-        else
-            if boothClaimingThread then
-                task.cancel(boothClaimingThread)
-                boothClaimingThread = nil
-                Fluent:Notify({ Title = "Auto Claim", Content = "Đã TẮT." })
-            end
-        end
-    end
-})
-
---- KHỐI CHỨC NĂNG 2: TÙY CHỈNH VỊ TRÍ ĐỨNG ---
-Options.BoothPosition = Tabs.AutoFarm:AddSlider("BoothPosition", {
-    Title = "Vị trí đứng tại Booth",
-    Description = "Điều chỉnh vị trí đứng so với booth (3 là đứng trước mặt).",
-    Default = 3,
-    Min = -6,
-    Max = 6,
-    Rounding = 0,
-    Suffix = " offset"
-})
-
---================================================================
--- PHẦN 5: CÀI ĐẶT LƯU TRỮ (SAVE MANAGER)
---================================================================
-
-SaveManager:SetLibrary(Fluent)
-InterfaceManager:SetLibrary(Fluent)
-
-SaveManager:SetAutosave(true)
-SaveManager:AddOptions(Options)
-
-InterfaceManager:BuildInterfaceSection(Tabs.Settings)
-
--- *** ĐÃ SỬA LỖI TẠI ĐÂY ***
--- Sai: Tabs.sETTINGS
--- Đúng: Tabs.Settings
-SaveManager:BuildConfigSection(Tabs.Settings)
-
-SaveManager:Load()
-Fluent:SelectTab(1)
-
--- Tự động kích hoạt lại luồng Auto Claim nếu setting đã được lưu là ON
-if Options.AutoClaimToggle.Value then
-    Options.AutoClaimToggle:Fire()
+-- Kích hoạt ban đầu nếu cài đặt được tải là true
+if Options.AutoClaimBooth.Value == true then
+    executeAutoClaim()
 end
