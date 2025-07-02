@@ -34,48 +34,63 @@ local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/
 
 -- Tạo cửa sổ chính
 local Window = Fluent:CreateWindow({
-    Title = "Lychkin's Plsdonate",
+    Title = "Lychkin's Script",
     SubTitle = "Lưu và Tải Cài Đặt",
     TabWidth = 160,
     Size = UDim2.fromOffset(580, 460),
-    Acrylic = true,
+	MinimizeKey = Enum.KeyCode.LeftControl,
+    Acrylic = true
 })
 
 -- Tùy chọn (lưu giá trị UI)
 local Options = Fluent.Options
 
--- Tabs giao diện
+-- Tabs giao diện (Bạn sẽ thêm các tab của mình ở đây)
 local Tabs = {
-    Booth    = Window:AddTab({ Title = "Booth", Icon = "rbxassetid://6031398289" }),
-    AutoFarm = Window:AddTab({ Title = "AutoFarm", Icon = "rbxassetid://6031398523" }),
-    Hop      = Window:AddTab({ Title = "Hop",      Icon = "rbxassetid://6031398453" }),
-    Settings = Window:AddTab({ Title = "Settings", Icon = "rbxassetid://6031398338" }),
+    Main = Window:AddTab({ Title = "Chức năng chính", Icon = "rbxassetid://6031398523" }),
+    Misc = Window:AddTab({ Title = "Linh tinh", Icon = "rbxassetid://6031398453" }),
+    Settings = Window:AddTab({ Title = "Cài đặt", Icon = "rbxassetid://6031398338" }),
 }
 
 --================================================================
--- PHẦN 2.5: NÚT THU GỌN GIAO DIỆN (TÍNH NĂNG MỚI)
+-- PHẦN 2.5: NÚT BẤM VÀ PHÍM ẨN/HIỆN (ĐÃ SỬA LỖI)
 --================================================================
 
--- Tạo một ScreenGui riêng cho nút bấm để không bị ảnh hưởng
+-- Tạo một ScreenGui riêng cho nút bấm
 local toggleGui = Instance.new("ScreenGui", PlayerGui)
 toggleGui.Name = "LychkinToggleUI"
 toggleGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
 toggleGui.ResetOnSpawn = false
+toggleGui.DisplayOrder = 9999 -- Rất quan trọng: Đảm bảo UI này luôn ở trên cùng
 
 -- Tạo nút bấm
 local ToggleButton = Instance.new("ImageButton", toggleGui)
 ToggleButton.Name = "ToggleButton"
 ToggleButton.Image = "rbxassetid://9294623142"
-ToggleButton.Size = UDim2.fromOffset(52, 52) -- Kích thước cố định
-ToggleButton.Position = UDim2.new(0, 20, 1, -72) -- Vị trí góc dưới bên trái
+ToggleButton.Size = UDim2.fromOffset(52, 52)
+ToggleButton.Position = UDim2.new(0, 20, 1, -72)
 ToggleButton.BackgroundTransparency = 1
-ToggleButton.ZIndex = 999 -- Luôn ở trên cùng
-ToggleButton.Draggable = true -- Cho phép kéo thả
+ToggleButton.ZIndex = 999
+ToggleButton.Draggable = true
+ToggleButton.Active = true -- Đảm bảo nút luôn có thể tương tác
 
--- Logic ẩn/hiện giao diện
+-- --- Xử lý cho Mobile: Nút bấm trên màn hình ---
+-- Kết nối trực tiếp với sự kiện click của nút, đây là cách đáng tin cậy nhất.
 ToggleButton.MouseButton1Click:Connect(function()
-    Window.Visible = not Window.Visible
+    Window:Toggle()
 end)
+
+-- --- Xử lý cho PC: Phím LeftControl ---
+-- Giữ lại logic này để hỗ trợ người dùng PC.
+UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
+    -- Bỏ qua nếu người dùng đang gõ trong chat
+    if gameProcessedEvent then return end
+
+    if input.KeyCode == Enum.KeyCode.LeftControl then
+        Window:Toggle()
+    end
+end)
+
 
 --================================================================
 -- PHẦN 3: SAVE MANAGER 
@@ -83,7 +98,7 @@ end)
 
 local SaveManager = {}
 local FOLDER_NAME = "Lychkin"
-local FILE_NAME = "LychkinPlsdonate.txt"
+local FILE_NAME = "LychkinSettings.txt"
 local FILE_PATH = FOLDER_NAME .. "/" .. FILE_NAME
 
 if not isfolder(FOLDER_NAME) then makefolder(FOLDER_NAME) end
@@ -117,141 +132,26 @@ end
 local savedData = SaveManager:LoadData()
 
 --================================================================
--- PHẦN 4: LOGIC AND TABS 
+-- PHẦN 4: LOGIC VÀ CÁC CHỨC NĂNG
 --================================================================
 
-------------------------------------------------------------------
---- AUTO CLAIM BOOTH (Phiên bản cải tiến)
-------------------------------------------------------------------
+-- ------------------------------------------------------------------
+-- --- NÚT TEST NHẤN PHÍM (Mô phỏng Space - ĐÃ SỬA LỖI)
+-- ------------------------------------------------------------------
 
--- Biến quản lý vòng lặp và trạng thái
-local claimBoothConnection = nil
-local isProcessingClaim = false -- Cờ để tránh chạy nhiều lần cùng lúc
-
--- Hàm di chuyển đến booth sau khi chiếm thành công
-local function walkToBooth(boothNumber)
-    local boothPos, mainPosX
-    for i, v in ipairs(Workspace.BoothInteractions:GetChildren()) do
-        if v:GetAttribute("BoothSlot") == boothNumber then
-            mainPosX = v.CFrame
-            boothPos = v.CFrame * CFrame.new(0, 0, 3) 
-            break
+Tabs.Main:AddButton({
+    Title = "Test nhấn phím Space",
+    Description = "Nhấn vào đây để mô phỏng việc nhấn và thả phím Space.",
+    Callback = function()
+        -- 'keypress' là một hàm không chính thức nhưng phổ biến trong nhiều executor
+        -- để mô phỏng việc nhấn và thả một phím ngay lập tức.
+        if keypress then
+            Fluent:Notify({ Title = "Test", Content = "Đang mô phỏng nhấn phím Space...", Duration = 2 })
+            -- SỬA LỖI: Truyền vào giá trị số của mã phím, không phải đối tượng Enum
+            keypress(Enum.KeyCode.LeftControl.Value)
+        else
+            -- Nếu hàm 'keypress' không tồn tại, thông báo cho người dùng.
+            Fluent:Notify({ Title = "Lỗi", Content = "Môi trường của bạn không hỗ trợ hàm 'keypress'.", Duration = 4 })
         end
     end
-    if not boothPos then return end
-    local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
-    local humanoid = character:WaitForChild("Humanoid")
-    local rootPart = character:WaitForChild("HumanoidRootPart")
-    Fluent:Notify({ Title = "Auto Claim", Content = "Đang di chuyển đến gian hàng...", Duration = 3 })
-    rootPart.CFrame = mainPosX
-    humanoid:MoveTo(boothPos.Position)
-    local successMove = humanoid.MoveToFinished:Wait(8)
-    if successMove then
-        rootPart.CFrame = CFrame.new(boothPos.Position, mainPosX.Position - Vector3.new(0,0,5))
-        Fluent:Notify({ Title = "Auto Claim", Content = "Đã đến nơi. Hoàn tất!", Duration = 5 })
-    else
-        Fluent:Notify({ Title = "Auto Claim", Content = "Không thể tự di chuyển, vui lòng tự đi đến.", Duration = 5 })
-    end
-end
-
--- Hàm chuyển server khi không có booth
-local function simpleServerHop()
-    Fluent:Notify({ Title = "Hết booth", Content = "Không có booth trống. Chuyển server sau 5s...", Duration = 5 })
-    task.wait(5)
-    local servers = {}
-    pcall(function()
-        local req = HttpService:JSONDecode(game:HttpGet("https://games.roblox.com/v1/games/8737602449/servers/Public?sortOrder=Desc&limit=100"))
-        if req and req.data then
-            for i, v in next, req.data do
-                if type(v) == "table" and tonumber(v.playing) and v.playing > 19 and v.playing < v.maxPlayers then
-                    table.insert(servers, 1, v.id)
-                end
-            end
-        end
-        if #servers > 0 then
-            TeleportService:TeleportToPlaceInstance(8737602449, servers[math.random(1, #servers)], LocalPlayer)
-        end
-    end)
-end
-
--- Hàm chính để thực hiện việc chiếm booth
-local function executeAutoClaim()
-    if isProcessingClaim then return end
-    isProcessingClaim = true
-    local Remotes
-    for i, v in next, ReplicatedStorage:GetChildren() do
-        if v.Name:find('Remote') and v:IsA('ModuleScript') then
-            if pcall(function() require(v).Event('PromotionBlimpGiftbux'):FireServer() end) then
-                Remotes = require(v); break
-            end
-        end
-        task.wait()
-    end
-    if not Remotes then
-        Fluent:Notify({ Title = "Lỗi", Content = "Không tìm thấy Remotes của game.", Duration = 5 })
-        Options.AutoClaimBooth:set(false); isProcessingClaim = false
-        return
-    end
-    claimBoothConnection = RunService.Heartbeat:Connect(function()
-        if not Options.AutoClaimBooth.Value then
-            isProcessingClaim = false; claimBoothConnection:Disconnect(); claimBoothConnection = nil; return
-        end
-        if LocalPlayer.Character and LocalPlayer.Character:FindFirstChild("MyBooth") and LocalPlayer.Character.MyBooth.Value then
-            Fluent:Notify({ Title = "Auto Claim", Content = "Đã có booth. Chức năng tự tắt.", Duration = 5 })
-            Options.AutoClaimBooth:set(false); return
-        end
-        local boothLocation
-        local suc, res = pcall(function() return Workspace:WaitForChild('MapUI', 0) end)
-        if suc and res then boothLocation = res else
-            local suc2, res2 = pcall(function() return PlayerGui:WaitForChild('MapUIContainer', 0):WaitForChild('MapUI', 0) end)
-            if suc2 and res2 then boothLocation = res2 end
-        end
-        if not boothLocation then return end
-        local boothUI = boothLocation:FindFirstChild("BoothUI")
-        local interactions = Workspace:FindFirstChild("BoothInteractions")
-        if not (boothUI and interactions) then return end
-        local unclaimed = {}
-        for _, uiFrame in ipairs(boothUI:GetChildren()) do
-            if uiFrame:IsA("Frame") and uiFrame:FindFirstChild("Details") and uiFrame.Details.Owner.Text == "unclaimed" then
-                table.insert(unclaimed, tonumber(uiFrame.Name:match("%d+")))
-            end
-        end
-        if #unclaimed == 0 then
-            claimBoothConnection:Disconnect(); claimBoothConnection = nil; simpleServerHop(); isProcessingClaim = false; return
-        end
-        claimBoothConnection:Disconnect(); claimBoothConnection = nil
-        local chosenBooth = unclaimed[1]
-        Fluent:Notify({ Title = "Auto Claim", Content = "Tìm thấy booth trống! Đang chiếm số " .. chosenBooth, Duration = 3 })
-        local claimSuccess = pcall(function()
-            Remotes.Event("ClaimBooth"):InvokeServer(chosenBooth)
-            task.wait(0.5)
-            if not string.find(boothUI:FindFirstChild("BoothUI" .. chosenBooth).Details.Owner.Text, LocalPlayer.DisplayName) then
-                error("Claim failed")
-            end
-        end)
-        if claimSuccess then walkToBooth(chosenBooth)
-        else Fluent:Notify({ Title = "Auto Claim", Content = "Chiếm thất bại, có thể người khác đã nhanh hơn. Tìm lại...", Duration = 4 }) end
-        isProcessingClaim = false
-        if Options.AutoClaimBooth.Value then executeAutoClaim() end
-    end)
-end
-
--- Tạo nút Toggle trong tab Booth
-Tabs.Booth:AddToggle("AutoClaimBooth", {
-    Title = "Tự động chiếm Booth",
-    Description = "Luôn tự động tìm và chiếm gian hàng trống. Sẽ tự chuyển server nếu hết.",
-    Default = savedData.AutoClaimBooth or false,
-}):OnChanged(function(newValue)
-    if newValue == true then executeAutoClaim()
-    else
-        if claimBoothConnection then claimBoothConnection:Disconnect(); claimBoothConnection = nil end
-        isProcessingClaim = false
-        Fluent:Notify({ Title = "Auto Claim", Content = "Đã tắt.", Duration = 5 })
-    end
-    task.wait(); SaveManager:Save()
-end)
-
--- Kích hoạt ban đầu nếu cài đặt được tải là true
-if Options.AutoClaimBooth.Value == true then
-    executeAutoClaim()
-end
+})
