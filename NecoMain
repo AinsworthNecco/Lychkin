@@ -1,142 +1,86 @@
--- =================================================================
---         SCRIPT SPIN ĐƠN GIẢN VỚI FLUENT UI
---         Tạo bởi Gemini theo yêu cầu của Lychkin
--- =================================================================
+--[[
+    PHIÊN BẢN TỐI GIẢN
+    Chức năng: Tìm và chiếm booth nhanh nhất có thể. Không có GUI, không có tính năng phụ.
+]]
 
---# Lib
-local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/Fluent.lua"))()
-local HttpService = game:GetService("HttpService")
-local RunService = game:GetService("RunService")
+-- Khởi tạo tối thiểu cần thiết
+repeat task.wait() until game:IsLoaded()
+if game.PlaceId ~= 8737602449 and game.PlaceId ~= 8943844393 then return end
 
---# Tên file để lưu cài đặt
-local CONFIG_FILENAME = "LychkinSetting.txt"
+local cloneref = cloneref or function(o) return o end
+local Players = cloneref(game:GetService("Players"))
+local ReplicatedStorage = cloneref(game:GetService("ReplicatedStorage"))
+local Workspace = cloneref(game:GetService("Workspace"))
+local LocalPlayer = Players.LocalPlayer
+local Remotes
 
---# Bảng chứa các cài đặt mặc định
-local Options = {
-    SpinEnabled = false, -- Trạng thái bật/tắt spin
-    SpinSpeed = 10 -- Tốc độ spin mặc định
-}
-
---# Hệ thống lưu và tải cài đặt
-local canAccessFiles, writefile_func, readfile_func = pcall(function() return writefile, readfile end)
-
-local function SaveSettings()
-    if not canAccessFiles then return end
-    pcall(function()
-        local data = HttpService:JSONEncode(Options)
-        writefile_func(CONFIG_FILENAME, data)
-    end)
-end
-
-local function LoadSettings()
-    if not canAccessFiles then return end
-    local success, content = pcall(readfile_func, CONFIG_FILENAME)
-    if success and content and #content > 0 then
-        pcall(function()
-            local savedOptions = HttpService:JSONDecode(content)
-            if type(savedOptions) == "table" then
-                for key, value in pairs(savedOptions) do
-                    if Options[key] ~= nil then
-                        Options[key] = value
-                    end
-                end
-                print("Đã tải cài đặt từ " .. CONFIG_FILENAME)
+-- Tìm Remotes
+pcall(function()
+    for i, v in next, ReplicatedStorage:GetChildren() do
+        if v.Name:find('Remote') and v:IsA('ModuleScript') then
+            if pcall(function() require(v).Event('PromotionBlimpGiftbux'):FireServer() end) then
+                Remotes = require(v)
+                break
             end
-        end)
-    end
-end
-
--- Tải cài đặt ngay khi script bắt đầu
-LoadSettings()
-
---# Cửa sổ giao diện
-local Window = Fluent:CreateWindow({
-    Title = "Lychkin Spinner",
-    SubTitle = "v1.0",
-    TabWidth = 160,
-    Size = UDim2.fromOffset(580, 400),
-    Acrylic = false, -- Tắt hiệu ứng mờ để nhẹ hơn
-    Theme = "Dark",
-    MinimizeKey = Enum.KeyCode.LeftControl
-})
-
---# Tab chính
-local MainTab = Window:AddTab({ Title = "Main", Icon = "loader-2" })
-
---# Logic xoay nhân vật
-local spinConnection = nil
-
-function StartSpin()
-    local character = game.Players.LocalPlayer.Character
-    local humanoid = character and character:FindFirstChildOfClass("Humanoid")
-
-    if not humanoid or not humanoid.RootPart then return end
-
-    -- Ngắt kết nối cũ nếu có để tránh chạy nhiều lần
-    if spinConnection then
-        spinConnection:Disconnect()
-        spinConnection = nil
-    end
-
-    -- Tạo một kết nối mới với sự kiện RenderStepped để xoay mượt mà
-    spinConnection = RunService.RenderStepped:Connect(function(deltaTime)
-        -- Kiểm tra xem chức năng có còn được bật không
-        if not Options.SpinEnabled then
-            if spinConnection then
-                spinConnection:Disconnect()
-                spinConnection = nil
-            end
-            return
-        end
-
-        -- Tính toán góc xoay dựa trên tốc độ và thời gian giữa các khung hình
-        local currentCFrame = humanoid.RootPart.CFrame
-        local rotation = CFrame.Angles(0, math.rad(Options.SpinSpeed * deltaTime * 10), 0)
-        humanoid.RootPart.CFrame = currentCFrame * rotation
-    end)
-end
-
-function StopSpin()
-    if spinConnection then
-        spinConnection:Disconnect()
-        spinConnection = nil
-    end
-end
-
---# Thêm các thành phần vào giao diện
-MainTab:AddToggle("SpinToggle", {
-    Title = "Bật/Tắt Spin",
-    Description = "Khiến nhân vật của bạn xoay tròn.",
-    Default = Options.SpinEnabled, -- Lấy giá trị đã tải
-    Callback = function(Value)
-        Options.SpinEnabled = Value -- Cập nhật trạng thái
-        SaveSettings() -- Lưu lại ngay khi thay đổi
-
-        if Value then
-            StartSpin()
-        else
-            StopSpin()
         end
     end
-})
+end)
 
-MainTab:AddSlider("SpinSpeedSlider", {
-    Title = "Tốc độ Spin",
-    Description = "Điều chỉnh tốc độ xoay của nhân vật.",
-    Min = 1,
-    Max = 100,
-    Default = Options.SpinSpeed, -- Lấy giá trị đã tải
-    Suffix = " deg/s",
-    Callback = function(Value)
-        Options.SpinSpeed = Value -- Cập nhật tốc độ
-        SaveSettings() -- Lưu lại ngay khi thay đổi
-    end
-})
+if not Remotes then return end -- Nếu không tìm thấy Remotes, dừng lại
 
---# Khởi chạy logic ban đầu
--- Nếu lần trước thoát ra mà spin đang bật, hãy bật lại nó
-if Options.SpinEnabled then
-    StartSpin()
+-- Tìm MapUI (bao gồm cả logic dự phòng)
+local boothLocation
+local suc, shuffled = pcall(function() return Workspace:WaitForChild('MapUI', 2) end)
+if not suc then
+    boothLocation = LocalPlayer.PlayerGui:WaitForChild('MapUIContainer', 2):WaitForChild('MapUI', 2)
+else
+    boothLocation = shuffled
 end
 
-print("Lychkin Spinner đã sẵn sàng!")
+if not boothLocation then return end -- Nếu không tìm thấy MapUI, dừng lại
+
+-- Tìm booth trống phù hợp
+local unclaimedBoothNumber
+local interactions = Workspace:WaitForChild("BoothInteractions")
+local mainCheckPosition = Vector3.new(165.161, 0, 311.636)
+
+for _, uiFrame in ipairs(boothLocation.BoothUI:GetChildren()) do
+    if uiFrame.Details.Owner.Text == "unclaimed" then
+        local boothNum = tonumber(uiFrame.Name:match("%d+"))
+        if boothNum then
+            local interactPart = interactions:FindFirstChild("BoothInteraction" .. boothNum)
+            if interactPart and (Vector3.new(interactPart.Position.X, 0, interactPart.Position.Z) - mainCheckPosition).Magnitude < 92 then
+                unclaimedBoothNumber = boothNum
+                break -- Tìm thấy booth đầu tiên phù hợp là đủ
+            end
+        end
+    end
+end
+
+if not unclaimedBoothNumber then return end -- Nếu không có booth trống, dừng lại
+
+-- Claim booth và di chuyển
+if pcall(function() Remotes.Event("ClaimBooth"):InvokeServer(unclaimedBoothNumber) end) then
+    task.wait(1) -- Chờ server xác nhận
+
+    -- Xác nhận lại claim thành công
+    if not string.find(boothLocation.BoothUI:FindFirstChild("BoothUI" .. unclaimedBoothNumber).Details.Owner.Text, LocalPlayer.DisplayName) then
+        return
+    end
+
+    local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    local rootPart = character:WaitForChild("HumanoidRootPart")
+    local humanoid = character:WaitForChild("Humanoid")
+    local boothInteractPart = interactions:FindFirstChild("BoothInteraction" .. unclaimedBoothNumber)
+
+    if boothInteractPart then
+        local standPosition = boothInteractPart.CFrame * CFrame.new(0, 0, 3) -- Đứng trước booth 3 stud
+        rootPart.CFrame = boothInteractPart.CFrame
+        humanoid:MoveTo(standPosition.Position)
+        
+        if humanoid.MoveToFinished:Wait(5) then
+            -- Xoay người về phía trung tâm
+            rootPart.CFrame = CFrame.new(standPosition.Position, Vector3.new(mainCheckPosition.X, rootPart.Position.Y, mainCheckPosition.Z))
+        end
+    end
+end
