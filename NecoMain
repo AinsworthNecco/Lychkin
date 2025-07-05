@@ -23,7 +23,7 @@ local SETTINGS = {
     -- Cài đặt giao diện
     ["EnableCountdownText"] = true,
     ["EnableCountdownColor"] = true,
-    ["EnableLogGUI"] = true, -- (MỚI) Hiển thị console log trên màn hình cho mobile
+    ["EnableLogGUI"] = true, -- (QUAN TRỌNG) Giữ 'true' để xem log gỡ lỗi trên màn hình
 }
 
 -- =================================================================
@@ -63,11 +63,10 @@ local success, err = pcall(function()
         return instance
     end
     
-    -- (MỚI) Các biến và hàm cho Log GUI
+    -- Các biến và hàm cho Log GUI
     local logContainer = nil
     local function setupLogGui()
         if not SETTINGS["EnableLogGUI"] then return end
-
         local logGui = CreateInstance("ScreenGui", {
             ["Name"] = "LogConsoleGUI",
             ["Parent"] = CoreGui,
@@ -75,7 +74,6 @@ local success, err = pcall(function()
             ["ZIndexBehavior"] = Enum.ZIndexBehavior.Sibling,
             ["DisplayOrder"] = 999
         })
-
         local logFrame = CreateInstance("Frame", {
             ["Name"] = "LogFrame",
             ["Parent"] = logGui,
@@ -87,7 +85,6 @@ local success, err = pcall(function()
             ["AnchorPoint"] = Vector2.new(0, 1),
             ["Size"] = UDim2.new(0, 450, 0, 200)
         })
-
         logContainer = CreateInstance("ScrollingFrame", {
             ["Name"] = "LogContainer",
             ["Parent"] = logFrame,
@@ -99,13 +96,11 @@ local success, err = pcall(function()
             ["ScrollBarImageColor3"] = Color3.new(0.8, 0.8, 0.8),
             ["ScrollBarThickness"] = 6
         })
-
         CreateInstance("UIListLayout", {
             ["Parent"] = logContainer,
             ["SortOrder"] = Enum.SortOrder.LayoutOrder,
             ["Padding"] = UDim.new(0, 2)
         })
-        
         CreateInstance("UIPadding", {
             ["Parent"] = logContainer,
             ["PaddingTop"] = UDim.new(0, 5),
@@ -115,12 +110,9 @@ local success, err = pcall(function()
 
     local function logToGui(message)
         if not SETTINGS["EnableLogGUI"] or not logContainer then return end
-        
-        -- Giới hạn số lượng log để tránh lag
         if #logContainer:GetChildren() > 60 then
             logContainer:GetChildren()[1]:Destroy()
         end
-
         local logLabel = CreateInstance("TextLabel", {
             ["Name"] = "LogMessage",
             ["Parent"] = logContainer,
@@ -133,8 +125,6 @@ local success, err = pcall(function()
             ["BackgroundTransparency"] = 1,
             ["Size"] = UDim2.new(1, -10, 0, 15)
         })
-
-        -- Tự động cuộn xuống dưới
         task.wait()
         logContainer.CanvasPosition = Vector2.new(0, logContainer.CanvasSize.Y.Offset)
     end
@@ -191,7 +181,7 @@ local success, err = pcall(function()
 
     local function updateDisplay(state, message)
         print("[UI] ("..tostring(state)..") " .. tostring(message))
-        logToGui(string.format("[%s] %s", state, message)) -- Log ra GUI
+        logToGui(string.format("[%s] %s", state, message))
         
         local stateColor = NEON_COLORS["GREEN"]
         if state == "ERROR" then stateColor = NEON_COLORS["YELLOW"] end
@@ -403,12 +393,15 @@ local success, err = pcall(function()
                         local successDecode, sListD = pcall(HttpService.JSONDecode, HttpService, d)
                         
                         if successDecode and sListD and sListD.data then
+                            logToGui(string.format("Quét trang: Tìm thấy %d server.", #sListD.data))
                             local pSuitS={}
                             for _,sInf in ipairs(sListD.data)do
                                 if not(sInf.id==game.JobId or serverHistoryCache[sInf.id])then
                                     if sInf.playing and sInf.maxPlayers and sInf.maxPlayers>0 then
                                         local pR=sInf.playing/sInf.maxPlayers
+                                        logToGui(string.format("- Server %s: %d/%d người chơi (Tỉ lệ: %.2f)", string.sub(sInf.id, 1, 8), sInf.playing, sInf.maxPlayers, pR))
                                         if pR>=SETTINGS["MinPlayerPercentage"] and pR<SETTINGS["MaxPlayerPercentage"] and sInf.playing<sInf.maxPlayers then
+                                            logToGui("  -> Đạt điều kiện!")
                                             table.insert(pSuitS,sInf)
                                         end
                                     end
@@ -421,13 +414,14 @@ local success, err = pcall(function()
                             end
                             nextCur=sListD.nextPageCursor
                             if not nextCur then
+                                logToGui("Đã quét hết tất cả các trang.")
                                 allScanned=true
                             end
                         else
                             updateDisplay("ERROR","Dữ liệu server lỗi.")
                         end
                     else
-                        updateDisplay("ERROR","Lỗi API.")
+                        updateDisplay("ERROR","Lỗi API: " .. tostring(d))
                         if pAtt>=maxAtt then
                             allScanned=true
                         end
@@ -543,7 +537,7 @@ local success, err = pcall(function()
     end
 
     -- --- Khởi chạy Script ---
-    setupLogGui() -- Khởi tạo GUI log trước tiên
+    setupLogGui()
     updateDisplay("INFO", "Script đang khởi chạy...")
     task.wait(0.2)
     if type(setfpscap) == "function" and SETTINGS["TargetFps"] and SETTINGS["TargetFps"] > 0 then
@@ -588,7 +582,6 @@ end)
 
 if not success then
     warn("[Loader] Lỗi nghiêm trọng khi thực thi script: " .. tostring(err))
-    -- Thử log ra GUI nếu có thể
     if logToGui then
         logToGui("Lỗi nghiêm trọng khi thực thi script: " .. tostring(err))
     end
