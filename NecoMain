@@ -12,7 +12,7 @@ local SETTINGS = {
     ["EnableSafePlatform"] = true,
     ["EnableStaticAfkView"] = true,
     ["EnableDonateReset"] = true,
-    ["EnableAutoReconnect"] = true,
+    ["EnableAutoReconnect"] = false,
 
     -- Cài đặt hiệu năng
     ["EnableGraphicsOptimization"] = true,
