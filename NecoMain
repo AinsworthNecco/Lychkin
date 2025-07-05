@@ -17,7 +17,7 @@ local SETTINGS = {
     -- Cài đặt hiệu năng
     ["EnableGraphicsOptimization"] = true,
     ["EnableFileHistory"] = true,
-    ["TargetFps"] = 7,
+    ["TargetFps"] = 60,
     ["InitialWaitTime"] = 10,
 
     -- Cài đặt giao diện
@@ -322,11 +322,12 @@ local success, err = pcall(function()
                         curRetry=math.min(curRetry*2,maxRetryDelay)
                     end
                     
-                    local success, responseData = pcall(HttpService.GetAsync, HttpService, serversUrlBase..(nextCur and "&cursor="..nextCur or ""))
+                    -- Sử dụng HttpService:GetAsync thay cho game:HttpGet đã lỗi thời
+                    local s, d = pcall(HttpService.GetAsync, HttpService, serversUrlBase..(nextCur and "&cursor="..nextCur or ""))
                     
-                    if success then
+                    if s then
                         pFetched=true
-                        local successDecode, sListD = pcall(HttpService.JSONDecode, HttpService, responseData)
+                        local successDecode, sListD = pcall(HttpService.JSONDecode, HttpService, d)
                         
                         if successDecode and sListD and sListD.data then
                             local pSuitS={}
