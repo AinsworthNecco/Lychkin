@@ -3,7 +3,7 @@
 -- =================================================================
 local SETTINGS = {
     -- Cài đặt Server Hop
-    ["WaitMinutes"] = 10,
+    ["WaitMinutes"] = 0.1,
     ["MinPlayerPercentage"] = 0.50,
     ["MaxPlayerPercentage"] = 0.90,
 
@@ -22,7 +22,7 @@ local SETTINGS = {
 
     -- Cài đặt giao diện
     ["EnableCountdownText"] = true,
-    ["EnableCountdownColor"] = true
+    ["EnableCountdownColor"] = false
 }
 
 -- =================================================================
