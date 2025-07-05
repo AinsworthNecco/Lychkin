@@ -1,3 +1,33 @@
+--[[
+    VUI LÒNG CHỈ CHỈNH SỬA CÁC GIÁ TRỊ TRONG BẢNG "SETTINGS" DƯỚI ĐÂY.
+    KHÔNG THAY ĐỔI TÊN CỦA CÁC KHÓA (VÍ DỤ: "WaitMinutes").
+]]
+local SETTINGS = {
+    -- Cài đặt Server Hop
+    ["WaitMinutes"] = 10, -- Thời gian chờ (phút) trước khi tìm server mới.
+    ["MinPlayerPercentage"] = 0.50, -- Tỉ lệ người chơi tối thiểu để vào (VD: 0.5 = 50%)
+    ["MaxPlayerPercentage"] = 0.90, -- Tỉ lệ người chơi tối đa để vào (VD: 0.9 = 90%)
+
+    -- Bật/Tắt các tính năng chính
+    ["EnableServerHop"] = true, -- Bật/tắt toàn bộ logic chuyển server.
+    ["EnableSafePlatform"] = true, -- Tạo một tấm nền lớn để tránh bị rơi khỏi map.
+    ["EnableStaticAfkView"] = true, -- Đưa camera về một góc nhìn tĩnh để giảm lag.
+    ["EnableDonateReset"] = true, -- Tự động reset bộ đếm thời gian khi có người donate.
+    ["EnableAutoReconnect"] = true, -- Tự động kết nối lại khi bị lỗi và văng ra khỏi server.
+
+    -- Cài đặt hiệu năng
+    ["EnableGraphicsOptimization"] = true, -- Tối ưu hóa đồ họa (xóa vật thể, giảm chất lượng, tắt âm thanh).
+    ["EnableFileHistory"] = true, -- Ghi lại lịch sử các server đã vào để tránh vào lại.
+    ["TargetFps"] = 7, -- Giới hạn FPS của game ở mức này để giảm tải.
+    ["InitialWaitTime"] = 10, -- Thời gian chờ ban đầu (giây) sau khi vào game để script bắt đầu chạy.
+
+    -- Cài đặt giao diện
+    ["EnableCountdownText"] = true, -- Hiển thị SỐ đếm ngược trên màn hình.
+    ["EnableCountdownColor"] = true, -- Hiển thị MÀU nhấp nháy trên màn hình.
+}
+-- --- KẾT THÚC CÀI ĐẶT ---
+
+
 -- Các service cần thiết
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
@@ -8,13 +38,10 @@ local Lighting = game:GetService("Lighting")
 local SoundService = game:GetService("SoundService")
 local RunService = game:GetService("RunService")
 
--- --- Cấu hình Script ---
+-- --- Cấu hình Script (Không nên thay đổi) ---
 local placeId = game.PlaceId
 local currentJobId = game.JobId
 
-local DEFAULT_WAIT_MINUTES = 10
-local minPlayerPercentage = 0.50
-local maxPlayerPercentageLimit = 0.90
 local waitTimeBetweenFullScans = 7
 local waitTimeBetweenPageFetches = 0.75
 local baseRetryDelay = 1
@@ -27,21 +54,6 @@ local AFK_PLATFORM_NAME = "MySafeAFKPlatform"
 local STATIC_HEAD_ANCHOR_PART_NAME = "AFK_HeadAnchor_StaticCam"
 local STATIC_BLACK_SCREEN_PART_NAME = "AFK_BlackScreen_StaticCam"
 
--- --- Setting (Cài đặt Tính năng) ---
-local SETTINGS = {
-    enableSafePlatform = true,
-    enableStaticAfkView = true,
-    enableGraphicsOptimization = true,
-    enableServerHopLogic = true,
-    enableFileHistory = true,
-    enableDonateResetCountdown = true,
-    targetFps = 7,
-    -- [[ MỚI: Cài đặt hiển thị đếm ngược độc lập ]] --
-    enableCountdownText = true,  -- true/false: Bật/tắt hiển thị SỐ đếm ngược
-    enableCountdownColor = true, -- true/false: Bật/tắt hiển thị MÀU nhấp nháy
-}
--- --- Kết thúc Setting ---
-
 -- --- Bảng màu Neon cho các trạng thái ---
 local NEON_COLORS = {
     GREEN = Color3.fromRGB(10, 255, 20),
@@ -53,7 +65,7 @@ local NEON_COLORS = {
 -- --- Kiểm tra và gán hàm đọc/ghi file ---
 local canAccessFiles = false
 local writefile_func, readfile_func
-if SETTINGS.enableFileHistory then
+if SETTINGS.EnableFileHistory then
     pcall(function()
         if writefile and readfile then canAccessFiles, writefile_func, readfile_func = true, writefile, readfile; print("[FileIO] Quyền file có sẵn.") else print("[FileIO] Quyền file KHÔNG có sẵn.") end
     end)
@@ -94,7 +106,7 @@ statusTextLabel.ZIndex = 2 -- Luôn nằm trên lớp nền màu
 statusTextLabel.Parent = statusScreenGui
 
 
--- --- [[ ĐÃ THAY ĐỔI ]] Hàm cập nhật UI cho các thông báo trạng thái ---
+-- --- Hàm cập nhật UI cho các thông báo trạng thái ---
 local function updateDisplay(state, message)
     print("[UI] ("..tostring(state)..") " .. tostring(message))
 
@@ -108,7 +120,7 @@ local function updateDisplay(state, message)
     end
 
     -- Frame màu chỉ hiển thị cho các trạng thái SUCCESS/ERROR nếu được bật
-    if SETTINGS.enableCountdownColor then
+    if SETTINGS.EnableCountdownColor then
         if statusFrame and statusFrame.Parent then
              if state == "SUCCESS" or state == "ERROR" then
                 statusFrame.BackgroundColor3 = stateColor
@@ -157,9 +169,9 @@ end
 
 -- --- Script Tối Ưu Hóa Đồ Họa ---
 local function optimizeGraphics()
-    updateDisplay("INFO", "Bắt đầu tối ưu đồ họa..."); if SETTINGS.enableSafePlatform then createSafePlatform(); end; task.wait(0.1)
+    updateDisplay("INFO", "Bắt đầu tối ưu đồ họa..."); if SETTINGS.EnableSafePlatform then createSafePlatform(); end; task.wait(0.1)
     local sP, eP = pcall(function()
-        local itemsToDel={}; for _,item in pairs(game.Workspace:GetChildren()) do local keep=(LocalPlayer.Character and item.Name==LocalPlayer.Character.Name)or(item==workspace.CurrentCamera)or(SETTINGS.enableSafePlatform and item.Name==AFK_PLATFORM_NAME)or(SETTINGS.enableStaticAfkView and(item.Name==STATIC_HEAD_ANCHOR_PART_NAME or item.Name==STATIC_BLACK_SCREEN_PART_NAME));if not keep then table.insert(itemsToDel,item)end end
+        local itemsToDel={}; for _,item in pairs(game.Workspace:GetChildren()) do local keep=(LocalPlayer.Character and item.Name==LocalPlayer.Character.Name)or(item==workspace.CurrentCamera)or(SETTINGS.EnableSafePlatform and item.Name==AFK_PLATFORM_NAME)or(SETTINGS.EnableStaticAfkView and(item.Name==STATIC_HEAD_ANCHOR_PART_NAME or item.Name==STATIC_BLACK_SCREEN_PART_NAME));if not keep then table.insert(itemsToDel,item)end end
         for _,item in ipairs(itemsToDel)do pcall(function()item:Destroy()end)end;Lighting.GlobalShadows,Lighting.Brightness,Lighting.Ambient,Lighting.OutdoorAmbient,Lighting.ExposureCompensation=false,0,Color3.new(0,0,0),Color3.new(0,0,0),-2;pcall(function()Lighting.Atmosphere:Destroy()end);pcall(function()Lighting.Sky:Destroy()end)
         if LocalPlayer.PlayerGui then for _,gui in pairs(LocalPlayer.PlayerGui:GetChildren())do if gui.Name~=SERVER_HOP_GUI_NAME then pcall(function()gui:Destroy()end)end end end;local sO=settings();if sO and sO.Rendering then sO.Rendering.QualityLevel=Enum.QualityLevel.Level01;pcall(function()if RunService:IsClient()then RunService:Set3dRenderingEnabled(false)end end)end;SoundService.RespectFilteringEnabled,SoundService.AmbientReverb=true,Enum.ReverbType.NoReverb;for _,sound in pairs(game:GetDescendants())do if sound:IsA("Sound")then sound.Volume=0;sound:Stop()end end
         updateDisplay("SUCCESS", "Đồ họa đã được tối ưu.");
@@ -170,7 +182,7 @@ end
 -- --- Logic Tìm Server (Dùng HttpGet) ---
 local chosenServer = nil; local serversUrlBase = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Asc&limit=100"
 function searchForServer()
-    if not SETTINGS.enableFileHistory then serverHistoryCache = {} else loadServerHistory() end; local histC=0;for _ in pairs(serverHistoryCache)do histC=histC+1 end
+    if not SETTINGS.EnableFileHistory then serverHistoryCache = {} else loadServerHistory() end; local histC=0;for _ in pairs(serverHistoryCache)do histC=histC+1 end
     updateDisplay("INFO", string.format("Bắt đầu tìm server... (Tránh %d)",histC+1))
     
     local sLActive=true; chosenServer=nil
@@ -182,7 +194,7 @@ function searchForServer()
                 pAtt=pAtt+1;if pAtt>1 then updateDisplay("INFO", string.format("Thử lại (%d/%d)...",pAtt,maxAtt));task.wait(curRetry);curRetry=math.min(curRetry*2,maxRetryDelay) end
                 local s,d=pcall(game.HttpGet,game,serversUrlBase..(nextCur and "&cursor="..nextCur or ""),true);if s then
                     pFetched=true;local sListD=HttpService:JSONDecode(d);if sListD and sListD.data then local pSuitS={};
-                        for _,sInf in ipairs(sListD.data)do if not(sInf.id==currentJobId or serverHistoryCache[sInf.id])then if sInf.playing and sInf.maxPlayers and sInf.maxPlayers>0 then local pR=sInf.playing/sInf.maxPlayers if pR>=minPlayerPercentage and pR<maxPlayerPercentageLimit and sInf.playing<sInf.maxPlayers then table.insert(pSuitS,sInf)end end end end
+                        for _,sInf in ipairs(sListD.data)do if not(sInf.id==currentJobId or serverHistoryCache[sInf.id])then if sInf.playing and sInf.maxPlayers and sInf.maxPlayers>0 then local pR=sInf.playing/sInf.maxPlayers if pR>=SETTINGS.MinPlayerPercentage and pR<SETTINGS.MaxPlayerPercentage and sInf.playing<sInf.maxPlayers then table.insert(pSuitS,sInf)end end end end
                         if #pSuitS>0 then chosenServer=pSuitS[math.random(1,#pSuitS)];allScanned=true;break end
                         nextCur=sListD.nextPageCursor;if not nextCur then allScanned=true;end
                     else updateDisplay("ERROR","Dữ liệu server lỗi.")end
@@ -205,12 +217,12 @@ local function performCountdownThenSearch(minutesToWait)
     if not minutesToWait or minutesToWait<=0 then updateDisplay("ERROR","Thời gian chờ lỗi.");searchForServer();return end
     
     -- Dọn dẹp các thông báo trạng thái cũ trước khi bắt đầu đếm ngược
-    if not SETTINGS.enableCountdownText then if statusTextLabel then statusTextLabel.Text = "" end end
-    if not SETTINGS.enableCountdownColor then if statusFrame then statusFrame.BackgroundTransparency = 1 end end
+    if not SETTINGS.EnableCountdownText then if statusTextLabel then statusTextLabel.Text = "" end end
+    if not SETTINGS.EnableCountdownColor then if statusFrame then statusFrame.BackgroundTransparency = 1 end end
 
     local totalS = minutesToWait * 60
     for i = totalS, 0, -1 do
-        if countdownShouldReset and SETTINGS.enableDonateResetCountdown then
+        if countdownShouldReset and SETTINGS.EnableDonateReset then
             countdownShouldReset = false
             if statusTextLabel then statusTextLabel.Text = "" end; if statusFrame then statusFrame.BackgroundTransparency = 1 end
             updateDisplay("SUCCESS", "Donate! Reset thời gian.")
@@ -218,7 +230,7 @@ local function performCountdownThenSearch(minutesToWait)
         end
 
         -- Cập nhật Text nếu được bật
-        if SETTINGS.enableCountdownText then
+        if SETTINGS.EnableCountdownText then
             if statusTextLabel and statusTextLabel.Parent then
                 statusTextLabel.Text = string.format("%02d:%02d", math.floor(i/60), i%60)
                 statusTextLabel.TextColor3 = Color3.new(1,1,1) -- Luôn màu trắng để dễ đọc
@@ -226,7 +238,7 @@ local function performCountdownThenSearch(minutesToWait)
         end
 
         -- Cập nhật Màu nếu được bật
-        if SETTINGS.enableCountdownColor then
+        if SETTINGS.EnableCountdownColor then
             if statusFrame and statusFrame.Parent then
                 statusFrame.BackgroundColor3 = (i % 2 == 0) and NEON_COLORS.BLUE or NEON_COLORS.RED
                 statusFrame.BackgroundTransparency = 0.6
@@ -246,28 +258,64 @@ function startInitialCountdown()
     updateDisplay("INFO", "Bắt đầu chu trình...")
     if currentCountdownThread and coroutine.status(currentCountdownThread) ~= "dead" then pcall(coroutine.close, currentCountdownThread); currentCountdownThread = nil end
     currentCountdownThread = coroutine.create(function()
-        local s,e=pcall(performCountdownThenSearch, DEFAULT_WAIT_MINUTES)
-        if not s then updateDisplay("ERROR","Lỗi Coroutine. Thử lại sau 5s...");task.wait(5);if SETTINGS.enableServerHopLogic then startInitialCountdown()end end
+        local s,e=pcall(performCountdownThenSearch, SETTINGS.WaitMinutes)
+        if not s then updateDisplay("ERROR","Lỗi Coroutine. Thử lại sau 5s...");task.wait(5);if SETTINGS.EnableServerHop then startInitialCountdown()end end
     end)
     coroutine.resume(currentCountdownThread)
+end
+
+-- --- Hàm Tự Động Kết Nối Lại Khi Lỗi ---
+local function setupAutoReconnect()
+    pcall(function()
+        -- Chờ cho đến khi giao diện lỗi của Roblox sẵn sàng
+        local promptOverlay = game.CoreGui:WaitForChild('RobloxPromptGui'):WaitForChild('promptOverlay')
+        
+        promptOverlay.ChildAdded:Connect(function(child)
+            -- Kiểm tra nếu thông báo lỗi xuất hiện (thường là do mất kết nối)
+            if child.Name == 'ErrorPrompt' and child:IsA('Frame') then
+                updateDisplay("ERROR", "Phát hiện lỗi! Đang thử kết nối lại...")
+                
+                -- Cố gắng dịch chuyển đến một server mới trong cùng game.
+                -- Đây có thể là hành động cuối cùng script có thể thực hiện trước khi client ngắt kết nối hoàn toàn.
+                local success, err = pcall(function()
+                    TeleportService:Teleport(placeId, LocalPlayer)
+                end)
+
+                -- Nếu lệnh dịch chuyển ban đầu thất bại, thử lại trong một vòng lặp
+                -- phòng trường hợp client chưa bị ngắt hoàn toàn.
+                if not success then
+                    task.wait(2)
+                    repeat
+                        TeleportService:Teleport(placeId, LocalPlayer)
+                        task.wait(5)
+                    until false
+                end
+            end
+        end)
+        updateDisplay("SUCCESS", "Tính năng tự động kết nối lại đã được kích hoạt.")
+    end)
 end
 
 -- --- Khởi chạy Script ---
 updateDisplay("INFO", "Đang khởi tạo ServerHop...")
 task.wait(0.2)
-if type(setfpscap) == "function" and SETTINGS.targetFps and SETTINGS.targetFps > 0 then task.spawn(function() while task.wait() do pcall(setfpscap, SETTINGS.targetFps) end end) end
+if type(setfpscap) == "function" and SETTINGS.TargetFps and SETTINGS.TargetFps > 0 then task.spawn(function() while task.wait() do pcall(setfpscap, SETTINGS.TargetFps) end end) end
 
-updateDisplay("INFO", "Chờ game tải trong 30 giây...")
-task.wait(10)
+if SETTINGS.EnableAutoReconnect then
+    task.spawn(setupAutoReconnect) -- Chạy trong coroutine để không làm gián đoạn luồng chính
+end
+
+updateDisplay("INFO", string.format("Chờ game tải trong %d giây...", SETTINGS.InitialWaitTime))
+task.wait(SETTINGS.InitialWaitTime)
 updateDisplay("INFO", "Hết thời gian chờ. Bắt đầu thiết lập...")
 
-if SETTINGS.enableSafePlatform then createSafePlatform() end
-if SETTINGS.enableStaticAfkView then setupStaticAfkView() end
-if SETTINGS.enableGraphicsOptimization then optimizeGraphics() end
+if SETTINGS.EnableSafePlatform then createSafePlatform() end
+if SETTINGS.EnableStaticAfkView then setupStaticAfkView() end
+if SETTINGS.EnableGraphicsOptimization then optimizeGraphics() end
 
-if SETTINGS.enableServerHopLogic then
+if SETTINGS.EnableServerHop then
     startInitialCountdown()
-    if SETTINGS.enableDonateResetCountdown then
+    if SETTINGS.EnableDonateReset then
         local leaderstats=LocalPlayer:WaitForChild("leaderstats",15);if leaderstats then local raised=leaderstats:WaitForChild("Raised",15)
             if raised then local lastR=raised.Value;raised.Changed:Connect(function(nV)if nV>lastR then lastR=nV;countdownShouldReset=true;end end)end
         end
