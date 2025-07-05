@@ -258,7 +258,7 @@ task.wait(0.2)
 if type(setfpscap) == "function" and SETTINGS.targetFps and SETTINGS.targetFps > 0 then task.spawn(function() while task.wait() do pcall(setfpscap, SETTINGS.targetFps) end end) end
 
 updateDisplay("INFO", "Chờ game tải trong 30 giây...")
-task.wait(30)
+task.wait(10)
 updateDisplay("INFO", "Hết thời gian chờ. Bắt đầu thiết lập...")
 
 if SETTINGS.enableSafePlatform then createSafePlatform() end
