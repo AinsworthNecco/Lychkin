@@ -4,7 +4,7 @@
 -- =================================================================
 
 -- URL trỏ đến file script chính trên GitHub (lấy link "Raw")
-local CORE_LOGIC_URL = "https://raw.githubusercontent.com/user/repo/main/your-script-name.lua"
+local CORE_LOGIC_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/MainPlsDonate"
 
 -- Bảng cài đặt cá nhân cho script
 local SETTINGS = {
