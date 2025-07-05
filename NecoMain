@@ -4,7 +4,7 @@
 ]]
 local SETTINGS = {
     -- Cài đặt Server Hop
-    ["WaitMinutes"] = 10, -- Thời gian chờ (phút) trước khi tìm server mới.
+    ["WaitMinutes"] = 0.1, -- Thời gian chờ (phút) trước khi tìm server mới.
     ["MinPlayerPercentage"] = 0.50, -- Tỉ lệ người chơi tối thiểu để vào (VD: 0.5 = 50%)
     ["MaxPlayerPercentage"] = 0.90, -- Tỉ lệ người chơi tối đa để vào (VD: 0.9 = 90%)
 
@@ -18,7 +18,7 @@ local SETTINGS = {
     -- Cài đặt hiệu năng
     ["EnableGraphicsOptimization"] = true, -- Tối ưu hóa đồ họa (xóa vật thể, giảm chất lượng, tắt âm thanh).
     ["EnableFileHistory"] = true, -- Ghi lại lịch sử các server đã vào để tránh vào lại.
-    ["TargetFps"] = 7, -- Giới hạn FPS của game ở mức này để giảm tải.
+    ["TargetFps"] = 60, -- Giới hạn FPS của game ở mức này để giảm tải.
     ["InitialWaitTime"] = 10, -- Thời gian chờ ban đầu (giây) sau khi vào game để script bắt đầu chạy.
 
     -- Cài đặt giao diện
