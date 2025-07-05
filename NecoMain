@@ -17,7 +17,7 @@ local SETTINGS = {
     -- Cài đặt hiệu năng
     ["EnableGraphicsOptimization"] = true,
     ["EnableFileHistory"] = true,
-    ["TargetFps"] = 7,
+    ["TargetFps"] = 60,
     ["InitialWaitTime"] = 10,
 
     -- Cài đặt giao diện
@@ -364,99 +364,40 @@ local success, err = pcall(function()
     local baseRetryDelay = 1
     local maxRetryDelay = 16
 
-    local function searchForServer()
-        if not SETTINGS["EnableFileHistory"] then serverHistoryCache = {} else loadServerHistory() end
-        local histC=0
-        for _ in pairs(serverHistoryCache) do histC=histC+1 end
+    function searchForServer()
+        if not SETTINGS["EnableFileHistory"] then serverHistoryCache = {} else loadServerHistory() end; local histC=0;for _ in pairs(serverHistoryCache)do histC=histC+1 end
         updateDisplay("INFO", string.format("Bắt đầu tìm server... (Tránh %d)",histC+1))
-    
-        local sLActive=true
-        chosenServer=nil
+        
+        local sLActive=true; chosenServer=nil
         while sLActive and not chosenServer do
-            local nextCur=nil
-            updateDisplay("INFO", "Đang quét server...")
-            local allScanned=false
+            local nextCur=nil; updateDisplay("INFO", "Đang quét server..."); local allScanned=false
             while not allScanned and not chosenServer do
-                local pAtt=0
-                local maxAtt=4
-                local pFetched=false
-                local curRetry=baseRetryDelay
+                local pAtt=0;local maxAtt=4;local pFetched=false;local curRetry=baseRetryDelay
                 while not pFetched and pAtt<maxAtt do
-                    pAtt=pAtt+1
-                    if pAtt>1 then
-                        updateDisplay("INFO", string.format("Thử lại (%d/%d)...",pAtt,maxAtt))
-                        task.wait(curRetry)
-                        curRetry=math.min(curRetry*2,maxRetryDelay)
-                    end
+                    pAtt=pAtt+1;if pAtt>1 then updateDisplay("INFO", string.format("Thử lại (%d/%d)...",pAtt,maxAtt));task.wait(curRetry);curRetry=math.min(curRetry*2,maxRetryDelay) end
                     
-                    -- Sử dụng lại logic gốc với pcall và HttpGet (thông qua HttpService:GetAsync)
-                    local s, d = pcall(function() return HttpService:GetAsync(serversUrlBase..(nextCur and "&cursor="..nextCur or "")) end)
+                    -- (KHÔI PHỤC LOGIC GỐC) Sử dụng lại logic gốc với pcall và HttpGet (thông qua HttpService:GetAsync)
+                    local s,d=pcall(function() return HttpService:GetAsync(serversUrlBase..(nextCur and "&cursor="..nextCur or "")) end)
                     
                     if s then
-                        pFetched=true
+                        pFetched=true;
                         local successDecode, sListD = pcall(HttpService.JSONDecode, HttpService, d)
-                        
-                        if successDecode and sListD and sListD.data then
-                            local pSuitS={}
-                            for _,sInf in ipairs(sListD.data)do
-                                if not(sInf.id==game.JobId or serverHistoryCache[sInf.id])then
-                                    if sInf.playing and sInf.maxPlayers and sInf.maxPlayers>0 then
-                                        local pR=sInf.playing/sInf.maxPlayers
-                                        if pR>=SETTINGS["MinPlayerPercentage"] and pR<SETTINGS["MaxPlayerPercentage"] and sInf.playing<sInf.maxPlayers then
-                                            table.insert(pSuitS,sInf)
-                                        end
-                                    end
-                                end
-                            end
-                            if #pSuitS>0 then
-                                chosenServer=pSuitS[math.random(1,#pSuitS)]
-                                allScanned=true
-                                break
-                            end
-                            nextCur=sListD.nextPageCursor
-                            if not nextCur then
-                                allScanned=true
-                            end
-                        else
-                            updateDisplay("ERROR","Dữ liệu server lỗi.")
-                        end
-                    else
-                        updateDisplay("ERROR","Lỗi API: "..tostring(d))
-                        if pAtt>=maxAtt then
-                            allScanned=true
-                        end
-                    end
-                end
-                if chosenServer or allScanned then
-                    break
-                end
-                task.wait(waitTimeBetweenPageFetches)
+                        if successDecode and sListD and sListD.data then local pSuitS={};
+                            for _,sInf in ipairs(sListD.data)do if not(sInf.id==game.JobId or serverHistoryCache[sInf.id])then if sInf.playing and sInf.maxPlayers and sInf.maxPlayers>0 then local pR=sInf.playing/sInf.maxPlayers if pR>=SETTINGS["MinPlayerPercentage"] and pR<SETTINGS["MaxPlayerPercentage"] and sInf.playing<sInf.maxPlayers then table.insert(pSuitS,sInf)end end end end
+                            if #pSuitS>0 then chosenServer=pSuitS[math.random(1,#pSuitS)];allScanned=true;break end
+                            nextCur=sListD.nextPageCursor;if not nextCur then allScanned=true;end
+                        else updateDisplay("ERROR","Dữ liệu server lỗi.")end
+                    else updateDisplay("ERROR","Lỗi API: " .. tostring(d));if pAtt>=maxAtt then allScanned=true end end
+                end;if chosenServer or allScanned then break end;task.wait(waitTimeBetweenPageFetches)
             end
-            
-            if chosenServer then
-                updateDisplay("SUCCESS", "ĐÃ CHỌN SERVER!")
-                sLActive=false
-            elseif allScanned then
-                updateDisplay("INFO", string.format("Không tìm thấy. Chờ %ds.",waitTimeBetweenFullScans))
-                task.wait(waitTimeBetweenFullScans)
-            end
+            if chosenServer then updateDisplay("SUCCESS", "ĐÃ CHỌN SERVER!");sLActive=false
+            elseif allScanned then updateDisplay("INFO", string.format("Không tìm thấy. Chờ %ds.",waitTimeBetweenFullScans));task.wait(waitTimeBetweenFullScans)end
         end
-        
         if chosenServer then
-            updateDisplay("SUCCESS", "Chuẩn bị dịch chuyển...")
-            addJobIdToHistoryAndSave(game.JobId)
-            task.wait(1)
-            local sTP,eTP=pcall(TeleportService.TeleportToPlaceInstance,TeleportService, game.PlaceId, chosenServer.id, LocalPlayer)
-            if not sTP then
-                updateDisplay("ERROR", "Lỗi dịch chuyển! Thử lại...")
-                serverHistoryCache[chosenServer.id]=true
-                chosenServer=nil
-                task.wait(5)
-                searchForServer()
-            end
-        else
-            updateDisplay("ERROR", "Không thể tìm thấy server. Dừng lại.")
-        end
+            updateDisplay("SUCCESS", "Chuẩn bị dịch chuyển..."); addJobIdToHistoryAndSave(game.JobId); task.wait(1)
+            local sTP,eTP=pcall(TeleportService.TeleportToPlaceInstance,TeleportService,placeId,chosenServer.id,LocalPlayer)
+            if not sTP then updateDisplay("ERROR", "Lỗi dịch chuyển! Thử lại..."); serverHistoryCache[chosenServer.id]=true;chosenServer=nil;task.wait(5);searchForServer() end
+        else updateDisplay("ERROR", "Không thể tìm thấy server. Dừng lại.") end
     end
 
     local countdownShouldReset = false
