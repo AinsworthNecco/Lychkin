@@ -17,12 +17,13 @@ local SETTINGS = {
     -- Cài đặt hiệu năng
     ["EnableGraphicsOptimization"] = true,
     ["EnableFileHistory"] = true,
-    ["TargetFps"] = 60,
+    ["TargetFps"] = 7,
     ["InitialWaitTime"] = 10,
 
     -- Cài đặt giao diện
     ["EnableCountdownText"] = true,
-    ["EnableCountdownColor"] = true
+    ["EnableCountdownColor"] = true,
+    ["EnableLogGUI"] = true, -- (MỚI) Hiển thị console log trên màn hình cho mobile
 }
 
 -- =================================================================
@@ -62,7 +63,81 @@ local success, err = pcall(function()
         return instance
     end
     
-    -- ... (Các hàm phụ khác giữ nguyên)
+    -- (MỚI) Các biến và hàm cho Log GUI
+    local logContainer = nil
+    local function setupLogGui()
+        if not SETTINGS["EnableLogGUI"] then return end
+
+        local logGui = CreateInstance("ScreenGui", {
+            ["Name"] = "LogConsoleGUI",
+            ["Parent"] = CoreGui,
+            ["ResetOnSpawn"] = false,
+            ["ZIndexBehavior"] = Enum.ZIndexBehavior.Sibling,
+            ["DisplayOrder"] = 999
+        })
+
+        local logFrame = CreateInstance("Frame", {
+            ["Name"] = "LogFrame",
+            ["Parent"] = logGui,
+            ["BackgroundColor3"] = Color3.new(0.1, 0.1, 0.1),
+            ["BackgroundTransparency"] = 0.3,
+            ["BorderSizePixel"] = 1,
+            ["BorderColor3"] = Color3.new(1, 1, 1),
+            ["Position"] = UDim2.new(0, 10, 1, -210),
+            ["AnchorPoint"] = Vector2.new(0, 1),
+            ["Size"] = UDim2.new(0, 450, 0, 200)
+        })
+
+        logContainer = CreateInstance("ScrollingFrame", {
+            ["Name"] = "LogContainer",
+            ["Parent"] = logFrame,
+            ["Size"] = UDim2.new(1, 0, 1, 0),
+            ["BackgroundColor3"] = Color3.new(1, 1, 1),
+            ["BackgroundTransparency"] = 1,
+            ["BorderSizePixel"] = 0,
+            ["CanvasSize"] = UDim2.new(0, 0, 0, 0),
+            ["ScrollBarImageColor3"] = Color3.new(0.8, 0.8, 0.8),
+            ["ScrollBarThickness"] = 6
+        })
+
+        CreateInstance("UIListLayout", {
+            ["Parent"] = logContainer,
+            ["SortOrder"] = Enum.SortOrder.LayoutOrder,
+            ["Padding"] = UDim.new(0, 2)
+        })
+        
+        CreateInstance("UIPadding", {
+            ["Parent"] = logContainer,
+            ["PaddingTop"] = UDim.new(0, 5),
+            ["PaddingLeft"] = UDim.new(0, 5)
+        })
+    end
+
+    local function logToGui(message)
+        if not SETTINGS["EnableLogGUI"] or not logContainer then return end
+        
+        -- Giới hạn số lượng log để tránh lag
+        if #logContainer:GetChildren() > 60 then
+            logContainer:GetChildren()[1]:Destroy()
+        end
+
+        local logLabel = CreateInstance("TextLabel", {
+            ["Name"] = "LogMessage",
+            ["Parent"] = logContainer,
+            ["Text"] = tostring(os.date("[%H:%M:%S] ") .. message),
+            ["Font"] = Enum.Font.SourceSans,
+            ["TextSize"] = 14,
+            ["TextColor3"] = Color3.new(1, 1, 1),
+            ["TextXAlignment"] = Enum.TextXAlignment.Left,
+            ["TextWrapped"] = true,
+            ["BackgroundTransparency"] = 1,
+            ["Size"] = UDim2.new(1, -10, 0, 15)
+        })
+
+        -- Tự động cuộn xuống dưới
+        task.wait()
+        logContainer.CanvasPosition = Vector2.new(0, logContainer.CanvasSize.Y.Offset)
+    end
 
     local NEON_COLORS = {
         ["GREEN"] = Color3.fromRGB(10, 255, 20),
@@ -116,6 +191,8 @@ local success, err = pcall(function()
 
     local function updateDisplay(state, message)
         print("[UI] ("..tostring(state)..") " .. tostring(message))
+        logToGui(string.format("[%s] %s", state, message)) -- Log ra GUI
+        
         local stateColor = NEON_COLORS["GREEN"]
         if state == "ERROR" then stateColor = NEON_COLORS["YELLOW"] end
         if statusTextLabel and statusTextLabel.Parent then
@@ -144,11 +221,11 @@ local success, err = pcall(function()
             if writefile and readfile then
                 canAccessFiles, writefile_func, readfile_func = true, writefile, readfile
             else
-                print("[FileIO] Quyền file KHÔNG có sẵn.")
+                logToGui("[FileIO] Quyền file KHÔNG có sẵn.")
             end
         end)
     else
-        print("[FileIO] Lịch sử file bị TẮT.")
+        logToGui("[FileIO] Lịch sử file bị TẮT.")
     end
     
     local serverHistoryCache = {}
@@ -266,7 +343,7 @@ local success, err = pcall(function()
             pcall(function() if Lighting.Sky then Lighting.Sky:Destroy() end end)
             if LocalPlayer.PlayerGui then
                 for _, gui in ipairs(LocalPlayer.PlayerGui:GetChildren()) do
-                    if gui.Name ~= SERVER_HOP_GUI_NAME then pcall(function() gui:Destroy() end) end
+                    if gui.Name ~= SERVER_HOP_GUI_NAME and gui.Name ~= "LogConsoleGUI" then pcall(function() gui:Destroy() end) end
                 end
             end
             local settingsObj = settings()
@@ -287,9 +364,6 @@ local success, err = pcall(function()
         if not success then updateDisplay("ERROR", "Lỗi khi tối ưu đồ họa: " .. tostring(err)) end
     end
     
-    -- =================================================================
-    -- (LOGIC GỐC) HÀM TÌM KIẾM SERVER
-    -- =================================================================
     local chosenServer = nil
     local serversUrlBase = "https://games.roblox.com/v1/games/" .. game.PlaceId .. "/servers/Public?sortOrder=Asc&limit=100"
     local waitTimeBetweenFullScans = 7
@@ -322,7 +396,6 @@ local success, err = pcall(function()
                         curRetry=math.min(curRetry*2,maxRetryDelay)
                     end
                     
-                    -- Sử dụng HttpService:GetAsync thay cho game:HttpGet đã lỗi thời
                     local s, d = pcall(HttpService.GetAsync, HttpService, serversUrlBase..(nextCur and "&cursor="..nextCur or ""))
                     
                     if s then
@@ -392,7 +465,6 @@ local success, err = pcall(function()
         end
     end
 
-    -- ... (Các hàm performCountdownThenSearch, startInitialCountdown, initializeAutoReconnect giữ nguyên)
     local countdownShouldReset = false
     local currentCountdownThread = nil
     local function performCountdownThenSearch(minutesToWait)
@@ -450,15 +522,15 @@ local success, err = pcall(function()
         if not SETTINGS["EnableAutoReconnect"] then return end
         local promptGui = CoreGui:WaitForChild("RobloxPromptGui", 30)
         if not promptGui then
-            warn("[AutoReconnect] Không tìm thấy RobloxPromptGui.")
+            logToGui("[AutoReconnect] Không tìm thấy RobloxPromptGui.")
             return
         end
         local promptOverlay = promptGui:WaitForChild("promptOverlay", 10)
         if not promptOverlay then
-             warn("[AutoReconnect] Không tìm thấy promptOverlay.")
+             logToGui("[AutoReconnect] Không tìm thấy promptOverlay.")
             return
         end
-        print("[AutoReconnect] Tính năng tự động kết nối lại đã được kích hoạt.")
+        logToGui("[AutoReconnect] Tính năng tự động kết nối lại đã được kích hoạt.")
         promptOverlay.ChildAdded:Connect(function(child)
             if child.Name == "ErrorPrompt" then
                 updateDisplay("ERROR", "Mất kết nối! Đang thử kết nối lại...")
@@ -471,6 +543,7 @@ local success, err = pcall(function()
     end
 
     -- --- Khởi chạy Script ---
+    setupLogGui() -- Khởi tạo GUI log trước tiên
     updateDisplay("INFO", "Script đang khởi chạy...")
     task.wait(0.2)
     if type(setfpscap) == "function" and SETTINGS["TargetFps"] and SETTINGS["TargetFps"] > 0 then
@@ -515,4 +588,8 @@ end)
 
 if not success then
     warn("[Loader] Lỗi nghiêm trọng khi thực thi script: " .. tostring(err))
+    -- Thử log ra GUI nếu có thể
+    if logToGui then
+        logToGui("Lỗi nghiêm trọng khi thực thi script: " .. tostring(err))
+    end
 end
