@@ -1,157 +1,562 @@
---================================================================
--- PHẦN 1: KHAI BÁO DỊCH VỤ VÀ BIẾN
---================================================================
+-- =================================================================
+-- Phần 1: CÀI ĐẶT (Chỉ cần chỉnh sửa các giá trị trong phần này)
+-- =================================================================
+local SETTINGS = {
+    -- Cài đặt Server Hop
+    ["WaitMinutes"] = 10,
+    ["MinPlayerPercentage"] = 0.50,
+    ["MaxPlayerPercentage"] = 0.90,
 
--- Dịch vụ Roblox
-local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
-local Workspace = game:GetService("Workspace")
-local TeleportService = game:GetService("TeleportService")
-local HttpService = game:GetService("HttpService")
-local RunService = game:GetService("RunService")
-local VirtualUser = game:GetService("VirtualUser")
-local UserInputService = game:GetService("UserInputService")
+    -- Bật/Tắt các tính năng chính
+    ["EnableServerHop"] = true,
+    ["EnableSafePlatform"] = true,
+    ["EnableStaticAfkView"] = true,
+    ["EnableDonateReset"] = true,
+    ["EnableAutoReconnect"] = true, -- (MỚI) Tự động kết nối lại khi bị mất kết nối hoặc bị kick
 
--- Biến người chơi
-local LocalPlayer = Players.LocalPlayer
-local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+    -- Cài đặt hiệu năng
+    ["EnableGraphicsOptimization"] = true,
+    ["EnableFileHistory"] = true,
+    ["TargetFps"] = 7,
+    ["InitialWaitTime"] = 10, -- Thời gian chờ (giây) trước khi script bắt đầu thiết lập
 
--- Anti-AFK
-task.spawn(function()
-    if not VirtualUser then return end
-    LocalPlayer.Idled:Connect(function()
-        VirtualUser:CaptureController()
-        VirtualUser:ClickButton2(Vector2.new())
-    end)
-end)
-
---================================================================
--- PHẦN 2: GIAO DIỆN FLUENT UI
---================================================================
-
--- Tải thư viện Fluent
-local Fluent = loadstring(game:HttpGet("https://github.com/dawid-scripts/Fluent/releases/latest/download/main.lua"))()
-
--- Tạo cửa sổ chính
-local Window = Fluent:CreateWindow({
-    Title = "Lychkin's Script",
-    SubTitle = "Lưu và Tải Cài Đặt",
-    TabWidth = 160,
-    Size = UDim2.fromOffset(580, 460),
-	MinimizeKey = Enum.KeyCode.LeftControl,
-    Acrylic = true
-})
-
--- Tùy chọn (lưu giá trị UI)
-local Options = Fluent.Options
-
--- Tabs giao diện (Bạn sẽ thêm các tab của mình ở đây)
-local Tabs = {
-    Main = Window:AddTab({ Title = "Chức năng chính", Icon = "rbxassetid://6031398523" }),
-    Misc = Window:AddTab({ Title = "Linh tinh", Icon = "rbxassetid://6031398453" }),
-    Settings = Window:AddTab({ Title = "Cài đặt", Icon = "rbxassetid://6031398338" }),
+    -- Cài đặt giao diện
+    ["EnableCountdownText"] = true,
+    ["EnableCountdownColor"] = true
 }
 
---================================================================
--- PHẦN 2.5: NÚT BẤM VÀ PHÍM ẨN/HIỆN (ĐÃ SỬA LỖI)
---================================================================
+-- =================================================================
+-- Phần 2: LOGIC CHÍNH (Không cần sửa phần bên dưới)
+-- =================================================================
 
--- Tạo một ScreenGui riêng cho nút bấm
-local toggleGui = Instance.new("ScreenGui", PlayerGui)
-toggleGui.Name = "LychkinToggleUI"
-toggleGui.ZIndexBehavior = Enum.ZIndexBehavior.Global
-toggleGui.ResetOnSpawn = false
-toggleGui.DisplayOrder = 9999 -- Rất quan trọng: Đảm bảo UI này luôn ở trên cùng
+-- Bọc toàn bộ script trong pcall để tăng độ ổn định
+local success, err = pcall(function()
+    -- Các service cần thiết
+    local HttpService = game:GetService("HttpService")
+    local Players = game:GetService("Players")
+    local LocalPlayer = Players.LocalPlayer
+    local CoreGui = game:GetService("CoreGui")
+    local Lighting = game:GetService("Lighting")
+    local SoundService = game:GetService("SoundService")
+    local RunService = game:GetService("RunService")
+    local TeleportService = game:GetService("TeleportService")
 
--- Tạo nút bấm
-local ToggleButton = Instance.new("ImageButton", toggleGui)
-ToggleButton.Name = "ToggleButton"
-ToggleButton.Image = "rbxassetid://9294623142"
-ToggleButton.Size = UDim2.fromOffset(52, 52)
-ToggleButton.Position = UDim2.new(0, 20, 1, -72)
-ToggleButton.BackgroundTransparency = 1
-ToggleButton.ZIndex = 999
-ToggleButton.Draggable = true
-ToggleButton.Active = true -- Đảm bảo nút luôn có thể tương tác
+    -- Hàm tiện ích để tạo Instance
+    local function CreateInstance(className, properties)
+        local instance = Instance.new(className)
+        local children = properties["Children"]
+        properties["Children"] = nil
+        local parent = properties["Parent"]
+        properties["Parent"] = nil
 
--- --- Xử lý cho Mobile: Nút bấm trên màn hình ---
--- Kết nối trực tiếp với sự kiện click của nút, đây là cách đáng tin cậy nhất.
-ToggleButton.MouseButton1Click:Connect(function()
-    Window:Toggle()
-end)
+        for property, value in pairs(properties) do
+            instance[property] = value
+        end
+        
+        if children then
+            for _, child in ipairs(children) do
+                child.Parent = instance
+            end
+        end
 
--- --- Xử lý cho PC: Phím LeftControl ---
--- Giữ lại logic này để hỗ trợ người dùng PC.
-UserInputService.InputBegan:Connect(function(input, gameProcessedEvent)
-    -- Bỏ qua nếu người dùng đang gõ trong chat
-    if gameProcessedEvent then return end
-
-    if input.KeyCode == Enum.KeyCode.LeftControl then
-        Window:Toggle()
+        if parent then
+            instance.Parent = parent
+        end
+        return instance
     end
-end)
 
+    -- Hàm hiển thị thông báo lỗi trên màn hình
+    local function showErrorNotification(errorMessage)
+        local errorGui = CreateInstance("ScreenGui", {
+            ["Name"] = "ScriptErrorNotification",
+            ["Parent"] = CoreGui,
+            ["ResetOnSpawn"] = false,
+            ["ZIndexBehavior"] = Enum.ZIndexBehavior.Global
+        })
 
---================================================================
--- PHẦN 3: SAVE MANAGER 
---================================================================
+        CreateInstance("Frame", {
+            ["Name"] = "Background",
+            ["Parent"] = errorGui,
+            ["BackgroundColor3"] = Color3.fromRGB(40, 40, 40),
+            ["BorderColor3"] = Color3.fromRGB(255, 70, 70),
+            ["BorderSizePixel"] = 2,
+            ["Position"] = UDim2.fromScale(0.5, 0.1),
+            ["AnchorPoint"] = Vector2.new(0.5, 0),
+            ["Size"] = UDim2.new(0, 400, 0, 80),
+            ["Children"] = {
+                CreateInstance("TextLabel", {
+                    ["Name"] = "Title",
+                    ["Text"] = "SCRIPT ERROR",
+                    ["TextColor3"] = Color3.fromRGB(255, 70, 70),
+                    ["Font"] = Enum.Font.SourceSansBold,
+                    ["TextSize"] = 18,
+                    ["Size"] = UDim2.new(1, 0, 0, 30),
+                    ["BackgroundColor3"] = Color3.fromRGB(60, 60, 60),
+                }),
+                CreateInstance("TextLabel", {
+                    ["Name"] = "Message",
+                    ["Text"] = errorMessage,
+                    ["TextColor3"] = Color3.new(1, 1, 1),
+                    ["Font"] = Enum.Font.SourceSans,
+                    ["TextSize"] = 14,
+                    ["TextWrapped"] = true,
+                    ["Position"] = UDim2.new(0, 10, 0, 35),
+                    ["Size"] = UDim2.new(1, -20, 1, -40),
+                    ["TextXAlignment"] = Enum.TextXAlignment.Left,
+                })
+            }
+        })
+        task.delay(20, function() if errorGui then errorGui:Destroy() end end)
+    end
 
-local SaveManager = {}
-local FOLDER_NAME = "Lychkin"
-local FILE_NAME = "LychkinSettings.txt"
-local FILE_PATH = FOLDER_NAME .. "/" .. FILE_NAME
+    -- Cấu hình Script (Lấy từ bảng SETTINGS ở trên)
+    local placeId = game.PlaceId
+    local currentJobId = game.JobId
 
-if not isfolder(FOLDER_NAME) then makefolder(FOLDER_NAME) end
+    local DEFAULT_WAIT_MINUTES = SETTINGS["WaitMinutes"]
+    local minPlayerPercentage = SETTINGS["MinPlayerPercentage"]
+    local maxPlayerPercentageLimit = SETTINGS["MaxPlayerPercentage"]
+    
+    local waitTimeBetweenFullScans = 7
+    local waitTimeBetweenPageFetches = 0.75
+    local baseRetryDelay = 1
+    local maxRetryDelay = 16
 
-function SaveManager:LoadData()
-    if not isfile(FILE_PATH) then return {} end
-    local success, fileContent = pcall(readfile, FILE_PATH)
-    if not success or fileContent == "" then return {} end
-    local success, decodedData = pcall(function() return HttpService:JSONDecode(fileContent) end)
-    if success and type(decodedData) == "table" then
-        Fluent:Notify({ Title = "Tải thành công", Content = "Đã áp dụng cài đặt đã lưu.", Duration = 3 })
-        return decodedData
+    local PLATFORM_VERTICAL_OFFSET = 0
+    local SERVER_HISTORY_FILENAME = "server_hop_history.txt"
+    local SERVER_HOP_GUI_NAME = "ServerHopStatusGUI"
+    local AFK_PLATFORM_NAME = "MySafeAFKPlatform"
+    local STATIC_HEAD_ANCHOR_PART_NAME = "AFK_HeadAnchor_StaticCam"
+    local STATIC_BLACK_SCREEN_PART_NAME = "AFK_BlackScreen_StaticCam"
+
+    local NEON_COLORS = {
+        ["GREEN"] = Color3.fromRGB(10, 255, 20),
+        ["YELLOW"] = Color3.fromRGB(255, 255, 0),
+        ["BLUE"] = Color3.fromRGB(0, 150, 255),
+        ["RED"] = Color3.fromRGB(255, 20, 20)
+    }
+
+    -- Logic kiểm tra quyền ghi file
+    local canAccessFiles = false
+    local writefile_func, readfile_func
+    if SETTINGS["EnableFileHistory"] then
+        pcall(function()
+            if writefile and readfile then
+                canAccessFiles, writefile_func, readfile_func = true, writefile, readfile
+            else
+                print("[FileIO] Quyền file KHÔNG có sẵn.")
+            end
+        end)
     else
-        warn("Lỗi file cài đặt, sử dụng cài đặt mặc định.")
-        return {}
+        print("[FileIO] Lịch sử file bị TẮT.")
     end
-end
 
-function SaveManager:Save()
-    local dataToSave = {}
-    for name, option in pairs(Options) do dataToSave[name] = option.Value end
-    local success, encodedData = pcall(function() return HttpService:JSONEncode(dataToSave) end)
-    if success then
-        writefile(FILE_PATH, encodedData)
-        Fluent:Notify({ Title = "Đã lưu!", Content = "Cài đặt của bạn đã được lưu.", Duration = 2 })
-    else
-        warn("Lỗi khi lưu cài đặt:", encodedData)
+    -- Tạo UI chính
+    local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+    if playerGui:FindFirstChild(SERVER_HOP_GUI_NAME) then
+        playerGui:FindFirstChild(SERVER_HOP_GUI_NAME):Destroy()
     end
-end
 
-local savedData = SaveManager:LoadData()
+    local statusScreenGui = CreateInstance("ScreenGui", {
+        ["Name"] = SERVER_HOP_GUI_NAME,
+        ["Parent"] = playerGui,
+        ["ResetOnSpawn"] = false,
+        ["ZIndexBehavior"] = Enum.ZIndexBehavior.Sibling,
+        ["IgnoreGuiInset"] = true
+    })
 
---================================================================
--- PHẦN 4: LOGIC VÀ CÁC CHỨC NĂNG
---================================================================
+    local statusFrame = CreateInstance("Frame", {
+        ["Name"] = "StatusFrame",
+        ["Parent"] = statusScreenGui,
+        ["Size"] = UDim2.new(1, 0, 1, 0),
+        ["BackgroundColor3"] = NEON_COLORS["GREEN"],
+        ["BorderSizePixel"] = 0,
+        ["BackgroundTransparency"] = 1,
+        ["ZIndex"] = 1
+    })
 
--- ------------------------------------------------------------------
--- --- NÚT TEST NHẤN PHÍM (Mô phỏng Space - ĐÃ SỬA LỖI)
--- ------------------------------------------------------------------
+    local FIXED_TEXT_SIZE = 50
+    local statusTextLabel = CreateInstance("TextLabel", {
+        ["Name"] = "StatusLabel",
+        ["Parent"] = statusScreenGui,
+        ["Size"] = UDim2.new(0.9, 0, 0, FIXED_TEXT_SIZE + 40),
+        ["Position"] = UDim2.new(0.5, 0, 0.5, 0),
+        ["AnchorPoint"] = Vector2.new(0.5, 0.5),
+        ["BackgroundTransparency"] = 1,
+        ["TextColor3"] = Color3.new(1, 1, 1),
+        ["Font"] = Enum.Font.SourceSansSemibold,
+        ["TextScaled"] = false,
+        ["TextSize"] = FIXED_TEXT_SIZE,
+        ["TextXAlignment"] = Enum.TextXAlignment.Center,
+        ["TextYAlignment"] = Enum.TextYAlignment.Center,
+        ["TextWrapped"] = true,
+        ["Text"] = "...",
+        ["ZIndex"] = 2
+    })
 
-Tabs.Main:AddButton({
-    Title = "Test nhấn phím Space",
-    Description = "Nhấn vào đây để mô phỏng việc nhấn và thả phím Space.",
-    Callback = function()
-        -- 'keypress' là một hàm không chính thức nhưng phổ biến trong nhiều executor
-        -- để mô phỏng việc nhấn và thả một phím ngay lập tức.
-        if keypress then
-            Fluent:Notify({ Title = "Test", Content = "Đang mô phỏng nhấn phím Space...", Duration = 2 })
-            -- SỬA LỖI: Truyền vào giá trị số của mã phím, không phải đối tượng Enum
-            keypress(Enum.KeyCode.LeftControl.Value)
+    local function updateDisplay(state, message)
+        print("[UI] ("..tostring(state)..") " .. tostring(message))
+        local stateColor = NEON_COLORS["GREEN"]
+        if state == "ERROR" then stateColor = NEON_COLORS["YELLOW"] end
+        if statusTextLabel and statusTextLabel.Parent then
+            statusTextLabel.Text = tostring(message)
+            statusTextLabel.TextColor3 = stateColor
+        end
+        if SETTINGS["EnableCountdownColor"] then
+            if statusFrame and statusFrame.Parent then
+                 if state == "SUCCESS" or state == "ERROR" then
+                    statusFrame.BackgroundColor3 = stateColor
+                    statusFrame.BackgroundTransparency = 0.5
+                 else
+                    statusFrame.BackgroundTransparency = 1
+                 end
+            end
         else
-            -- Nếu hàm 'keypress' không tồn tại, thông báo cho người dùng.
-            Fluent:Notify({ Title = "Lỗi", Content = "Môi trường của bạn không hỗ trợ hàm 'keypress'.", Duration = 4 })
+            if statusFrame then statusFrame.BackgroundTransparency = 1 end
         end
     end
-})
+
+    local serverHistoryCache = {}
+    local function loadServerHistory()
+        if not canAccessFiles then return {} end
+        local historySet = {}
+        local success, content = pcall(readfile_func, SERVER_HISTORY_FILENAME)
+        if success and content then
+            for line in string.gmatch(content, "[^" .. "\r\n" .. "]+") do
+                local trimmedLine = line:match("^%s*(.-)%s*$")
+                if trimmedLine and #trimmedLine > 0 then
+                    historySet[trimmedLine] = true
+                end
+            end
+        end
+        serverHistoryCache = historySet
+        return historySet
+    end
+
+    local function addJobIdToHistoryAndSave(jobId)
+        if not jobId or not canAccessFiles then return end
+        serverHistoryCache[jobId] = true
+        local lines = {}
+        for id in pairs(serverHistoryCache) do table.insert(lines, id) end
+        pcall(writefile_func, SERVER_HISTORY_FILENAME, table.concat(lines, "\n"))
+    end
+
+    local function createSafePlatform()
+        updateDisplay("INFO", "Đang tạo platform...")
+        if workspace:FindFirstChild(AFK_PLATFORM_NAME) then
+            updateDisplay("INFO", "Platform đã có.")
+            return
+        end
+        local platformPart = CreateInstance("Part", {
+            ["Name"] = AFK_PLATFORM_NAME,
+            ["Parent"] = workspace,
+            ["Anchored"] = true,
+            ["CanCollide"] = true,
+            ["Size"] = Vector3.new(20000, 40, 20000),
+            ["Color"] = Color3.fromRGB(50, 50, 50),
+            ["Transparency"] = 0
+        })
+        local char = LocalPlayer.Character
+        local hum = char and char:FindFirstChildOfClass("Humanoid")
+        local hrp = char and char:FindFirstChild("HumanoidRootPart")
+        if hum and hrp then
+            local hrpPos = hrp.Position
+            local hrpSizeY = hrp.Size.Y
+            local hipHeight = hum.HipHeight
+            local floorCenterY = hrpPos.Y - (hrpSizeY / 2) - hipHeight
+            local platformTopY = floorCenterY - PLATFORM_VERTICAL_OFFSET
+            local platformCenterY = platformTopY - (platformPart.Size.Y / 2)
+            platformPart.Position = Vector3.new(hrpPos.X, platformCenterY, hrpPos.Z)
+        else
+            platformPart.Position = Vector3.new(0, -30 - PLATFORM_VERTICAL_OFFSET, 0)
+        end
+        updateDisplay("SUCCESS", "Platform đã tạo.")
+    end
+
+    local function setupStaticAfkView()
+        updateDisplay("INFO", "Thiết lập view AFK tĩnh...")
+        local character = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+        if not character then return end
+        local head = character:WaitForChild("Head", 10)
+        if not head then return end
+        local camera = workspace.CurrentCamera
+        if not camera then return end
+        local staticHeadAnchor = workspace:FindFirstChild(STATIC_HEAD_ANCHOR_PART_NAME) or CreateInstance("Part", {
+            ["Name"] = STATIC_HEAD_ANCHOR_PART_NAME,
+            ["Parent"] = workspace,
+            ["Size"] = Vector3.new(0.1, 0.1, 0.1),
+            ["Transparency"] = 1,
+            ["CanCollide"] = false,
+            ["Anchored"] = true
+        })
+        staticHeadAnchor.CFrame = CFrame.new(head.Position)
+        local blackTarget = workspace:FindFirstChild(STATIC_BLACK_SCREEN_PART_NAME) or CreateInstance("Part", {
+            ["Name"] = STATIC_BLACK_SCREEN_PART_NAME,
+            ["Parent"] = workspace,
+            ["Size"] = Vector3.new(2500, 2500, 10),
+            ["Color"] = Color3.new(0, 0, 0),
+            ["CanCollide"] = false,
+            ["Anchored"] = true
+        })
+        local eastPositionFromAnchor = staticHeadAnchor.Position + Vector3.new(150, 0, 0)
+        blackTarget.CFrame = CFrame.new(eastPositionFromAnchor)
+        camera.CameraType = Enum.CameraType.Scriptable
+        camera.CFrame = CFrame.new(staticHeadAnchor.Position, blackTarget.Position)
+        camera.Focus = blackTarget.CFrame
+        updateDisplay("SUCCESS", "View AFK tĩnh đã thiết lập.")
+    end
+
+    local function optimizeGraphics()
+        updateDisplay("INFO", "Bắt đầu tối ưu đồ họa...")
+        if SETTINGS["EnableSafePlatform"] then createSafePlatform() end
+        task.wait(0.1)
+        local success, err = pcall(function()
+            local itemsToDelete = {}
+            for _, item in ipairs(workspace:GetChildren()) do
+                local keep = (LocalPlayer.Character and item.Name == LocalPlayer.Character.Name) or (item == workspace.CurrentCamera) or (SETTINGS["EnableSafePlatform"] and item.Name == AFK_PLATFORM_NAME) or (SETTINGS["EnableStaticAfkView"] and (item.Name == STATIC_HEAD_ANCHOR_PART_NAME or item.Name == STATIC_BLACK_SCREEN_PART_NAME))
+                if not keep then table.insert(itemsToDelete, item) end
+            end
+            for _, item in ipairs(itemsToDelete) do pcall(function() item:Destroy() end) end
+            Lighting.GlobalShadows = false
+            Lighting.Brightness = 0
+            Lighting.Ambient = Color3.new(0, 0, 0)
+            Lighting.OutdoorAmbient = Color3.new(0, 0, 0)
+            Lighting.ExposureCompensation = -2
+            pcall(function() if Lighting.Atmosphere then Lighting.Atmosphere:Destroy() end end)
+            pcall(function() if Lighting.Sky then Lighting.Sky:Destroy() end end)
+            if LocalPlayer.PlayerGui then
+                for _, gui in ipairs(LocalPlayer.PlayerGui:GetChildren()) do
+                    if gui.Name ~= SERVER_HOP_GUI_NAME then pcall(function() gui:Destroy() end) end
+                end
+            end
+            local settingsObj = settings()
+            if settingsObj and settingsObj.Rendering then
+                settingsObj.Rendering.QualityLevel = Enum.QualityLevel.Level01
+                pcall(function() if RunService:IsClient() then RunService:Set3dRenderingEnabled(false) end end)
+            end
+            SoundService.RespectFilteringEnabled = true
+            SoundService.AmbientReverb = Enum.ReverbType.NoReverb
+            for _, sound in ipairs(game:GetDescendants()) do
+                if sound:IsA("Sound") then
+                    sound.Volume = 0
+                    sound:Stop()
+                end
+            end
+            updateDisplay("SUCCESS", "Đồ họa đã được tối ưu.")
+        end)
+        if not success then updateDisplay("ERROR", "Lỗi khi tối ưu đồ họa: " .. tostring(err)) end
+    end
+
+    local chosenServer = nil
+    local serversUrlBase = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Asc&limit=100"
+    local function searchForServer()
+        if not SETTINGS["EnableFileHistory"] then serverHistoryCache = {} else loadServerHistory() end
+        local historyCount = 0
+        for _ in pairs(serverHistoryCache) do historyCount = historyCount + 1 end
+        updateDisplay("INFO", string.format("Bắt đầu tìm server... (Tránh %d)", historyCount + 1))
+        local searchLoopActive = true
+        chosenServer = nil
+        while searchLoopActive and not chosenServer do
+            local nextCursor = nil
+            updateDisplay("INFO", "Đang quét server...")
+            local allScanned = false
+            while not allScanned and not chosenServer do
+                local attempt = 0
+                local maxAttempts = 4
+                local pageFetched = false
+                local currentRetryDelay = baseRetryDelay
+                while not pageFetched and attempt < maxAttempts do
+                    attempt = attempt + 1
+                    if attempt > 1 then
+                        updateDisplay("INFO", string.format("Thử lại (%d/%d)...", attempt, maxAttempts))
+                        task.wait(currentRetryDelay)
+                        currentRetryDelay = math.min(currentRetryDelay * 2, maxRetryDelay)
+                    end
+                    local success, data = pcall(HttpService.GetAsync, HttpService, serversUrlBase .. (nextCursor and "&cursor=" .. nextCursor or ""))
+                    if success then
+                        pageFetched = true
+                        local successDecode, serverListData = pcall(HttpService.JSONDecode, HttpService, data)
+                        if successDecode and serverListData and serverListData.data then
+                            local suitableServers = {}
+                            for _, serverInfo in ipairs(serverListData.data) do
+                                if not (serverInfo.id == currentJobId or serverHistoryCache[serverInfo.id]) then
+                                    if serverInfo.playing and serverInfo.maxPlayers and serverInfo.maxPlayers > 0 then
+                                        local playerRatio = serverInfo.playing / serverInfo.maxPlayers
+                                        if playerRatio >= minPlayerPercentage and playerRatio < maxPlayerPercentageLimit and serverInfo.playing < serverInfo.maxPlayers then
+                                            table.insert(suitableServers, serverInfo)
+                                        end
+                                    end
+                                end
+                            end
+                            if #suitableServers > 0 then
+                                chosenServer = suitableServers[math.random(1, #suitableServers)]
+                                allScanned = true
+                                break
+                            end
+                            nextCursor = serverListData.nextPageCursor
+                            if not nextCursor then allScanned = true end
+                        else updateDisplay("ERROR", "Dữ liệu server lỗi hoặc không thể giải mã.") end
+                    else updateDisplay("ERROR", "Lỗi API: " .. tostring(data))
+                        if attempt >= maxAttempts then allScanned = true end
+                    end
+                end
+                if chosenServer or allScanned then break end
+                task.wait(waitTimeBetweenPageFetches)
+            end
+            if chosenServer then
+                updateDisplay("SUCCESS", "ĐÃ CHỌN SERVER!")
+                searchLoopActive = false
+            elseif allScanned then
+                updateDisplay("INFO", string.format("Không tìm thấy. Chờ %ds.", waitTimeBetweenFullScans))
+                task.wait(waitTimeBetweenFullScans)
+            end
+        end
+        if chosenServer then
+            updateDisplay("SUCCESS", "Chuẩn bị dịch chuyển...")
+            addJobIdToHistoryAndSave(currentJobId)
+            task.wait(1)
+            local success, err = pcall(TeleportService.TeleportToPlaceInstance, TeleportService, placeId, chosenServer.id, LocalPlayer)
+            if not success then
+                updateDisplay("ERROR", "Lỗi dịch chuyển! Thử lại...")
+                serverHistoryCache[chosenServer.id] = true
+                chosenServer = nil
+                task.wait(5)
+                searchForServer()
+            end
+        else
+            updateDisplay("ERROR", "Không thể tìm thấy server. Dừng lại.")
+        end
+    end
+
+    local countdownShouldReset = false
+    local currentCountdownThread = nil
+    local function performCountdownThenSearch(minutesToWait)
+        if not minutesToWait or minutesToWait <= 0 then
+            updateDisplay("ERROR", "Thời gian chờ lỗi.")
+            searchForServer()
+            return
+        end
+        if not SETTINGS["EnableCountdownText"] and statusTextLabel then statusTextLabel.Text = "" end
+        if not SETTINGS["EnableCountdownColor"] and statusFrame then statusFrame.BackgroundTransparency = 1 end
+        local totalSeconds = minutesToWait * 60
+        for i = totalSeconds, 0, -1 do
+            if countdownShouldReset and SETTINGS["EnableDonateReset"] then
+                countdownShouldReset = false
+                if statusTextLabel then statusTextLabel.Text = "" end
+                if statusFrame then statusFrame.BackgroundTransparency = 1 end
+                updateDisplay("SUCCESS", "Donate! Reset thời gian.")
+                startInitialCountdown()
+                return
+            end
+            if SETTINGS["EnableCountdownText"] and statusTextLabel and statusTextLabel.Parent then
+                statusTextLabel.Text = string.format("%02d:%02d", math.floor(i / 60), i % 60)
+                statusTextLabel.TextColor3 = Color3.new(1, 1, 1)
+            end
+            if SETTINGS["EnableCountdownColor"] and statusFrame and statusFrame.Parent then
+                statusFrame.BackgroundColor3 = (i % 2 == 0) and NEON_COLORS["BLUE"] or NEON_COLORS["RED"]
+                statusFrame.BackgroundTransparency = 0.6
+            end
+            task.wait(1)
+        end
+        if statusTextLabel then statusTextLabel.Text = "" end
+        if statusFrame then statusFrame.BackgroundTransparency = 1 end
+        updateDisplay("SUCCESS", "Hết giờ! Bắt đầu tìm server...")
+        searchForServer()
+    end
+
+    local function startInitialCountdown()
+        updateDisplay("INFO", "Bắt đầu chu trình...")
+        if currentCountdownThread and coroutine.status(currentCountdownThread) ~= "dead" then
+            pcall(coroutine.close, currentCountdownThread)
+            currentCountdownThread = nil
+        end
+        currentCountdownThread = coroutine.create(function()
+            local success, err = pcall(performCountdownThenSearch, DEFAULT_WAIT_MINUTES)
+            if not success then
+                updateDisplay("ERROR", "Lỗi Coroutine: " .. tostring(err) .. ". Thử lại sau 5s...")
+                task.wait(5)
+                if SETTINGS["EnableServerHop"] then startInitialCountdown() end
+            end
+        end)
+        coroutine.resume(currentCountdownThread)
+    end
+
+    -- (MỚI) Hàm khởi tạo tính năng tự động kết nối lại
+    local function initializeAutoReconnect()
+        if not SETTINGS["EnableAutoReconnect"] then return end
+
+        -- Chờ cho đến khi GUI của Roblox sẵn sàng
+        local promptGui = CoreGui:WaitForChild("RobloxPromptGui", 30)
+        if not promptGui then
+            warn("[AutoReconnect] Không tìm thấy RobloxPromptGui.")
+            return
+        end
+        
+        local promptOverlay = promptGui:WaitForChild("promptOverlay", 10)
+        if not promptOverlay then
+             warn("[AutoReconnect] Không tìm thấy promptOverlay.")
+            return
+        end
+
+        print("[AutoReconnect] Tính năng tự động kết nối lại đã được kích hoạt.")
+        -- Lắng nghe sự kiện khi có lỗi hiển thị
+        promptOverlay.ChildAdded:Connect(function(child)
+            if child.Name == "ErrorPrompt" then
+                updateDisplay("ERROR", "Mất kết nối! Đang thử kết nối lại...")
+                -- Vòng lặp vô tận để thử kết nối lại
+                repeat
+                    pcall(TeleportService.Teleport, TeleportService, placeId)
+                    task.wait(3)
+                until false
+            end
+        end)
+    end
+
+    -- --- Khởi chạy Script ---
+    updateDisplay("INFO", "Script đang khởi chạy...")
+    task.wait(0.2)
+    if type(setfpscap) == "function" and SETTINGS["TargetFps"] and SETTINGS["TargetFps"] > 0 then
+        task.spawn(function()
+            while task.wait() do pcall(setfpscap, SETTINGS["TargetFps"]) end
+        end)
+    end
+
+    updateDisplay("INFO", string.format("Chờ game tải trong %d giây...", SETTINGS["InitialWaitTime"]))
+    task.wait(SETTINGS["InitialWaitTime"])
+    updateDisplay("INFO", "Hết thời gian chờ. Bắt đầu thiết lập...")
+
+    if SETTINGS["EnableSafePlatform"] then createSafePlatform() end
+    if SETTINGS["EnableStaticAfkView"] then setupStaticAfkView() end
+    if SETTINGS["EnableGraphicsOptimization"] then optimizeGraphics() end
+    
+    -- Khởi tạo listener cho việc tự động kết nối lại
+    initializeAutoReconnect()
+
+    if SETTINGS["EnableServerHop"] then
+        startInitialCountdown()
+        if SETTINGS["EnableDonateReset"] then
+            local leaderstats = LocalPlayer:WaitForChild("leaderstats", 15)
+            if leaderstats then
+                local raised = leaderstats:WaitForChild("Raised", 15)
+                if raised then
+                    local lastRaised = raised.Value
+                    raised.Changed:Connect(function(newValue)
+                        if newValue > lastRaised then
+                            lastRaised = newValue
+                            countdownShouldReset = true
+                        end
+                    end)
+                end
+            end
+        end
+    else
+        updateDisplay("INFO", "Logic Server Hop TẮT. Script đã hoàn thành.")
+    end
+
+    print("[MainLogic] Script đã hoàn tất khởi chạy chính.")
+end)
+
+if not success then
+    -- Nếu có lỗi nghiêm trọng ngay từ đầu, hiển thị thông báo
+    warn("[Loader] Lỗi nghiêm trọng khi thực thi script: " .. tostring(err))
+end
