@@ -3,7 +3,7 @@
 -- =================================================================
 local SETTINGS = {
     -- Cài đặt Server Hop
-    ["WaitMinutes"] = 0.1,
+    ["WaitMinutes"] = 0.2,
     ["MinPlayerPercentage"] = 0.50, -- Tỉ lệ người chơi tối thiểu để vào (VD: 0.5 = 50%)
     ["MaxPlayerPercentage"] = 0.90, -- Tỉ lệ người chơi tối đa để vào (VD: 0.9 = 90%)
 
@@ -17,7 +17,7 @@ local SETTINGS = {
     -- Cài đặt hiệu năng
     ["EnableGraphicsOptimization"] = true,
     ["EnableFileHistory"] = true,
-    ["TargetFps"] = 60,
+    ["TargetFps"] = 15,
     ["InitialWaitTime"] = 10,
 
     -- Cài đặt giao diện
@@ -377,7 +377,7 @@ local success, err = pcall(function()
                     pAtt=pAtt+1;if pAtt>1 then updateDisplay("INFO", string.format("Thử lại (%d/%d)...",pAtt,maxAtt));task.wait(curRetry);curRetry=math.min(curRetry*2,maxRetryDelay) end
                     
                     -- (KHÔI PHỤC LOGIC GỐC) Sử dụng lại logic gốc với pcall và HttpGet (thông qua HttpService:GetAsync)
-                    local s,d=pcall(function() return HttpService:GetAsync(serversUrlBase..(nextCur and "&cursor="..nextCur or "")) end)
+                    local s,d=pcall(function() return game:HttpGet(serversUrlBase..(nextCur and "&cursor="..nextCur or ""), true) end)
                     
                     if s then
                         pFetched=true;
