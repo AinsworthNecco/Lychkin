@@ -10,14 +10,14 @@ local SETTINGS = {
     -- Bật/Tắt các tính năng chính
     ["EnableServerHop"] = true,
     ["EnableSafePlatform"] = true,
-    ["EnableStaticAfkView"] = true,
+    ["EnableStaticAfkView"] = false,
     ["EnableDonateReset"] = true,
     ["EnableAutoReconnect"] = true, -- (MỚI) Tự động kết nối lại khi bị mất kết nối hoặc bị kick
 
     -- Cài đặt hiệu năng
     ["EnableGraphicsOptimization"] = true,
     ["EnableFileHistory"] = true,
-    ["TargetFps"] = 7,
+    ["TargetFps"] = 60,
     ["InitialWaitTime"] = 10, -- Thời gian chờ (giây) trước khi script bắt đầu thiết lập
 
     -- Cài đặt giao diện
