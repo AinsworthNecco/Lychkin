@@ -17,7 +17,7 @@ local SETTINGS = {
     -- Cài đặt hiệu năng
     ["EnableGraphicsOptimization"] = true,
     ["EnableFileHistory"] = true,
-    ["TargetFps"] = 15,
+    ["TargetFps"] = 60,
     ["InitialWaitTime"] = 10,
 
     -- Cài đặt giao diện
