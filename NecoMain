@@ -25,42 +25,63 @@ local Config = {
     --  Để thêm một trường hợp mới, chỉ cần SAO CHÉP một khối bắt đầu từ {       --
     --  cho đến }, DÁN nó xuống dưới cùng và CHỈNH SỬA lại nội dung bên trong.    --
     ------------------------------------------------------------------------------
-    ["ReplyRules"] = {
-        
-        -- TRƯỜNG HỢP 1: Quy tắc chào hỏi
-        {
-            keywords = { "hi", "hello", "hey", "sup", "chào", "chao" },
-            replies = { "Chào bạn", "Hi :>", "Yo", "Hí anh bạn" }
-        },
+["ReplyRules"] = {
+    
+    -- CASE 1: Greetings (Mở rộng)
+    {
+        keywords = { "hi", "hello", "hey", "sup", "yo", "wsg", "howdy", "greetings", "wassup", "heya" },
+        replies = { "Hello!", "Hi there", "Hey!", "Yo", "What's up?", "Howdy!", "Heya", "Sup", "Heyo!", "What's good?", "Well hello there." }
+    },
 
-        -- TRƯỜNG HỢP 2: Quy tắc khi bị gọi là bot
-        {
-            keywords = { "bot", "auto", "script", "scrip" },
-            replies = { "tôi không phải bot", "bạn nhầm rồi :D", "người thật việc thật nhé" }
-        },
-        
-        -- TRƯỜNG HỢP 3: Quy tắc khi có người xin đồ/donate
-        {
-            keywords = { "donate", "pls", "cho", "xin", "give me" },
-            replies = { "xin lỗi, mình đang tiết kiệm", "mình không có rồi :(", "robux của mình đang pending..." }
-        },
-        
-        -- TRƯỜNG HỢP 4: Quy tắc khi bị nói là lừa đảo
-        {
-            keywords = { "scam", "fake", "lua dao", "lừa đảo", "report" },
-            replies = { "đây không phải lừa đảo", "tôi không phải scammer đâu", "uy tín 100% nhé" }
-        },
+    -- CASE 2: Being asked for donations (Mở rộng)
+    {
+        keywords = { "donate", "pls", "give me", "robux pls", "can i have", "spare", "some robux", "can u donate", "plz donate", "can you give", "i need robux" },
+        replies = { "Sorry, I'm saving up right now.", "I can't donate at the moment, sorry.", "My robux is pending, can't help sorry.", "Sry, saving for something specific.", "Maybe later, I'm trying to reach my own goal.", "Can't right now, good luck though!", "All my robux is tied up, sorry.", "Sorry, my wallet is on a diet.", "I wish I could, but I'm broke lol." }
+    },
+    
+    -- CASE 3: Being called a bot or scripter (Mở rộng)
+    {
+        keywords = { "bot", "auto", "script", "scripter", "macro", "afk farm", "autoclicker", "is that a script", "you a bot?" },
+        replies = { "I'm not a bot :)", "lol no, I'm a real player.", "Just vibing, not a bot.", "Beep boop? Nah, just kidding.", "I'm a human, I promise!", "Not a script, just dedicated lol.", "Do I look like a bot to you? :P", "Last time I checked, I still need to sleep. So, not a bot.", "01001110 01101111. (That means 'No' in binary)." }
+    },
+    
+    -- CASE 4: Being called a scammer (Mở rộng)
+    {
+        keywords = { "scam", "fake", "report", "scammer", "this is a scam", "don't trust", "he's a scammer", "is this fake" },
+        replies = { "This is not a scam.", "I'm not a scammer.", "It's legit, no worries.", "100% legit, my friend.", "No scams here, just good vibes.", "I'm just here to play the game like you.", "Why would you think it's a scam?", "The only thing I'm scamming is time, by playing this game.", "You've got the wrong person, I'm just here to chill." }
+    },
 
-        -- BẠN CÓ THỂ COPY-PASTE KHỐI TRÊN VÀ DÁN VÀO ĐÂY ĐỂ TẠO QUY TẮC MỚI
-        -- VÍ DỤ:
-        -- {
-        --     keywords = { "tên bạn là gì", "bạn tên gì" },
-        --     replies = { "bí mật :>", "tôi là người qua đường thôi" }
-        -- },
-        
-    }
+    -- CASE 5: Questions about their goal
+    {
+        keywords = { "goal", "saving for", "what for" },
+        replies = { "I'm saving for my dream item!", "Just trying to reach my goal.", "For a new avatar item :)" }
+    },
+
+    -- CASE 6: Compliments on their booth or avatar
+    {
+        keywords = { "cool booth", "nice avatar", "cool skin", "love your booth" },
+        replies = { "Thanks!", "Thank you so much!", "Ty! I appreciate it." }
+    },
+    
+    -- CASE 7: Questions about why they are AFK/spinning/jumping
+    {
+        keywords = { "why are you", "how are you", "spinning", "jumping", "afk" },
+        replies = { "Just farming for my goal.", "It's part of the grind.", "Doing this for donations." }
+    },
+
+    -- CASE 8: Someone asks for your name
+    {
+        keywords = { "name?", "your name", "whats your name" },
+        replies = { "You can call me by my display name.", "It's on the leaderboard!", "Just a friendly player." }
+    },
+
+    -- CASE 9: General questions like "how are you?"
+    {
+        keywords = { "how are you", "how r u", "hru" },
+        replies = { "I'm good, thanks for asking!", "Doing great!", "Just chilling." }
+    },
+    
 }
-
 
 --==============================================================================--
 --                           PHẦN LOGIC CỦA SCRIPT                              --
