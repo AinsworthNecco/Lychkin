@@ -1,74 +1,23 @@
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+--[[
+	WARNING: Heads up! This script has not been verified by ScriptBlox. Use at your own risk!
+]]
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
-
-local chatToAIEvent = ReplicatedStorage:WaitForChild("ChatToAI")
-
-local openaiUrl = "https://api.openai.com/v1/chat/completions"
-
--- Replace with your actual OpenAI API Key
-local openaiApiKey = "YOUR API"
-
-local function getChatbotResponse(userInput, role)
-	-- Define the conversation context
-	local messages = {
-		{role = "system", content = "You are a friendly chatbot."},
-		{role = role, content = userInput}
-	}
-
-	-- Prepare the request data
-	local requestData = {
-		model = "gpt-3.5-turbo",  -- Using the appropriate model
-		messages = messages,
-		max_tokens = 150,
-		temperature = 0.7
-	}
-
-	local success, response = pcall(function()
-		-- Send request to OpenAI API
-		return HttpService:RequestAsync({
-			Url = openaiUrl,
-			Method = "POST",
-			Headers = {
-				["Content-Type"] = "application/json",
-				["Authorization"] = "Bearer " .. openaiApiKey
-			},
-			Body = HttpService:JSONEncode(requestData)
-		})
-	end)
-
-	if success then
-		if response.Success then
-			local responseData
-			local statusCode = response.StatusCode
-			-- Handle the response data
-			local success, decodedData = pcall(function()
-				return HttpService:JSONDecode(response.Body)
-			end)
-
-			if success and decodedData.choices and #decodedData.choices > 0 then
-				return decodedData.choices[1].message.content:trim()  -- Extract response
-			else
-				return "Error: No valid response from the chatbot service."
-			end
-		else
-			return "Error: API request failed with status code " .. response.StatusCode
-		end
-	else
-		return "Error: Request failed with error: " .. response
-	end
+ 
+_G.Owner = "YourUsernameHere"
+ 
+function getChat(message,plrname)
+ 
+   local Split = message:gsub(" ", "+") -- This takes spaces within the person's message and turns it into for ex: Hi+How+Are+You... to ensure that there are no errors and to also make the URL work
+ 
+   local Response = game:HttpGet("https://api.affiliateplus.xyz/api/chatbot?message=" .. Split .. "&botname=" .. plrname .. "&ownername=" .. _G.Owner .. "&user=1")
+   local Data = HttpService:JSONDecode(Response)
+   wait(1)
+   game:GetService("ReplicatedStorage").DefaultChatSystemChatEvents.SayMessageRequest:FireServer(Data.message, "All")
 end
-
-local function onPlayerChatted(player, message)
-	local role = "user"  -- This can change depending on how you want the NPC to speak (you can add logic for adult/kid)
-
-	-- You could add logic to change the 'role' or system context based on the player's choice
-	local response = getChatbotResponse(message, role)
-	chatToAIEvent:FireClient(player, response)
-end
-
-Players.PlayerAdded:Connect(function(player)
-	player.Chatted:Connect(function(message)
-		onPlayerChatted(player, message)
-	end)
+ 
+Players.PlayerChatted:Connect(function(type, plr, message)
+   if plr.Name ~= Players.LocalPlayer.Name then
+       getChat(message, plr.Name)
+   end
 end)
