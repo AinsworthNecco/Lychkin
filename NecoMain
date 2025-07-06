@@ -1,51 +1,74 @@
--- Config dạng ReplyRules như yêu cầu
-local AutoReplyConfig = {
-    Enabled = true,
-    ReplyRadius = 20,
-    ReplyCooldown = 15,
-    ReplyRules = {
-        {
-            keywords = { "hi", "hello", "hey", "yo", "sup", "greetings", "howdy" },
-            replies = { "Hey!", "Hello there!", "Hi hi!", "Yo!", "Howdy!", "Sup!" }
-        },
-        {
-            keywords = { "donate", "pls", "robux", "can u give", "can you donate", "give me", "i need" },
-            replies = { "Sorry, I'm saving.", "Maybe later.", "I can't donate now, good luck!", "I'm low on Robux too!" }
-        },
-        {
-            keywords = { "bot", "auto", "script", "are you a bot", "macro" },
-            replies = { "I'm a real player!", "Nope, not a bot.", "Just grinding like you!", "Haha, not a script!" }
-        },
-        {
-            keywords = { "scam", "scammer", "fake" },
-            replies = { "I'm not a scammer.", "This is legit.", "I'm just here to chill :)", "No scams here." }
-        },
-    }
-}
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
 
-local replyCooldowns = {}
+local chatToAIEvent = ReplicatedStorage:WaitForChild("ChatToAI")
 
-Players.PlayerChatted:Connect(function(_, player, message)
-	if not AutoReplyConfig.Enabled or player == Players.LocalPlayer then return end
+local openaiUrl = "https://api.openai.com/v1/chat/completions"
 
-	local myChar = Players.LocalPlayer.Character
-	local theirChar = player.Character
-	if not (myChar and theirChar and myChar:FindFirstChild("HumanoidRootPart") and theirChar:FindFirstChild("HumanoidRootPart")) then return end
+-- Replace with your actual OpenAI API Key
+local openaiApiKey = "YOUR API"
 
-	local dist = (myChar.HumanoidRootPart.Position - theirChar.HumanoidRootPart.Position).Magnitude
-	if dist > AutoReplyConfig.ReplyRadius then return end
+local function getChatbotResponse(userInput, role)
+	-- Define the conversation context
+	local messages = {
+		{role = "system", content = "You are a friendly chatbot."},
+		{role = role, content = userInput}
+	}
 
-	if replyCooldowns[player.UserId] and tick() - replyCooldowns[player.UserId] < AutoReplyConfig.ReplyCooldown then return end
+	-- Prepare the request data
+	local requestData = {
+		model = "gpt-3.5-turbo",  -- Using the appropriate model
+		messages = messages,
+		max_tokens = 150,
+		temperature = 0.7
+	}
 
-	local msg = message:lower()
-	for _, rule in ipairs(AutoReplyConfig.ReplyRules) do
-		for _, kw in ipairs(rule.keywords) do
-			if msg:find(kw) then
-				local reply = rule.replies[math.random(1, #rule.replies)]
-				game:GetService("TextChatService").TextChannels.RBXGeneral:SendAsync(reply)
-				replyCooldowns[player.UserId] = tick()
-				return
+	local success, response = pcall(function()
+		-- Send request to OpenAI API
+		return HttpService:RequestAsync({
+			Url = openaiUrl,
+			Method = "POST",
+			Headers = {
+				["Content-Type"] = "application/json",
+				["Authorization"] = "Bearer " .. openaiApiKey
+			},
+			Body = HttpService:JSONEncode(requestData)
+		})
+	end)
+
+	if success then
+		if response.Success then
+			local responseData
+			local statusCode = response.StatusCode
+			-- Handle the response data
+			local success, decodedData = pcall(function()
+				return HttpService:JSONDecode(response.Body)
+			end)
+
+			if success and decodedData.choices and #decodedData.choices > 0 then
+				return decodedData.choices[1].message.content:trim()  -- Extract response
+			else
+				return "Error: No valid response from the chatbot service."
 			end
+		else
+			return "Error: API request failed with status code " .. response.StatusCode
 		end
+	else
+		return "Error: Request failed with error: " .. response
 	end
+end
+
+local function onPlayerChatted(player, message)
+	local role = "user"  -- This can change depending on how you want the NPC to speak (you can add logic for adult/kid)
+
+	-- You could add logic to change the 'role' or system context based on the player's choice
+	local response = getChatbotResponse(message, role)
+	chatToAIEvent:FireClient(player, response)
+end
+
+Players.PlayerAdded:Connect(function(player)
+	player.Chatted:Connect(function(message)
+		onPlayerChatted(player, message)
+	end)
 end)
