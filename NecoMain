@@ -1,105 +1,99 @@
-local HttpService = game:GetService("HttpService")
+--// CONFIG
+local Config = {
+    ["Enabled"] = true,
+    ["ReplyRadius"] = 20,
+    ["ReplyCooldown"] = 15,
+    ["ReplyRules"] = {
+        {
+            keywords = { "hi", "hello", "hey", "yo", "sup" },
+            replies = { "Hey!", "Hello there!", "Hi hi!", "Yo!", "Howdy!" }
+        },
+        {
+            keywords = { "donate", "pls", "robux", "can u give", "can you donate" },
+            replies = { "Sorry, I'm saving.", "Maybe later.", "I can't donate now, good luck!" }
+        },
+        {
+            keywords = { "bot", "auto", "script", "are you a bot" },
+            replies = { "I'm a real player!", "Nope, not a bot.", "Just grinding like you!" }
+        },
+        {
+            keywords = { "scam", "scammer", "fake" },
+            replies = { "I'm not a scammer.", "This is legit.", "I'm just here to play :)" }
+        },
+    }
+}
+
+--// SERVICE & BIẾN
 local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local LocalPlayer = Players.LocalPlayer
+local ChatService = game:GetService("TextChatService")
+local GeneralChannel = ChatService.TextChannels.RBXGeneral
+local lastReplyTime = {}
 
-local localPlayer = Players.LocalPlayer
-
--- ========== GUI ==========
-local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "ChatBotGUI"
-screenGui.ResetOnSpawn = false
-screenGui.Parent = localPlayer:WaitForChild("PlayerGui")
-
-local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 180, 0, 60)
-frame.Position = UDim2.new(1, -190, 0, 20)
-frame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
-frame.BackgroundTransparency = 0.1
-frame.BorderSizePixel = 0
-frame.Parent = screenGui
+--// GUI HIỂN THỊ TRẠNG THÁI
+local screenGui = Instance.new("ScreenGui", game:GetService("CoreGui"))
+screenGui.Name = "AutoReplyStatus"
 
 local statusLabel = Instance.new("TextLabel")
-statusLabel.Size = UDim2.new(1, 0, 0.5, 0)
-statusLabel.Position = UDim2.new(0, 0, 0, 0)
-statusLabel.BackgroundTransparency = 1
-statusLabel.Text = "ChatBot: Enabled"
-statusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-statusLabel.Font = Enum.Font.Gotham
-statusLabel.TextScaled = true
-statusLabel.Parent = frame
+statusLabel.Parent = screenGui
+statusLabel.Size = UDim2.new(0, 200, 0, 35)
+statusLabel.Position = UDim2.new(0.5, -100, 0, 10)
+statusLabel.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+statusLabel.BorderSizePixel = 0
+statusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+statusLabel.Font = Enum.Font.GothamSemibold
+statusLabel.TextSize = 18
+statusLabel.Text = "Auto Reply: " .. (Config.Enabled and "ON" or "OFF")
 
-local toggleButton = Instance.new("TextButton")
-toggleButton.Size = UDim2.new(1, -10, 0.4, 0)
-toggleButton.Position = UDim2.new(0, 5, 0.55, 0)
-toggleButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
-toggleButton.Text = "Toggle ChatBot"
-toggleButton.TextColor3 = Color3.new(1, 1, 1)
-toggleButton.Font = Enum.Font.Gotham
-toggleButton.TextScaled = true
-toggleButton.Parent = frame
+--// CẬP NHẬT GUI KHI ĐỔI TRẠNG THÁI
+local function updateStatus()
+	statusLabel.Text = "Auto Reply: " .. (Config.Enabled and "ON" or "OFF")
+	statusLabel.BackgroundColor3 = Config.Enabled and Color3.fromRGB(40, 180, 90) or Color3.fromRGB(180, 40, 40)
+end
+updateStatus()
 
--- ========== CHATBOT ==========
-local chatbotEnabled = true
-
-local function setStatus(state)
-	chatbotEnabled = state
-	if state then
-		statusLabel.Text = "ChatBot: Enabled"
-		statusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
-	else
-		statusLabel.Text = "ChatBot: Disabled"
-		statusLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
-	end
+--// HỖ TRỢ
+local function isInRadius(player)
+	local c1 = LocalPlayer.Character
+	local c2 = player.Character
+	if not (c1 and c2 and c1:FindFirstChild("HumanoidRootPart") and c2:FindFirstChild("HumanoidRootPart")) then return false end
+	return (c1.HumanoidRootPart.Position - c2.HumanoidRootPart.Position).Magnitude <= Config.ReplyRadius
 end
 
-toggleButton.MouseButton1Click:Connect(function()
-	setStatus(not chatbotEnabled)
-end)
-
--- API call
-local function getBotReply(message)
-	local url = "https://some-random-api.ml/chatbot?message=" .. HttpService:UrlEncode(message)
-	local success, result = pcall(function()
-		return HttpService:JSONDecode(game:HttpGet(url))
-	end)
-	if success and result and result.response then
-		return result.response
-	else
-		return nil
-	end
+local function canReply(player)
+	return not lastReplyTime[player.UserId] or tick() - lastReplyTime[player.UserId] >= Config.ReplyCooldown
 end
 
--- Lắng nghe người chơi khác nói
-local function connectChat(player)
-	if player == localPlayer then return end
-
-	player.Chatted:Connect(function(msg)
-		if not chatbotEnabled then return end
-		local char = player.Character
-		local myChar = localPlayer.Character
-		if not char or not myChar then return end
-
-		local hrp1 = char:FindFirstChild("HumanoidRootPart")
-		local hrp2 = myChar:FindFirstChild("HumanoidRootPart")
-		if not hrp1 or not hrp2 then return end
-
-		local dist = (hrp1.Position - hrp2.Position).Magnitude
-		if dist <= 12 then
-			local reply = getBotReply(msg)
-			if reply then
-				ReplicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest:FireServer("🤖 " .. reply, "All")
+local function getReply(text)
+	text = text:lower()
+	for _, rule in ipairs(Config.ReplyRules) do
+		for _, keyword in ipairs(rule.keywords) do
+			if text:find(keyword) then
+				return rule.replies[math.random(1, #rule.replies)]
 			end
 		end
-	end)
+	end
+	return nil
 end
 
--- Kết nối với người chơi đã có
-for _, p in pairs(Players:GetPlayers()) do
-	connectChat(p)
-end
+--// LẮNG NGHE CHAT
+Players.PlayerChatted:Connect(function(message, sender)
+	if not Config.Enabled or sender == LocalPlayer then return end
+	if not isInRadius(sender) or not canReply(sender) then return end
 
--- Kết nối khi có người chơi mới
-Players.PlayerAdded:Connect(connectChat)
+	local reply = getReply(message)
+	if reply then
+		task.wait(1 + math.random()) -- Delay nhỏ để tự nhiên
+		GeneralChannel:SendAsync(reply)
+		lastReplyTime[sender.UserId] = tick()
+	end
+end)
 
--- Khởi tạo
-setStatus(true)
+--// PHÍM TẮT BẬT TẮT
+game:GetService("UserInputService").InputBegan:Connect(function(input, gpe)
+	if gpe then return end
+	if input.KeyCode == Enum.KeyCode.F6 then
+		Config.Enabled = not Config.Enabled
+		updateStatus()
+	end
+end)
