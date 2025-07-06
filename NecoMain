@@ -1,403 +1,296 @@
 --[[
+    ================================================================================
+    ==                    ROBLOX - SCRIPT AUTO-REPLY LINH HOẠT                    ==
+    ================================================================================
 
-    ================================================================================
-
-    ==                    ROBLOX - SCRIPT AUTO-REPLY LINH HOẠT                    ==
-
-    ================================================================================
-
-
-    Mô tả:
-
-    Script này sẽ tự động trả lời tin nhắn của người chơi khác dựa trên các quy tắc
-
-    bạn thiết lập. Script sẽ chỉ trả lời khi tin nhắn chứa từ khóa được định nghĩa.
-
-    Đã tích hợp một GUI nhỏ để theo dõi trạng thái.
-
+    Mô tả:
+    Script này sẽ tự động trả lời tin nhắn của người chơi khác dựa trên các quy tắc
+    bạn thiết lập. Đã tích hợp một GUI trạng thái và một cửa sổ console để theo dõi
+    hoạt động, đặc biệt hữu ích cho người dùng di động.
 
 --]]
 
-
 --==============================================================================--
-
---                           BẢNG CÀI ĐẶT (CONFIG)                               --
-
---                  Tất cả tùy chỉnh của bạn đều nằm ở đây!                      --
-
+--                           BẢNG CÀI ĐẶT (CONFIG)                               --
+--                  Tất cả tùy chỉnh của bạn đều nằm ở đây!                      --
 --==============================================================================--
-
 local Config = {
-
-    -- Cài đặt chung & Cơ bản
-
-    ["Enabled"]                  = true, -- Bật (`true`) hoặc tắt (`false`) toàn bộ script.
-
-    ["ReplyRadius"]              = 20,   -- Khoảng cách tối đa (tính bằng studs) để trả lời người chơi.
-
-    ["ReplyCooldown"]            = 15,   -- Thời gian chờ (giây) trước khi trả lời lại cùng một người.
-
-
-    ------------------------------------------------------------------------------
-
-    --                  DANH SÁCH CÁC QUY TẮC TRẢ LỜI (ReplyRules)                --
-
-    ------------------------------------------------------------------------------
-
-    ["ReplyRules"] = {
-
-        
-
-        -- CASE 1: Greetings (Mở rộng)
-
-        {
-
-            keywords = { "hi", "hello", "hey", "sup", "yo", "wsg", "howdy", "greetings", "wassup", "heya" },
-
-            replies = { "Hello!", "Hi there", "Hey!", "Yo", "What's up?", "Howdy!", "Heya", "Sup", "Heyo!", "What's good?", "Well hello there." }
-
-        },
-
-
-        -- CASE 2: Being asked for donations (Mở rộng)
-
-        {
-
-            keywords = { "donate", "pls", "give me", "robux pls", "can i have", "spare", "some robux", "can u donate", "plz donate", "can you give", "i need robux" },
-
-            replies = { "Sorry, I'm saving up right now.", "I can't donate at the moment, sorry.", "My robux is pending, can't help sorry.", "Sry, saving for something specific.", "Maybe later, I'm trying to reach my own goal.", "Can't right now, good luck though!", "All my robux is tied up, sorry.", "Sorry, my wallet is on a diet.", "I wish I could, but I'm broke lol." }
-
-        },
-
-        
-
-        -- CASE 3: Being called a bot or scripter (Mở rộng)
-
-        {
-
-            keywords = { "bot", "auto", "script", "scripter", "macro", "afk farm", "autoclicker", "is that a script", "you a bot?" },
-
-            replies = { "I'm not a bot :)", "lol no, I'm a real player.", "Just vibing, not a bot.", "Beep boop? Nah, just kidding.", "I'm a human, I promise!", "Not a script, just dedicated lol.", "Do I look like a bot to you? :P", "Last time I checked, I still need to sleep. So, not a bot.", "01001110 01101111. (That means 'No' in binary)." }
-
-        },
-
-        
-
-        -- CASE 4: Being called a scammer (Mở rộng)
-
-        {
-
-            keywords = { "scam", "fake", "report", "scammer", "this is a scam", "don't trust", "he's a scammer", "is this fake" },
-
-            replies = { "This is not a scam.", "I'm not a scammer.", "It's legit, no worries.", "100% legit, my friend.", "No scams here, just good vibes.", "I'm just here to play the game like you.", "Why would you think it's a scam?", "The only thing I'm scamming is time, by playing this game.", "You've got the wrong person, I'm just here to chill." }
-
-        },
-
-
-        -- CASE 5: Questions about their goal
-
-        {
-
-            keywords = { "goal", "saving for", "what for" },
-
-            replies = { "I'm saving for my dream item!", "Just trying to reach my goal.", "For a new avatar item :)" }
-
-        },
-
-
-        -- CASE 6: Compliments on their booth or avatar
-
-        {
-
-            keywords = { "cool booth", "nice avatar", "cool skin", "love your booth" },
-
-            replies = { "Thanks!", "Thank you so much!", "Ty! I appreciate it." }
-
-        },
-
-        
-
-        -- CASE 7: Questions about why they are AFK/spinning/jumping
-
-        {
-
-            keywords = { "why are you", "how are you", "spinning", "jumping", "afk" },
-
-            replies = { "Just farming for my goal.", "It's part of the grind.", "Doing this for donations." }
-
-        },
-
-
-        -- CASE 8: Someone asks for your name
-
-        {
-
-            keywords = { "name?", "your name", "whats your name" },
-
-            replies = { "You can call me by my display name.", "It's on the leaderboard!", "Just a friendly player." }
-
-        },
-
-
-        -- CASE 9: General questions like "how are you?"
-
-        {
-
-            keywords = { "how are you", "how r u", "hru" },
-
-            replies = { "I'm good, thanks for asking!", "Doing great!", "Just chilling." }
-
-        },
-
-        
-
-    }
-
+    -- Cài đặt chung & Cơ bản
+    ["Enabled"]                  = true, -- Bật (`true`) hoặc tắt (`false`) toàn bộ script.
+    ["ReplyRadius"]              = 20,   -- Khoảng cách tối đa (tính bằng studs) để trả lời người chơi.
+    ["ReplyCooldown"]            = 15,   -- Thời gian chờ (giây) trước khi trả lời lại cùng một người.
+
+    ------------------------------------------------------------------------------
+    --                  DANH SÁCH CÁC QUY TẮC TRẢ LỜI (ReplyRules)                --
+    ------------------------------------------------------------------------------
+    ["ReplyRules"] = {
+        
+        -- CASE 1: Greetings (Mở rộng)
+        {
+            keywords = { "hi", "hello", "hey", "sup", "yo", "wsg", "howdy", "greetings", "wassup", "heya" },
+            replies = { "Hello!", "Hi there", "Hey!", "Yo", "What's up?", "Howdy!", "Heya", "Sup", "Heyo!", "What's good?", "Well hello there." }
+        },
+
+        -- CASE 2: Being asked for donations (Mở rộng)
+        {
+            keywords = { "donate", "pls", "give me", "robux pls", "can i have", "spare", "some robux", "can u donate", "plz donate", "can you give", "i need robux" },
+            replies = { "Sorry, I'm saving up right now.", "I can't donate at the moment, sorry.", "My robux is pending, can't help sorry.", "Sry, saving for something specific.", "Maybe later, I'm trying to reach my own goal.", "Can't right now, good luck though!", "All my robux is tied up, sorry.", "Sorry, my wallet is on a diet.", "I wish I could, but I'm broke lol." }
+        },
+        
+        -- CASE 3: Being called a bot or scripter (Mở rộng)
+        {
+            keywords = { "bot", "auto", "script", "scripter", "macro", "afk farm", "autoclicker", "is that a script", "you a bot?" },
+            replies = { "I'm not a bot :)", "lol no, I'm a real player.", "Just vibing, not a bot.", "Beep boop? Nah, just kidding.", "I'm a human, I promise!", "Not a script, just dedicated lol.", "Do I look like a bot to you? :P", "Last time I checked, I still need to sleep. So, not a bot.", "01001110 01101111. (That means 'No' in binary)." }
+        },
+        
+        -- CASE 4: Being called a scammer (Mở rộng)
+        {
+            keywords = { "scam", "fake", "report", "scammer", "this is a scam", "don't trust", "he's a scammer", "is this fake" },
+            replies = { "This is not a scam.", "I'm not a scammer.", "It's legit, no worries.", "100% legit, my friend.", "No scams here, just good vibes.", "I'm just here to play the game like you.", "Why would you think it's a scam?", "The only thing I'm scamming is time, by playing this game.", "You've got the wrong person, I'm just here to chill." }
+        },
+
+        -- CASE 5: Questions about their goal
+        {
+            keywords = { "goal", "saving for", "what for" },
+            replies = { "I'm saving for my dream item!", "Just trying to reach my goal.", "For a new avatar item :)" }
+        },
+
+        -- CASE 6: Compliments on their booth or avatar
+        {
+            keywords = { "cool booth", "nice avatar", "cool skin", "love your booth" },
+            replies = { "Thanks!", "Thank you so much!", "Ty! I appreciate it." }
+        },
+        
+        -- CASE 7: Questions about why they are AFK/spinning/jumping
+        {
+            keywords = { "why are you", "how are you", "spinning", "jumping", "afk" },
+            replies = { "Just farming for my goal.", "It's part of the grind.", "Doing this for donations." }
+        },
+
+        -- CASE 8: Someone asks for your name
+        {
+            keywords = { "name?", "your name", "whats your name" },
+            replies = { "You can call me by my display name.", "It's on the leaderboard!", "Just a friendly player." }
+        },
+
+        -- CASE 9: General questions like "how are you?"
+        {
+            keywords = { "how are you", "how r u", "hru" },
+            replies = { "I'm good, thanks for asking!", "Doing great!", "Just chilling." }
+        },
+        
+    }
 }
 
 
-
 --==============================================================================--
-
---                           PHẦN LOGIC CỦA SCRIPT                              --
-
---                  Bạn không cần chỉnh sửa gì ở phần dưới này.                 --
-
+--                           PHẦN LOGIC CỦA SCRIPT                              --
+--                  Bạn không cần chỉnh sửa gì ở phần dưới này.                 --
 --==============================================================================--
-
 
 local Players = game:GetService("Players")
-
 local TextChatService = game:GetService("TextChatService")
-
 local LocalPlayer = Players.LocalPlayer
 
+local StatusLabel, LogContainer, LogWindow -- Khai báo biến GUI
 
-local StatusLabel -- Khai báo biến ở đây để có thể truy cập từ mọi nơi
+-- Hàm ghi log ra cửa sổ console GUI
+local function logToGui(message)
+    print(message) -- Vẫn giữ print cho người dùng PC
+    if not LogContainer then return end
 
-
--- SỬA LỖI: Tạo GUI trong một hàm riêng và sử dụng WaitForChild để đảm bảo PlayerGui tồn tại.
+    local logEntry = Instance.new("TextLabel")
+    logEntry.Text = "> " .. tostring(message)
+    logEntry.Font = Enum.Font.Code
+    logEntry.TextSize = 14
+    logEntry.TextColor3 = Color3.fromRGB(200, 255, 200) -- Màu xanh lá nhạt
+    logEntry.TextXAlignment = Enum.TextXAlignment.Left
+    logEntry.Size = UDim2.new(1, 0, 0, 18)
+    logEntry.Parent = LogContainer
+end
 
 local function CreateStatusGui()
+    local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+    
+    if PlayerGui:FindFirstChild("AutoReplyStatusGui") then
+        return
+    end
 
-    -- Đợi PlayerGui sẵn sàng
+    -- GUI chính
+    local StatusGui = Instance.new("ScreenGui")
+    StatusGui.Name = "AutoReplyStatusGui"
+    StatusGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+    StatusGui.ResetOnSpawn = false
 
-    local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
+    -- Khung chứa Status và Nút Bấm
+    local BottomBar = Instance.new("Frame")
+    BottomBar.Parent = StatusGui
+    BottomBar.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    BottomBar.BackgroundTransparency = 0.3
+    BottomBar.Position = UDim2.new(0, 10, 1, -40)
+    BottomBar.Size = UDim2.new(0, 255, 0, 30)
+    BottomBar.BorderSizePixel = 0
+    Instance.new("UICorner", BottomBar).CornerRadius = UDim.new(0, 5)
+    
+    -- Label hiển thị trạng thái
+    StatusLabel = Instance.new("TextLabel")
+    StatusLabel.Name = "StatusLabel"
+    StatusLabel.Parent = BottomBar
+    StatusLabel.BackgroundColor3 = Color3.new(1, 1, 1)
+    StatusLabel.BackgroundTransparency = 1
+    StatusLabel.Position = UDim2.new(0, 5, 0, 0)
+    StatusLabel.Size = UDim2.new(0, 180, 1, 0)
+    StatusLabel.Font = Enum.Font.SourceSans
+    StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+    StatusLabel.TextSize = 14
+    StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+    StatusLabel.Text = "Auto Reply: Initializing..."
 
-    
+    -- Nút bật/tắt Console
+    local ToggleConsoleButton = Instance.new("TextButton")
+    ToggleConsoleButton.Name = "ToggleConsole"
+    ToggleConsoleButton.Parent = BottomBar
+    ToggleConsoleButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+    ToggleConsoleButton.Position = UDim2.new(1, -65, 0, 2.5)
+    ToggleConsoleButton.Size = UDim2.new(0, 60, 0, 25)
+    ToggleConsoleButton.Font = Enum.Font.SourceSansBold
+    ToggleConsoleButton.TextColor3 = Color3.fromRGB(255, 255, 255)
+    ToggleConsoleButton.TextSize = 14
+    ToggleConsoleButton.Text = "CONSOLE"
+    Instance.new("UICorner", ToggleConsoleButton).CornerRadius = UDim.new(0, 4)
 
-    -- Kiểm tra xem GUI đã tồn tại chưa để tránh tạo lại
+    -- Cửa sổ Console (ban đầu bị ẩn)
+    LogWindow = Instance.new("Frame")
+    LogWindow.Name = "LogWindow"
+    LogWindow.Parent = StatusGui
+    LogWindow.Visible = false -- Ẩn ban đầu
+    LogWindow.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+    LogWindow.BackgroundTransparency = 0.1
+    LogWindow.BorderSizePixel = 1
+    LogWindow.BorderColor3 = Color3.fromRGB(100, 100, 100)
+    LogWindow.Position = UDim2.new(0.5, -150, 0.5, -100)
+    LogWindow.Size = UDim2.new(0, 300, 0, 200)
+    Instance.new("UICorner", LogWindow).CornerRadius = UDim.new(0, 5)
 
-    if PlayerGui:FindFirstChild("AutoReplyStatusGui") then
+    -- Thanh tiêu đề cho Console
+    local TitleBar = Instance.new("TextLabel")
+    TitleBar.Parent = LogWindow
+    TitleBar.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+    TitleBar.Size = UDim2.new(1, 0, 0, 25)
+    TitleBar.Font = Enum.Font.SourceSansBold
+    TitleBar.TextColor3 = Color3.fromRGB(255, 255, 255)
+    TitleBar.Text = "Script Console"
+    Instance.new("UICorner", TitleBar).CornerRadius = UDim.new(0, 5)
 
-        StatusLabel = PlayerGui.AutoReplyStatusGui.StatusLabel
+    -- Khung cuộn để chứa log
+    LogContainer = Instance.new("ScrollingFrame")
+    LogContainer.Parent = LogWindow
+    LogContainer.Position = UDim2.new(0, 5, 0, 30)
+    LogContainer.Size = UDim2.new(1, -10, 1, -35)
+    LogContainer.BackgroundColor3 = Color3.new(1, 1, 1)
+    LogContainer.BackgroundTransparency = 1
+    LogContainer.BorderSizePixel = 0
+    LogContainer.CanvasSize = UDim2.new(0, 0, 0, 0)
+    LogContainer.ScrollBarImageColor3 = Color3.fromRGB(150, 150, 150)
+    LogContainer.ScrollBarThickness = 6
 
-        return
+    -- Tự động sắp xếp log
+    local UIListLayout = Instance.new("UIListLayout")
+    UIListLayout.Parent = LogContainer
+    UIListLayout.SortOrder = Enum.SortOrder.LayoutOrder
+    UIListLayout.Padding = UDim.new(0, 2)
 
-    end
-
-
-    local StatusGui = Instance.new("ScreenGui")
-
-    StatusGui.Name = "AutoReplyStatusGui"
-
-    StatusGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
-    StatusGui.ResetOnSpawn = false
-
-    
-
-    StatusLabel = Instance.new("TextLabel")
-
-    StatusLabel.Name = "StatusLabel"
-
-    StatusLabel.Parent = StatusGui
-
-    StatusLabel.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
-
-    StatusLabel.BackgroundTransparency = 0.3
-
-    StatusLabel.Position = UDim2.new(0, 10, 1, -40) -- Vị trí ở góc dưới bên trái
-
-    StatusLabel.Size = UDim2.new(0, 200, 0, 30)
-
-    StatusLabel.Font = Enum.Font.SourceSans
-
-    StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-
-    StatusLabel.TextSize = 14
-
-    StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-    StatusLabel.Text = "  Auto Reply: Inactive"
-
-
-    local UICorner = Instance.new("UICorner")
-
-    UICorner.CornerRadius = UDim.new(0, 5)
-
-    UICorner.Parent = StatusLabel
-
-    
-
-    -- Gắn GUI vào PlayerGui
-
-    StatusGui.Parent = PlayerGui
-
+    -- Logic bật/tắt cửa sổ console
+    ToggleConsoleButton.MouseButton1Click:Connect(function()
+        LogWindow.Visible = not LogWindow.Visible
+    end)
+    
+    StatusGui.Parent = PlayerGui
 end
-
-
--- Hàm cập nhật trạng thái trên GUI
 
 local function updateStatus(newText, duration)
-
-    if not StatusLabel then return end -- Kiểm tra nếu StatusLabel chưa được tạo
-
-    StatusLabel.Text = "  " .. newText
-
-    if duration then
-
-        task.wait(duration)
-
-        if StatusLabel then -- Kiểm tra lại phòng trường hợp người chơi thoát game
-
-            StatusLabel.Text = "  Auto Reply: Active"
-
-        end
-
-    end
-
+    if not StatusLabel then return end
+    StatusLabel.Text = newText
+    if duration then
+        task.wait(duration)
+        if StatusLabel then
+            StatusLabel.Text = "Auto Reply: Active"
+        end
+    end
 end
-
-
--- Chạy hàm tạo GUI và đợi game tải xong
-
-CreateStatusGui()
-
-updateStatus("Auto Reply: Active")
-
-
-
-local GeneralChannel = TextChatService.TextChannels.RBXGeneral
-
 
 local function SendChatMessage(message)
-
-    if not message or message == "" then return end
-
-    pcall(function()
-
-        GeneralChannel:SendAsync(message)
-
-    end)
-
+    if not message or message == "" then return end
+    pcall(function()
+        TextChatService.TextChannels.RBXGeneral:SendAsync(message)
+    end)
 end
-
 
 local function GetRandomResponse(responseList)
-
-    return responseList[math.random(1, #responseList)]
-
+    return responseList[math.random(1, #responseList)]
 end
-
 
 local function OnMessageReceived(messageData)
+    local speaker = messageData.TextSource
+    local messageText = messageData.Text
+    
+    if not Config.Enabled or not speaker or speaker == LocalPlayer or speaker:GetAttribute("ReplyCooldown") then
+        return
+    end
 
-    local speaker = messageData.TextSource
+    local localCharacter = LocalPlayer.Character
+    local speakerCharacter = speaker.Character
+    if not localCharacter or not speakerCharacter or not localCharacter:FindFirstChild("HumanoidRootPart") or not speakerCharacter:FindFirstChild("HumanoidRootPart") then
+        return
+    end
 
-    local messageText = messageData.Text
+    local localRoot = localCharacter.HumanoidRootPart
+    local speakerRoot = speakerCharacter.HumanoidRootPart
+    if (localRoot.Position - speakerRoot.Position).Magnitude > Config.ReplyRadius then
+        return
+    end
 
-    
+    speaker:SetAttribute("ReplyCooldown", true)
+    
+    local lowerMessage = string.lower(messageText)
+    local replied = false
 
-    if not Config.Enabled or not speaker or speaker == LocalPlayer or speaker:GetAttribute("ReplyCooldown") then
+    task.wait(1.5 + math.random())
 
-        return
-
-    end
-
-
-    local localCharacter = LocalPlayer.Character
-
-    local speakerCharacter = speaker.Character
-
-    if not localCharacter or not speakerCharacter or not localCharacter:FindFirstChild("HumanoidRootPart") or not speakerCharacter:FindFirstChild("HumanoidRootPart") then
-
-        return
-
-    end
-
-
-    local localRoot = localCharacter.HumanoidRootPart
-
-    local speakerRoot = speakerCharacter.HumanoidRootPart
-
-    if (localRoot.Position - speakerRoot.Position).Magnitude > Config.ReplyRadius then
-
-        return
-
-    end
-
-
-    speaker:SetAttribute("ReplyCooldown", true)
-
-    
-
-    local lowerMessage = string.lower(messageText)
-
-    local replied = false
-
-
-    task.wait(1.5 + math.random())
-
-
-    for _, rule in ipairs(Config.ReplyRules) do
-
-        for _, keyword in ipairs(rule.keywords) do
-
-            if string.find(lowerMessage, keyword) then
-
-                local response = GetRandomResponse(rule.replies)
-
-                SendChatMessage(response)
-
-                
-
-                -- Cập nhật GUI để hiển thị hành động
-
-                updateStatus("Replied to: " .. speaker.Name, 3) 
-
-                
-
-                replied = true
-
-                break
-
-            end
-
-        end
-
-        if replied then break end
-
-    end
-
-    
-
-    task.delay(Config.ReplyCooldown, function()
-
-        if speaker and pcall(function() return speaker.Parent end) then
-
-            speaker:SetAttribute("ReplyCooldown", nil)
-
-        end
-
-    end)
-
+    for _, rule in ipairs(Config.ReplyRules) do
+        for _, keyword in ipairs(rule.keywords) do
+            if string.find(lowerMessage, keyword) then
+                local response = GetRandomResponse(rule.replies)
+                SendChatMessage(response)
+                updateStatus("Replied to: " .. speaker.Name, 3) 
+                logToGui("Replied to '"..speaker.Name.."' (Matched: "..keyword..")")
+                replied = true
+                break
+            end
+        end
+        if replied then break end
+    end
+    
+    task.delay(Config.ReplyCooldown, function()
+        if speaker and pcall(function() return speaker.Parent end) then
+            speaker:SetAttribute("ReplyCooldown", nil)
+        end
+    end)
 end
 
+local function Initialize()
+    if not LocalPlayer.Character then
+        LocalPlayer.CharacterAdded:Wait()
+    end
+    
+    CreateStatusGui()
+    logToGui("GUI Initialized.")
+    updateStatus("Auto Reply: Active")
 
-GeneralChannel.MessageReceived:Connect(OnMessageReceived)
+    local GeneralChannel = TextChatService.TextChannels.RBXGeneral
+    GeneralChannel.MessageReceived:Connect(OnMessageReceived)
+    logToGui("Message listener connected.")
+    logToGui("Script is now fully active.")
+end
 
-
-print("SCRIPT AUTO-REPLY LINH HOẠT (FIXED + GUI): Đã tải thành công!")
-
-
+task.spawn(Initialize)
