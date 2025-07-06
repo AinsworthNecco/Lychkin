@@ -1,59 +1,48 @@
-local HttpService = game:GetService("HttpService")
-local Players = game:GetService("Players")
-local ReplicatedStorage = game:GetService("ReplicatedStorage")
+-- GUI setup
+local StarterGui = game:GetService("StarterGui")
 
--- Configuration
-local language = "en" -- Language: "en" for English
-local censorSwearing = "true" -- "true" to censor swearing, "false" to allow
+-- Create ScreenGui
+local screenGui = Instance.new("ScreenGui")
+screenGui.Name = "ChatBotStatusGUI"
+screenGui.ResetOnSpawn = false
+screenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
 
--- Get the local player
-local localPlayer = Players.LocalPlayer
+-- Create the frame
+local frame = Instance.new("Frame")
+frame.Size = UDim2.new(0, 160, 0, 40)
+frame.Position = UDim2.new(1, -170, 0, 20)
+frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
+frame.BackgroundTransparency = 0.2
+frame.BorderSizePixel = 0
+frame.AnchorPoint = Vector2.new(0, 0)
+frame.Parent = screenGui
 
--- Function to get SimSimi response
-local function getSimSimiResponse(text)
-	local success, result = pcall(function()
-		local url = string.format("https://api.simsimi.net/v2/?text=%s&lc=%s&cf=%s", HttpService:UrlEncode(text), language, censorSwearing)
-		return HttpService:JSONDecode(game:HttpGet(url))
-	end)
-	if success and result and result.success then
-		return result.success
+-- Create text label
+local label = Instance.new("TextLabel")
+label.Size = UDim2.new(1, 0, 1, 0)
+label.Position = UDim2.new(0, 0, 0, 0)
+label.BackgroundTransparency = 1
+label.Text = "ChatBot: Enabled"
+label.TextColor3 = Color3.new(1, 1, 1)
+label.TextScaled = true
+label.Font = Enum.Font.Gotham
+label.Parent = frame
+
+-- Function to update text
+local function setStatus(enabled)
+	if enabled then
+		label.Text = "ChatBot: Enabled"
+		label.TextColor3 = Color3.fromRGB(0, 255, 0)
 	else
-		return nil
+		label.Text = "ChatBot: Disabled"
+		label.TextColor3 = Color3.fromRGB(255, 0, 0)
 	end
 end
 
--- Listen to other players chatting
-for _, player in ipairs(Players:GetPlayers()) do
-	if player ~= localPlayer then
-		player.Chatted:Connect(function(message)
-			local character = player.Character
-			local localCharacter = localPlayer.Character
-			if character and localCharacter and character:FindFirstChild("HumanoidRootPart") and localCharacter:FindFirstChild("HumanoidRootPart") then
-				local distance = (character.HumanoidRootPart.Position - localCharacter.HumanoidRootPart.Position).Magnitude
-				if distance <= 10 then
-					local response = getSimSimiResponse(message)
-					if response then
-						ReplicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest:FireServer(player.Name .. ": " .. response, "All")
-					end
-				end
-			end
-		end)
-	end
-end
+-- Example toggle variable (you can use this to connect to a toggle button later)
+local chatbotEnabled = true
+setStatus(chatbotEnabled)
 
--- Listen to new players joining
-Players.PlayerAdded:Connect(function(player)
-	player.Chatted:Connect(function(message)
-		local character = player.Character or player.CharacterAdded:Wait()
-		local localCharacter = localPlayer.Character or localPlayer.CharacterAdded:Wait()
-		if character and localCharacter and character:FindFirstChild("HumanoidRootPart") and localCharacter:FindFirstChild("HumanoidRootPart") then
-			local distance = (character.HumanoidRootPart.Position - localCharacter.HumanoidRootPart.Position).Magnitude
-			if distance <= 10 then
-				local response = getSimSimiResponse(message)
-				if response then
-					ReplicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest:FireServer(player.Name .. ": " .. response, "All")
-				end
-			end
-		end
-	end)
-end)
+-- EXAMPLE: If you later want to toggle:
+-- chatbotEnabled = not chatbotEnabled
+-- setStatus(chatbotEnabled)
