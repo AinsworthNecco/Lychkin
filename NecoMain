@@ -1,99 +1,51 @@
---// CONFIG
-local Config = {
-    ["Enabled"] = true,
-    ["ReplyRadius"] = 20,
-    ["ReplyCooldown"] = 15,
-    ["ReplyRules"] = {
+-- Config dạng ReplyRules như yêu cầu
+local AutoReplyConfig = {
+    Enabled = true,
+    ReplyRadius = 20,
+    ReplyCooldown = 15,
+    ReplyRules = {
         {
-            keywords = { "hi", "hello", "hey", "yo", "sup" },
-            replies = { "Hey!", "Hello there!", "Hi hi!", "Yo!", "Howdy!" }
+            keywords = { "hi", "hello", "hey", "yo", "sup", "greetings", "howdy" },
+            replies = { "Hey!", "Hello there!", "Hi hi!", "Yo!", "Howdy!", "Sup!" }
         },
         {
-            keywords = { "donate", "pls", "robux", "can u give", "can you donate" },
-            replies = { "Sorry, I'm saving.", "Maybe later.", "I can't donate now, good luck!" }
+            keywords = { "donate", "pls", "robux", "can u give", "can you donate", "give me", "i need" },
+            replies = { "Sorry, I'm saving.", "Maybe later.", "I can't donate now, good luck!", "I'm low on Robux too!" }
         },
         {
-            keywords = { "bot", "auto", "script", "are you a bot" },
-            replies = { "I'm a real player!", "Nope, not a bot.", "Just grinding like you!" }
+            keywords = { "bot", "auto", "script", "are you a bot", "macro" },
+            replies = { "I'm a real player!", "Nope, not a bot.", "Just grinding like you!", "Haha, not a script!" }
         },
         {
             keywords = { "scam", "scammer", "fake" },
-            replies = { "I'm not a scammer.", "This is legit.", "I'm just here to play :)" }
+            replies = { "I'm not a scammer.", "This is legit.", "I'm just here to chill :)", "No scams here." }
         },
     }
 }
 
---// SERVICE & BIẾN
-local Players = game:GetService("Players")
-local LocalPlayer = Players.LocalPlayer
-local ChatService = game:GetService("TextChatService")
-local GeneralChannel = ChatService.TextChannels.RBXGeneral
-local lastReplyTime = {}
+local replyCooldowns = {}
 
---// GUI HIỂN THỊ TRẠNG THÁI
-local screenGui = Instance.new("ScreenGui", game:GetService("CoreGui"))
-screenGui.Name = "AutoReplyStatus"
+Players.PlayerChatted:Connect(function(_, player, message)
+	if not AutoReplyConfig.Enabled or player == Players.LocalPlayer then return end
 
-local statusLabel = Instance.new("TextLabel")
-statusLabel.Parent = screenGui
-statusLabel.Size = UDim2.new(0, 200, 0, 35)
-statusLabel.Position = UDim2.new(0.5, -100, 0, 10)
-statusLabel.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-statusLabel.BorderSizePixel = 0
-statusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
-statusLabel.Font = Enum.Font.GothamSemibold
-statusLabel.TextSize = 18
-statusLabel.Text = "Auto Reply: " .. (Config.Enabled and "ON" or "OFF")
+	local myChar = Players.LocalPlayer.Character
+	local theirChar = player.Character
+	if not (myChar and theirChar and myChar:FindFirstChild("HumanoidRootPart") and theirChar:FindFirstChild("HumanoidRootPart")) then return end
 
---// CẬP NHẬT GUI KHI ĐỔI TRẠNG THÁI
-local function updateStatus()
-	statusLabel.Text = "Auto Reply: " .. (Config.Enabled and "ON" or "OFF")
-	statusLabel.BackgroundColor3 = Config.Enabled and Color3.fromRGB(40, 180, 90) or Color3.fromRGB(180, 40, 40)
-end
-updateStatus()
+	local dist = (myChar.HumanoidRootPart.Position - theirChar.HumanoidRootPart.Position).Magnitude
+	if dist > AutoReplyConfig.ReplyRadius then return end
 
---// HỖ TRỢ
-local function isInRadius(player)
-	local c1 = LocalPlayer.Character
-	local c2 = player.Character
-	if not (c1 and c2 and c1:FindFirstChild("HumanoidRootPart") and c2:FindFirstChild("HumanoidRootPart")) then return false end
-	return (c1.HumanoidRootPart.Position - c2.HumanoidRootPart.Position).Magnitude <= Config.ReplyRadius
-end
+	if replyCooldowns[player.UserId] and tick() - replyCooldowns[player.UserId] < AutoReplyConfig.ReplyCooldown then return end
 
-local function canReply(player)
-	return not lastReplyTime[player.UserId] or tick() - lastReplyTime[player.UserId] >= Config.ReplyCooldown
-end
-
-local function getReply(text)
-	text = text:lower()
-	for _, rule in ipairs(Config.ReplyRules) do
-		for _, keyword in ipairs(rule.keywords) do
-			if text:find(keyword) then
-				return rule.replies[math.random(1, #rule.replies)]
+	local msg = message:lower()
+	for _, rule in ipairs(AutoReplyConfig.ReplyRules) do
+		for _, kw in ipairs(rule.keywords) do
+			if msg:find(kw) then
+				local reply = rule.replies[math.random(1, #rule.replies)]
+				game:GetService("TextChatService").TextChannels.RBXGeneral:SendAsync(reply)
+				replyCooldowns[player.UserId] = tick()
+				return
 			end
 		end
-	end
-	return nil
-end
-
---// LẮNG NGHE CHAT
-Players.PlayerChatted:Connect(function(message, sender)
-	if not Config.Enabled or sender == LocalPlayer then return end
-	if not isInRadius(sender) or not canReply(sender) then return end
-
-	local reply = getReply(message)
-	if reply then
-		task.wait(1 + math.random()) -- Delay nhỏ để tự nhiên
-		GeneralChannel:SendAsync(reply)
-		lastReplyTime[sender.UserId] = tick()
-	end
-end)
-
---// PHÍM TẮT BẬT TẮT
-game:GetService("UserInputService").InputBegan:Connect(function(input, gpe)
-	if gpe then return end
-	if input.KeyCode == Enum.KeyCode.F6 then
-		Config.Enabled = not Config.Enabled
-		updateStatus()
 	end
 end)
