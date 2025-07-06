@@ -170,57 +170,88 @@ local Players = game:GetService("Players")
 
 local TextChatService = game:GetService("TextChatService")
 
-local CoreGui = game:GetService("CoreGui")
-
 local LocalPlayer = Players.LocalPlayer
 
 
--- TẠO GUI ĐỂ HIỂN THỊ TRẠNG THÁI
-
-local StatusGui = Instance.new("ScreenGui")
-
-StatusGui.Name = "AutoReplyStatusGui"
-
-StatusGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
-
-StatusGui.ResetOnSpawn = false
+local StatusLabel -- Khai báo biến ở đây để có thể truy cập từ mọi nơi
 
 
-local StatusLabel = Instance.new("TextLabel")
+-- SỬA LỖI: Tạo GUI trong một hàm riêng và sử dụng WaitForChild để đảm bảo PlayerGui tồn tại.
 
-StatusLabel.Name = "StatusLabel"
+local function CreateStatusGui()
 
-StatusLabel.Parent = StatusGui
+    -- Đợi PlayerGui sẵn sàng
 
-StatusLabel.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+    local PlayerGui = LocalPlayer:WaitForChild("PlayerGui")
 
-StatusLabel.BackgroundTransparency = 0.3
+    
 
-StatusLabel.Position = UDim2.new(0, 10, 1, -40) -- Vị trí ở góc dưới bên trái
+    -- Kiểm tra xem GUI đã tồn tại chưa để tránh tạo lại
 
-StatusLabel.Size = UDim2.new(0, 200, 0, 30)
+    if PlayerGui:FindFirstChild("AutoReplyStatusGui") then
 
-StatusLabel.Font = Enum.Font.SourceSans
+        StatusLabel = PlayerGui.AutoReplyStatusGui.StatusLabel
 
-StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+        return
 
-StatusLabel.TextSize = 14
-
-StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
-
-StatusLabel.Text = "  Auto Reply: Inactive"
+    end
 
 
-local UICorner = Instance.new("UICorner")
+    local StatusGui = Instance.new("ScreenGui")
 
-UICorner.CornerRadius = UDim.new(0, 5)
+    StatusGui.Name = "AutoReplyStatusGui"
 
-UICorner.Parent = StatusLabel
+    StatusGui.ZIndexBehavior = Enum.ZIndexBehavior.Sibling
+
+    StatusGui.ResetOnSpawn = false
+
+    
+
+    StatusLabel = Instance.new("TextLabel")
+
+    StatusLabel.Name = "StatusLabel"
+
+    StatusLabel.Parent = StatusGui
+
+    StatusLabel.BackgroundColor3 = Color3.fromRGB(25, 25, 25)
+
+    StatusLabel.BackgroundTransparency = 0.3
+
+    StatusLabel.Position = UDim2.new(0, 10, 1, -40) -- Vị trí ở góc dưới bên trái
+
+    StatusLabel.Size = UDim2.new(0, 200, 0, 30)
+
+    StatusLabel.Font = Enum.Font.SourceSans
+
+    StatusLabel.TextColor3 = Color3.fromRGB(255, 255, 255)
+
+    StatusLabel.TextSize = 14
+
+    StatusLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+    StatusLabel.Text = "  Auto Reply: Inactive"
+
+
+    local UICorner = Instance.new("UICorner")
+
+    UICorner.CornerRadius = UDim.new(0, 5)
+
+    UICorner.Parent = StatusLabel
+
+    
+
+    -- Gắn GUI vào PlayerGui
+
+    StatusGui.Parent = PlayerGui
+
+end
 
 
 -- Hàm cập nhật trạng thái trên GUI
 
 local function updateStatus(newText, duration)
+
+    if not StatusLabel then return end -- Kiểm tra nếu StatusLabel chưa được tạo
 
     StatusLabel.Text = "  " .. newText
 
@@ -228,21 +259,20 @@ local function updateStatus(newText, duration)
 
         task.wait(duration)
 
-        StatusLabel.Text = "  Auto Reply: Active"
+        if StatusLabel then -- Kiểm tra lại phòng trường hợp người chơi thoát game
+
+            StatusLabel.Text = "  Auto Reply: Active"
+
+        end
 
     end
 
 end
 
 
--- Đợi game tải xong
+-- Chạy hàm tạo GUI và đợi game tải xong
 
-repeat task.wait() until game:IsLoaded() and LocalPlayer.Character and LocalPlayer:FindFirstChild("PlayerGui")
-
-
--- Gắn GUI vào PlayerGui
-
-StatusGui.Parent = LocalPlayer.PlayerGui
+CreateStatusGui()
 
 updateStatus("Auto Reply: Active")
 
