@@ -1,48 +1,105 @@
--- GUI setup
-local StarterGui = game:GetService("StarterGui")
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
 
--- Create ScreenGui
+local localPlayer = Players.LocalPlayer
+
+-- ========== GUI ==========
 local screenGui = Instance.new("ScreenGui")
-screenGui.Name = "ChatBotStatusGUI"
+screenGui.Name = "ChatBotGUI"
 screenGui.ResetOnSpawn = false
-screenGui.Parent = game.Players.LocalPlayer:WaitForChild("PlayerGui")
+screenGui.Parent = localPlayer:WaitForChild("PlayerGui")
 
--- Create the frame
 local frame = Instance.new("Frame")
-frame.Size = UDim2.new(0, 160, 0, 40)
-frame.Position = UDim2.new(1, -170, 0, 20)
-frame.BackgroundColor3 = Color3.fromRGB(30, 30, 30)
-frame.BackgroundTransparency = 0.2
+frame.Size = UDim2.new(0, 180, 0, 60)
+frame.Position = UDim2.new(1, -190, 0, 20)
+frame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+frame.BackgroundTransparency = 0.1
 frame.BorderSizePixel = 0
-frame.AnchorPoint = Vector2.new(0, 0)
 frame.Parent = screenGui
 
--- Create text label
-local label = Instance.new("TextLabel")
-label.Size = UDim2.new(1, 0, 1, 0)
-label.Position = UDim2.new(0, 0, 0, 0)
-label.BackgroundTransparency = 1
-label.Text = "ChatBot: Enabled"
-label.TextColor3 = Color3.new(1, 1, 1)
-label.TextScaled = true
-label.Font = Enum.Font.Gotham
-label.Parent = frame
+local statusLabel = Instance.new("TextLabel")
+statusLabel.Size = UDim2.new(1, 0, 0.5, 0)
+statusLabel.Position = UDim2.new(0, 0, 0, 0)
+statusLabel.BackgroundTransparency = 1
+statusLabel.Text = "ChatBot: Enabled"
+statusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
+statusLabel.Font = Enum.Font.Gotham
+statusLabel.TextScaled = true
+statusLabel.Parent = frame
 
--- Function to update text
-local function setStatus(enabled)
-	if enabled then
-		label.Text = "ChatBot: Enabled"
-		label.TextColor3 = Color3.fromRGB(0, 255, 0)
+local toggleButton = Instance.new("TextButton")
+toggleButton.Size = UDim2.new(1, -10, 0.4, 0)
+toggleButton.Position = UDim2.new(0, 5, 0.55, 0)
+toggleButton.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+toggleButton.Text = "Toggle ChatBot"
+toggleButton.TextColor3 = Color3.new(1, 1, 1)
+toggleButton.Font = Enum.Font.Gotham
+toggleButton.TextScaled = true
+toggleButton.Parent = frame
+
+-- ========== CHATBOT ==========
+local chatbotEnabled = true
+
+local function setStatus(state)
+	chatbotEnabled = state
+	if state then
+		statusLabel.Text = "ChatBot: Enabled"
+		statusLabel.TextColor3 = Color3.fromRGB(0, 255, 0)
 	else
-		label.Text = "ChatBot: Disabled"
-		label.TextColor3 = Color3.fromRGB(255, 0, 0)
+		statusLabel.Text = "ChatBot: Disabled"
+		statusLabel.TextColor3 = Color3.fromRGB(255, 0, 0)
 	end
 end
 
--- Example toggle variable (you can use this to connect to a toggle button later)
-local chatbotEnabled = true
-setStatus(chatbotEnabled)
+toggleButton.MouseButton1Click:Connect(function()
+	setStatus(not chatbotEnabled)
+end)
 
--- EXAMPLE: If you later want to toggle:
--- chatbotEnabled = not chatbotEnabled
--- setStatus(chatbotEnabled)
+-- API call
+local function getBotReply(message)
+	local url = "https://some-random-api.ml/chatbot?message=" .. HttpService:UrlEncode(message)
+	local success, result = pcall(function()
+		return HttpService:JSONDecode(game:HttpGet(url))
+	end)
+	if success and result and result.response then
+		return result.response
+	else
+		return nil
+	end
+end
+
+-- Lắng nghe người chơi khác nói
+local function connectChat(player)
+	if player == localPlayer then return end
+
+	player.Chatted:Connect(function(msg)
+		if not chatbotEnabled then return end
+		local char = player.Character
+		local myChar = localPlayer.Character
+		if not char or not myChar then return end
+
+		local hrp1 = char:FindFirstChild("HumanoidRootPart")
+		local hrp2 = myChar:FindFirstChild("HumanoidRootPart")
+		if not hrp1 or not hrp2 then return end
+
+		local dist = (hrp1.Position - hrp2.Position).Magnitude
+		if dist <= 12 then
+			local reply = getBotReply(msg)
+			if reply then
+				ReplicatedStorage.DefaultChatSystemChatEvents.SayMessageRequest:FireServer("🤖 " .. reply, "All")
+			end
+		end
+	end)
+end
+
+-- Kết nối với người chơi đã có
+for _, p in pairs(Players:GetPlayers()) do
+	connectChat(p)
+end
+
+-- Kết nối khi có người chơi mới
+Players.PlayerAdded:Connect(connectChat)
+
+-- Khởi tạo
+setStatus(true)
