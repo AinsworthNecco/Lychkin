@@ -1,0 +1,41 @@
+getgenv().Config = {
+    ["Auto Game"] = {
+        ["Auto World 2"] = true,
+    },
+    ["Auto Reroll"] = {
+        ["Units Name"] = {
+            ["Green Esper"] = {"Overlord", "Avatar", "Glitched"}
+        }
+    },
+    ["Equip Unit"] = {
+        ["Required if owned"] = {"Green Esper","Hero Hunter", "Idol"}
+    },
+    ["Summon Unit"] = {
+      ["Enable"] = true,
+      ["Settings"] = {
+        ["Summon unit Air or Hybrid"] = true,
+        ["Summon unit with name banner 1"] = {"Hero Hunter", "Geezer"},
+        ["Summon unit with name banner 2"] = {"Green Esper", "Hero Hunter", "Geezer"}
+      }
+    },
+    ["Auto Story"] = {
+        ["Clear All W1"] = true,
+        ["Select Map"] = {
+            ["Enable Join"] = true,
+            ["Map Join"] = "Planet Nemak",
+            ["Map Act"] = "Infinite",
+            ["Friends Join"] = false
+        },
+        ["Auto Sell All Unit In Wave"] = {
+          ["Enable"] = true,
+          ["Wave"] = 50
+        }
+    },
+    ["Settings Game"] = {
+        ["Black Screen"] = true,
+        ["Lock Fps"] = 1,
+        ["Boost FPS"] = true
+    }
+}
+
+loadstring(game:HttpGet("https://api.luarmor.net/files/v3/loaders/97e7ef8d70388822d404414f6abeb81a.lua"))()
