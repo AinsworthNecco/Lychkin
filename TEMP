@@ -33,7 +33,7 @@ getgenv().Config = {
     },
     ["Settings Game"] = {
         ["Black Screen"] = true,
-        ["Lock Fps"] = 1,
+        ["Lock Fps"] = 5,
         ["Boost FPS"] = true
     }
 }
