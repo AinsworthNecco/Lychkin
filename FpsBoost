@@ -1,7 +1,7 @@
 --[[
     CÀI ĐẶT
 ]]
-local targetFps = 7
+local targetFps = 10
 local removeDecals = true
 local stopRenderingCompletely = true -- MỚI: Đặt là `true` để tắt hoàn toàn render 3D. Cảnh báo: Màn hình có thể đen!
 
