@@ -1,0 +1,71 @@
+--[[
+    CÀI ĐẶT
+]]
+local targetFps = 7
+local removeDecals = true
+local stopRenderingCompletely = true -- MỚI: Đặt là `true` để tắt hoàn toàn render 3D. Cảnh báo: Màn hình có thể đen!
+
+--[[
+    PHẦN 1: GIỚI HẠN FPS (CHẠY LIÊN TỤC)
+]]
+if type(setfpscap) == "function" then
+    task.spawn(function()
+        while task.wait() do
+            pcall(setfpscap, targetFps)
+        end
+    end)
+end
+
+--[[
+    PHẦN 2: TỐI ƯU HÓA ĐỒ HỌA (CHẠY MỘT LẦN)
+]]
+local lighting = game:GetService("Lighting")
+local workspace = game:GetService("Workspace")
+local RunService = game:GetService("RunService") -- MỚI: Thêm RunService
+
+-- Tối ưu hóa môi trường và ánh sáng
+local terrain = workspace.Terrain
+terrain.WaterWaveSize = 0
+terrain.WaterWaveSpeed = 0
+terrain.WaterReflectance = 0
+terrain.WaterTransparency = 0
+
+lighting.GlobalShadows = false
+lighting.FogEnd = 9e9
+lighting.Brightness = 0
+
+for _, effect in ipairs(lighting:GetChildren()) do
+    if effect:IsA("BlurEffect") or effect:IsA("SunRaysEffect") or effect:IsA("ColorCorrectionEffect") or effect:IsA("BloomEffect") or effect:IsA("DepthOfFieldEffect") then
+        effect.Enabled = false
+    end
+end
+
+pcall(function()
+    settings().Rendering.QualityLevel = "Level01"
+end)
+
+-- Vòng lặp chính để tối ưu hóa tất cả các đối tượng
+for _, instance in ipairs(game:GetDescendants()) do
+    if instance:IsA("BasePart") then
+        instance.Material = Enum.Material.Plastic
+        instance.Reflectance = 0
+        if instance.Transparency > 0.3 and instance.Transparency < 1 then
+            instance.Transparency = 1
+        end
+    elseif instance:IsA("Decal") and removeDecals then
+        instance.Transparency = 1
+    elseif instance:IsA("ParticleEmitter") or instance:IsA("Trail") then
+        instance.Lifetime = NumberRange.new(0)
+    end
+end
+
+-- MỚI: PHẦN 3 - NGỪNG RENDER 3D HOÀN TOÀN (TÙY CHỌN)
+-- Đây là mức tối ưu hóa cao nhất, sẽ tắt hoàn toàn hình ảnh 3D của game.
+if stopRenderingCompletely then
+    -- Sử dụng pcall để đảm bảo script không bị lỗi nếu không có quyền
+    pcall(function()
+        if RunService:IsClient() then
+            RunService:Set3dRenderingEnabled(false)
+        end
+    end)
+end
