@@ -20,7 +20,7 @@ local SETTINGS = {
     
     -- Cài đặt hiệu năng CPU (Nâng cao) -- TÍCH HỢP MỚI
     ["EnableCpuOptimization"] = true, -- Bật/tắt các tối ưu hóa chuyên sâu cho CPU.
-    ["SetSimulationRadiusToZero"] = false, -- Chuyển toàn bộ gánh nặng vật lý cho server. Rất hiệu quả để giảm tải CPU.
+    ["SetSimulationRadiusToZero"] = true, -- Chuyển toàn bộ gánh nặng vật lý cho server. Rất hiệu quả để giảm tải CPU.
     ["TargetFps"] = 7, -- Giới hạn FPS của game ở mức này để giảm tải CPU và GPU.
 
     -- Cài đặt khác
