@@ -1,4 +1,3 @@
-
 --[[
     VUI LÒNG CHỈ CHỈNH SỬA CÁC GIÁ TRỊ TRONG BẢNG "SETTINGS" DƯỚI ĐÂY.
     KHÔNG THAY ĐỔI TÊN CỦA CÁC KHÓA (VÍ DỤ: "WaitMinutes").
@@ -16,10 +15,16 @@ local SETTINGS = {
     ["EnableDonateReset"] = true, -- Tự động reset bộ đếm thời gian khi có người donate.
     ["EnableAutoReconnect"] = true, -- Tự động kết nối lại khi bị lỗi và văng ra khỏi server.
 
-    -- Cài đặt hiệu năng
+    -- Cài đặt hiệu năng Đồ Họa (GPU)
     ["EnableGraphicsOptimization"] = true, -- Tối ưu hóa đồ họa (xóa vật thể, giảm chất lượng, tắt âm thanh).
+    
+    -- Cài đặt hiệu năng CPU (Nâng cao) -- TÍCH HỢP MỚI
+    ["EnableCpuOptimization"] = true, -- Bật/tắt các tối ưu hóa chuyên sâu cho CPU.
+    ["SetSimulationRadiusToZero"] = false, -- Chuyển toàn bộ gánh nặng vật lý cho server. Rất hiệu quả để giảm tải CPU.
+    ["TargetFps"] = 7, -- Giới hạn FPS của game ở mức này để giảm tải CPU và GPU.
+
+    -- Cài đặt khác
     ["EnableFileHistory"] = true, -- Ghi lại lịch sử các server đã vào để tránh vào lại.
-    ["TargetFps"] = 7, -- Giới hạn FPS của game ở mức này để giảm tải.
     ["InitialWaitTime"] = 10, -- Thời gian chờ ban đầu (giây) sau khi vào game để script bắt đầu chạy.
 
     -- Cài đặt giao diện
@@ -27,6 +32,14 @@ local SETTINGS = {
     ["EnableCountdownColor"] = true, -- Hiển thị MÀU nhấp nháy trên màn hình.
 }
 -- --- KẾT THÚC CÀI ĐẶT ---
+
+--[[
+    LỜI KHUYÊN TỐI ƯU HÓA HỆ THỐNG (Làm thủ công)
+    Để đạt hiệu quả giảm tải CPU tốt nhất, hãy:
+    1. Đóng tất cả các ứng dụng không cần thiết (đặc biệt là trình duyệt web như Chrome).
+    2. Trong Windows, vào Power Options và chọn chế độ "High Performance".
+    3. Tắt các chương trình khởi động cùng Windows không cần thiết trong Task Manager.
+]]
 
 
 -- Các service cần thiết
@@ -124,10 +137,10 @@ local function updateDisplay(state, message)
     if SETTINGS.EnableCountdownColor then
         if statusFrame and statusFrame.Parent then
              if state == "SUCCESS" or state == "ERROR" then
-                statusFrame.BackgroundColor3 = stateColor
-                statusFrame.BackgroundTransparency = 0.5
+                 statusFrame.BackgroundColor3 = stateColor
+                 statusFrame.BackgroundTransparency = 0.5
              else
-                statusFrame.BackgroundTransparency = 1 -- Ẩn đi cho các trạng thái thông tin (INFO)
+                 statusFrame.BackgroundTransparency = 1 -- Ẩn đi cho các trạng thái thông tin (INFO)
              end
         end
     else
@@ -167,6 +180,33 @@ local function setupStaticAfkView()
     camera.CameraType=Enum.CameraType.Scriptable; camera.CFrame=CFrame.new(staticHeadAnchor.Position,blackTarget.Position); camera.Focus=blackTarget.CFrame
     updateDisplay("SUCCESS", "View AFK tĩnh đã thiết lập.")
 end
+
+-- --- Hàm Tối Ưu Hóa CPU (MỚI) ---
+local function optimizeForCpu()
+    if not SETTINGS.EnableCpuOptimization then return end
+    updateDisplay("INFO", "Bắt đầu tối ưu hóa CPU...")
+    local success, err = pcall(function()
+        -- 1. Giới hạn FPS (đã được kích hoạt ở phần khởi chạy chính)
+        if type(setfpscap) == "function" and SETTINGS.TargetFps and SETTINGS.TargetFps > 0 then
+            print("[CPU-Opt] Giới hạn FPS đang hoạt động ở mức: " .. tostring(SETTINGS.TargetFps))
+        end
+
+        -- 2. Đặt SimulationRadius về 0 để chuyển tính toán vật lý cho server
+        if SETTINGS.SetSimulationRadiusToZero then
+            if LocalPlayer then
+                LocalPlayer.SimulationRadius = 0
+                print("[CPU-Opt] SimulationRadius đã được đặt về 0.")
+            end
+        end
+    end)
+
+    if success then
+        updateDisplay("SUCCESS", "Tối ưu hóa CPU hoàn tất.")
+    else
+        updateDisplay("ERROR", "Lỗi khi tối ưu hóa CPU: " .. tostring(err))
+    end
+end
+
 
 -- --- Script Tối Ưu Hóa Đồ Họa ---
 local function optimizeGraphics()
@@ -312,6 +352,7 @@ updateDisplay("INFO", "Hết thời gian chờ. Bắt đầu thiết lập...")
 
 if SETTINGS.EnableSafePlatform then createSafePlatform() end
 if SETTINGS.EnableStaticAfkView then setupStaticAfkView() end
+if SETTINGS.EnableCpuOptimization then optimizeForCpu() end -- GỌI HÀM TỐI ƯU CPU
 if SETTINGS.EnableGraphicsOptimization then optimizeGraphics() end
 
 if SETTINGS.EnableServerHop then
