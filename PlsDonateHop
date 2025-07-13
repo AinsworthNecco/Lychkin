@@ -248,7 +248,7 @@ local function setupDiscordWebhook()
 
     local lastRaised = raised.Value
 
-    local function sendWebhook(recipientName, amount, total)
+    local function sendWebhook(amount, total)
         local pingContent = nil
         -- Kiểm tra xem tính năng ping có được bật không
         if SETTINGS.EnablePingOnDonate then
@@ -262,8 +262,9 @@ local function setupDiscordWebhook()
             end
         end
 
+        -- Thay đổi định dạng ở đây
         local embed = {
-            description = string.format("**%s +%d** (Tổng: %d)", recipientName, amount, total),
+            description = string.format("**%s +%d**\n(Tổng: %d)", LocalPlayer.Name, amount, total),
             color = SETTINGS.WebhookColor
         }
 
@@ -303,7 +304,7 @@ local function setupDiscordWebhook()
             end
 
             -- Gửi thông báo webhook với tên của người chơi cục bộ (tài khoản nhận donate)
-            sendWebhook(LocalPlayer.Name, difference, newRaisedValue)
+            sendWebhook(difference, newRaisedValue)
         end
         lastRaised = newRaisedValue
     end)
