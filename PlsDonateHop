@@ -262,9 +262,9 @@ local function setupDiscordWebhook()
             end
         end
 
-        -- Thay đổi định dạng ở đây
+        -- Thay đổi định dạng ở đây để làm nổi bật số tiền được donate
         local embed = {
-            description = string.format("**%s +%d**\n(Tổng: %d)", LocalPlayer.Name, amount, total),
+            description = string.format("**%s**\n# +%d\nTOTAL : %d", LocalPlayer.Name, amount, total),
             color = SETTINGS.WebhookColor
         }
 
@@ -303,7 +303,7 @@ local function setupDiscordWebhook()
                 countdownShouldReset = true
             end
 
-            -- Gửi thông báo webhook với tên của người chơi cục bộ (tài khoản nhận donate)
+            -- Gửi thông báo webhook, chỉ cần gửi số tiền chênh lệch và tổng mới
             sendWebhook(difference, newRaisedValue)
         end
         lastRaised = newRaisedValue
