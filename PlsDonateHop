@@ -248,7 +248,7 @@ local function setupDiscordWebhook()
 
     local lastRaised = raised.Value
 
-    local function sendWebhook(donatorName, amount, total)
+    local function sendWebhook(recipientName, amount, total)
         local pingContent = nil
         -- Kiểm tra xem tính năng ping có được bật không
         if SETTINGS.EnablePingOnDonate then
@@ -263,7 +263,7 @@ local function setupDiscordWebhook()
         end
 
         local embed = {
-            description = string.format("**%s +%d** (Tổng: %d)", donatorName, amount, total),
+            description = string.format("**%s +%d** (Tổng: %d)", recipientName, amount, total),
             color = SETTINGS.WebhookColor
         }
 
@@ -302,24 +302,8 @@ local function setupDiscordWebhook()
                 countdownShouldReset = true
             end
 
-            -- Gửi thông báo webhook
-            local nearestPlayerName = "Ai đó"
-            local minDistance = 100 -- Giới hạn khoảng cách tìm kiếm để chính xác hơn
-            
-            local lpCharacter = LocalPlayer.Character
-            if lpCharacter and lpCharacter:FindFirstChild("HumanoidRootPart") then
-                for _, p in ipairs(Players:GetPlayers()) do
-                    if p ~= LocalPlayer and p.Character and p.Character:FindFirstChild("HumanoidRootPart") then
-                        local distance = (p.Character.HumanoidRootPart.Position - lpCharacter.HumanoidRootPart.Position).Magnitude
-                        if distance < minDistance then
-                            minDistance = distance
-                            nearestPlayerName = p.Name
-                        end
-                    end
-                end
-            end
-            
-            sendWebhook(nearestPlayerName, difference, newRaisedValue)
+            -- Gửi thông báo webhook với tên của người chơi cục bộ (tài khoản nhận donate)
+            sendWebhook(LocalPlayer.Name, difference, newRaisedValue)
         end
         lastRaised = newRaisedValue
     end)
