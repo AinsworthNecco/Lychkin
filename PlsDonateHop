@@ -20,7 +20,7 @@ local SETTINGS = {
     ["WebhookURL"] = "https://discord.com/api/webhooks/1340178815015452784/1OwftucOU7DuKjOIzZN67t8_GEZ33UCi5FgUsuj8QkPvjIDXTKF63LVaf2LZn5G5DbdS",
     ["WebhookColor"] = 16738740, -- Mã màu thập lục phân (decimal) cho embed. Ví dụ: 0xFF69B4 là 16738740.
     ["EnablePingOnDonate"] = true, -- Bật/tắt ping khi có donate lớn.
-    ["PingAmount"] = 3, -- Số Robux tối thiểu để ping. Đặt là 0 để ping mọi donate.
+    ["PingAmount"] = 1000, -- Số Robux tối thiểu để ping. Đặt là 0 để ping mọi donate.
     ["PingUserID"] = "", -- ID người dùng Discord để ping. Để trống để ping @everyone.
 
     -- Cài đặt Tự Động Trả Lời (Auto Reply)
