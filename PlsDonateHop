@@ -30,14 +30,14 @@ local SETTINGS = {
     ["ReplyRules"] = {
         {
             keywords = { "hi", "hello", "hey", "sup", "yo", "wsg", "howdy", "greetings", "wassup", "heya" },
-            replies = { "Hello!", "Hi there", "Hey!", "Yo", "What's up?", "Howdy!", "Heya", "Sup", "Heyo!", "What's good?", "Well hello there." }
+            replies = { "Hello!", "Hi there", "Hey!", "Yo", "What's up?", "Heya", "Sup", "Heyo!", "What's good?", "Well hello there." }
         },
         {
             keywords = { "only","donate", "pls", "give me", "robux pls", "can i have", "spare", "some robux", "can u donate", "plz donate", "can you give", "i need robux" },
             replies = { "Sorry, I'm saving up right now.", "I can't donate at the moment, sorry.", "My robux is pending, can't help sorry.", "Sry, saving for something specific.", "Maybe later, I'm trying to reach my own goal.", "Can't right now, good luck though!", "All my robux is tied up, sorry.", "Sorry, my wallet is on a diet.", "I wish I could, but I'm broke lol." }
         },
         {
-            keywords = { "bot", "auto", "script", "scripter", "macro", "afk farm", "autoclicker", "is that a script", "you a bot?" },
+            keywords = { "bot", "auto", "script", "scripter", "macro", "afk farm", "autoclicker", "you a bot?" },
             replies = { "I'm not a bot :)", "lol no, I'm a real player.", "Just vibing, not a bot.", "Beep boop? Nah, just kidding.", "I'm a human, I promise!", "Not a script, just dedicated lol.", "Do I look like a bot to you? :P", "Last time I checked, I still need to sleep. So, not a bot.", "01001110 01101111. (That means 'No' in binary)." }
         },
         {
@@ -45,25 +45,9 @@ local SETTINGS = {
             replies = { "This is not a scam.", "I'm not a scammer.", "It's legit, no worries.", "100% legit, my friend.", "No scams here, just good vibes.", "I'm just here to play the game like you.", "Why would you think it's a scam?", "The only thing I'm scamming is time, by playing this game.", "You've got the wrong person, I'm just here to chill." }
         },
         {
-            keywords = { "goal", "saving for", "what for" },
-            replies = { "I'm saving for my dream item!", "Just trying to reach my goal.", "For a new avatar item :)" }
-        },
-        {
-            keywords = { "cool booth", "nice avatar", "cool skin", "love your booth" },
-            replies = { "Thanks!", "Thank you so much!", "Ty! I appreciate it." }
-        },
-        {
             keywords = { "why are you", "how are you", "spinning", "jumping", "afk" },
             replies = { "Just farming for my goal.", "It's part of the grind.", "Doing this for donations." }
         },
-        {
-            keywords = { "name?", "your name", "whats your name" },
-            replies = { "You can call me by my display name.", "It's on the leaderboard!", "Just a friendly player." }
-        },
-        {
-            keywords = { "how are you", "how r u", "hru" },
-            replies = { "I'm good, thanks for asking!", "Doing great!", "Just chilling." }
-        }
     },
 
     -- Cài đặt hiệu năng Đồ Họa (GPU)
