@@ -16,7 +16,7 @@ Suffixes="b c d e f g h i j k"
 CheckInterval=20
 
 # Thoi gian (giay) cho giua moi lan mo mot phien ban
-OpenDelay=10
+OpenDelay=30
 # THAY DOI: So lan kiem tra toi da truoc khi script tu ket thuc
 MaxRuns=3
 
