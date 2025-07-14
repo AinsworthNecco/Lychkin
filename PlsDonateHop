@@ -26,7 +26,7 @@ local SETTINGS = {
     -- Cài đặt Tự Động Trả Lời (Auto Reply)
     ["EnableAutoReply"] = true, -- Bật/tắt toàn bộ tính năng tự động trả lời tin nhắn.
     ["ReplyRadius"] = 25, -- Khoảng cách tối đa (studs) để trả lời tin nhắn của người khác.
-    ["ReplyCooldown"] = 3, -- Thời gian chờ (giây) trước khi trả lời lại CÙNG MỘT người chơi.
+    ["ReplyCooldown"] = 7, -- Thời gian chờ (giây) trước khi trả lời lại CÙNG MỘT người chơi.
     ["ReplyRules"] = {
         {
             keywords = { "hi", "hello", "hey", "sup", "yo", "wsg", "howdy", "greetings", "wassup", "heya" },
