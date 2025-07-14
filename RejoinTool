@@ -2,6 +2,7 @@
 # Script mo nhieu phien ban Roblox dua tren cau hinh san co.
 # PHIEN BAN NANG CAO: Tu dong kiem tra va khoi dong lai cac phien ban chua chay.
 # PHIEN BAN MOI: Script se tu dong ket thuc sau mot so lan chay nhat dinh.
+# b c d e f g h i j k
 
 #---------------------------------------------------
 # -- SETTINGS --
@@ -9,7 +10,7 @@
 #---------------------------------------------------
 
 # Them hoac xoa cac hau to phien ban ban muon mo (phan cach boi dau cach)
-Suffixes="b c d e f g h i j k"
+Suffixes="b c d e f g h"
 
 # Thoi gian (giay) cho giua moi lan quet kiem tra tat ca cac phien ban
 CheckInterval=20
