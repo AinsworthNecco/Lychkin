@@ -76,7 +76,7 @@ local SETTINGS = {
 
     -- Cài đặt khác
     ["EnableFileHistory"] = true, -- Ghi lại lịch sử các server đã vào để tránh vào lại.
-    ["InitialWaitTime"] = 10, -- Thời gian chờ ban đầu (giây) sau khi vào game để script bắt đầu chạy.
+    ["InitialWaitTime"] = 5, -- Thời gian chờ ban đầu (giây) sau khi vào game để script bắt đầu chạy.
 
     -- Cài đặt giao diện
     ["EnableCountdownText"] = true, -- Hiển thị SỐ đếm ngược trên màn hình.
