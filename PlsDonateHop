@@ -29,40 +29,50 @@ local SETTINGS = {
     ["ReplyCooldown"] = 3, -- Thời gian chờ (giây) trước khi trả lời lại CÙNG MỘT người chơi.
     ["ReplyRules"] = {
         {
-            keywords = { "hi", "hello", "hey", "sup", "yo", "wsg", "howdy", "greetings", "wassup", "heya" },
-            replies = { "Hello!", "Hi there", "Hey!", "Yo", "What's up?", "Heya", "Sup", "Heyo!", "What's good?" }
-        },
-        {
-            keywords = { "only","donate", "pls", "give me", "robux pls", "can i have", "spare", "some robux", "can u donate", "plz donate", "can you give", "i need robux" },
-            replies = { "Sorry, I'm saving up right now.", "I can't donate at the moment, sorry.", "My robux is pending, can't help sorry.", "Sry, saving for something specific.", "Maybe later, I'm trying to reach my own goal.", "Can't right now, good luck though!", "All my robux is tied up, sorry.", "Sorry, my wallet is on a diet.", "I wish I could, but I'm broke lol." }
-        },
-        {
-            keywords = { "bot", "auto", "script", "scripter", "macro", "afk farm", "autoclicker", "is that a script", "you a bot?" },
+            -- Bị tố cáo là bot/script
+            keywords = { "bot", "auto", "script", "scripter", "macro", "afk farm", "autoclicker", "is that a script", "you a bot?", "robot" },
             replies = { "I'm not a bot :)", "lol no, I'm a real player.", "Just vibing, not a bot.", "Beep boop? Nah, just kidding.", "I'm a human, I promise!", "Not a script, just dedicated lol.", "Do I look like a bot to you? :P", "Last time I checked, I still need to sleep. So, not a bot.", "01001110 01101111. (That means 'No' in binary)." }
         },
         {
+            -- Bị tố cáo là lừa đảo
             keywords = { "scam", "fake", "report", "scammer", "this is a scam", "don't trust", "he's a scammer", "is this fake" },
-            replies = { "This is not a scam.", "I'm not a scammer.", "It's legit, no worries.", "100% legit, my friend.", "No scams here, just good vibes.", "I'm just here to play the game like you.", "Why would you think it's a scam?", "The only thing I'm scamming is time, by playing this game.", "You've got the wrong person, I'm just here to chill." }
+            replies = { "This is not a scam.", "I'm not a scammer.", "It's legit, no worries.", "100% legit, my friend.", "No scams here, just good vibes.", "I'm just here to play the game like you.", "Why would you think it's a scam?", "You've got the wrong person, I'm just here to chill." }
         },
         {
-            keywords = { "goal", "saving for", "what for" },
-            replies = { "I'm saving for my dream item!", "Just trying to reach my goal.", "For a new avatar item :)" }
+            -- Hỏi về mục tiêu (khi xin donate không được)
+            keywords = { "goal", "saving for", "what for", "dream item" },
+            replies = { "I'm saving for my dream item!", "Just trying to reach my goal.", "For a new avatar item :)", "It's a secret for now, but it's something cool!" }
         },
         {
-            keywords = { "cool booth", "nice avatar", "cool skin", "love your booth" },
-            replies = { "Thanks!", "Thank you so much!", "Ty! I appreciate it." }
+            -- Bị hỏi xin Robux/donate
+            keywords = { "donate", "pls", "give me", "robux pls", "can i have", "spare", "some robux", "can u donate", "plz donate", "can you give", "i need robux" },
+            replies = { "Sorry, I'm saving up right now.", "I can't donate at the moment, sorry.", "My robux is pending, can't help sorry.", "Sry, saving for something specific.", "Maybe later, I'm trying to reach my own goal.", "Can't right now, good luck though!", "All my robux is tied up, sorry.", "Sorry, my wallet is on a diet.", "I wish I could, but I'm broke lol." }
         },
         {
-            keywords = { "why are you", "how are you", "spinning", "jumping", "afk" },
-            replies = { "Just farming for my goal.", "It's part of the grind.", "Doing this for donations." }
+            -- Hỏi về hành động (quay, nhảy...)
+            keywords = { "why are you", "what are you doing", "spinning", "jumping", "afk" },
+            replies = { "Just farming for my goal.", "It's part of the grind.", "Doing this for donations.", "Gotta keep moving!" }
         },
         {
+            -- Khen booth hoặc avatar
+            keywords = { "cool booth", "nice avatar", "cool skin", "love your booth", "nice fit" },
+            replies = { "Thanks!", "Thank you so much!", "Ty! I appreciate it.", "Thanks, you too!" }
+        },
+        {
+            -- Hỏi thăm sức khỏe (nên tách khỏi "how are you" trong rule hành động)
+            keywords = { "how are you", "how r u", "hru", "how you doing" },
+            replies = { "I'm good, thanks for asking!", "Doing great!", "Just chilling.", "Can't complain!" }
+        },
+        {
+            -- Hỏi tên
             keywords = { "name?", "your name", "whats your name" },
             replies = { "You can call me by my display name.", "It's on the leaderboard!", "Just a friendly player." }
         },
+        
+        -- CHUNG CHUNG: Quy tắc chào hỏi luôn phải ở cuối cùng
         {
-            keywords = { "how are you", "how r u", "hru" },
-            replies = { "I'm good, thanks for asking!", "Doing great!", "Just chilling." }
+            keywords = { "hi", "hello", "hey", "sup", "yo", "wsg", "howdy", "greetings", "wassup", "heya" },
+            replies = { "Hello!", "Hi there", "Hey!", "Yo", "What's up?", "Howdy!", "Heya", "Sup", "Heyo!", "What's good?", "Well hello there." }
         }
     },
 
