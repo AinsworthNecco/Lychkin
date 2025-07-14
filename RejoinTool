@@ -10,7 +10,7 @@
 #---------------------------------------------------
 
 # Them hoac xoa cac hau to phien ban ban muon mo (phan cach boi dau cach)
-Suffixes="b c d e f g h i"
+Suffixes="b c d e f g h"
 
 # Thoi gian (giay) cho giua moi lan quet kiem tra tat ca cac phien ban
 CheckInterval=20
