@@ -24,7 +24,7 @@ local SETTINGS = {
     ["PingUserID"] = "", -- ID người dùng Discord để ping. Để trống để ping @everyone.
 
     -- Cài đặt Tự Động Trả Lời (Auto Reply)
-    ["EnableAutoReply"] = true, -- Bật/tắt toàn bộ tính năng tự động trả lời tin nhắn.
+    ["EnableAutoReply"] = false, -- Bật/tắt toàn bộ tính năng tự động trả lời tin nhắn.
     ["ReplyRadius"] = 25, -- Khoảng cách tối đa (studs) để trả lời tin nhắn của người khác.
     ["ReplyCooldown"] = 7, -- Thời gian chờ (giây) trước khi trả lời lại CÙNG MỘT người chơi.
     ["ReplyRules"] = {
