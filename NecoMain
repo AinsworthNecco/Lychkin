@@ -2,10 +2,12 @@
     VUI LÒNG CHỈ CHỈNH SỬA CÁC GIÁ TRỊ TRONG BẢNG "SETTINGS" DƯỚI ĐÂY.
     KHÔNG THAY ĐỔI TÊN CỦA CÁC KHÓA (VÍ DỤ: "WaitMinutes").
     
-    VERSION: Tích hợp Chống Bot (Tối ưu thứ tự khởi chạy)
-    - Thay đổi thứ tự khởi chạy: Logic quét bot và tìm Remotes sẽ chạy TRƯỚC các tối ưu hóa đồ họa/CPU.
-    - Logic tìm Remotes được giữ nguyên từ bản sửa lỗi trước để đảm bảo độ tin cậy.
-    - Thêm từ khóa "test" vào danh sách phát hiện bot.
+    VERSION: Tích hợp Chống Bot (Sửa lỗi & Tối ưu hóa toàn diện)
+    - Cấu trúc lại hoàn toàn thứ tự khởi chạy để đảm bảo độ ổn định.
+    - Logic tìm Remotes được ưu tiên và thực hiện một cách tuần tự, blocking để đảm bảo tìm thấy trước khi tiếp tục.
+    - Logic quét bot chỉ bắt đầu sau khi Remotes được xác nhận, khắc phục lỗi không tìm thấy MapUI.
+    - Tăng thời gian chờ tối ưu hóa lên 15 giây.
+    - Cải thiện logic quét bot để hoạt động hiệu quả hơn.
 ]]
 local SETTINGS = {
     -- Cài đặt Server Hop
@@ -71,7 +73,7 @@ local SETTINGS = {
 
     -- Cài đặt khác
     ["EnableFileHistory"] = true, -- Ghi lại lịch sử các server đã vào để tránh vào lại.
-    ["InitialWaitTime"] = 10, -- Thời gian chờ (giây) TRƯỚC KHI TỐI ƯU HÓA. Quét bot chạy ngay lập tức.
+    ["InitialWaitTime"] = 15, -- Thời gian chờ (giây) TRƯỚC KHI TỐI ƯU HÓA. Quét bot chạy ngay lập tức.
 
     -- Cài đặt giao diện
     ["EnableCountdownText"] = true, -- Hiển thị SỐ đếm ngược trên màn hình.
@@ -213,40 +215,50 @@ local function setupAntiAfk()
     end)
 end
 
--- --- Hàm tìm Remotes ---
+-- --- Hàm tìm Remotes (Blocking & Cải tiến) ---
 local function findRemotes()
     updateBotStatusDisplay("Đang tìm Remotes Module...")
-    local remotesFound = false
-    
-    for i, v in ipairs(ReplicatedStorage:GetChildren()) do
-        if v:IsA('ModuleScript') and v.Name:find('Remote') then
-            local success, err = pcall(function()
-                require(v).Event('PromotionBlimpGiftbux'):FireServer()
-            end)
-            
-            if success then
-                Remotes = require(v)
-                remotesFound = true
-                break
+    local attempts = 0
+    -- Vòng lặp sẽ chạy cho đến khi tìm thấy Remotes hoặc sau 30 lần thử (30 giây)
+    while not Remotes and attempts < 30 do
+        for i, v in ipairs(ReplicatedStorage:GetChildren()) do
+            if v:IsA('ModuleScript') and v.Name:find('Remote') then
+                -- Kiểm tra module bằng cách gọi một event cụ thể, đây là cách đáng tin cậy nhất.
+                local success, err = pcall(function()
+                    require(v).Event('PromotionBlimpGiftbux'):FireServer()
+                end)
+                
+                if success then
+                    Remotes = require(v)
+                    break -- Thoát khỏi vòng lặp for khi đã tìm thấy
+                end
             end
         end
-        task.wait()
+        
+        if Remotes then
+            break -- Thoát khỏi vòng lặp while khi đã tìm thấy
+        end
+        
+        attempts = attempts + 1
+        task.wait(1)
     end
 
-    if remotesFound then
+    if Remotes then
         updateBotStatusDisplay("THÀNH CÔNG: Đã tìm thấy Remotes!")
         print("[Anti-Bot] Đã tìm thấy Remotes Module.")
+        return true
     else
         updateBotStatusDisplay("LỖI: Không tìm thấy Remotes Module.")
         warn("[Anti-Bot] Không thể tìm thấy Remotes Module sau khi quét ReplicatedStorage.")
+        return false
     end
-    return remotesFound
 end
 
 -- --- Logic Quét Bot ---
 local function startAntiBotScan()
     updateBotStatusDisplay("Đang tìm MapUI...")
     
+    -- Tìm MapUI một cách an toàn, dựa theo logic của script gốc
     local _boothlocation
     local suc, _shuffled = pcall(function() return Workspace:WaitForChild('MapUI', 10) end)
     if not suc or not _shuffled then
@@ -274,27 +286,26 @@ local function startAntiBotScan()
     updateBotStatusDisplay("Nền tảng sẵn sàng. Bắt đầu quét bot.")
     task.wait(2)
 
+    -- Vòng lặp quét chính, không còn task.wait() không cần thiết để tăng tốc độ quét
     while true do
         local currentBotCount = 0
         
         for _, uiFrame in ipairs(boothUI:GetChildren()) do
-            if uiFrame:IsA("Frame") and uiFrame:FindFirstChild("Details") and uiFrame:FindFirstChild("Sign") then
+            -- Kiểm tra cấu trúc của gian hàng trước khi truy cập để tránh lỗi
+            if uiFrame:IsA("Frame") and uiFrame:FindFirstChild("Details") and uiFrame.Details:FindFirstChild("Owner") and uiFrame:FindFirstChild("Sign") and uiFrame.Sign:FindFirstChild("TextLabel") then
                 if uiFrame:GetAttribute("IsFlaggedAsBot") then
                     currentBotCount = currentBotCount + 1
                 else
-                    local ownerNameLabel = uiFrame.Details:FindFirstChild("Owner")
-                    if ownerNameLabel and ownerNameLabel.Text ~= "unclaimed" then
-                        local signLabel = uiFrame.Sign:FindFirstChild("TextLabel")
-                        if signLabel then
-                            local boothText = string.lower(signLabel.Text)
-                            
-                            for _, keyword in ipairs(SETTINGS.BotKeywords) do
-                                if string.find(boothText, keyword) then
-                                    print("[Anti-Bot] PHÁT HIỆN BOT! Người chơi: '" .. ownerNameLabel.Text .. "' (Từ khóa: '" .. keyword .. "')")
-                                    uiFrame:SetAttribute("IsFlaggedAsBot", true)
-                                    currentBotCount = currentBotCount + 1
-                                    break 
-                                end
+                    local ownerNameLabel = uiFrame.Details.Owner
+                    if ownerNameLabel.Text ~= "unclaimed" then
+                        local boothText = string.lower(uiFrame.Sign.TextLabel.Text)
+                        
+                        for _, keyword in ipairs(SETTINGS.BotKeywords) do
+                            if string.find(boothText, keyword) then
+                                print("[Anti-Bot] PHÁT HIỆN BOT! Người chơi: '" .. ownerNameLabel.Text .. "' (Từ khóa: '" .. keyword .. "')")
+                                uiFrame:SetAttribute("IsFlaggedAsBot", true)
+                                currentBotCount = currentBotCount + 1
+                                break 
                             end
                         end
                     end
@@ -324,44 +335,48 @@ local function startAntiBotScan()
 end
 
 
--- --- Khởi chạy Script (THỨ TỰ ĐÃ THAY ĐỔI) ---
+-- --- Khởi chạy Script (THỨ TỰ ĐÃ ĐƯỢC TỐI ƯU HÓA) ---
 updateDisplay("INFO", "Đang khởi tạo Script...")
 task.wait(0.2)
-if type(setfpscap) == "function" and SETTINGS.TargetFps and SETTINGS.TargetFps > 0 then task.spawn(function() while task.wait() do pcall(setfpscap, SETTINGS.TargetFps) end end) end
 
--- Kích hoạt các hệ thống phụ chạy ngầm
+-- Kích hoạt các hệ thống phụ chạy ngầm ngay lập tức
+if type(setfpscap) == "function" and SETTINGS.TargetFps and SETTINGS.TargetFps > 0 then task.spawn(function() while task.wait() do pcall(setfpscap, SETTINGS.TargetFps) end end) end
 task.spawn(setupAntiAfk)
 if SETTINGS.EnableAutoReconnect then task.spawn(setupAutoReconnect) end
 if SETTINGS.EnableAutoReply then task.spawn(setupAutoReply) end
 task.spawn(setupDiscordWebhook)
 
--- ƯU TIÊN CHẠY LOGIC QUÉT BOT TRƯỚC
-if SETTINGS.EnableAntiBotScan then
-    task.spawn(function()
+-- Bắt đầu chuỗi khởi tạo chính trong một coroutine riêng để không làm đứng script
+task.spawn(function()
+    -- BƯỚC 1: Tìm Remotes. Đây là bước quan trọng và phải hoàn thành trước.
+    if SETTINGS.EnableAntiBotScan then
         if findRemotes() then
-            startAntiBotScan()
+            -- Nếu tìm thấy Remotes, bắt đầu quét bot trong một luồng khác
+            task.spawn(startAntiBotScan)
+            print("[MainInit] Tính năng Chống Bot đã được kích hoạt.")
+        else
+            print("[MainInit] Không thể kích hoạt Chống Bot vì không tìm thấy Remotes.")
         end
-    end)
-    print("[MainInit] Tính năng Chống Bot đã được kích hoạt (chạy ưu tiên).")
-end
+    end
 
--- Chờ một khoảng thời gian ngắn TRƯỚC KHI tối ưu hóa
-updateDisplay("INFO", string.format("Chờ %d giây trước khi tối ưu...", SETTINGS.InitialWaitTime))
-task.wait(SETTINGS.InitialWaitTime)
-updateDisplay("INFO", "Bắt đầu áp dụng tối ưu hóa...")
+    -- BƯỚC 2: Chờ một khoảng thời gian TRƯỚC KHI tối ưu hóa
+    updateDisplay("INFO", string.format("Chờ %d giây trước khi tối ưu...", SETTINGS.InitialWaitTime))
+    task.wait(SETTINGS.InitialWaitTime)
+    updateDisplay("INFO", "Bắt đầu áp dụng tối ưu hóa...")
 
--- Áp dụng các tối ưu hóa
-if SETTINGS.EnableSafePlatform then createSafePlatform() end
-if SETTINGS.EnableStaticAfkView then setupStaticAfkView() end
-if SETTINGS.EnableCpuOptimization then optimizeForCpu() end
-if SETTINGS.EnableGraphicsOptimization then optimizeGraphics() end
+    -- BƯỚC 3: Áp dụng các tối ưu hóa
+    if SETTINGS.EnableSafePlatform then createSafePlatform() end
+    if SETTINGS.EnableStaticAfkView then setupStaticAfkView() end
+    if SETTINGS.EnableCpuOptimization then optimizeForCpu() end
+    if SETTINGS.EnableGraphicsOptimization then optimizeGraphics() end
 
--- Kích hoạt logic server hop theo thời gian (chạy sau cùng)
-if SETTINGS.EnableServerHop then
-    startInitialCountdown()
-    print("[MainInit] Server Hop theo thời gian đã được kích hoạt.")
-else
-    updateDisplay("INFO", "Logic Server Hop theo thời gian TẮT.")
-end
+    -- BƯỚC 4: Kích hoạt logic server hop theo thời gian (chạy sau cùng)
+    if SETTINGS.EnableServerHop then
+        startInitialCountdown()
+        print("[MainInit] Server Hop theo thời gian đã được kích hoạt.")
+    else
+        updateDisplay("INFO", "Logic Server Hop theo thời gian TẮT.")
+    end
 
-print("[MainInit] Script đã hoàn tất khởi chạy chính.")
+    print("[MainInit] Script đã hoàn tất khởi chạy chính.")
+end)
