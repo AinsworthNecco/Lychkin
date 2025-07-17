@@ -14,8 +14,8 @@ local SETTINGS = {
 
     -- Bật/Tắt các tính năng chính
     ["EnableServerHop"] = true, -- Bật/tắt toàn bộ logic chuyển server theo thời gian.
-    ["EnableSafePlatform"] = true, -- Tạo một tấm nền lớn để tránh bị rơi khỏi map.
-    ["EnableStaticAfkView"] = true, -- Đưa camera về một góc nhìn tĩnh để giảm lag.
+    ["EnableSafePlatform"] = false, -- Tạo một tấm nền lớn để tránh bị rơi khỏi map.
+    ["EnableStaticAfkView"] = false, -- Đưa camera về một góc nhìn tĩnh để giảm lag.
     ["EnableDonateReset"] = true, -- Tự động reset bộ đếm thời gian khi có người donate.
     ["EnableAutoReconnect"] = true, -- Tự động kết nối lại khi bị lỗi và văng ra khỏi server.
     
@@ -61,11 +61,11 @@ local SETTINGS = {
     },
 
     -- Cài đặt hiệu năng Đồ Họa (GPU)
-    ["EnableGraphicsOptimization"] = true, -- Tối ưu hóa đồ họa (xóa vật thể, giảm chất lượng, tắt âm thanh).
+    ["EnableGraphicsOptimization"] = false, -- Tối ưu hóa đồ họa (xóa vật thể, giảm chất lượng, tắt âm thanh).
     
     -- Cài đặt hiệu năng CPU (Nâng cao)
-    ["EnableCpuOptimization"] = true, -- Bật/tắt các tối ưu hóa chuyên sâu cho CPU.
-    ["SetSimulationRadiusToZero"] = true, -- Chuyển toàn bộ gánh nặng vật lý cho server. Rất hiệu quả để giảm tải CPU.
+    ["EnableCpuOptimization"] = false, -- Bật/tắt các tối ưu hóa chuyên sâu cho CPU.
+    ["SetSimulationRadiusToZero"] = false, -- Chuyển toàn bộ gánh nặng vật lý cho server. Rất hiệu quả để giảm tải CPU.
     ["TargetFps"] = 60, -- Giới hạn FPS của game ở mức này để giảm tải CPU và GPU.
 
     -- Cài đặt khác
