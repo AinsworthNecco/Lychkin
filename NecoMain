@@ -2,10 +2,10 @@
     VUI LÒNG CHỈ CHỈNH SỬA CÁC GIÁ TRỊ TRONG BẢNG "SETTINGS" DƯỚI ĐÂY.
     KHÔNG THAY ĐỔI TÊN CỦA CÁC KHÓA (VÍ DỤ: "WaitMinutes").
     
-    VERSION: Tích hợp Chống Bot (Sửa lỗi & Tối ưu hóa toàn diện v2)
-    - Sửa lỗi logic quét bot để đảm bảo phát hiện chính xác các gian hàng (booth) giống như script gốc.
-    - Sử dụng pcall để truy cập các thành phần UI một cách an toàn, tránh lỗi và bỏ sót.
-    - Đảm bảo chức năng chuyển server được kích hoạt đúng cách khi đạt ngưỡng phát hiện bot.
+    VERSION: Tích hợp Chống Bot (Sửa lỗi & Tối ưu hóa toàn diện v3 - Final)
+    - Khôi phục logic quét bot về chính xác như script gốc để đảm bảo độ tin cậy.
+    - Sử dụng pcall để truy cập các thành phần UI một cách an toàn, mô phỏng hành vi của script gốc.
+    - Đảm bảo chức năng chuyển server được kích hoạt đúng và ngay lập tức khi đạt ngưỡng.
 ]]
 local SETTINGS = {
     -- Cài đặt Server Hop
@@ -252,7 +252,7 @@ local function findRemotes()
     end
 end
 
--- --- Logic Quét Bot ---
+-- --- Logic Quét Bot (ĐÃ SỬA LỖI) ---
 local function startAntiBotScan()
     updateBotStatusDisplay("Đang tìm MapUI...")
     
@@ -284,27 +284,26 @@ local function startAntiBotScan()
     updateBotStatusDisplay("Nền tảng sẵn sàng. Bắt đầu quét bot.")
     task.wait(2)
 
-    -- Vòng lặp quét chính, không còn task.wait() không cần thiết để tăng tốc độ quét
+    -- Vòng lặp quét chính
     while true do
         local currentBotCount = 0
         
         for _, uiFrame in ipairs(boothUI:GetChildren()) do
-            -- Kiểm tra cấu trúc của gian hàng trước khi truy cập để tránh lỗi
-            if uiFrame:IsA("Frame") and uiFrame:FindFirstChild("Details") and uiFrame.Details:FindFirstChild("Owner") and uiFrame:FindFirstChild("Sign") and uiFrame.Sign:FindFirstChild("TextLabel") then
-                if uiFrame:GetAttribute("IsFlaggedAsBot") then
-                    currentBotCount = currentBotCount + 1
-                else
-                    local ownerNameLabel = uiFrame.Details.Owner
-                    if ownerNameLabel.Text ~= "unclaimed" then
-                        local boothText = string.lower(uiFrame.Sign.TextLabel.Text)
-                        
-                        for _, keyword in ipairs(SETTINGS.BotKeywords) do
-                            if string.find(boothText, keyword) then
-                                print("[Anti-Bot] PHÁT HIỆN BOT! Người chơi: '" .. ownerNameLabel.Text .. "' (Từ khóa: '" .. keyword .. "')")
-                                uiFrame:SetAttribute("IsFlaggedAsBot", true)
-                                currentBotCount = currentBotCount + 1
-                                break 
-                            end
+            if uiFrame:GetAttribute("IsFlaggedAsBot") then
+                currentBotCount = currentBotCount + 1
+            else
+                -- Sử dụng pcall để truy cập an toàn, giống như cách script gốc hoạt động một cách gián tiếp
+                local success, ownerName, boothText = pcall(function()
+                    return uiFrame.Details.Owner.Text, string.lower(uiFrame.Sign.TextLabel.Text)
+                end)
+
+                if success and ownerName ~= "unclaimed" then
+                    for _, keyword in ipairs(SETTINGS.BotKeywords) do
+                        if string.find(boothText, keyword) then
+                            print("[Anti-Bot] PHÁT HIỆN BOT! Người chơi: '" .. ownerName .. "' (Từ khóa: '" .. keyword .. "')")
+                            uiFrame:SetAttribute("IsFlaggedAsBot", true)
+                            currentBotCount = currentBotCount + 1
+                            break 
                         end
                     end
                 end
@@ -325,7 +324,7 @@ local function startAntiBotScan()
             
             task.wait(2)
             searchForServer()
-            break
+            break -- Thoát khỏi vòng lặp quét bot
         end
         
         task.wait(SETTINGS.BotScanInterval)
@@ -377,4 +376,4 @@ task.spawn(function()
     end
 
     print("[MainInit] Script đã hoàn tất khởi chạy chính.")
-end)
+e
