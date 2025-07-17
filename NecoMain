@@ -17,7 +17,7 @@ local SETTINGS = {
     },
     
     -- Số lượng bot tối đa cho phép. Nếu phát hiện BẰNG hoặc HƠN số này, sẽ chuyển server.
-    ["DETECTION_THRESHOLD"] = 5,
+    ["DETECTION_THRESHOLD"] = 1,
 
     -- =================================================================
     -- CÀI ĐẶT SERVER HOP & AFK
