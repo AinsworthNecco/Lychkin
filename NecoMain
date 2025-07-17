@@ -2,10 +2,9 @@
     VUI LÒNG CHỈ CHỈNH SỬA CÁC GIÁ TRỊ TRONG BẢNG "SETTINGS" DƯỚI ĐÂY.
     KHÔNG THAY ĐỔI TÊN CỦA CÁC KHÓA (VÍ DỤ: "WaitMinutes").
     
-    VERSION: Tích hợp Chống Bot
-    - Đã thêm tính năng quét bot từ script phụ.
-    - Nếu phát hiện đủ bot, script sẽ tự động tìm server mới.
-    - Giao diện được cập nhật để hiển thị cả trạng thái quét bot và đếm ngược.
+    VERSION: Tích hợp Chống Bot (Sửa lỗi MapUI)
+    - Đã thêm lại logic tìm Remotes Module để khắc phục lỗi không tìm thấy MapUI.
+    - Tối ưu hóa thứ tự khởi chạy để đảm bảo Remotes được tìm thấy trước khi quét bot.
 ]]
 local SETTINGS = {
     -- Cài đặt Server Hop
@@ -67,7 +66,7 @@ local SETTINGS = {
     -- Cài đặt hiệu năng CPU (Nâng cao)
     ["EnableCpuOptimization"] = true, -- Bật/tắt các tối ưu hóa chuyên sâu cho CPU.
     ["SetSimulationRadiusToZero"] = true, -- Chuyển toàn bộ gánh nặng vật lý cho server. Rất hiệu quả để giảm tải CPU.
-    ["TargetFps"] = 7, -- Giới hạn FPS của game ở mức này để giảm tải CPU và GPU.
+    ["TargetFps"] = 60, -- Giới hạn FPS của game ở mức này để giảm tải CPU và GPU.
 
     -- Cài đặt khác
     ["EnableFileHistory"] = true, -- Ghi lại lịch sử các server đã vào để tránh vào lại.
@@ -93,10 +92,12 @@ local Lighting = cloneref(game:GetService("Lighting"))
 local SoundService = cloneref(game:GetService("SoundService"))
 local RunService = cloneref(game:GetService("RunService"))
 local Workspace = cloneref(game:GetService("Workspace"))
+local ReplicatedStorage = cloneref(game:GetService("ReplicatedStorage"))
 
 -- --- Cấu hình Script (Không nên thay đổi) ---
 local placeId = game.PlaceId
 local currentJobId = game.JobId
+local Remotes -- Biến lưu trữ Remotes Module
 
 local waitTimeBetweenFullScans = 7
 local waitTimeBetweenPageFetches = 0.75
@@ -158,7 +159,7 @@ local function updateDisplay(state, message)
     else if statusFrame then statusFrame.BackgroundTransparency = 1 end end
 end
 
--- Hàm cập nhật UI cho quét bot (TÍNH NĂNG MỚI)
+-- Hàm cập nhật UI cho quét bot
 local function updateBotStatusDisplay(message)
     if botStatusLabel and botStatusLabel.Parent then
         botStatusLabel.Text = tostring(message)
@@ -199,7 +200,7 @@ local function setupAutoReply() if not SETTINGS.EnableAutoReply then return end;
 -- --- Logic Thông Báo Donate qua Discord ---
 local function setupDiscordWebhook() if not SETTINGS.EnableDiscordWebhook or not SETTINGS.WebhookURL or SETTINGS.WebhookURL == "" then print("[Webhook] Tính năng webhook bị tắt hoặc URL không hợp lệ."); return end; local leaderstats = LocalPlayer:WaitForChild("leaderstats", 30); if not leaderstats then updateDisplay("ERROR", "[Webhook] Không tìm thấy leaderstats sau 30 giây."); return end; local raised = leaderstats:WaitForChild("Raised", 30); if not raised then updateDisplay("ERROR", "[Webhook] Không tìm thấy 'Raised' trong leaderstats."); return end; local lastRaised = raised.Value; local function sendWebhook(amount, total) local pingContent = nil; if SETTINGS.EnablePingOnDonate then if amount >= (SETTINGS.PingAmount or 0) then if SETTINGS.PingUserID and SETTINGS.PingUserID ~= "" then pingContent = string.format("<@%s>", SETTINGS.PingUserID) else pingContent = "@everyone" end end end; local embed = { description = string.format("**%s**\n# +%d\nTOTAL : %d", LocalPlayer.Name, amount, total), color = SETTINGS.WebhookColor }; local payloadData = { embeds = { embed } }; if pingContent then payloadData.content = pingContent end; local payload = HttpService:JSONEncode(payloadData); local req = (syn and syn.request) or (http and http.request) or (fluxus and fluxus.request) or request; if req then pcall(function() req({ Url = SETTINGS.WebhookURL, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = payload }) end) else updateDisplay("ERROR", "[Webhook] Không tìm thấy hàm request để gửi webhook.") end end; raised.Changed:Connect(function(newRaisedValue) local difference = newRaisedValue - lastRaised; if difference > 0 then if SETTINGS.EnableDonateReset then countdownShouldReset = true end; sendWebhook(difference, newRaisedValue) end; lastRaised = newRaisedValue end); updateDisplay("SUCCESS", "Tính năng thông báo donate qua Discord đã được kích hoạt.") end
 
--- --- Logic Chống AFK (TÍNH NĂNG MỚI) ---
+-- --- Logic Chống AFK ---
 local function setupAntiAfk()
     pcall(function()
         local virtUser = game:GetService("VirtualUser")
@@ -211,11 +212,47 @@ local function setupAntiAfk()
     end)
 end
 
--- --- Logic Quét Bot (TÍNH NĂNG MỚI) ---
+-- --- Hàm tìm Remotes (SỬA LỖI) ---
+local function findRemotes()
+    updateBotStatusDisplay("Đang tìm Remotes Module...")
+    local remotesFound = false
+    
+    local success, _ = pcall(function()
+        for i, v in next, ReplicatedStorage:GetChildren() do
+            if v.Name:find('Remote') and v:IsA('ModuleScript') then
+                local success_pcall, result_pcall = pcall(function()
+                    local remoteModule = require(v)
+                    if type(remoteModule) == "table" and remoteModule.Event then
+                        pcall(function() remoteModule.Event('PromotionBlimpGiftbux'):FireServer() end)
+                        return remoteModule
+                    end
+                    return nil
+                end)
+                
+                if success_pcall and result_pcall then
+                    Remotes = result_pcall
+                    remotesFound = true
+                    break
+                end
+            end
+            task.wait()
+        end
+    end)
+
+    if remotesFound then
+        updateBotStatusDisplay("THÀNH CÔNG: Đã tìm thấy Remotes!")
+        print("[Anti-Bot] Đã tìm thấy Remotes Module.")
+    else
+        updateBotStatusDisplay("LỖI: Không tìm thấy Remotes Module.")
+        warn("[Anti-Bot] Không thể tìm thấy Remotes Module sau khi quét ReplicatedStorage.")
+    end
+    return remotesFound
+end
+
+-- --- Logic Quét Bot ---
 local function startAntiBotScan()
     updateBotStatusDisplay("Đang tìm MapUI...")
     
-    -- Tìm MapUI một cách an toàn
     local _boothlocation
     local suc, _shuffled = pcall(function() return Workspace:WaitForChild('MapUI', 10) end)
     if not suc or not _shuffled then
@@ -277,7 +314,6 @@ local function startAntiBotScan()
             updateDisplay("ERROR", "Phát hiện nhiều bot! Tìm server mới...")
             updateBotStatusDisplay("Đã đạt ngưỡng bot. Đang chuyển server...")
 
-            -- Dừng countdown hiện tại nếu đang chạy
             if currentCountdownThread and coroutine.status(currentCountdownThread) ~= "dead" then
                 pcall(coroutine.close, currentCountdownThread)
                 currentCountdownThread = nil
@@ -286,7 +322,7 @@ local function startAntiBotScan()
             
             task.wait(2)
             searchForServer()
-            break -- Thoát khỏi vòng lặp quét bot
+            break
         end
         
         task.wait(SETTINGS.BotScanInterval)
@@ -319,7 +355,11 @@ task.spawn(setupDiscordWebhook)
 
 -- Kích hoạt logic quét bot nếu được bật
 if SETTINGS.EnableAntiBotScan then
-    task.spawn(startAntiBotScan)
+    task.spawn(function()
+        if findRemotes() then
+            startAntiBotScan()
+        end
+    end)
     print("[MainInit] Tính năng Chống Bot đã được kích hoạt.")
 end
 
