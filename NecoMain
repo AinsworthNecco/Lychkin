@@ -14,7 +14,7 @@ local SETTINGS = {
     -- CÀI ĐẶT CHỐNG BOT
     -- =================================================================
     ["EnableAntiBotScan"] = true,
-    ["BOT_KEYWORDS"] = { "spin", "jump", "afk", "auto", "bot", "free", "pls donate", "hack", "script" },
+    ["BOT_KEYWORDS"] = { "jump" },
     ["DETECTION_THRESHOLD"] = 1, -- Đặt là 1 để kiểm tra. Thay đổi lại sau khi test xong.
 
     -- =================================================================
