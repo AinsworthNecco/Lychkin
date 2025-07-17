@@ -2,12 +2,10 @@
     VUI LÒNG CHỈ CHỈNH SỬA CÁC GIÁ TRỊ TRONG BẢNG "SETTINGS" DƯỚI ĐÂY.
     KHÔNG THAY ĐỔI TÊN CỦA CÁC KHÓA (VÍ DỤ: "WaitMinutes").
     
-    VERSION: Tích hợp Chống Bot (Sửa lỗi & Tối ưu hóa toàn diện)
-    - Cấu trúc lại hoàn toàn thứ tự khởi chạy để đảm bảo độ ổn định.
-    - Logic tìm Remotes được ưu tiên và thực hiện một cách tuần tự, blocking để đảm bảo tìm thấy trước khi tiếp tục.
-    - Logic quét bot chỉ bắt đầu sau khi Remotes được xác nhận, khắc phục lỗi không tìm thấy MapUI.
-    - Tăng thời gian chờ tối ưu hóa lên 15 giây.
-    - Cải thiện logic quét bot để hoạt động hiệu quả hơn.
+    VERSION: Tích hợp Chống Bot (Sửa lỗi & Tối ưu hóa toàn diện v2)
+    - Sửa lỗi logic quét bot để đảm bảo phát hiện chính xác các gian hàng (booth) giống như script gốc.
+    - Sử dụng pcall để truy cập các thành phần UI một cách an toàn, tránh lỗi và bỏ sót.
+    - Đảm bảo chức năng chuyển server được kích hoạt đúng cách khi đạt ngưỡng phát hiện bot.
 ]]
 local SETTINGS = {
     -- Cài đặt Server Hop
