@@ -2,9 +2,9 @@
     VUI LÒNG CHỈ CHỈNH SỬA CÁC GIÁ TRỊ TRONG BẢNG "SETTINGS" DƯỚI ĐÂY.
     KHÔNG THAY ĐỔI TÊN CỦA CÁC KHÓA (VÍ DỤ: "WaitMinutes").
     
-    VERSION: Tích hợp Chống Bot (Sửa lỗi MapUI)
-    - Đã thêm lại logic tìm Remotes Module để khắc phục lỗi không tìm thấy MapUI.
-    - Tối ưu hóa thứ tự khởi chạy để đảm bảo Remotes được tìm thấy trước khi quét bot.
+    VERSION: Tích hợp Chống Bot (Sửa lỗi gọi Remote)
+    - Sửa lại hàm `findRemotes` để gọi và xác thực Remotes Module một cách chính xác.
+    - Logic tìm Remotes giờ đây đáng tin cậy hơn, khắc phục lỗi không tìm thấy MapUI.
 ]]
 local SETTINGS = {
     -- Cài đặt Server Hop
@@ -14,16 +14,16 @@ local SETTINGS = {
 
     -- Bật/Tắt các tính năng chính
     ["EnableServerHop"] = true, -- Bật/tắt toàn bộ logic chuyển server theo thời gian.
-    ["EnableSafePlatform"] = false, -- Tạo một tấm nền lớn để tránh bị rơi khỏi map.
-    ["EnableStaticAfkView"] = false, -- Đưa camera về một góc nhìn tĩnh để giảm lag.
+    ["EnableSafePlatform"] = true, -- Tạo một tấm nền lớn để tránh bị rơi khỏi map.
+    ["EnableStaticAfkView"] = true, -- Đưa camera về một góc nhìn tĩnh để giảm lag.
     ["EnableDonateReset"] = true, -- Tự động reset bộ đếm thời gian khi có người donate.
     ["EnableAutoReconnect"] = true, -- Tự động kết nối lại khi bị lỗi và văng ra khỏi server.
     
     -- Cài đặt Chống Bot (TÍNH NĂNG MỚI)
     ["EnableAntiBotScan"] = true, -- Bật/tắt toàn bộ tính năng quét bot và tự động chuyển server khi đạt ngưỡng.
-    ["BotDetectionThreshold"] = 1, -- Số bot tối thiểu để kích hoạt chuyển server.
+    ["BotDetectionThreshold"] = 5, -- Số bot tối thiểu để kích hoạt chuyển server.
     ["BotScanInterval"] = 15, -- Thời gian (giây) giữa mỗi lần quét toàn bộ gian hàng.
-    ["BotKeywords"] = { "test", "jump", "afk", "auto", "bot", "free", "pls donate", "hack", "script" },
+    ["BotKeywords"] = { "spin", "jump", "afk", "auto", "bot", "free", "pls donate", "hack", "script" },
 
     -- Cài đặt Thông Báo Donate qua Discord
     ["EnableDiscordWebhook"] = true, -- Bật/tắt gửi thông báo donate qua webhook.
@@ -61,20 +61,20 @@ local SETTINGS = {
     },
 
     -- Cài đặt hiệu năng Đồ Họa (GPU)
-    ["EnableGraphicsOptimization"] = false, -- Tối ưu hóa đồ họa (xóa vật thể, giảm chất lượng, tắt âm thanh).
+    ["EnableGraphicsOptimization"] = true, -- Tối ưu hóa đồ họa (xóa vật thể, giảm chất lượng, tắt âm thanh).
     
     -- Cài đặt hiệu năng CPU (Nâng cao)
-    ["EnableCpuOptimization"] = false, -- Bật/tắt các tối ưu hóa chuyên sâu cho CPU.
-    ["SetSimulationRadiusToZero"] = false, -- Chuyển toàn bộ gánh nặng vật lý cho server. Rất hiệu quả để giảm tải CPU.
-    ["TargetFps"] = 60, -- Giới hạn FPS của game ở mức này để giảm tải CPU và GPU.
+    ["EnableCpuOptimization"] = true, -- Bật/tắt các tối ưu hóa chuyên sâu cho CPU.
+    ["SetSimulationRadiusToZero"] = true, -- Chuyển toàn bộ gánh nặng vật lý cho server. Rất hiệu quả để giảm tải CPU.
+    ["TargetFps"] = 7, -- Giới hạn FPS của game ở mức này để giảm tải CPU và GPU.
 
     -- Cài đặt khác
     ["EnableFileHistory"] = true, -- Ghi lại lịch sử các server đã vào để tránh vào lại.
     ["InitialWaitTime"] = 10, -- Thời gian chờ ban đầu (giây) sau khi vào game để script bắt đầu chạy.
 
     -- Cài đặt giao diện
-    ["EnableCountdownText"] = false, -- Hiển thị SỐ đếm ngược trên màn hình.
-    ["EnableCountdownColor"] = false, -- Hiển thị MÀU nhấp nháy trên màn hình.
+    ["EnableCountdownText"] = true, -- Hiển thị SỐ đếm ngược trên màn hình.
+    ["EnableCountdownColor"] = true, -- Hiển thị MÀU nhấp nháy trên màn hình.
 }
 -- --- KẾT THÚC CÀI ĐẶT ---
 
@@ -217,27 +217,24 @@ local function findRemotes()
     updateBotStatusDisplay("Đang tìm Remotes Module...")
     local remotesFound = false
     
-    local success, _ = pcall(function()
-        for i, v in next, ReplicatedStorage:GetChildren() do
-            if v.Name:find('Remote') and v:IsA('ModuleScript') then
-                local success_pcall, result_pcall = pcall(function()
-                    local remoteModule = require(v)
-                    if type(remoteModule) == "table" and remoteModule.Event then
-                        pcall(function() remoteModule.Event('PromotionBlimpGiftbux'):FireServer() end)
-                        return remoteModule
-                    end
-                    return nil
-                end)
-                
-                if success_pcall and result_pcall then
-                    Remotes = result_pcall
-                    remotesFound = true
-                    break
-                end
+    -- Lặp qua ReplicatedStorage để tìm Remotes module chính xác
+    for i, v in ipairs(ReplicatedStorage:GetChildren()) do
+        if v:IsA('ModuleScript') and v.Name:find('Remote') then
+            -- Sử dụng pcall để kiểm tra xem có thể gọi một event cụ thể không.
+            -- Đây là cách xác thực module đáng tin cậy dựa trên script gốc.
+            local success, err = pcall(function()
+                require(v).Event('PromotionBlimpGiftbux'):FireServer()
+            end)
+            
+            if success then
+                -- Nếu pcall thành công, chúng ta đã tìm đúng module.
+                Remotes = require(v)
+                remotesFound = true
+                break -- Thoát khỏi vòng lặp vì đã tìm thấy.
             end
-            task.wait()
         end
-    end)
+        task.wait() -- Thêm độ trễ nhỏ để tránh quá tải.
+    end
 
     if remotesFound then
         updateBotStatusDisplay("THÀNH CÔNG: Đã tìm thấy Remotes!")
