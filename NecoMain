@@ -73,8 +73,8 @@ local SETTINGS = {
     ["InitialWaitTime"] = 10, -- Thời gian chờ ban đầu (giây) sau khi vào game để script bắt đầu chạy.
 
     -- Cài đặt giao diện
-    ["EnableCountdownText"] = true, -- Hiển thị SỐ đếm ngược trên màn hình.
-    ["EnableCountdownColor"] = true, -- Hiển thị MÀU nhấp nháy trên màn hình.
+    ["EnableCountdownText"] = false, -- Hiển thị SỐ đếm ngược trên màn hình.
+    ["EnableCountdownColor"] = false, -- Hiển thị MÀU nhấp nháy trên màn hình.
 }
 -- --- KẾT THÚC CÀI ĐẶT ---
 
