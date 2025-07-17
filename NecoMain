@@ -21,9 +21,9 @@ local SETTINGS = {
     
     -- Cài đặt Chống Bot (TÍNH NĂNG MỚI)
     ["EnableAntiBotScan"] = true, -- Bật/tắt toàn bộ tính năng quét bot và tự động chuyển server khi đạt ngưỡng.
-    ["BotDetectionThreshold"] = 5, -- Số bot tối thiểu để kích hoạt chuyển server.
+    ["BotDetectionThreshold"] = 1, -- Số bot tối thiểu để kích hoạt chuyển server.
     ["BotScanInterval"] = 15, -- Thời gian (giây) giữa mỗi lần quét toàn bộ gian hàng.
-    ["BotKeywords"] = { "spin", "jump", "afk", "auto", "bot", "free", "pls donate", "hack", "script" },
+    ["BotKeywords"] = { "test", "jump", "afk", "auto", "bot", "free", "pls donate", "hack", "script" },
 
     -- Cài đặt Thông Báo Donate qua Discord
     ["EnableDiscordWebhook"] = true, -- Bật/tắt gửi thông báo donate qua webhook.
