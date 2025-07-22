@@ -15,21 +15,29 @@ local SETTINGS = {
     ["EnableDonateReset"] = true, -- Tự động reset bộ đếm thời gian khi có người donate.
     ["EnableAutoReconnect"] = true, -- Tự động kết nối lại khi bị lỗi và văng ra khỏi server.
     
-    -- Cài đặt Tự Động Trả Lời (Auto Reply) -- TÍCH HỢP MỚI
-    ["EnableAutoReply"] = true, -- Bật/tắt toàn bộ tính năng tự động trả lời tin nhắn.
+    -- Cài đặt Thông Báo Donate qua Discord
+    ["EnableDiscordWebhook"] = true, -- Bật/tắt gửi thông báo donate qua webhook.
+    ["WebhookURL"] = "https://discord.com/api/webhooks/1340178818047938631/BfOLWVDxNjoKRRQ9Iy6IKbkGBrJttW_2OXq_4C7ZKQnceVEQxOWuIxVveIoX4Jk1wke4",
+    ["WebhookColor"] = 16738740, -- Mã màu thập lục phân (decimal) cho embed. Ví dụ: 0xFF69B4 là 16738740.
+    ["EnablePingOnDonate"] = true, -- Bật/tắt ping khi có donate lớn.
+    ["PingAmount"] = 1000, -- Số Robux tối thiểu để ping. Đặt là 0 để ping mọi donate.
+    ["PingUserID"] = "", -- ID người dùng Discord để ping. Để trống để ping @everyone.
+
+    -- Cài đặt Tự Động Trả Lời (Auto Reply)
+    ["EnableAutoReply"] = false, -- Bật/tắt toàn bộ tính năng tự động trả lời tin nhắn.
     ["ReplyRadius"] = 25, -- Khoảng cách tối đa (studs) để trả lời tin nhắn của người khác.
-    ["ReplyCooldown"] = 15, -- Thời gian chờ (giây) trước khi trả lời lại CÙNG MỘT người chơi.
+    ["ReplyCooldown"] = 7, -- Thời gian chờ (giây) trước khi trả lời lại CÙNG MỘT người chơi.
     ["ReplyRules"] = {
         {
             keywords = { "hi", "hello", "hey", "sup", "yo", "wsg", "howdy", "greetings", "wassup", "heya" },
-            replies = { "Hello!", "Hi there", "Hey!", "Yo", "What's up?", "Howdy!", "Heya", "Sup", "Heyo!", "What's good?", "Well hello there." }
+            replies = { "Hello!", "Hi there", "Hey!", "Yo", "What's up?", "Heya", "Sup", "Heyo!", "What's good?", "Well hello there." }
         },
         {
             keywords = { "only","donate", "pls", "give me", "robux pls", "can i have", "spare", "some robux", "can u donate", "plz donate", "can you give", "i need robux" },
             replies = { "Sorry, I'm saving up right now.", "I can't donate at the moment, sorry.", "My robux is pending, can't help sorry.", "Sry, saving for something specific.", "Maybe later, I'm trying to reach my own goal.", "Can't right now, good luck though!", "All my robux is tied up, sorry.", "Sorry, my wallet is on a diet.", "I wish I could, but I'm broke lol." }
         },
         {
-            keywords = { "bot", "auto", "script", "scripter", "macro", "afk farm", "autoclicker", "is that a script", "you a bot?" },
+            keywords = { "bot", "auto", "script", "scripter", "macro", "afk farm", "autoclicker", "you a bot?" },
             replies = { "I'm not a bot :)", "lol no, I'm a real player.", "Just vibing, not a bot.", "Beep boop? Nah, just kidding.", "I'm a human, I promise!", "Not a script, just dedicated lol.", "Do I look like a bot to you? :P", "Last time I checked, I still need to sleep. So, not a bot.", "01001110 01101111. (That means 'No' in binary)." }
         },
         {
@@ -37,25 +45,9 @@ local SETTINGS = {
             replies = { "This is not a scam.", "I'm not a scammer.", "It's legit, no worries.", "100% legit, my friend.", "No scams here, just good vibes.", "I'm just here to play the game like you.", "Why would you think it's a scam?", "The only thing I'm scamming is time, by playing this game.", "You've got the wrong person, I'm just here to chill." }
         },
         {
-            keywords = { "goal", "saving for", "what for" },
-            replies = { "I'm saving for my dream item!", "Just trying to reach my goal.", "For a new avatar item :)" }
-        },
-        {
-            keywords = { "cool booth", "nice avatar", "cool skin", "love your booth" },
-            replies = { "Thanks!", "Thank you so much!", "Ty! I appreciate it." }
-        },
-        {
             keywords = { "why are you", "how are you", "spinning", "jumping", "afk" },
             replies = { "Just farming for my goal.", "It's part of the grind.", "Doing this for donations." }
         },
-        {
-            keywords = { "name?", "your name", "whats your name" },
-            replies = { "You can call me by my display name.", "It's on the leaderboard!", "Just a friendly player." }
-        },
-        {
-            keywords = { "how are you", "how r u", "hru" },
-            replies = { "I'm good, thanks for asking!", "Doing great!", "Just chilling." }
-        }
     },
 
     -- Cài đặt hiệu năng Đồ Họa (GPU)
@@ -81,7 +73,7 @@ local SETTINGS = {
 local TeleportService = game:GetService("TeleportService")
 local HttpService = game:GetService("HttpService")
 local Players = game:GetService("Players")
-local TextChatService = game:GetService("TextChatService") -- Thêm service cho chat
+local TextChatService = game:GetService("TextChatService")
 local LocalPlayer = Players.LocalPlayer
 local CoreGui = game:GetService("CoreGui")
 local Lighting = game:GetService("Lighting")
@@ -189,16 +181,14 @@ local function setupAutoReply()
     end
 
     Players.PlayerChatted:Connect(function(_, player, message)
-        if not SETTINGS.EnableAutoReply then return end -- Kiểm tra lại phòng khi bị tắt giữa chừng
+        if not SETTINGS.EnableAutoReply then return end
         if player == LocalPlayer then return end
         
-        -- Kiểm tra xem người chơi có nhân vật và ở gần không
         if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then return end
         if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
         local distance = (player.Character.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
         if distance > SETTINGS.ReplyRadius then return end
 
-        -- Kiểm tra cooldown
         if Cooldowns[player] and tick() - Cooldowns[player] < SETTINGS.ReplyCooldown then return end
 
         local lowerMsg = string.lower(message)
@@ -208,7 +198,7 @@ local function setupAutoReply()
             for _, keyword in ipairs(rule.keywords) do
                 if string.find(lowerMsg, keyword) then
                     local reply = rule.replies[math.random(1, #rule.replies)]
-                    task.wait(math.random(1,3)) -- Chờ một chút để trông tự nhiên hơn
+                    task.wait(math.random(1,3))
                     safeChat(reply)
                     Cooldowns[player] = tick()
                     replied = true
@@ -221,6 +211,90 @@ local function setupAutoReply()
     updateDisplay("SUCCESS", "Tính năng tự động trả lời đã được kích hoạt.")
 end
 
+-- --- Logic Thông Báo Donate qua Discord ---
+local function setupDiscordWebhook()
+    if not SETTINGS.EnableDiscordWebhook or not SETTINGS.WebhookURL or SETTINGS.WebhookURL == "" then
+        print("[Webhook] Tính năng webhook bị tắt hoặc URL không hợp lệ.")
+        return
+    end
+
+    local leaderstats = LocalPlayer:WaitForChild("leaderstats", 30)
+    if not leaderstats then
+        updateDisplay("ERROR", "[Webhook] Không tìm thấy leaderstats sau 30 giây.")
+        return
+    end
+
+    local raised = leaderstats:WaitForChild("Raised", 30)
+    if not raised then
+        updateDisplay("ERROR", "[Webhook] Không tìm thấy 'Raised' trong leaderstats.")
+        return
+    end
+
+    local lastRaised = raised.Value
+
+    local function sendWebhook(amount, total)
+        local pingContent = nil
+        -- Kiểm tra xem tính năng ping có được bật không
+        if SETTINGS.EnablePingOnDonate then
+            -- Kiểm tra xem số tiền donate có đủ để ping không
+            if amount >= (SETTINGS.PingAmount or 0) then
+                if SETTINGS.PingUserID and SETTINGS.PingUserID ~= "" then
+                    pingContent = string.format("<@%s>", SETTINGS.PingUserID)
+                else
+                    pingContent = "@everyone"
+                end
+            end
+        end
+
+        -- Thay đổi định dạng ở đây để làm nổi bật số tiền được donate
+        local embed = {
+            description = string.format("**%s**\n# +%d\nTOTAL : %d", LocalPlayer.Name, amount, total),
+            color = SETTINGS.WebhookColor
+        }
+
+        local payloadData = {
+            embeds = { embed }
+        }
+        
+        -- Chỉ thêm trường 'content' nếu cần ping
+        if pingContent then
+            payloadData.content = pingContent
+        end
+
+        local payload = HttpService:JSONEncode(payloadData)
+        
+        -- Sử dụng phương thức request tương thích với nhiều executor
+        local req = (syn and syn.request) or (http and http.request) or (fluxus and fluxus.request) or request
+        if req then
+            pcall(function()
+                req({
+                    Url = SETTINGS.WebhookURL,
+                    Method = "POST",
+                    Headers = { ["Content-Type"] = "application/json" },
+                    Body = payload
+                })
+            end)
+        else
+            updateDisplay("ERROR", "[Webhook] Không tìm thấy hàm request để gửi webhook.")
+        end
+    end
+
+    raised.Changed:Connect(function(newRaisedValue)
+        local difference = newRaisedValue - lastRaised
+        if difference > 0 then
+            -- Kích hoạt reset countdown nếu được bật
+            if SETTINGS.EnableDonateReset then
+                countdownShouldReset = true
+            end
+
+            -- Gửi thông báo webhook, chỉ cần gửi số tiền chênh lệch và tổng mới
+            sendWebhook(difference, newRaisedValue)
+        end
+        lastRaised = newRaisedValue
+    end)
+    updateDisplay("SUCCESS", "Tính năng thông báo donate qua Discord đã được kích hoạt.")
+end
+
 
 -- --- Khởi chạy Script ---
 updateDisplay("INFO", "Đang khởi tạo ServerHop...")
@@ -228,7 +302,7 @@ task.wait(0.2)
 if type(setfpscap) == "function" and SETTINGS.TargetFps and SETTINGS.TargetFps > 0 then task.spawn(function() while task.wait() do pcall(setfpscap, SETTINGS.TargetFps) end end) end
 
 if SETTINGS.EnableAutoReconnect then task.spawn(setupAutoReconnect) end
-if SETTINGS.EnableAutoReply then task.spawn(setupAutoReply) end -- Kích hoạt Auto Reply
+if SETTINGS.EnableAutoReply then task.spawn(setupAutoReply) end
 
 updateDisplay("INFO", string.format("Chờ game tải trong %d giây...", SETTINGS.InitialWaitTime))
 task.wait(SETTINGS.InitialWaitTime)
@@ -239,14 +313,15 @@ if SETTINGS.EnableStaticAfkView then setupStaticAfkView() end
 if SETTINGS.EnableCpuOptimization then optimizeForCpu() end
 if SETTINGS.EnableGraphicsOptimization then optimizeGraphics() end
 
+-- Kích hoạt logic lắng nghe donate (bao gồm cả Webhook và Reset)
+task.spawn(setupDiscordWebhook)
+
 if SETTINGS.EnableServerHop then
     startInitialCountdown()
-    if SETTINGS.EnableDonateReset then
-        local leaderstats=LocalPlayer:WaitForChild("leaderstats",15);if leaderstats then local raised=leaderstats:WaitForChild("Raised",15)
-            if raised then local lastR=raised.Value;raised.Changed:Connect(function(nV)if nV>lastR then lastR=nV;countdownShouldReset=true;end end)end
-        end
-    end
+    -- Logic reset đã được tích hợp vào setupDiscordWebhook, không cần thêm code ở đây.
+    print("[MainInit] Server Hop và Donate Listener đã được kích hoạt.")
 else
-    updateDisplay("INFO", "Logic Server Hop & Auto Reply TẮT. Script đã hoàn thành.")
+    updateDisplay("INFO", "Logic Server Hop TẮT. Script đã hoàn thành thiết lập.")
 end
+
 print("[MainInit] Script đã hoàn tất khởi chạy chính.")
