@@ -100,7 +100,7 @@ local STATIC_BLACK_SCREEN_PART_NAME = "AFK_BlackScreen_StaticCam"
 local NEON_COLORS = {
     GREEN = Color3.fromRGB(10, 255, 20),
     YELLOW = Color3.fromRGB(255, 255, 0),
-    BLUE = Color3.fromRGB(0, 150, 255),
+    BLUE = Color3.fromRGB(255, 20, 20),
     RED = Color3.fromRGB(255, 20, 20)
 }
 
