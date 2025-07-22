@@ -21,7 +21,7 @@ local SETTINGS = {
     -- =================================================================
     -- CÀI ĐẶT SERVER HOP & AFK
     -- =================================================================
-    ["WaitMinutes"] = 10,
+    ["WaitMinutes"] = 0.5,
     ["MinPlayerPercentage"] = 0.50,
     ["MaxPlayerPercentage"] = 0.90,
 
