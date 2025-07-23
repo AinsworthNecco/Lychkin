@@ -64,7 +64,7 @@ local SETTINGS = {
 
     -- Cài đặt giao diện
     ["EnableCountdownText"] = true, -- Hiển thị SỐ đếm ngược trên màn hình.
-    ["EnableCountdownColor"] = true, -- Hiển thị MÀU nhấp nháy trên màn hình.
+    ["EnableCountdownColor"] = true, -- Hiển thị MÀU nền trên màn hình.
 }
 -- --- KẾT THÚC CÀI ĐẶT ---
 
@@ -100,7 +100,7 @@ local STATIC_BLACK_SCREEN_PART_NAME = "AFK_BlackScreen_StaticCam"
 local NEON_COLORS = {
     GREEN = Color3.fromRGB(10, 255, 20),
     YELLOW = Color3.fromRGB(255, 255, 0),
-    BLUE = Color3.fromRGB(0, 150, 255),
+    BLUE = Color3.fromRGB(255, 20, 20),
     RED = Color3.fromRGB(255, 20, 20)
 }
 
@@ -161,7 +161,7 @@ function searchForServer() if not SETTINGS.EnableFileHistory then serverHistoryC
 
 -- --- Quản lý Countdown và Donate ---
 local countdownShouldReset = false; local currentCountdownThread = nil
-local function performCountdownThenSearch(minutesToWait) if not minutesToWait or minutesToWait<=0 then updateDisplay("ERROR","Thời gian chờ lỗi.");searchForServer();return end; if not SETTINGS.EnableCountdownText then if statusTextLabel then statusTextLabel.Text = "" end end; if not SETTINGS.EnableCountdownColor then if statusFrame then statusFrame.BackgroundTransparency = 1 end end; local totalS = minutesToWait * 60; for i = totalS, 0, -1 do if countdownShouldReset and SETTINGS.EnableDonateReset then countdownShouldReset = false; if statusTextLabel then statusTextLabel.Text = "" end; if statusFrame then statusFrame.BackgroundTransparency = 1 end; updateDisplay("SUCCESS", "Donate! Reset thời gian."); startInitialCountdown(); return end; if SETTINGS.EnableCountdownText then if statusTextLabel and statusTextLabel.Parent then statusTextLabel.Text = string.format("%02d:%02d", math.floor(i/60), i%60); statusTextLabel.TextColor3 = Color3.new(1,1,1) end end; if SETTINGS.EnableCountdownColor then if statusFrame and statusFrame.Parent then statusFrame.BackgroundColor3 = (i % 2 == 0) and NEON_COLORS.BLUE or NEON_COLORS.RED; statusFrame.BackgroundTransparency = 0.6 end end; task.wait(1) end; if statusTextLabel then statusTextLabel.Text = "" end; if statusFrame then statusFrame.BackgroundTransparency = 1 end; updateDisplay("SUCCESS", "Hết giờ! Bắt đầu tìm server..."); searchForServer() end
+local function performCountdownThenSearch(minutesToWait) if not minutesToWait or minutesToWait<=0 then updateDisplay("ERROR","Thời gian chờ lỗi.");searchForServer();return end; if not SETTINGS.EnableCountdownText then if statusTextLabel then statusTextLabel.Text = "" end end; if not SETTINGS.EnableCountdownColor then if statusFrame then statusFrame.BackgroundTransparency = 1 end end; local totalS = minutesToWait * 60; for i = totalS, 0, -1 do if countdownShouldReset and SETTINGS.EnableDonateReset then countdownShouldReset = false; if statusTextLabel then statusTextLabel.Text = "" end; if statusFrame then statusFrame.BackgroundTransparency = 1 end; updateDisplay("SUCCESS", "Donate! Reset thời gian."); startInitialCountdown(); return end; if SETTINGS.EnableCountdownText then if statusTextLabel and statusTextLabel.Parent then statusTextLabel.Text = string.format("%02d:%02d", math.floor(i/60), i%60); statusTextLabel.TextColor3 = Color3.new(1,1,1) end end; if SETTINGS.EnableCountdownColor then if statusFrame and statusFrame.Parent then statusFrame.BackgroundColor3 = NEON_COLORS.GREEN; statusFrame.BackgroundTransparency = 0.6 end end; task.wait(1) end; if statusTextLabel then statusTextLabel.Text = "" end; if statusFrame then statusFrame.BackgroundTransparency = 1 end; updateDisplay("SUCCESS", "Hết giờ! Bắt đầu tìm server..."); searchForServer() end
 function startInitialCountdown() updateDisplay("INFO", "Bắt đầu chu trình..."); if currentCountdownThread and coroutine.status(currentCountdownThread) ~= "dead" then pcall(coroutine.close, currentCountdownThread); currentCountdownThread = nil end; currentCountdownThread = coroutine.create(function() local s,e=pcall(performCountdownThenSearch, SETTINGS.WaitMinutes); if not s then updateDisplay("ERROR","Lỗi Coroutine. Thử lại sau 5s...");task.wait(5);if SETTINGS.EnableServerHop then startInitialCountdown()end end end); coroutine.resume(currentCountdownThread) end
 
 -- --- Hàm Tự Động Kết Nối Lại Khi Lỗi ---
