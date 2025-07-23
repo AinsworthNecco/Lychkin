@@ -17,7 +17,7 @@ local SETTINGS = {
     
     -- Cài đặt Thông Báo Donate qua Discord
     ["EnableDiscordWebhook"] = true, -- Bật/tắt gửi thông báo donate qua webhook.
-    ["WebhookURL"] = "https://discord.com/api/webhooks/1340178818047938631/BfOLWVDxNjoKRRQ9Iy6IKbkGBrJttW_2OXq_4C7ZKQnceVEQxOWuIxVveIoX4Jk1wke4",
+    ["WebhookURL"] = "https://discord.com/api/webhooks/1397368466947969147/HbncMuT0ETe6_5q_kKGzkdd7guLfiGqvewr3WuBFfHAxKBJo3TA7R6ad2ex31YkBHo75",
     ["WebhookColor"] = 16738740, -- Mã màu thập lục phân (decimal) cho embed. Ví dụ: 0xFF69B4 là 16738740.
     ["EnablePingOnDonate"] = true, -- Bật/tắt ping khi có donate lớn.
     ["PingAmount"] = 1000, -- Số Robux tối thiểu để ping. Đặt là 0 để ping mọi donate.
