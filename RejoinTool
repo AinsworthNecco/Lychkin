@@ -2,6 +2,7 @@
 # Script mo nhieu phien ban Roblox dua tren cau hinh san co.
 # PHIEN BAN NANG CAO: Tu dong kiem tra va khoi dong lai cac phien ban chua chay.
 # PHIEN BAN MOI: Script se tu dong ket thuc sau mot so lan chay nhat dinh.
+# PHIEN BAN OPTIMIZED: Them tinh nang thay doi do phan giai de giam tai nguyen.
 # b c d e f g h i j k
 
 #---------------------------------------------------
@@ -12,12 +13,19 @@
 # Them hoac xoa cac hau to phien ban ban muon mo (phan cach boi dau cach)
 Suffixes="b c d e f"
 
+# --- TUY CHINH TOI UU HOA (DE O TREN DE CHINH SUA) ---
+# Chinh do phan giai va mat do diem anh de giam tai nguyen.
+# De trong mot trong hai gia tri de bo qua viec thay doi.
+ScreenSize="5x5"
+ScreenDensity="1"
+
 # Thoi gian (giay) cho giua moi lan quet kiem tra tat ca cac phien ban
 CheckInterval=20
 
 # Thoi gian (giay) cho giua moi lan mo mot phien ban
 OpenDelay=10
-# THAY DOI: So lan kiem tra toi da truoc khi script tu ket thuc
+
+# So lan kiem tra toi da truoc khi script tu ket thuc
 MaxRuns=3
 
 # URL cua VIP Server ban muon tham gia
@@ -52,10 +60,23 @@ echo "Thoi gian cho moi lan mo: ${OpenDelay}s"
 echo "Thoi gian cho moi lan kiem tra: ${CheckInterval}s"
 echo "Script se dung sau toi da $MaxRuns luot kiem tra."
 
-# THAY DOI: Them bien dem so lan da chay
+# *** Thay doi do phan giai de toi uu hoa tai nguyen (dua tren settings) ***
+if [[ -n "$ScreenSize" && -n "$ScreenDensity" ]]; then
+    echo "-------------------------------------------------"
+    echo "Dang thay doi do phan giai ($ScreenSize) va mat do ($ScreenDensity)..."
+    su -c "wm size $ScreenSize && wm density $ScreenDensity"
+    echo "Da thay doi thanh cong."
+    echo "Luu y: De khoi phuc, chay lenh: su -c \"wm size reset && wm density reset\""
+else
+    echo "-------------------------------------------------"
+    echo "Bo qua thay doi do phan giai/mat do do thiet lap de trong."
+fi
+
+
+# Them bien dem so lan da chay
 run_count=0
 
-# Vong lap chinh: THAY DOI de chay toi da $MaxRuns lan
+# Vong lap chinh: chay toi da $MaxRuns lan
 while [[ $run_count -lt $MaxRuns ]]; do
     run_count=$((run_count + 1))
     not_running_packages=()
@@ -102,7 +123,7 @@ while [[ $run_count -lt $MaxRuns ]]; do
     fi
 done
 
-# THAY DOI: Thong bao khi script ket thuc do het so lan chay
+# Thong bao khi script ket thuc do het so lan chay
 if (( ${#not_running_packages[@]} != 0 )); then
     echo "-------------------------------------------------"
     echo "SCRIPT DA DUNG: Da hoan tat $MaxRuns luot kiem tra theo gioi han."
