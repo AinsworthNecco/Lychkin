@@ -17,7 +17,7 @@ Suffixes="b c d e f"
 # Chinh do phan giai va mat do diem anh de giam tai nguyen.
 # De trong mot trong hai gia tri de bo qua viec thay doi.
 ScreenSize="5x5"
-ScreenDensity="1"
+ScreenDensity="100"
 
 # Thoi gian (giay) cho giua moi lan quet kiem tra tat ca cac phien ban
 CheckInterval=20
