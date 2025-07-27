@@ -1,7 +1,7 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # Script mo nhieu phien ban Roblox dua tren cau hinh san co.
 # PHIEN BAN NANG CAO: Tu dong kiem tra va khoi dong lai cac phien ban chua chay.
-# PHIEN BAN CAP NHAT: Tu dong tat va mo lai Roblox sau moi 2 tieng.
+# PHIEN BAN MOI: Script se tu dong ket thuc sau mot so lan chay nhat dinh.
 # b c d e f g h i j k
 
 #---------------------------------------------------
@@ -10,16 +10,15 @@
 #---------------------------------------------------
 
 # Them hoac xoa cac hau to phien ban ban muon mo (phan cach boi dau cach)
-Suffixes="b"
+Suffixes="b c d e f"
 
 # Thoi gian (giay) cho giua moi lan quet kiem tra tat ca cac phien ban
 CheckInterval=20
 
 # Thoi gian (giay) cho giua moi lan mo mot phien ban
 OpenDelay=10
-
-# THAY DOI: Thoi gian (giay) de chay lai script (2 tieng = 7200 giay)
-RestartInterval=30
+# THAY DOI: So lan kiem tra toi da truoc khi script tu ket thuc
+MaxRuns=3
 
 # URL cua VIP Server ban muon tham gia
 VipServerUrl="roblox://placeId=8737602449"
@@ -47,72 +46,67 @@ if (( totalInstances == 0 )); then
     exit 1
 fi
 
-echo "--- SCRIPT KHOI DONG ---"
-echo "Tong so phien ban can quan ly: $totalInstances"
-echo "Script se tu dong tat va mo lai sau moi $(($RestartInterval / 3600)) tieng."
+echo "--- BAT DAU QUA TRINH KHOI DONG VA KIEM TRA ---"
+echo "Tong so phien ban can mo: $totalInstances"
+echo "Thoi gian cho moi lan mo: ${OpenDelay}s"
+echo "Thoi gian cho moi lan kiem tra: ${CheckInterval}s"
+echo "Script se dung sau toi da $MaxRuns luot kiem tra."
 
-# THAY DOI: Vong lap vo han de chay lien tuc
-while true; do
-    echo "================================================="
-    echo "--- BAT DAU LUOT MO MOI ---"
-    
-    # Vong lap de mo tat ca cac phien ban
-    while true; do
-        not_running_packages=()
+# THAY DOI: Them bien dem so lan da chay
+run_count=0
 
-        # Buoc 1: Kiem tra xem phien ban nao chua chay
-        echo "-------------------------------------------------"
-        echo "Dang quet trang thai..."
-        for package in "${all_packages[@]}"; do
-            # Su dung 'pidof' de kiem tra su ton tai cua process.
-            if ! pidof "$package" > /dev/null; then
-                # Neu khong tim thay PID, them vao danh sach can mo
-                not_running_packages+=("$package")
-                echo "   [CHUA CHAY] - $package"
-            else
-                echo "   [DANG CHAY]  - $package"
-            fi
-        done
+# Vong lap chinh: THAY DOI de chay toi da $MaxRuns lan
+while [[ $run_count -lt $MaxRuns ]]; do
+    run_count=$((run_count + 1))
+    not_running_packages=()
 
-        # Buoc 2: Kiem tra ket qua va quyet dinh hanh dong
-        if (( ${#not_running_packages[@]} == 0 )); then
-            # Neu danh sach can mo trong, nghia la tat ca da chay
-            echo "-------------------------------------------------"
-            echo "THANH CONG: Tat ca $totalInstances phien ban Roblox da duoc mo."
-            break # Thoat khoi vong lap kiem tra va mo
+    # Buoc 1: Kiem tra xem phien ban nao chua chay
+    echo "-------------------------------------------------"
+    echo "Dang quet trang thai (Luot $run_count/$MaxRuns)..."
+    for package in "${all_packages[@]}"; do
+        # Su dung 'pidof' de kiem tra su ton tai cua process.
+        if ! pidof "$package" > /dev/null; then
+            # Neu khong tim thay PID, them vao danh sach can mo
+            not_running_packages+=("$package")
+            echo "   [CHUA CHAY] - $package"
         else
-            # Neu con phien ban chua chay, bat dau mo chung
-            count_not_running=${#not_running_packages[@]}
-            echo "Phat hien $count_not_running phien ban chua chay. Dang tien hanh mo..."
-            
-            for package_to_start in "${not_running_packages[@]}"; do
-                echo "   => Dang mo: $package_to_start"
-                am start -a android.intent.action.VIEW -d "$VipServerUrl" -p "$package_to_start"
-                # Cho mot chut giua cac lan mo de he thong xu ly
-                echo "      ...cho $OpenDelay giay."
-                sleep "$OpenDelay"
-            done
-            
-            echo "Da hoan tat luot mo. Se kiem tra lai sau $CheckInterval giay..."
-            sleep "$CheckInterval"
+            echo "   [DANG CHAY]  - $package"
         fi
     done
 
-    # THAY DOI: Buoc 3: Cho 2 tieng
-    echo "-------------------------------------------------"
-    echo "Tat ca phien ban da chay. Script se cho $(($RestartInterval / 3600)) tieng truoc khi khoi dong lai."
-    echo "Thoi gian khoi dong lai du kien: $(date -d "+$RestartInterval seconds")"
-    sleep "$RestartInterval"
-
-    # THAY DOI: Buoc 4: Tat tat ca cac phien ban Roblox
-    echo "-------------------------------------------------"
-    echo "DA DEN GIO KHOI DONG LAI. Dang tat tat ca cac phien ban Roblox..."
-    for package in "${all_packages[@]}"; do
-        echo "   => Dang tat: $package"
-        am force-stop "$package" > /dev/null 2>&1
-    done
-    echo "Da tat xong. Cho mot chut truoc khi bat dau lai..."
-    sleep 15 # Cho 15 giay de he thong on dinh
+    # Buoc 2: Kiem tra ket qua va quyet dinh hanh dong
+    if (( ${#not_running_packages[@]} == 0 )); then
+        # Neu danh sach can mo trong, nghia la tat ca da chay
+        echo "-------------------------------------------------"
+        echo "THANH CONG: Tat ca $totalInstances phien ban Roblox da duoc mo."
+        echo "--- KET THUC SCRIPT ---"
+        break # Thoat khoi vong lap while
+    else
+        # Neu con phien ban chua chay, bat dau mo chung
+        count_not_running=${#not_running_packages[@]}
+        echo "Phat hien $count_not_running phien ban chua chay. Dang tien hanh mo..."
+        
+        for package_to_start in "${not_running_packages[@]}"; do
+            echo "   => Dang mo: $package_to_start"
+            am start -a android.intent.action.VIEW -d "$VipServerUrl" -p "$package_to_start"
+            # Cho mot chut giua cac lan mo de he thong xu ly
+            echo "      ...cho $OpenDelay giay."
+            sleep "$OpenDelay"
+        done
+        
+        # Chi sleep de kiem tra lai neu chua den lan chay cuoi cung
+        if [[ $run_count -lt $MaxRuns ]]; then
+            echo "Da hoan tat luot mo. Se kiem tra lai sau $CheckInterval giay..."
+            sleep "$CheckInterval"
+        fi
+    fi
 done
+
+# THAY DOI: Thong bao khi script ket thuc do het so lan chay
+if (( ${#not_running_packages[@]} != 0 )); then
+    echo "-------------------------------------------------"
+    echo "SCRIPT DA DUNG: Da hoan tat $MaxRuns luot kiem tra theo gioi han."
+    echo "Luu y: Mot so phien ban co the van chua duoc mo."
+fi
 
 exit 0
