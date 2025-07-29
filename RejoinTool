@@ -13,7 +13,7 @@
 EnableRestartCycle=true
 
 # Them hoac xoa cac hau to phien ban ban muon mo (phan cach boi dau cach)
-Suffixes="b c d e f"
+Suffixes="b c d e f g"
 
 # URL cua VIP Server ban muon tham gia
 VipServerUrl="roblox://placeId=8737602449"
