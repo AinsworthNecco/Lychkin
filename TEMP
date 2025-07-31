@@ -1,41 +1,154 @@
-getgenv().Config = {
-    ["Auto Game"] = {
-        ["Auto World 2"] = true,
-    },
-    ["Auto Reroll"] = {
-        ["Units Name"] = {
-            ["Green Esper"] = {"Overlord", "Avatar", "Glitched"}
-        }
-    },
-    ["Equip Unit"] = {
-        ["Required if owned"] = {"Green Esper","Hero Hunter", "Idol"}
-    },
-    ["Summon Unit"] = {
-      ["Enable"] = true,
-      ["Settings"] = {
-        ["Summon unit Air or Hybrid"] = true,
-        ["Summon unit with name banner 1"] = {"Hero Hunter", "Geezer"},
-        ["Summon unit with name banner 2"] = {"Green Esper", "Hero Hunter", "Geezer"}
-      }
-    },
-    ["Auto Story"] = {
-        ["Clear All W1"] = true,
-        ["Select Map"] = {
-            ["Enable Join"] = true,
-            ["Map Join"] = "Planet Nemak",
-            ["Map Act"] = "Infinite",
-            ["Friends Join"] = false
-        },
-        ["Auto Sell All Unit In Wave"] = {
-          ["Enable"] = true,
-          ["Wave"] = 50
-        }
-    },
-    ["Settings Game"] = {
-        ["Black Screen"] = true,
-        ["Lock Fps"] = 0,
-        ["Boost FPS"] = true
-    }
+#!/data/data/com.termux/files/usr/bin/bash
+# Script quan ly toan dien chu trinh cua Roblox: Mo, kiem tra, duy tri, va khoi dong lai dinh ky.
+# PHIEN BAN HOAN CHINH: Tu dong yeu cau root, su dung 'kill' de tat, va co chu trinh hoat dong phuc tap.
+# b c d e f g h i j k l m n o p q r s t u v w x y z
+#---------------------------------------------------
+# -- CAI DAT CHINH --
+# Tat ca cac tuy chinh deu o day.
+#---------------------------------------------------
+
+# Bat/Tat chu trinh khoi dong lai.
+# true:  Mo -> Kiem tra -> Doi 1 gio -> Tat -> Lap lai.
+# false: Mo -> Kiem tra -> Ket thuc script.
+EnableRestartCycle=true
+
+# Them hoac xoa cac hau to phien ban ban muon mo (phan cach boi dau cach)
+Suffixes="b c d e f"
+
+# URL cua VIP Server ban muon tham gia
+VipServerUrl="roblox://placeId=8737602449"
+
+# Thoi gian (giay) cho giua moi lan mo mot phien ban trong lan dau
+OpenDelay=10
+
+# Thoi gian (giay) cho giua moi lan kiem tra cac phien ban chua chay
+CheckInterval=20
+
+# Thoi gian (giay) script se duy tri cac phien ban truoc khi tat toan bo (chi dung khi EnableRestartCycle=true)
+# 3600 giay = 1 gio
+RestartInterval=3600
+
+# Thoi gian (giay) cho sau khi tat toan bo truoc khi bat dau lai chu ky moi (chi dung khi EnableRestartCycle=true)
+Cooldown=10
+
+# Ten goi co ban cua Roblox (khong nen thay doi)
+BasePackageName="com.roblox.clien"
+
+#---------------------------------------------------
+# -- TU DONG KIEM TRA ROOT --
+#---------------------------------------------------
+# Kiem tra xem script co dang chay voi quyen root khong (EUID = 0)
+if [[ $EUID -ne 0 ]]; then
+   echo "Script nay can quyen root de thuc thi 'kill'."
+   echo "Dang co gang chay lai script voi 'su'..."
+   su -c "bash \"$0\""
+   exit 0
+fi
+
+#---------------------------------------------------
+# -- LOGIC CHINH --
+# Khong can sua phan duoi day.
+#---------------------------------------------------
+
+echo "THANH CONG: Script dang chay voi quyen root."
+echo "--- KHOI DONG SCRIPT QUAN LY TOAN DIEN ROBLOX ---"
+echo "Che do khoi dong lai dinh ky: $EnableRestartCycle"
+
+# Chuyen chuoi Suffixes thanh mot mang cac ten goi day du
+read -r -a suffixes_array <<< "$Suffixes"
+all_packages=()
+for suffix in "${suffixes_array[@]}"; do
+    all_packages+=("${BasePackageName}${suffix}")
+done
+totalInstances=${#all_packages[@]}
+
+if (( totalInstances == 0 )); then
+    echo "Loi: Vui long dinh nghia it nhat mot hau to trong bien 'Suffixes'."
+    exit 1
+fi
+
+# Ham thuc hien viec mo va kiem tra
+function open_and_check() {
+    echo "================================================="
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] BAT DAU QUA TRINH MO VA KIEM TRA."
+    echo "================================================="
+
+    # --- Buoc 1: Mo toan bo Roblox trong danh sach ---
+    echo "Buoc 1: Dang mo $totalInstances phien ban..."
+    for package in "${all_packages[@]}"; do
+        echo "  => Dang mo: $package"
+        am start -a android.intent.action.VIEW -d "$VipServerUrl" -p "$package"
+        echo "     ...cho $OpenDelay giay."
+        sleep "$OpenDelay"
+    done
+
+    # --- Buoc 2: Kiem tra 2 lan de dam bao tat ca da mo ---
+    echo "Buoc 2: Kiem tra va khoi dong lai cac phien ban con thieu (toi da 2 lan)."
+    for i in 1 2; do
+        echo "-------------------------------------------------"
+        echo "Dang cho $CheckInterval giay truoc khi kiem tra lan thu $i..."
+        sleep "$CheckInterval"
+        
+        not_running_packages=()
+        echo "Dang quet trang thai (Lan $i/2)..."
+        for package in "${all_packages[@]}"; do
+            if ! pidof "$package" > /dev/null; then
+                not_running_packages+=("$package")
+            fi
+        done
+
+        if (( ${#not_running_packages[@]} > 0 )); then
+            echo "Phat hien ${#not_running_packages[@]} phien ban chua chay. Dang mo lai..."
+            for package_to_start in "${not_running_packages[@]}"; do
+                echo "  => Mo lai: $package_to_start"
+                am start -a android.intent.action.VIEW -d "$VipServerUrl" -p "$package_to_start"
+                sleep "$OpenDelay"
+            done
+        else
+            echo "Tat ca cac phien ban deu dang chay. Khong can mo lai."
+            break # Thoat khoi vong lap kiem tra neu tat ca da chay
+        fi
+    done
+    echo "-------------------------------------------------"
+    echo "Da hoan tat qua trinh mo va kiem tra."
 }
 
-loadstring(game:HttpGet("https://api.luarmor.net/files/v3/loaders/97e7ef8d70388822d404414f6abeb81a.lua"))()
+# Logic chinh dua tren cau hinh EnableRestartCycle
+if [ "$EnableRestartCycle" = true ]; then
+    # Vong lap chinh, chay vo han
+    while true; do
+        open_and_check
+
+        # --- Buoc 3: Bat dau doi ---
+        echo "Buoc 3: Script se duy tri cac phien ban trong $RestartInterval giay (1 gio)."
+        sleep "$RestartInterval"
+
+        # --- Buoc 4: Tat toan bo cac phien ban ---
+        echo "-------------------------------------------------"
+        echo "Buoc 4: [$(date '+%Y-%m-%d %H:%M:%S')] DA HET GIO. Dang tat toan bo cac phien ban..."
+        for package_to_stop in "${all_packages[@]}"; do
+            pid_to_kill=$(pidof "$package_to_stop")
+            if [[ -n "$pid_to_kill" ]]; then
+                echo "  => Dung phien ban $package_to_stop (PID: $pid_to_kill) bang lenh 'kill -9'."
+                kill -9 "$pid_to_kill"
+            else
+                echo "  => Phien ban $package_to_stop da tu dong."
+            fi
+        done
+        echo "Da hoan tat viec dung cac phien ban."
+
+        # --- Buoc 5: Cho va lap lai ---
+        echo "-------------------------------------------------"
+        echo "Buoc 5: Script se cho $Cooldown giay truoc khi bat dau lai tu dau."
+        sleep "$Cooldown"
+    done
+else
+    # Chay mot lan va thoat
+    open_and_check
+    echo "================================================="
+    echo "Script da hoan tat. Ket thuc theo cau hinh (EnableRestartCycle=false)."
+    echo "================================================="
+    exit 0
+fi
+
+exit 0
