@@ -1,112 +1,327 @@
-#!/data/data/com.termux/files/usr/bin/bash
-# Script mo nhieu phien ban Roblox dua tren cau hinh san co.
-# PHIEN BAN NANG CAO: Tu dong kiem tra va khoi dong lai cac phien ban chua chay.
-# PHIEN BAN MOI: Script se tu dong ket thuc sau mot so lan chay nhat dinh.
-# b c d e f g h i j k
+--[[
+    VUI LÒNG CHỈ CHỈNH SỬA CÁC GIÁ TRỊ TRONG BẢNG "SETTINGS" DƯỚI ĐÂY.
+    KHÔNG THAY ĐỔI TÊN CỦA CÁC KHÓA (VÍ DỤ: "WaitMinutes").
+]]
+local SETTINGS = {
+    -- Cài đặt Server Hop
+    ["WaitMinutes"] = 10, -- Thời gian chờ (phút) trước khi tìm server mới.
+    ["MinPlayerPercentage"] = 0.50, -- Tỉ lệ người chơi tối thiểu để vào (VD: 0.5 = 50%)
+    ["MaxPlayerPercentage"] = 0.90, -- Tỉ lệ người chơi tối đa để vào (VD: 0.9 = 90%)
 
-#---------------------------------------------------
-# -- SETTINGS --
-# Chinh sua cac gia tri duoi day truoc khi chay.
-#---------------------------------------------------
+    -- Bật/Tắt các tính năng chính
+    ["EnableServerHop"] = true, -- Bật/tắt toàn bộ logic chuyển server.
+    ["EnableSafePlatform"] = true, -- Tạo một tấm nền lớn để tránh bị rơi khỏi map.
+    ["EnableStaticAfkView"] = true, -- Đưa camera về một góc nhìn tĩnh để giảm lag.
+    ["EnableDonateReset"] = true, -- Tự động reset bộ đếm thời gian khi có người donate.
+    ["EnableAutoReconnect"] = true, -- Tự động kết nối lại khi bị lỗi và văng ra khỏi server.
+    
+    -- Cài đặt Thông Báo Donate qua Discord
+    ["EnableDiscordWebhook"] = true, -- Bật/tắt gửi thông báo donate qua webhook.
+    ["WebhookURL"] = "https://discord.com/api/webhooks/1397368466947969147/HbncMuT0ETe6_5q_kKGzkdd7guLfiGqvewr3WuBFfHAxKBJo3TA7R6ad2ex31YkBHo75",
+    ["WebhookColor"] = 16738740, -- Mã màu thập lục phân (decimal) cho embed. Ví dụ: 0xFF69B4 là 16738740.
+    ["EnablePingOnDonate"] = true, -- Bật/tắt ping khi có donate lớn.
+    ["PingAmount"] = 1000, -- Số Robux tối thiểu để ping. Đặt là 0 để ping mọi donate.
+    ["PingUserID"] = "", -- ID người dùng Discord để ping. Để trống để ping @everyone.
 
-# Them hoac xoa cac hau to phien ban ban muon mo (phan cach boi dau cach)
-Suffixes="b c d e f"
+    -- Cài đặt Tự Động Trả Lời (Auto Reply)
+    ["EnableAutoReply"] = false, -- Bật/tắt toàn bộ tính năng tự động trả lời tin nhắn.
+    ["ReplyRadius"] = 25, -- Khoảng cách tối đa (studs) để trả lời tin nhắn của người khác.
+    ["ReplyCooldown"] = 7, -- Thời gian chờ (giây) trước khi trả lời lại CÙNG MỘT người chơi.
+    ["ReplyRules"] = {
+        {
+            keywords = { "hi", "hello", "hey", "sup", "yo", "wsg", "howdy", "greetings", "wassup", "heya" },
+            replies = { "Hello!", "Hi there", "Hey!", "Yo", "What's up?", "Heya", "Sup", "Heyo!", "What's good?", "Well hello there." }
+        },
+        {
+            keywords = { "only","donate", "pls", "give me", "robux pls", "can i have", "spare", "some robux", "can u donate", "plz donate", "can you give", "i need robux" },
+            replies = { "Sorry, I'm saving up right now.", "I can't donate at the moment, sorry.", "My robux is pending, can't help sorry.", "Sry, saving for something specific.", "Maybe later, I'm trying to reach my own goal.", "Can't right now, good luck though!", "All my robux is tied up, sorry.", "Sorry, my wallet is on a diet.", "I wish I could, but I'm broke lol." }
+        },
+        {
+            keywords = { "bot", "auto", "script", "scripter", "macro", "afk farm", "autoclicker", "you a bot?" },
+            replies = { "I'm not a bot :)", "lol no, I'm a real player.", "Just vibing, not a bot.", "Beep boop? Nah, just kidding.", "I'm a human, I promise!", "Not a script, just dedicated lol.", "Do I look like a bot to you? :P", "Last time I checked, I still need to sleep. So, not a bot.", "01001110 01101111. (That means 'No' in binary)." }
+        },
+        {
+            keywords = { "scam", "fake", "report", "scammer", "this is a scam", "don't trust", "he's a scammer", "is this fake" },
+            replies = { "This is not a scam.", "I'm not a scammer.", "It's legit, no worries.", "100% legit, my friend.", "No scams here, just good vibes.", "I'm just here to play the game like you.", "Why would you think it's a scam?", "The only thing I'm scamming is time, by playing this game.", "You've got the wrong person, I'm just here to chill." }
+        },
+        {
+            keywords = { "why are you", "how are you", "spinning", "jumping", "afk" },
+            replies = { "Just farming for my goal.", "It's part of the grind.", "Doing this for donations." }
+        },
+    },
 
-# Thoi gian (giay) cho giua moi lan quet kiem tra tat ca cac phien ban
-CheckInterval=20
+    -- Cài đặt hiệu năng Đồ Họa (GPU)
+    ["EnableGraphicsOptimization"] = true, -- Tối ưu hóa đồ họa (xóa vật thể, giảm chất lượng, tắt âm thanh).
+    
+    -- Cài đặt hiệu năng CPU (Nâng cao)
+    ["EnableCpuOptimization"] = true, -- Bật/tắt các tối ưu hóa chuyên sâu cho CPU.
+    ["SetSimulationRadiusToZero"] = true, -- Chuyển toàn bộ gánh nặng vật lý cho server. Rất hiệu quả để giảm tải CPU.
+    ["TargetFps"] = 7, -- Giới hạn FPS của game ở mức này để giảm tải CPU và GPU.
 
-# Thoi gian (giay) cho giua moi lan mo mot phien ban
-OpenDelay=10
-# THAY DOI: So lan kiem tra toi da truoc khi script tu ket thuc
-MaxRuns=3
+    -- Cài đặt khác
+    ["EnableFileHistory"] = true, -- Ghi lại lịch sử các server đã vào để tránh vào lại.
+    ["InitialWaitTime"] = 10, -- Thời gian chờ ban đầu (giây) sau khi vào game để script bắt đầu chạy.
 
-# URL cua VIP Server ban muon tham gia
-VipServerUrl="roblox://placeId=8737602449"
+    -- Cài đặt giao diện
+    ["EnableCountdownText"] = true, -- Hiển thị SỐ đếm ngược trên màn hình.
+    ["EnableCountdownColor"] = true, -- Hiển thị MÀU nền trên màn hình.
+}
+-- --- KẾT THÚC CÀI ĐẶT ---
 
-# Ten goi co ban cua Roblox (khong nen thay doi)
-BasePackageName="com.roblox.clien"
 
-#---------------------------------------------------
-# -- LOGIC --
-# Khong can sua phan duoi day.
-#---------------------------------------------------
+-- Các service cần thiết
+local TeleportService = game:GetService("TeleportService")
+local HttpService = game:GetService("HttpService")
+local Players = game:GetService("Players")
+local TextChatService = game:GetService("TextChatService")
+local LocalPlayer = Players.LocalPlayer
+local CoreGui = game:GetService("CoreGui")
+local Lighting = game:GetService("Lighting")
+local SoundService = game:GetService("SoundService")
+local RunService = game:GetService("RunService")
 
-# Chuyen chuoi Suffixes thanh mot mang cac ten goi day du
-read -r -a suffixes_array <<< "$Suffixes"
-all_packages=()
-for suffix in "${suffixes_array[@]}"; do
-    all_packages+=("${BasePackageName}${suffix}")
-done
+-- --- Cấu hình Script (Không nên thay đổi) ---
+local placeId = game.PlaceId
+local currentJobId = game.JobId
 
-totalInstances=${#all_packages[@]}
+local waitTimeBetweenFullScans = 7
+local waitTimeBetweenPageFetches = 0.75
+local baseRetryDelay = 1
+local maxRetryDelay = 16
 
-# Kiem tra xem co hau to nao duoc khai bao khong
-if (( totalInstances == 0 )); then
-    echo "Loi: Vui long dinh nghia it nhat mot hau to trong bien 'Suffixes'."
-    exit 1
-fi
+local PLATFORM_VERTICAL_OFFSET = 0
+local SERVER_HISTORY_FILENAME = "server_hop_history.txt"
+local SERVER_HOP_GUI_NAME = "ServerHopStatusGUI"
+local AFK_PLATFORM_NAME = "MySafeAFKPlatform"
+local STATIC_HEAD_ANCHOR_PART_NAME = "AFK_HeadAnchor_StaticCam"
+local STATIC_BLACK_SCREEN_PART_NAME = "AFK_BlackScreen_StaticCam"
 
-echo "--- BAT DAU QUA TRINH KHOI DONG VA KIEM TRA ---"
-echo "Tong so phien ban can mo: $totalInstances"
-echo "Thoi gian cho moi lan mo: ${OpenDelay}s"
-echo "Thoi gian cho moi lan kiem tra: ${CheckInterval}s"
-echo "Script se dung sau toi da $MaxRuns luot kiem tra."
+-- --- Bảng màu Neon cho các trạng thái ---
+local NEON_COLORS = {
+    GREEN = Color3.fromRGB(10, 255, 20),
+    YELLOW = Color3.fromRGB(255, 255, 0),
+    BLUE = Color3.fromRGB(255, 20, 20),
+    RED = Color3.fromRGB(255, 20, 20)
+}
 
-# THAY DOI: Them bien dem so lan da chay
-run_count=0
+-- --- Kiểm tra và gán hàm đọc/ghi file ---
+local canAccessFiles = false
+local writefile_func, readfile_func
+if SETTINGS.EnableFileHistory then
+    pcall(function()
+        if writefile and readfile then canAccessFiles, writefile_func, readfile_func = true, writefile, readfile; print("[FileIO] Quyền file có sẵn.") else print("[FileIO] Quyền file KHÔNG có sẵn.") end
+    end)
+else
+    print("[FileIO] Lịch sử file bị TẮT.")
+end
 
-# Vong lap chinh: THAY DOI de chay toi da $MaxRuns lan
-while [[ $run_count -lt $MaxRuns ]]; do
-    run_count=$((run_count + 1))
-    not_running_packages=()
 
-    # Buoc 1: Kiem tra xem phien ban nao chua chay
-    echo "-------------------------------------------------"
-    echo "Dang quet trang thai (Luot $run_count/$MaxRuns)..."
-    for package in "${all_packages[@]}"; do
-        # Su dung 'pidof' de kiem tra su ton tai cua process.
-        if ! pidof "$package" > /dev/null; then
-            # Neu khong tim thay PID, them vao danh sach can mo
-            not_running_packages+=("$package")
-            echo "   [CHUA CHAY] - $package"
+-- --- UI Chính (Hỗ trợ cả 2 chế độ) ---
+local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+local statusScreenGui = playerGui:FindFirstChild(SERVER_HOP_GUI_NAME)
+if statusScreenGui then statusScreenGui:Destroy() end
+statusScreenGui = Instance.new("ScreenGui")
+statusScreenGui.Name = SERVER_HOP_GUI_NAME
+statusScreenGui.ResetOnSpawn, statusScreenGui.ZIndexBehavior, statusScreenGui.IgnoreGuiInset = false, Enum.ZIndexBehavior.Sibling, true
+statusScreenGui.Parent = playerGui
+
+local statusFrame = Instance.new("Frame")
+statusFrame.Name = "StatusFrame"; statusFrame.Size = UDim2.new(1, 0, 1, 0); statusFrame.BackgroundColor3, statusFrame.BorderSizePixel = NEON_COLORS.GREEN, 0; statusFrame.BackgroundTransparency = 1; statusFrame.ZIndex = 1; statusFrame.Parent = statusScreenGui
+local FIXED_TEXT_SIZE = 50; local statusTextLabel = Instance.new("TextLabel"); statusTextLabel.Name = "StatusLabel"; statusTextLabel.Size = UDim2.new(0.9, 0, 0, FIXED_TEXT_SIZE + 40); statusTextLabel.Position = UDim2.new(0.5, 0, 0.5, 0); statusTextLabel.AnchorPoint = Vector2.new(0.5, 0.5); statusTextLabel.BackgroundTransparency = 1; statusTextLabel.TextColor3 = Color3.new(1, 1, 1); statusTextLabel.Font = Enum.Font.SourceSansSemibold; statusTextLabel.TextScaled = false; statusTextLabel.TextSize = FIXED_TEXT_SIZE; statusTextLabel.TextXAlignment, statusTextLabel.TextYAlignment = Enum.TextXAlignment.Center, Enum.TextYAlignment.Center; statusTextLabel.TextWrapped = true; statusTextLabel.Text = "..."; statusTextLabel.ZIndex = 2; statusTextLabel.Parent = statusScreenGui
+
+
+-- --- Hàm cập nhật UI cho các thông báo trạng thái ---
+local function updateDisplay(state, message)
+    print("[UI] ("..tostring(state)..") " .. tostring(message))
+    local stateColor = NEON_COLORS.GREEN; if state == "ERROR" then stateColor = NEON_COLORS.YELLOW end
+    if statusTextLabel and statusTextLabel.Parent then statusTextLabel.Text = tostring(message); statusTextLabel.TextColor3 = stateColor end
+    if SETTINGS.EnableCountdownColor then if statusFrame and statusFrame.Parent then if state == "SUCCESS" or state == "ERROR" then statusFrame.BackgroundColor3 = stateColor; statusFrame.BackgroundTransparency = 0.5 else statusFrame.BackgroundTransparency = 1 end end
+    else if statusFrame then statusFrame.BackgroundTransparency = 1 end end
+end
+
+-- --- Hàm xử lý file cho LỊCH SỬ server ---
+local serverHistoryCache = {}; local function loadServerHistory() if not canAccessFiles then return {} end; local historySet = {}; local s, c = pcall(readfile_func, SERVER_HISTORY_FILENAME); if s and c then for line in string.gmatch(c,"[^".."\r\n".."]+") do local tL=line:match("^%s*(.-)%s*$") if tL and #tL>0 then historySet[tL]=true;end end end; serverHistoryCache=historySet; return historySet end
+local function addJobIdToHistoryAndSave(jId) if not jId or not canAccessFiles then return end; serverHistoryCache[jId]=true; local l={}; for id in pairs(serverHistoryCache)do table.insert(l,id)end; pcall(writefile_func,SERVER_HISTORY_FILENAME,table.concat(l,"\n")) end
+
+-- --- Hàm Tạo Platform An Toàn ---
+local function createSafePlatform() updateDisplay("INFO", "Đang tạo platform..."); if game.Workspace:FindFirstChild(AFK_PLATFORM_NAME) then updateDisplay("INFO", "Platform đã có."); return end; local p=Instance.new("Part");p.Name=AFK_PLATFORM_NAME;p.Anchored=true;p.CanCollide=true;p.Size=Vector3.new(20000,40,20000);p.Color=Color3.fromRGB(50,50,50);p.Transparency=0; local char=LocalPlayer.Character; local hum=char and char:FindFirstChildOfClass("Humanoid"); local hrp=char and char:FindFirstChild("HumanoidRootPart"); if hum and hrp then local hrpP=hrp.Position;local hrpSY=hrp.Size.Y;local hipH=hum.HipHeight;local fCIY=hrpP.Y-(hrpSY/2)-hipH;local pTTY=fCIY-PLATFORM_VERTICAL_OFFSET;local pCY=pTTY-(p.Size.Y/2);p.Position=Vector3.new(hrpP.X,pCY,hrpP.Z); else p.Position=Vector3.new(0,-30-PLATFORM_VERTICAL_OFFSET,0); end; p.Parent=game.Workspace; updateDisplay("SUCCESS", "Platform đã tạo."); end
+
+-- --- Hàm Thiết Lập View AFK Tĩnh ---
+local function setupStaticAfkView() updateDisplay("INFO", "Thiết lập view AFK tĩnh..."); local player = LocalPlayer; local character = player.Character or player.CharacterAdded:Wait(); if not character then return end; local head = character:WaitForChild("Head", 10); if not head then return end; local camera = workspace.CurrentCamera; if not camera then return end; local staticHeadAnchor = workspace:FindFirstChild(STATIC_HEAD_ANCHOR_PART_NAME) or Instance.new("Part"); staticHeadAnchor.Name=STATIC_HEAD_ANCHOR_PART_NAME; staticHeadAnchor.Size=Vector3.new(0.1,0.1,0.1); staticHeadAnchor.Transparency=1; staticHeadAnchor.CanCollide=false; staticHeadAnchor.Parent=workspace; staticHeadAnchor.CFrame = CFrame.new(head.Position); staticHeadAnchor.Anchored = true; local blackTarget = workspace:FindFirstChild(STATIC_BLACK_SCREEN_PART_NAME) or Instance.new("Part"); blackTarget.Name=STATIC_BLACK_SCREEN_PART_NAME; blackTarget.Size=Vector3.new(2500,2500,10); blackTarget.Color=Color3.new(0,0,0); blackTarget.CanCollide=false; blackTarget.Parent=workspace; local eastPositionFromAnchor = staticHeadAnchor.Position + Vector3.new(150,0,0); blackTarget.CFrame=CFrame.new(eastPositionFromAnchor); blackTarget.Anchored=true; camera.CameraType=Enum.CameraType.Scriptable; camera.CFrame=CFrame.new(staticHeadAnchor.Position,blackTarget.Position); camera.Focus=blackTarget.CFrame; updateDisplay("SUCCESS", "View AFK tĩnh đã thiết lập.") end
+
+-- --- Hàm Tối Ưu Hóa CPU ---
+local function optimizeForCpu() if not SETTINGS.EnableCpuOptimization then return end; updateDisplay("INFO", "Bắt đầu tối ưu hóa CPU..."); local success, err = pcall(function() if type(setfpscap) == "function" and SETTINGS.TargetFps and SETTINGS.TargetFps > 0 then print("[CPU-Opt] Giới hạn FPS đang hoạt động ở mức: " .. tostring(SETTINGS.TargetFps)) end; if SETTINGS.SetSimulationRadiusToZero then if LocalPlayer then LocalPlayer.SimulationRadius = 0; print("[CPU-Opt] SimulationRadius đã được đặt về 0.") end end end); if success then updateDisplay("SUCCESS", "Tối ưu hóa CPU hoàn tất.") else updateDisplay("ERROR", "Lỗi khi tối ưu hóa CPU: " .. tostring(err)) end end
+
+-- --- Script Tối Ưu Hóa Đồ Họa ---
+local function optimizeGraphics() updateDisplay("INFO", "Bắt đầu tối ưu đồ họa..."); if SETTINGS.EnableSafePlatform then createSafePlatform(); end; task.wait(0.1); local sP, eP = pcall(function() local itemsToDel={}; for _,item in pairs(game.Workspace:GetChildren()) do local keep=(LocalPlayer.Character and item.Name==LocalPlayer.Character.Name)or(item==workspace.CurrentCamera)or(SETTINGS.EnableSafePlatform and item.Name==AFK_PLATFORM_NAME)or(SETTINGS.EnableStaticAfkView and(item.Name==STATIC_HEAD_ANCHOR_PART_NAME or item.Name==STATIC_BLACK_SCREEN_PART_NAME));if not keep then table.insert(itemsToDel,item)end end; for _,item in ipairs(itemsToDel)do pcall(function()item:Destroy()end)end;Lighting.GlobalShadows,Lighting.Brightness,Lighting.Ambient,Lighting.OutdoorAmbient,Lighting.ExposureCompensation=false,0,Color3.new(0,0,0),Color3.new(0,0,0),-2;pcall(function()Lighting.Atmosphere:Destroy()end);pcall(function()Lighting.Sky:Destroy()end); if LocalPlayer.PlayerGui then for _,gui in pairs(LocalPlayer.PlayerGui:GetChildren())do if gui.Name~=SERVER_HOP_GUI_NAME then pcall(function()gui:Destroy()end)end end end;local sO=settings();if sO and sO.Rendering then sO.Rendering.QualityLevel=Enum.QualityLevel.Level01;pcall(function()if RunService:IsClient()then RunService:Set3dRenderingEnabled(false)end end)end;SoundService.RespectFilteringEnabled,SoundService.AmbientReverb=true,Enum.ReverbType.NoReverb;for _,sound in pairs(game:GetDescendants())do if sound:IsA("Sound")then sound.Volume=0;sound:Stop()end end; updateDisplay("SUCCESS", "Đồ họa đã được tối ưu."); end); if not sP then updateDisplay("ERROR", "Lỗi khi tối ưu đồ họa.") end end
+
+-- --- Logic Tìm Server (Dùng HttpGet) ---
+local chosenServer = nil; local serversUrlBase = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Asc&limit=100"
+function searchForServer() if not SETTINGS.EnableFileHistory then serverHistoryCache = {} else loadServerHistory() end; local histC=0;for _ in pairs(serverHistoryCache)do histC=histC+1 end; updateDisplay("INFO", string.format("Bắt đầu tìm server... (Tránh %d)",histC+1)); local sLActive=true; chosenServer=nil; while sLActive and not chosenServer do local nextCur=nil; updateDisplay("INFO", "Đang quét server..."); local allScanned=false; while not allScanned and not chosenServer do local pAtt=0;local maxAtt=4;local pFetched=false;local curRetry=baseRetryDelay; while not pFetched and pAtt<maxAtt do pAtt=pAtt+1;if pAtt>1 then updateDisplay("INFO", string.format("Thử lại (%d/%d)...",pAtt,maxAtt));task.wait(curRetry);curRetry=math.min(curRetry*2,maxRetryDelay) end; local s,d=pcall(game.HttpGet,game,serversUrlBase..(nextCur and "&cursor="..nextCur or ""),true);if s then pFetched=true;local sListD=HttpService:JSONDecode(d);if sListD and sListD.data then local pSuitS={}; for _,sInf in ipairs(sListD.data)do if not(sInf.id==currentJobId or serverHistoryCache[sInf.id])then if sInf.playing and sInf.maxPlayers and sInf.maxPlayers>0 then local pR=sInf.playing/sInf.maxPlayers if pR>=SETTINGS.MinPlayerPercentage and pR<SETTINGS.MaxPlayerPercentage and sInf.playing<sInf.maxPlayers then table.insert(pSuitS,sInf)end end end end; if #pSuitS>0 then chosenServer=pSuitS[math.random(1,#pSuitS)];allScanned=true;break end; nextCur=sListD.nextPageCursor;if not nextCur then allScanned=true;end else updateDisplay("ERROR","Dữ liệu server lỗi.")end else updateDisplay("ERROR","Lỗi API.");if pAtt>=maxAtt then allScanned=true end end end;if chosenServer or allScanned then break end;task.wait(waitTimeBetweenPageFetches) end; if chosenServer then updateDisplay("SUCCESS", "ĐÃ CHỌN SERVER!");sLActive=false elseif allScanned then updateDisplay("INFO", string.format("Không tìm thấy. Chờ %ds.",waitTimeBetweenFullScans));task.wait(waitTimeBetweenFullScans)end end; if chosenServer then updateDisplay("SUCCESS", "Chuẩn bị dịch chuyển..."); addJobIdToHistoryAndSave(currentJobId); task.wait(1); local sTP,eTP=pcall(TeleportService.TeleportToPlaceInstance,TeleportService,placeId,chosenServer.id,LocalPlayer); if not sTP then updateDisplay("ERROR", "Lỗi dịch chuyển! Thử lại..."); serverHistoryCache[chosenServer.id]=true;chosenServer=nil;task.wait(5);searchForServer() end else updateDisplay("ERROR", "Không thể tìm thấy server. Dừng lại.") end end
+
+-- --- Quản lý Countdown và Donate ---
+local countdownShouldReset = false; local currentCountdownThread = nil
+local function performCountdownThenSearch(minutesToWait) if not minutesToWait or minutesToWait<=0 then updateDisplay("ERROR","Thời gian chờ lỗi.");searchForServer();return end; if not SETTINGS.EnableCountdownText then if statusTextLabel then statusTextLabel.Text = "" end end; if not SETTINGS.EnableCountdownColor then if statusFrame then statusFrame.BackgroundTransparency = 1 end end; local totalS = minutesToWait * 60; for i = totalS, 0, -1 do if countdownShouldReset and SETTINGS.EnableDonateReset then countdownShouldReset = false; if statusTextLabel then statusTextLabel.Text = "" end; if statusFrame then statusFrame.BackgroundTransparency = 1 end; updateDisplay("SUCCESS", "Donate! Reset thời gian."); startInitialCountdown(); return end; if SETTINGS.EnableCountdownText then if statusTextLabel and statusTextLabel.Parent then statusTextLabel.Text = string.format("%02d:%02d", math.floor(i/60), i%60); statusTextLabel.TextColor3 = Color3.new(1,1,1) end end; if SETTINGS.EnableCountdownColor then if statusFrame and statusFrame.Parent then statusFrame.BackgroundColor3 = NEON_COLORS.GREEN; statusFrame.BackgroundTransparency = 0.6 end end; task.wait(1) end; if statusTextLabel then statusTextLabel.Text = "" end; if statusFrame then statusFrame.BackgroundTransparency = 1 end; updateDisplay("SUCCESS", "Hết giờ! Bắt đầu tìm server..."); searchForServer() end
+function startInitialCountdown() updateDisplay("INFO", "Bắt đầu chu trình..."); if currentCountdownThread and coroutine.status(currentCountdownThread) ~= "dead" then pcall(coroutine.close, currentCountdownThread); currentCountdownThread = nil end; currentCountdownThread = coroutine.create(function() local s,e=pcall(performCountdownThenSearch, SETTINGS.WaitMinutes); if not s then updateDisplay("ERROR","Lỗi Coroutine. Thử lại sau 5s...");task.wait(5);if SETTINGS.EnableServerHop then startInitialCountdown()end end end); coroutine.resume(currentCountdownThread) end
+
+-- --- Hàm Tự Động Kết Nối Lại Khi Lỗi ---
+local function setupAutoReconnect() pcall(function() local promptOverlay = game.CoreGui:WaitForChild('RobloxPromptGui'):WaitForChild('promptOverlay'); promptOverlay.ChildAdded:Connect(function(child) if child.Name == 'ErrorPrompt' and child:IsA('Frame') then updateDisplay("ERROR", "Phát hiện lỗi! Đang thử kết nối lại..."); local success, err = pcall(function() TeleportService:Teleport(placeId, LocalPlayer) end); if not success then task.wait(2); repeat TeleportService:Teleport(placeId, LocalPlayer); task.wait(5) until false end end end); updateDisplay("SUCCESS", "Tính năng tự động kết nối lại đã được kích hoạt.") end) end
+
+-- --- Logic Tự Động Trả Lời (Auto Reply) ---
+local function setupAutoReply()
+    if not SETTINGS.EnableAutoReply then return end
+    
+    local ChatChannel = TextChatService.TextChannels.RBXGeneral
+    local Cooldowns = {}
+
+    local function safeChat(msg)
+        pcall(function()
+            ChatChannel:SendAsync(msg)
+        end)
+    end
+
+    Players.PlayerChatted:Connect(function(_, player, message)
+        if not SETTINGS.EnableAutoReply then return end
+        if player == LocalPlayer then return end
+        
+        if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then return end
+        if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end
+        local distance = (player.Character.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude
+        if distance > SETTINGS.ReplyRadius then return end
+
+        if Cooldowns[player] and tick() - Cooldowns[player] < SETTINGS.ReplyCooldown then return end
+
+        local lowerMsg = string.lower(message)
+        local replied = false
+
+        for _, rule in ipairs(SETTINGS.ReplyRules) do
+            for _, keyword in ipairs(rule.keywords) do
+                if string.find(lowerMsg, keyword) then
+                    local reply = rule.replies[math.random(1, #rule.replies)]
+                    task.wait(math.random(1,3))
+                    safeChat(reply)
+                    Cooldowns[player] = tick()
+                    replied = true
+                    break
+                end
+            end
+            if replied then break end
+        end
+    end)
+    updateDisplay("SUCCESS", "Tính năng tự động trả lời đã được kích hoạt.")
+end
+
+-- --- Logic Thông Báo Donate qua Discord ---
+local function setupDiscordWebhook()
+    if not SETTINGS.EnableDiscordWebhook or not SETTINGS.WebhookURL or SETTINGS.WebhookURL == "" then
+        print("[Webhook] Tính năng webhook bị tắt hoặc URL không hợp lệ.")
+        return
+    end
+
+    local leaderstats = LocalPlayer:WaitForChild("leaderstats", 30)
+    if not leaderstats then
+        updateDisplay("ERROR", "[Webhook] Không tìm thấy leaderstats sau 30 giây.")
+        return
+    end
+
+    local raised = leaderstats:WaitForChild("Raised", 30)
+    if not raised then
+        updateDisplay("ERROR", "[Webhook] Không tìm thấy 'Raised' trong leaderstats.")
+        return
+    end
+
+    local lastRaised = raised.Value
+
+    local function sendWebhook(amount, total)
+        local pingContent = nil
+        -- Kiểm tra xem tính năng ping có được bật không
+        if SETTINGS.EnablePingOnDonate then
+            -- Kiểm tra xem số tiền donate có đủ để ping không
+            if amount >= (SETTINGS.PingAmount or 0) then
+                if SETTINGS.PingUserID and SETTINGS.PingUserID ~= "" then
+                    pingContent = string.format("<@%s>", SETTINGS.PingUserID)
+                else
+                    pingContent = "@everyone"
+                end
+            end
+        end
+
+        -- Thay đổi định dạng ở đây để làm nổi bật số tiền được donate
+        local embed = {
+            description = string.format("**%s**\n# +%d\nTOTAL : %d", LocalPlayer.Name, amount, total),
+            color = SETTINGS.WebhookColor
+        }
+
+        local payloadData = {
+            embeds = { embed }
+        }
+        
+        -- Chỉ thêm trường 'content' nếu cần ping
+        if pingContent then
+            payloadData.content = pingContent
+        end
+
+        local payload = HttpService:JSONEncode(payloadData)
+        
+        -- Sử dụng phương thức request tương thích với nhiều executor
+        local req = (syn and syn.request) or (http and http.request) or (fluxus and fluxus.request) or request
+        if req then
+            pcall(function()
+                req({
+                    Url = SETTINGS.WebhookURL,
+                    Method = "POST",
+                    Headers = { ["Content-Type"] = "application/json" },
+                    Body = payload
+                })
+            end)
         else
-            echo "   [DANG CHAY]  - $package"
-        fi
-    done
+            updateDisplay("ERROR", "[Webhook] Không tìm thấy hàm request để gửi webhook.")
+        end
+    end
 
-    # Buoc 2: Kiem tra ket qua va quyet dinh hanh dong
-    if (( ${#not_running_packages[@]} == 0 )); then
-        # Neu danh sach can mo trong, nghia la tat ca da chay
-        echo "-------------------------------------------------"
-        echo "THANH CONG: Tat ca $totalInstances phien ban Roblox da duoc mo."
-        echo "--- KET THUC SCRIPT ---"
-        break # Thoat khoi vong lap while
-    else
-        # Neu con phien ban chua chay, bat dau mo chung
-        count_not_running=${#not_running_packages[@]}
-        echo "Phat hien $count_not_running phien ban chua chay. Dang tien hanh mo..."
-        
-        for package_to_start in "${not_running_packages[@]}"; do
-            echo "   => Dang mo: $package_to_start"
-            am start -a android.intent.action.VIEW -d "$VipServerUrl" -p "$package_to_start"
-            # Cho mot chut giua cac lan mo de he thong xu ly
-            echo "      ...cho $OpenDelay giay."
-            sleep "$OpenDelay"
-        done
-        
-        # Chi sleep de kiem tra lai neu chua den lan chay cuoi cung
-        if [[ $run_count -lt $MaxRuns ]]; then
-            echo "Da hoan tat luot mo. Se kiem tra lai sau $CheckInterval giay..."
-            sleep "$CheckInterval"
-        fi
-    fi
-done
+    raised.Changed:Connect(function(newRaisedValue)
+        local difference = newRaisedValue - lastRaised
+        if difference > 0 then
+            -- Kích hoạt reset countdown nếu được bật
+            if SETTINGS.EnableDonateReset then
+                countdownShouldReset = true
+            end
 
-# THAY DOI: Thong bao khi script ket thuc do het so lan chay
-if (( ${#not_running_packages[@]} != 0 )); then
-    echo "-------------------------------------------------"
-    echo "SCRIPT DA DUNG: Da hoan tat $MaxRuns luot kiem tra theo gioi han."
-    echo "Luu y: Mot so phien ban co the van chua duoc mo."
-fi
+            -- Gửi thông báo webhook, chỉ cần gửi số tiền chênh lệch và tổng mới
+            sendWebhook(difference, newRaisedValue)
+        end
+        lastRaised = newRaisedValue
+    end)
+    updateDisplay("SUCCESS", "Tính năng thông báo donate qua Discord đã được kích hoạt.")
+end
 
-exit 0
+
+-- --- Khởi chạy Script ---
+updateDisplay("INFO", "Đang khởi tạo ServerHop...")
+task.wait(0.2)
+if type(setfpscap) == "function" and SETTINGS.TargetFps and SETTINGS.TargetFps > 0 then task.spawn(function() while task.wait() do pcall(setfpscap, SETTINGS.TargetFps) end end) end
+
+if SETTINGS.EnableAutoReconnect then task.spawn(setupAutoReconnect) end
+if SETTINGS.EnableAutoReply then task.spawn(setupAutoReply) end
+
+updateDisplay("INFO", string.format("Chờ game tải trong %d giây...", SETTINGS.InitialWaitTime))
+task.wait(SETTINGS.InitialWaitTime)
+updateDisplay("INFO", "Hết thời gian chờ. Bắt đầu thiết lập...")
+
+if SETTINGS.EnableSafePlatform then createSafePlatform() end
+if SETTINGS.EnableStaticAfkView then setupStaticAfkView() end
+if SETTINGS.EnableCpuOptimization then optimizeForCpu() end
+if SETTINGS.EnableGraphicsOptimization then optimizeGraphics() end
+
+-- Kích hoạt logic lắng nghe donate (bao gồm cả Webhook và Reset)
+task.spawn(setupDiscordWebhook)
+
+if SETTINGS.EnableServerHop then
+    startInitialCountdown()
+    -- Logic reset đã được tích hợp vào setupDiscordWebhook, không cần thêm code ở đây.
+    print("[MainInit] Server Hop và Donate Listener đã được kích hoạt.")
+else
+    updateDisplay("INFO", "Logic Server Hop TẮT. Script đã hoàn thành thiết lập.")
+end
+
+print("[MainInit] Script đã hoàn tất khởi chạy chính.")
