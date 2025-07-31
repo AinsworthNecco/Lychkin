@@ -39,7 +39,7 @@ local SETTINGS = {
     
     -- Cài đặt Thông Báo Donate qua Discord
     ["EnableDiscordWebhook"] = true,
-    ["WebhookURL"] = "https://discord.com/api/webhooks/1340178818047938631/BfOLWVDxNjoKRRQ9Iy6IKbkGBrJttW_2OXq_4C7ZKQnceVEQxOWuIxVveIoX4Jk1wke4",
+    ["WebhookURL"] = "https://discord.com/api/webhooks/1397368466947969147/HbncMuT0ETe6_5q_kKGzkdd7guLfiGqvewr3WuBFfHAxKBJo3TA7R6ad2ex31YkBHo75",
     ["WebhookColor"] = 16738740,
     ["EnablePingOnDonate"] = true,
     ["PingAmount"] = 1000,
