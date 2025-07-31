@@ -1,10 +1,10 @@
 --[[
-    SCRIPT AFK, SERVER HOP & CHỐNG BOT TÍCH HỢP V4.6 (Hiển thị thống nhất)
+    SCRIPT AFK, SERVER HOP & CHỐNG BOT TÍCH HỢP V4.7 (Hiển thị thống nhất)
     - Mô tả: Tự động quét bot khi vào server. Nếu server "sạch", script sẽ bắt đầu
       chu trình AFK. Nếu server có quá nhiều bot, script sẽ tự động chuyển server.
-    - Cập nhật (V4.6):
-        - THAY ĐỔI: Màn hình đếm ngược AFK giờ là một màu đen tĩnh, không còn nhấp nháy.
-        - THÊM: Lịch sử server sẽ tự động được xóa khi đạt đến 500 mục để tránh đầy.
+    - Cập nhật (V4.7):
+        - TÙY CHỈNH: Đã chuyển cài đặt giới hạn lịch sử server vào bảng SETTINGS
+          để người dùng dễ dàng thay đổi.
     - Hướng dẫn: Chỉ chỉnh sửa các giá trị trong bảng "SETTINGS".
 ]]
 
@@ -14,7 +14,7 @@ local SETTINGS = {
     -- =================================================================
     ["EnableAntiBotScan"] = true,
     ["BOT_KEYWORDS"] = { "spin", "afk", "restaurant", "jump", "gift", "speed", "restaurant", "develop" },
-    ["DETECTION_THRESHOLD"] = 4, -- Đặt là 1 để kiểm tra. Thay đổi lại sau khi test xong.
+    ["DETECTION_THRESHOLD"] = 1, -- Đặt là 1 để kiểm tra. Thay đổi lại sau khi test xong.
 
     -- =================================================================
     -- CÀI ĐẶT SERVER HOP & AFK
@@ -59,6 +59,9 @@ local SETTINGS = {
     -- Cài đặt khác
     ["EnableFileHistory"] = true,
     ["InitialWaitTime"] = 10,
+    
+    -- THAY ĐỔI: Thêm cài đặt giới hạn lịch sử server
+    ["ServerHistoryLimit"] = 500, -- Tự động xóa lịch sử server khi đạt đến số lượng này
 
     -- Cài đặt giao diện
     ["EnableCountdownText"] = true,
@@ -83,7 +86,7 @@ local CoreGui = cloneref(game:GetService("CoreGui"))
 local LocalPlayer = Players.LocalPlayer
 
 -- --- Cấu hình Script (Không nên thay đổi) ---
-local placeId = game.PlaceId; local currentJobId = game.JobId; local waitTimeBetweenFullScans = 7; local waitTimeBetweenPageFetches = 0.75; local baseRetryDelay = 1; local maxRetryDelay = 16; local PLATFORM_VERTICAL_OFFSET = 0; local SERVER_HISTORY_FILENAME = "server_hop_history.txt"; local SERVER_HOP_GUI_NAME = "ServerHopStatusGUI"; local AFK_PLATFORM_NAME = "MySafeAFKPlatform"; local STATIC_HEAD_ANCHOR_PART_NAME = "AFK_HeadAnchor_StaticCam"; local STATIC_BLACK_SCREEN_PART_NAME = "AFK_BlackScreen_StaticCam"; local NEON_COLORS = { GREEN = Color3.fromRGB(10, 255, 20), YELLOW = Color3.fromRGB(255, 255, 0), BLUE = Color3.fromRGB(0, 150, 255), RED = Color3.fromRGB(255, 20, 20) }; local SERVER_HISTORY_LIMIT = 500
+local placeId = game.PlaceId; local currentJobId = game.JobId; local waitTimeBetweenFullScans = 7; local waitTimeBetweenPageFetches = 0.75; local baseRetryDelay = 1; local maxRetryDelay = 16; local PLATFORM_VERTICAL_OFFSET = 0; local SERVER_HISTORY_FILENAME = "server_hop_history.txt"; local SERVER_HOP_GUI_NAME = "ServerHopStatusGUI"; local AFK_PLATFORM_NAME = "MySafeAFKPlatform"; local STATIC_HEAD_ANCHOR_PART_NAME = "AFK_HeadAnchor_StaticCam"; local STATIC_BLACK_SCREEN_PART_NAME = "AFK_BlackScreen_StaticCam"; local NEON_COLORS = { GREEN = Color3.fromRGB(10, 255, 20), YELLOW = Color3.fromRGB(255, 255, 0), BLUE = Color3.fromRGB(0, 150, 255), RED = Color3.fromRGB(255, 20, 20) };
 
 -- --- Biến toàn cục cho GUI ---
 local playerGui = LocalPlayer and LocalPlayer:WaitForChild("PlayerGui")
@@ -135,7 +138,6 @@ end
 
 -- --- Các hàm tiện ích (File, Platform, View, CPU, Graphics) ---
 local serverHistoryCache = {}
--- THAY ĐỔI: Thêm logic xóa lịch sử server khi đạt giới hạn 500
 local function loadServerHistory()
     if not canAccessFiles then return {} end
 
@@ -144,7 +146,6 @@ local function loadServerHistory()
     local success, content = pcall(readfile_func, SERVER_HISTORY_FILENAME)
 
     if success and content then
-        -- Đọc tất cả các dòng vào một bảng để đếm
         for line in string.gmatch(content, "[^" .. "\r\n" .. "]+") do
             local trimmedLine = line:match("^%s*(.-)%s*$")
             if trimmedLine and #trimmedLine > 0 then
@@ -152,14 +153,13 @@ local function loadServerHistory()
             end
         end
 
-        -- Kiểm tra nếu vượt quá giới hạn
-        if #lines >= SERVER_HISTORY_LIMIT then
-            print(("[FileIO] Lịch sử server đã đạt hoặc vượt %d. Đang xóa..."):format(SERVER_HISTORY_LIMIT))
-            pcall(writefile_func, SERVER_HISTORY_FILENAME, "") -- Xóa nội dung file
-            serverHistoryCache = {} -- Xóa cache trong bộ nhớ
-            return {} -- Trả về bảng rỗng
+        -- THAY ĐỔI: Sử dụng giá trị từ SETTINGS
+        if #lines >= SETTINGS.ServerHistoryLimit then
+            print(("[FileIO] Lịch sử server đã đạt hoặc vượt %d. Đang xóa..."):format(SETTINGS.ServerHistoryLimit))
+            pcall(writefile_func, SERVER_HISTORY_FILENAME, "")
+            serverHistoryCache = {}
+            return {}
         else
-            -- Nếu chưa đạt giới hạn, tải lịch sử như bình thường
             for _, line in ipairs(lines) do
                 historySet[line] = true
             end
@@ -181,7 +181,6 @@ function searchForServer() if not SETTINGS.EnableFileHistory then serverHistoryC
 
 -- --- Quản lý Countdown và Donate ---
 local countdownShouldReset = false; local currentCountdownThread = nil
--- THAY ĐỔI: Chỉnh sửa hàm để hiển thị màn hình đen tĩnh thay vì nhấp nháy
 function startInitialCountdown()
     updateDisplay("INFO", "Bắt đầu chu trình...");
     if currentCountdownThread and coroutine.status(currentCountdownThread) ~= "dead" then
@@ -199,10 +198,9 @@ function startInitialCountdown()
             if statusTextLabel then statusTextLabel.Text = "" end
         end
 
-        -- THAY ĐỔI: Kích hoạt màn hình đen tĩnh
         if SETTINGS.EnableCountdownColor and statusFrame and statusFrame.Parent then
-            statusFrame.BackgroundColor3 = Color3.new(0, 0, 0) -- Màu đen
-            statusFrame.BackgroundTransparency = 0 -- Hoàn toàn không trong suốt
+            statusFrame.BackgroundColor3 = Color3.new(0, 0, 0)
+            statusFrame.BackgroundTransparency = 0
         end
 
         local totalS = minutesToWait * 60;
@@ -210,7 +208,7 @@ function startInitialCountdown()
             if countdownShouldReset and SETTINGS.EnableDonateReset then
                 countdownShouldReset = false;
                 if statusTextLabel then statusTextLabel.Text = "" end
-                if statusFrame then statusFrame.BackgroundTransparency = 1 end; -- Làm cho khung trong suốt trở lại
+                if statusFrame then statusFrame.BackgroundTransparency = 1 end;
                 updateDisplay("SUCCESS", "Donate! Reset thời gian.");
                 startInitialCountdown();
                 return
@@ -221,11 +219,10 @@ function startInitialCountdown()
                     statusTextLabel.TextColor3 = Color3.new(1, 1, 1)
                 end
             end;
-            -- ĐÃ XÓA: Logic nhấp nháy màu đã bị loại bỏ khỏi vòng lặp
             task.wait(1)
         end;
         if statusTextLabel then statusTextLabel.Text = "" end;
-        if statusFrame then statusFrame.BackgroundTransparency = 1 end; -- Làm cho khung trong suốt trở lại
+        if statusFrame then statusFrame.BackgroundTransparency = 1 end;
         updateDisplay("SUCCESS", "Hết giờ! Bắt đầu tìm server...");
         searchForServer()
     end;
