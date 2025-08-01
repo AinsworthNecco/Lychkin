@@ -29,7 +29,7 @@ local SETTINGS = {
 
     -- Kiểm tra số người chơi định kỳ
     ["EnablePlayerCountCheck"] = true, -- Bật/tắt kiểm tra số người chơi mỗi phút.
-    ["MinPlayerThreshold"] = 5,       -- Nếu người chơi trong server ít hơn số này, sẽ tự động chuyển.
+    ["MinPlayerThreshold"] = 10,       -- Nếu người chơi trong server ít hơn số này, sẽ tự động chuyển.
 
     -- Bật/Tắt các tính năng chính
     ["EnableServerHop"] = true,
