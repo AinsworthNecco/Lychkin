@@ -27,7 +27,7 @@ local SETTINGS = {
     -- =================================================================
     ["WaitMinutes"] = 10,
     ["MinPlayerPercentage"] = 0.50,
-    ["MaxPlayerPercentage"] = 0.95,
+    ["MaxPlayerPercentage"] = 0.90,
     ["MaxServerHistorySize"] = 500, -- [MỚI] Xóa lịch sử server sau khi đã lưu X server. Đặt là 0 để tắt.
 
     -- Bật/Tắt các tính năng chính
