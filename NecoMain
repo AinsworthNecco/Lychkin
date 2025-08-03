@@ -67,11 +67,11 @@ local SETTINGS = {
     -- =================================================================
     ["EnableBoothFeatures"] = true, -- Bật/tắt toàn bộ tính năng booth (claim, text, spin)
     ["boothTextFormat"] = "1 DONATE = 1 SPIN SPEED\nGOAL: $GOALK SPEED!", -- [MỚI] Định dạng văn bản. $GOALK sẽ được thay thế bằng mục tiêu (ví dụ: 12K)
-    ["hexBox"] = "#32CD32", -- Màu văn bản (HEX)
+    ["hexBox"] = "#ffffff", -- Màu văn bản (HEX)
     ["fontFace"] = "SciFi", -- Font chữ (xem Enum.Font)
     ["boothOffset"] = 3, -- Khoảng cách đứng trước booth
     ["spinEnabled"] = true, -- Bật/tắt xoay
-    ["spinBaseSpeed"] = 0.25, -- Tốc độ xoay cơ bản
+    ["spinBaseSpeed"] = 0.75, -- Tốc độ xoay cơ bản
     ["spinSpeedPerR"] = 0.1, -- Tốc độ cộng thêm cho mỗi Robux được donate
 
     -- =================================================================
