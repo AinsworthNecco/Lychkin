@@ -71,7 +71,7 @@ local SETTINGS = {
     ["fontFace"] = "SciFi", -- Font chữ (xem Enum.Font)
     ["boothOffset"] = 3, -- Khoảng cách đứng trước booth
     ["spinEnabled"] = true, -- Bật/tắt xoay
-    ["spinBaseSpeed"] = 0.75, -- Tốc độ xoay cơ bản
+    ["spinBaseSpeed"] = 0.25, -- Tốc độ xoay cơ bản
     ["spinSpeedPerR"] = 0.1, -- Tốc độ cộng thêm cho mỗi Robux được donate
 
     -- =================================================================
@@ -127,16 +127,25 @@ local function createStatusGui()
     statusScreenGui.ResetOnSpawn, statusScreenGui.ZIndexBehavior, statusScreenGui.IgnoreGuiInset = false, Enum.ZIndexBehavior.Sibling, true
     statusScreenGui.Parent = playerGui
 
-    -- Frame nền (dùng cho hiệu ứng màu khi có thông báo)
+    -- Frame nền đen (MỚI)
+    local backgroundFrame = Instance.new("Frame")
+    backgroundFrame.Name = "Background"
+    backgroundFrame.Size = UDim2.new(1, 0, 1, 0)
+    backgroundFrame.BackgroundColor3 = Color3.new(0, 0, 0)
+    backgroundFrame.BorderSizePixel = 0
+    backgroundFrame.ZIndex = 1
+    backgroundFrame.Parent = statusScreenGui
+
+    -- Frame hiệu ứng màu (dùng cho thông báo)
     statusFrame = Instance.new("Frame")
     statusFrame.Name = "StatusFrame"
     statusFrame.Size = UDim2.new(1, 0, 1, 0)
     statusFrame.BackgroundColor3, statusFrame.BorderSizePixel = NEON_COLORS.GREEN, 0
     statusFrame.BackgroundTransparency = 1
-    statusFrame.ZIndex = 1
+    statusFrame.ZIndex = 2
     statusFrame.Parent = statusScreenGui
 
-    -- Label Đồng hồ (MỚI)
+    -- Label Đồng hồ
     clockTextLabel = Instance.new("TextLabel")
     clockTextLabel.Name = "ClockLabel"
     clockTextLabel.Size = UDim2.new(1, 0, 0, 120)
@@ -144,33 +153,33 @@ local function createStatusGui()
     clockTextLabel.AnchorPoint = Vector2.new(0.5, 0.5)
     clockTextLabel.BackgroundTransparency = 1
     clockTextLabel.TextColor3 = Color3.new(1, 1, 1)
-    clockTextLabel.Font = Enum.Font.SciFi -- Font kiểu kỹ thuật số
+    clockTextLabel.Font = Enum.Font.SciFi
     clockTextLabel.TextScaled = false
     clockTextLabel.TextSize = 110
     clockTextLabel.Text = "00:00:00"
-    clockTextLabel.ZIndex = 2
+    clockTextLabel.ZIndex = 3
     clockTextLabel.Parent = statusScreenGui
 
-    -- Label Ngày tháng (MỚI)
+    -- Label Ngày tháng
     dateTextLabel = Instance.new("TextLabel")
     dateTextLabel.Name = "DateLabel"
-    dateTextLabel.Size = UDim2.new(1, 0, 0, 40)
-    dateTextLabel.Position = UDim2.new(0.5, 0, 0.55, 0) -- Ngay dưới đồng hồ
+    dateTextLabel.Size = UDim2.new(1, 0, 0, 50)
+    dateTextLabel.Position = UDim2.new(0.5, 0, 0.56, 0)
     dateTextLabel.AnchorPoint = Vector2.new(0.5, 0.5)
     dateTextLabel.BackgroundTransparency = 1
-    dateTextLabel.TextColor3 = Color3.fromRGB(200, 200, 200) -- Màu xám nhạt
+    dateTextLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
     dateTextLabel.Font = Enum.Font.SourceSansSemibold
     dateTextLabel.TextScaled = false
-    dateTextLabel.TextSize = 30
+    dateTextLabel.TextSize = 28
     dateTextLabel.Text = "..."
-    dateTextLabel.ZIndex = 2
+    dateTextLabel.ZIndex = 3
     dateTextLabel.Parent = statusScreenGui
 
-    -- Label Thông tin (đã được di chuyển xuống dưới và thu nhỏ)
+    -- Label Thông tin
     infoTextLabel = Instance.new("TextLabel")
     infoTextLabel.Name = "InfoLabel"
     infoTextLabel.Size = UDim2.new(0.9, 0, 0, 60)
-    infoTextLabel.Position = UDim2.new(0.5, 0, 1, -10) -- Ở dưới cùng màn hình
+    infoTextLabel.Position = UDim2.new(0.5, 0, 1, -10)
     infoTextLabel.AnchorPoint = Vector2.new(0.5, 1)
     infoTextLabel.BackgroundTransparency = 1
     infoTextLabel.TextColor3 = Color3.new(1, 1, 1)
@@ -180,7 +189,7 @@ local function createStatusGui()
     infoTextLabel.TextXAlignment, infoTextLabel.TextYAlignment = Enum.TextXAlignment.Center, Enum.TextYAlignment.Center
     infoTextLabel.TextWrapped = true
     infoTextLabel.Text = "..."
-    infoTextLabel.ZIndex = 2
+    infoTextLabel.ZIndex = 3
     infoTextLabel.Parent = statusScreenGui
 end
 
@@ -196,7 +205,7 @@ local function updateDisplay(state, message)
             if statusFrame and statusFrame.Parent then
                 if state == "SUCCESS" or state == "ERROR" or state == "BOT_DETECTED" then
                     statusFrame.BackgroundColor3 = stateColor
-                    statusFrame.BackgroundTransparency = 0.85 -- Làm mờ hơn
+                    statusFrame.BackgroundTransparency = 0.85
                 else
                     statusFrame.BackgroundTransparency = 1
                 end
@@ -207,17 +216,31 @@ local function updateDisplay(state, message)
     end)
 end
 
--- Hàm cập nhật đồng hồ (MỚI)
+-- --- Cấu hình và hàm cập nhật đồng hồ (MỚI) ---
+local VIETNAM_TIMEZONE_OFFSET = 7 * 3600 -- GMT+7
+local vietnameseDays = {
+    ["Sunday"] = "Chủ Nhật", ["Monday"] = "Thứ Hai", ["Tuesday"] = "Thứ Ba",
+    ["Wednesday"] = "Thứ Tư", ["Thursday"] = "Thứ Năm", ["Friday"] = "Thứ Sáu", ["Saturday"] = "Thứ Bảy"
+}
+
+local function getVietnameseDateString(timestamp)
+    local dateTable = os.date("*t", timestamp)
+    local dayOfWeekEn = os.date("%A", timestamp)
+    local dayOfWeekVn = vietnameseDays[dayOfWeekEn] or dayOfWeekEn
+    return string.format("%s, ngày %02d tháng %02d năm %d", dayOfWeekVn, dateTable.day, dateTable.month, dateTable.year)
+end
+
 local function startClock()
     task.spawn(function()
         while task.wait(1) do
+            local vietnamTimestamp = os.time() + VIETNAM_TIMEZONE_OFFSET
             if clockTextLabel and clockTextLabel.Parent then
-                clockTextLabel.Text = os.date("%H:%M:%S")
+                clockTextLabel.Text = os.date("%H:%M:%S", vietnamTimestamp)
             else
                 break -- Thoát vòng lặp nếu label bị hủy
             end
             if dateTextLabel and dateTextLabel.Parent then
-                dateTextLabel.Text = os.date("%A, %B %d, %Y")
+                dateTextLabel.Text = getVietnameseDateString(vietnamTimestamp)
             end
         end
     end)
@@ -249,7 +272,7 @@ function searchForServer()
     local histC = 0; for _ in pairs(serverHistoryCache) do histC = histC + 1 end
     updateDisplay("INFO", string.format("Bắt đầu tìm server... (Tránh %d)", histC + 1))
     
-    local searchStartTime = tick() -- [MỚI] Bắt đầu bộ đếm thời gian cho failsafe
+    local searchStartTime = tick()
     local sLActive = true
     chosenServer = nil
     
@@ -314,7 +337,6 @@ function searchForServer()
             updateDisplay("SUCCESS", "ĐÃ CHỌN SERVER!")
             sLActive = false
         elseif allScanned then
-            -- [MỚI] Logic Failsafe
             if tick() - searchStartTime > 60 then
                 updateDisplay("ERROR", "Không tìm thấy server phù hợp sau 60s. Kích hoạt Failsafe...")
                 task.wait(2)
@@ -327,8 +349,8 @@ function searchForServer()
                         addJobIdToHistoryAndSave(currentJobId)
                         task.wait(1)
                         pcall(TeleportService.TeleportToPlaceInstance, TeleportService, placeId, randomServer.id, LocalPlayer)
-                        sLActive = false -- Thoát vòng lặp tìm kiếm
-                        return -- Kết thúc hàm
+                        sLActive = false
+                        return
                     else
                         updateDisplay("ERROR", "Failsafe thất bại: Không lấy được danh sách server.")
                     end
@@ -355,7 +377,7 @@ function searchForServer()
             searchForServer()
         end
     else
-        if sLActive then -- Chỉ hiển thị nếu không phải do failsafe thoát ra
+        if sLActive then
              updateDisplay("ERROR", "Không thể tìm thấy server. Dừng lại.")
         end
     end
@@ -389,7 +411,6 @@ local function updateBoothText()
 
     local raised = raisedObj.Value
     
-    -- [ĐÃ CẬP NHẬT] Tính toán mục tiêu và lấy định dạng từ settings
     local goal = math.floor(raised / 1000) + 1
     local text = SETTINGS.boothTextFormat:gsub("%$GOAL", tostring(goal))
 
@@ -544,7 +565,6 @@ local function setupAutoSpam()
     end)
 end
 
--- [ĐÃ TỐI ƯU] Bộ lắng nghe donate hợp nhất
 local function setupUnifiedDonationListener()
     local leaderstats = LocalPlayer:WaitForChild("leaderstats", 30)
     if not leaderstats then updateDisplay("ERROR", "Không tìm thấy leaderstats sau 30 giây."); return end
@@ -564,24 +584,19 @@ local function setupUnifiedDonationListener()
     raised.Changed:Connect(function(newRaisedValue)
         local difference = newRaisedValue - lastRaised
         if difference > 0 then
-            -- 1. Gửi Webhook
             sendWebhook(difference, newRaisedValue)
-            -- 2. Reset bộ đếm AFK
             if SETTINGS.EnableDonateReset then countdownShouldReset = true end
-            -- 3. Cập nhật tốc độ xoay
             if SETTINGS.EnableBoothFeatures and SETTINGS.spinEnabled then
                 spinVelocity += difference * SETTINGS.spinSpeedPerR
                 updateSpinSpeed()
                 print("🎉 Nhận " .. difference .. " R$ → Spin speed: " .. string.format("%.2f", spinVelocity))
             end
-            -- 4. Cập nhật văn bản booth
             if SETTINGS.EnableBoothFeatures then
                 task.wait(0.1)
                 updateBoothText()
             end
-            -- 5. Gửi lời cảm ơn
             if SETTINGS.EnableAutoThank and SETTINGS.ThankYouMessages and #SETTINGS.ThankYouMessages > 0 then
-                task.wait(math.random(1, 2)) -- Chờ một chút cho tự nhiên
+                task.wait(math.random(1, 2))
                 local message = SETTINGS.ThankYouMessages[math.random(1, #SETTINGS.ThankYouMessages)]
                 safeChat(message)
                 print("[AutoThank] Đã cảm ơn: " .. message)
@@ -602,7 +617,7 @@ local function scanForBots() updateDisplay("INFO", "Bắt đầu quét bot...");
 -- =================================================================
 task.spawn(function()
     pcall(createStatusGui)
-    startClock() -- Bắt đầu chạy đồng hồ ngay lập tức
+    startClock()
     updateDisplay("INFO", "Đang khởi tạo...")
     task.wait(0.5)
 
@@ -611,7 +626,6 @@ task.spawn(function()
     if SETTINGS.EnableAutoReply then task.spawn(setupAutoReply) end
     if SETTINGS.EnableAutoSpam then task.spawn(setupAutoSpam) end
     
-    -- Gắn lại spin khi nhân vật hồi sinh
     LocalPlayer.CharacterAdded:Connect(function(character)
         task.wait(1)
         if SETTINGS.EnableBoothFeatures and SETTINGS.spinEnabled then
@@ -623,12 +637,11 @@ task.spawn(function()
     updateDisplay("INFO", string.format("Chờ game tải trong %d giây...", SETTINGS.InitialWaitTime))
     task.wait(SETTINGS.InitialWaitTime)
     
-    -- Thiết lập các tính năng chính sau khi game tải
     task.spawn(claimAndSetupBooth)
     task.spawn(setupUnifiedDonationListener)
     
     updateDisplay("INFO", "Bắt đầu luồng quyết định...")
-    task.wait(2) -- Chờ một chút để các tác vụ trên có thời gian chạy
+    task.wait(2)
 
     if SETTINGS.EnableServerHop then
         local botCount = 0
@@ -647,7 +660,6 @@ task.spawn(function()
             if SETTINGS.EnableCpuOptimization then optimizeForCpu() end
             if SETTINGS.EnableGraphicsOptimization then optimizeGraphics() end
             
-            -- Bắt đầu cả hai chu trình: đếm ngược và theo dõi người chơi
             startInitialCountdown()
             startPlayerCountMonitor()
         end
