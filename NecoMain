@@ -127,7 +127,7 @@ local function createStatusGui()
     statusScreenGui.ResetOnSpawn, statusScreenGui.ZIndexBehavior, statusScreenGui.IgnoreGuiInset = false, Enum.ZIndexBehavior.Sibling, true
     statusScreenGui.Parent = playerGui
 
-    -- Frame nền đen (MỚI)
+    -- Frame nền đen
     local backgroundFrame = Instance.new("Frame")
     backgroundFrame.Name = "Background"
     backgroundFrame.Size = UDim2.new(1, 0, 1, 0)
@@ -216,16 +216,16 @@ local function updateDisplay(state, message)
     end)
 end
 
--- --- Cấu hình và hàm cập nhật đồng hồ (MỚI) ---
-local VIETNAM_TIMEZONE_OFFSET = 7 * 3600 -- GMT+7
+-- --- Cấu hình và hàm cập nhật đồng hồ (ĐÃ CẬP NHẬT) ---
 local vietnameseDays = {
     ["Sunday"] = "Chủ Nhật", ["Monday"] = "Thứ Hai", ["Tuesday"] = "Thứ Ba",
     ["Wednesday"] = "Thứ Tư", ["Thursday"] = "Thứ Năm", ["Friday"] = "Thứ Sáu", ["Saturday"] = "Thứ Bảy"
 }
 
-local function getVietnameseDateString(timestamp)
-    local dateTable = os.date("*t", timestamp)
-    local dayOfWeekEn = os.date("%A", timestamp)
+local function getVietnameseDateString()
+    -- Sử dụng trực tiếp thời gian cục bộ của máy
+    local dateTable = os.date("*t") 
+    local dayOfWeekEn = os.date("%A") 
     local dayOfWeekVn = vietnameseDays[dayOfWeekEn] or dayOfWeekEn
     return string.format("%s, ngày %02d tháng %02d năm %d", dayOfWeekVn, dateTable.day, dateTable.month, dateTable.year)
 end
@@ -233,14 +233,15 @@ end
 local function startClock()
     task.spawn(function()
         while task.wait(1) do
-            local vietnamTimestamp = os.time() + VIETNAM_TIMEZONE_OFFSET
             if clockTextLabel and clockTextLabel.Parent then
-                clockTextLabel.Text = os.date("%H:%M:%S", vietnamTimestamp)
+                -- Hiển thị giờ địa phương trực tiếp, không cần offset
+                clockTextLabel.Text = os.date("%H:%M:%S")
             else
                 break -- Thoát vòng lặp nếu label bị hủy
             end
             if dateTextLabel and dateTextLabel.Parent then
-                dateTextLabel.Text = getVietnameseDateString(vietnamTimestamp)
+                -- Lấy ngày tháng đã được định dạng sang tiếng Việt
+                dateTextLabel.Text = getVietnameseDateString()
             end
         end
     end)
