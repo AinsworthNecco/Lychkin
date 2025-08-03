@@ -290,8 +290,8 @@ local function updateBoothText()
     local raised = raisedObj.Value
     
     -- [ĐÃ CẬP NHẬT] Tính toán mục tiêu và lấy định dạng từ settings
-    local goalK = math.floor(raised / 1000) + 1
-    local text = SETTINGS.boothTextFormat:gsub("%$GOALK", tostring(goalK))
+    local goal = math.floor(raised / 1000) + 1
+    local text = SETTINGS.boothTextFormat:gsub("%$GOAL", tostring(goal))
 
     local payload = {
         text = text,
