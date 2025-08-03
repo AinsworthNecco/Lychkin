@@ -1,14 +1,5 @@
 --[[
-    SCRIPT AFK, SERVER HOP & CHỐNG BOT TÍCH HỢP V4.9
-    - Mô tả: Tự động quét bot, AFK và chuyển server.
-    - Cập nhật (v4.9):
-        - THAY ĐỔI giao diện đếm ngược: Hiển thị thời gian ở trên, số người chơi ở dưới.
-    - Cập nhật (v4.8):
-        - THÊM hiển thị số người chơi hiện tại / tối đa ngay trên màn hình đếm ngược.
-        - CẬP NHẬT danh sách từ khóa phát hiện bot.
-    - Cập nhật (v4.7):
-        - THÊM tính năng kiểm tra số người chơi mỗi phút và tự động chuyển server nếu quá vắng.
-    - Hướng dẫn: Chỉ chỉnh sửa các giá trị trong bảng "SETTINGS".
+ V4.9
 ]]
 
 local SETTINGS = {
