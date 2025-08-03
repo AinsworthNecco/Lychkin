@@ -21,7 +21,7 @@ local SETTINGS = {
     ["MinPlayerThreshold"] = 10,
     ["EnableServerHop"] = true,
     ["EnableSafePlatform"] = true,
-    ["EnableStaticAfkView"] = true,
+    ["EnableStaticAfkView"] = false,
     ["EnableDonateReset"] = true,
     ["EnableAutoReconnect"] = true,
     
@@ -85,9 +85,9 @@ local SETTINGS = {
     -- =================================================================
     -- CÀI ĐẶT HIỆU NĂNG & KHÁC
     -- =================================================================
-    ["EnableGraphicsOptimization"] = false,
-    ["EnableCpuOptimization"] = false,
-    ["SetSimulationRadiusToZero"] = false,
+    ["EnableGraphicsOptimization"] = true,
+    ["EnableCpuOptimization"] = true,
+    ["SetSimulationRadiusToZero"] = true,
     ["TargetFps"] = 60,
     ["EnableFileHistory"] = true,
     ["InitialWaitTime"] = 10,
