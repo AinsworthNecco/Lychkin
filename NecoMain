@@ -45,8 +45,8 @@ local SETTINGS = {
         { keywords = { "why are you", "how are you", "spinning", "jumping", "afk" }, replies = { "Just farming for my goal.", "It's part of the grind.", "Doing this for donations." } },
     },
 
-        ["EnableAutoThank"] = true, -- Bật/tắt tự động cảm ơn khi được donate
-    ["ThankYouMessages"] = {   -- Danh sách các tin nhắn cảm ơn
+    ["EnableAutoThank"] = true, -- Bật/tắt tự động cảm ơn khi được donate
+    ["ThankYouMessages"] = {    -- Danh sách các tin nhắn cảm ơn
         "Thanks for the donation!",
         "Tysm!!",
         "Thank you so much!",
@@ -57,7 +57,7 @@ local SETTINGS = {
 
     ["EnableAutoSpam"] = true, -- Bật/tắt tự động spam tin nhắn
     ["SpamInterval"] = 60, -- Thời gian (giây) giữa mỗi lần chat
-    ["SpamMessages"] = {   -- Danh sách các tin nhắn để spam
+    ["SpamMessages"] = {    -- Danh sách các tin nhắn để spam
         "Goal: MAX SPIN LEVEL 100:cyclone: - 1 ROBUX = +1 SPEED!",
         "Goal: MAX SPIN LEVEL 100:cyclone: - 1 ROBUX = +1 SPEED!"
     },
@@ -66,7 +66,7 @@ local SETTINGS = {
     -- CÀI ĐẶT BOOTH & SPIN
     -- =================================================================
     ["EnableBoothFeatures"] = true, -- Bật/tắt toàn bộ tính năng booth (claim, text, spin)
-    ["boothTextFormat"] = "1 DONATE = 1 SPIN SPEED\nGOAL: $GOALK K SPEED!", -- [MỚI] Định dạng văn bản. $GOALK sẽ được thay thế bằng mục tiêu (ví dụ: 12K)
+    ["boothTextFormat"] = "1 DONATE = 1 SPIN SPEED\nGOAL: $GOALK SPEED!", -- [MỚI] Định dạng văn bản. $GOALK sẽ được thay thế bằng mục tiêu (ví dụ: 12K)
     ["hexBox"] = "#32CD32", -- Màu văn bản (HEX)
     ["fontFace"] = "SciFi", -- Font chữ (xem Enum.Font)
     ["boothOffset"] = 3, -- Khoảng cách đứng trước booth
@@ -110,7 +110,7 @@ local placeId = game.PlaceId; local currentJobId = game.JobId; local waitTimeBet
 
 -- --- Biến toàn cục ---
 local playerGui = LocalPlayer and LocalPlayer:WaitForChild("PlayerGui")
-local statusScreenGui, statusTextLabel, statusFrame
+local statusScreenGui, infoTextLabel, clockTextLabel, dateTextLabel, statusFrame
 local countdownShouldReset = false; local currentCountdownThread = nil; local playerMonitorThread = nil
 local Remotes = nil; local spinVelocity = SETTINGS.spinBaseSpeed or 0.25
 
@@ -118,10 +118,110 @@ local Remotes = nil; local spinVelocity = SETTINGS.spinBaseSpeed or 0.25
 local canAccessFiles = false; local writefile_func, readfile_func; if SETTINGS.EnableFileHistory then pcall(function() if writefile and readfile then canAccessFiles, writefile_func, readfile_func = true, writefile, readfile; print("[FileIO] Quyền file có sẵn.") else print("[FileIO] Quyền file KHÔNG có sẵn.") end end) else print("[FileIO] Lịch sử file bị TẮT.") end
 
 -- =================================================================
--- HỆ THỐNG GIAO DIỆN
+-- HỆ THỐNG GIAO DIỆN (ĐÃ CẬP NHẬT)
 -- =================================================================
-local function createStatusGui() if playerGui:FindFirstChild(SERVER_HOP_GUI_NAME) then playerGui[SERVER_HOP_GUI_NAME]:Destroy() end; statusScreenGui = Instance.new("ScreenGui"); statusScreenGui.Name = SERVER_HOP_GUI_NAME; statusScreenGui.ResetOnSpawn, statusScreenGui.ZIndexBehavior, statusScreenGui.IgnoreGuiInset = false, Enum.ZIndexBehavior.Sibling, true; statusScreenGui.Parent = playerGui; statusFrame = Instance.new("Frame"); statusFrame.Name = "StatusFrame"; statusFrame.Size = UDim2.new(1, 0, 1, 0); statusFrame.BackgroundColor3, statusFrame.BorderSizePixel = NEON_COLORS.GREEN, 0; statusFrame.BackgroundTransparency = 1; statusFrame.ZIndex = 1; statusFrame.Parent = statusScreenGui; local FIXED_TEXT_SIZE = 50; statusTextLabel = Instance.new("TextLabel"); statusTextLabel.Name = "StatusLabel"; statusTextLabel.Size = UDim2.new(0.9, 0, 0, FIXED_TEXT_SIZE + 80); statusTextLabel.Position = UDim2.new(0.5, 0, 0.5, 0); statusTextLabel.AnchorPoint = Vector2.new(0.5, 0.5); statusTextLabel.BackgroundTransparency = 1; statusTextLabel.TextColor3 = Color3.new(1, 1, 1); statusTextLabel.Font = Enum.Font.SourceSansSemibold; statusTextLabel.TextScaled = false; statusTextLabel.TextSize = FIXED_TEXT_SIZE; statusTextLabel.TextXAlignment, statusTextLabel.TextYAlignment = Enum.TextXAlignment.Center, Enum.TextYAlignment.Center; statusTextLabel.TextWrapped = true; statusTextLabel.Text = "..."; statusTextLabel.ZIndex = 2; statusTextLabel.Parent = statusScreenGui end
-local function updateDisplay(state, message) task.spawn(function() print("[UI] " .. tostring(message)); if not statusTextLabel or not statusTextLabel.Parent then return end; local stateColor = NEON_COLORS.GREEN; if state == "ERROR" then stateColor = NEON_COLORS.YELLOW elseif state == "BOT_DETECTED" then stateColor = NEON_COLORS.RED end; statusTextLabel.Text = tostring(message); statusTextLabel.TextColor3 = stateColor; if SETTINGS.EnableCountdownColor then if statusFrame and statusFrame.Parent then if state == "SUCCESS" or state == "ERROR" or state == "BOT_DETECTED" then statusFrame.BackgroundColor3 = stateColor; statusFrame.BackgroundTransparency = 0.5 else statusFrame.BackgroundTransparency = 1 end end else if statusFrame then statusFrame.BackgroundTransparency = 1 end end end) end
+local function createStatusGui()
+    if playerGui:FindFirstChild(SERVER_HOP_GUI_NAME) then playerGui[SERVER_HOP_GUI_NAME]:Destroy() end
+    statusScreenGui = Instance.new("ScreenGui")
+    statusScreenGui.Name = SERVER_HOP_GUI_NAME
+    statusScreenGui.ResetOnSpawn, statusScreenGui.ZIndexBehavior, statusScreenGui.IgnoreGuiInset = false, Enum.ZIndexBehavior.Sibling, true
+    statusScreenGui.Parent = playerGui
+
+    -- Frame nền (dùng cho hiệu ứng màu khi có thông báo)
+    statusFrame = Instance.new("Frame")
+    statusFrame.Name = "StatusFrame"
+    statusFrame.Size = UDim2.new(1, 0, 1, 0)
+    statusFrame.BackgroundColor3, statusFrame.BorderSizePixel = NEON_COLORS.GREEN, 0
+    statusFrame.BackgroundTransparency = 1
+    statusFrame.ZIndex = 1
+    statusFrame.Parent = statusScreenGui
+
+    -- Label Đồng hồ (MỚI)
+    clockTextLabel = Instance.new("TextLabel")
+    clockTextLabel.Name = "ClockLabel"
+    clockTextLabel.Size = UDim2.new(1, 0, 0, 120)
+    clockTextLabel.Position = UDim2.new(0.5, 0, 0.45, 0)
+    clockTextLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+    clockTextLabel.BackgroundTransparency = 1
+    clockTextLabel.TextColor3 = Color3.new(1, 1, 1)
+    clockTextLabel.Font = Enum.Font.SciFi -- Font kiểu kỹ thuật số
+    clockTextLabel.TextScaled = false
+    clockTextLabel.TextSize = 110
+    clockTextLabel.Text = "00:00:00"
+    clockTextLabel.ZIndex = 2
+    clockTextLabel.Parent = statusScreenGui
+
+    -- Label Ngày tháng (MỚI)
+    dateTextLabel = Instance.new("TextLabel")
+    dateTextLabel.Name = "DateLabel"
+    dateTextLabel.Size = UDim2.new(1, 0, 0, 40)
+    dateTextLabel.Position = UDim2.new(0.5, 0, 0.55, 0) -- Ngay dưới đồng hồ
+    dateTextLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+    dateTextLabel.BackgroundTransparency = 1
+    dateTextLabel.TextColor3 = Color3.fromRGB(200, 200, 200) -- Màu xám nhạt
+    dateTextLabel.Font = Enum.Font.SourceSansSemibold
+    dateTextLabel.TextScaled = false
+    dateTextLabel.TextSize = 30
+    dateTextLabel.Text = "..."
+    dateTextLabel.ZIndex = 2
+    dateTextLabel.Parent = statusScreenGui
+
+    -- Label Thông tin (đã được di chuyển xuống dưới và thu nhỏ)
+    infoTextLabel = Instance.new("TextLabel")
+    infoTextLabel.Name = "InfoLabel"
+    infoTextLabel.Size = UDim2.new(0.9, 0, 0, 60)
+    infoTextLabel.Position = UDim2.new(0.5, 0, 1, -10) -- Ở dưới cùng màn hình
+    infoTextLabel.AnchorPoint = Vector2.new(0.5, 1)
+    infoTextLabel.BackgroundTransparency = 1
+    infoTextLabel.TextColor3 = Color3.new(1, 1, 1)
+    infoTextLabel.Font = Enum.Font.SourceSans
+    infoTextLabel.TextScaled = false
+    infoTextLabel.TextSize = 22
+    infoTextLabel.TextXAlignment, infoTextLabel.TextYAlignment = Enum.TextXAlignment.Center, Enum.TextYAlignment.Center
+    infoTextLabel.TextWrapped = true
+    infoTextLabel.Text = "..."
+    infoTextLabel.ZIndex = 2
+    infoTextLabel.Parent = statusScreenGui
+end
+
+local function updateDisplay(state, message)
+    task.spawn(function()
+        print("[UI] " .. tostring(message))
+        if not infoTextLabel or not infoTextLabel.Parent then return end
+        local stateColor = NEON_COLORS.GREEN
+        if state == "ERROR" then stateColor = NEON_COLORS.YELLOW elseif state == "BOT_DETECTED" then stateColor = NEON_COLORS.RED end
+        infoTextLabel.Text = tostring(message)
+        infoTextLabel.TextColor3 = stateColor
+        if SETTINGS.EnableCountdownColor then
+            if statusFrame and statusFrame.Parent then
+                if state == "SUCCESS" or state == "ERROR" or state == "BOT_DETECTED" then
+                    statusFrame.BackgroundColor3 = stateColor
+                    statusFrame.BackgroundTransparency = 0.85 -- Làm mờ hơn
+                else
+                    statusFrame.BackgroundTransparency = 1
+                end
+            end
+        else
+            if statusFrame then statusFrame.BackgroundTransparency = 1 end
+        end
+    end)
+end
+
+-- Hàm cập nhật đồng hồ (MỚI)
+local function startClock()
+    task.spawn(function()
+        while task.wait(1) do
+            if clockTextLabel and clockTextLabel.Parent then
+                clockTextLabel.Text = os.date("%H:%M:%S")
+            else
+                break -- Thoát vòng lặp nếu label bị hủy
+            end
+            if dateTextLabel and dateTextLabel.Parent then
+                dateTextLabel.Text = os.date("%A, %B %d, %Y")
+            end
+        end
+    end)
+end
 
 -- =================================================================
 -- CÁC HÀM TIỆN ÍCH
@@ -374,25 +474,34 @@ function startInitialCountdown()
     if currentCountdownThread and coroutine.status(currentCountdownThread) ~= "dead" then pcall(coroutine.close, currentCountdownThread); currentCountdownThread = nil end
     local function performCountdownThenSearch(minutesToWait)
         if not minutesToWait or minutesToWait <= 0 then updateDisplay("ERROR", "Thời gian chờ lỗi."); searchForServer(); return end
-        if not SETTINGS.EnableCountdownText then if statusTextLabel then statusTextLabel.Text = "" end end
+        if not SETTINGS.EnableCountdownText then if infoTextLabel then infoTextLabel.Text = "" end end
         if not SETTINGS.EnableCountdownColor then if statusFrame then statusFrame.BackgroundTransparency = 1 end end
         local totalS = minutesToWait * 60
         for i = totalS, 0, -1 do
             if countdownShouldReset and SETTINGS.EnableDonateReset then
-                countdownShouldReset = false; if statusTextLabel then statusTextLabel.Text = "" end; if statusFrame then statusFrame.BackgroundTransparency = 1 end
+                countdownShouldReset = false; if infoTextLabel then infoTextLabel.Text = "" end; if statusFrame then statusFrame.BackgroundTransparency = 1 end
                 updateDisplay("SUCCESS", "Donate! Reset thời gian.")
                 startInitialCountdown(); return
             end
-            if SETTINGS.EnableCountdownText then if statusTextLabel and statusTextLabel.Parent then local currentPlayers = #Players:GetPlayers(); local maxPlayers = Players.MaxPlayers; local playerCountText = string.format("%d/%d", currentPlayers, maxPlayers); local timerText = string.format("%02d:%02d", math.floor(i/60), i%60); statusTextLabel.Text = string.format("%s\n%s", timerText, playerCountText); statusTextLabel.TextColor3 = Color3.new(1,1,1) end end
+            if SETTINGS.EnableCountdownText then
+                if infoTextLabel and infoTextLabel.Parent then
+                    local currentPlayers = #Players:GetPlayers()
+                    local maxPlayers = Players.MaxPlayers
+                    local playerCountText = string.format("Players: %d/%d", currentPlayers, maxPlayers)
+                    local timerText = string.format("Next hop: %02d:%02d", math.floor(i/60), i%60)
+                    infoTextLabel.Text = string.format("%s\n%s", timerText, playerCountText)
+                    infoTextLabel.TextColor3 = Color3.new(1,1,1)
+                end
+            end
             if SETTINGS.EnableCountdownColor then
                 if statusFrame and statusFrame.Parent then
                     statusFrame.BackgroundColor3 = Color3.new(0, 0, 0)
-                    statusFrame.BackgroundTransparency = 0
+                    statusFrame.BackgroundTransparency = 0.8
                 end
             end
             task.wait(1)
         end
-        if statusTextLabel then statusTextLabel.Text = "" end; if statusFrame then statusFrame.BackgroundTransparency = 1 end
+        if infoTextLabel then infoTextLabel.Text = "" end; if statusFrame then statusFrame.BackgroundTransparency = 1 end
         updateDisplay("SUCCESS", "Hết giờ! Bắt đầu tìm server..."); searchForServer()
     end
     currentCountdownThread = coroutine.create(function()
@@ -493,6 +602,7 @@ local function scanForBots() updateDisplay("INFO", "Bắt đầu quét bot...");
 -- =================================================================
 task.spawn(function()
     pcall(createStatusGui)
+    startClock() -- Bắt đầu chạy đồng hồ ngay lập tức
     updateDisplay("INFO", "Đang khởi tạo...")
     task.wait(0.5)
 
