@@ -36,6 +36,243 @@ local SETTINGS = {
     -- =================================================================
     ["EnableAutoReply"] = false,
     ["ReplyRadius"] = 25,
+    ["ReplyCooldown"] = 7,
+    ["ReplyRules"] = {
+        { keywords = { "hi", "hello", "hey", "sup", "yo", "wsg", "howdy", "greetings", "wassup", "heya" }, replies = { "Hello!", "Hi there", "Hey!", "Yo", "What's up?", "Heya", "Sup", "Heyo!", "What's good?", "Well hello there." } },
+        { keywords = { "only","donate", "pls", "give me", "robux pls", "can i have", "spare", "some robux", "can u donate", "plz donate", "can you give", "i need robux" }, replies = { "Sorry, I'm saving up right now.", "I can't donate at the moment, sorry.", "My robux is pending, can't help sorry.", "Sry, saving for something specific.", "Maybe later, I'm trying to reach my own goal.", "Can't right now, good luck though!", "All my robux is tied up, sorry.", "Sorry, my wallet is on a diet.", "I wish I could, but I'm broke lol." } },
+        { keywords = { "bot", "auto", "script", "scripter", "macro", "afk farm", "autoclicker", "you a bot?" }, replies = { "I'm not a bot :)", "lol no, I'm a real player.", "Just vibing, not a bot.", "Beep boop? Nah, just kidding.", "I'm a human, I promise!", "Not a script, just dedicated lol.", "Do I look like a bot to you? :P", "Last time I checked, I still need to sleep. So, not a bot.", "01001110 01101111. (That means 'No' in binary)." } },
+        { keywords = { "scam", "fake", "report", "scammer", "this is a scam", "don't trust", "he's a scammer", "is this fake" }, replies = { "This is not a scam.", "I'm not a scammer.", "It's legit, no worries.", "100% legit, my friend.", "No scams here, just good vibes.", "I'm just here to play the game like you.", "Why would you think it's a scam?", "The only thing I'm scamming is time, by playing this game.", "You've got the wrong person, I'm just here to chill." } },
+        { keywords = { "why are you", "how are you", "spinning", "jumping", "afk" }, replies = { "Just farming for my goal.", "It's part of the grind.", "Doing this for donations." } },
+    },
+
+    ["EnableAutoThank"] = true, -- Bật/tắt tự động cảm ơn khi được donate
+    ["ThankYouMessages"] = {    -- Danh sách các tin nhắn cảm ơn
+        "Thanks for the donation!",
+        "Tysm!!",
+        "Thank you so much!",
+        "OMG THANKKK!",
+        "THANKS",
+        "TYSM!"
+    },
+
+    ["EnableAutoSpam"] = true, -- Bật/tắt tự động spam tin nhắn
+    ["SpamInterval"] = 60, -- Thời gian (giây) giữa mỗi lần chat
+    ["SpamMessages"] = {    -- Danh sách các tin nhắn để spam
+        "Goal: MAX SPIN LEVEL 100:cyclone: - 1 ROBUX = +1 SPEED!",
+        "Goal: MAX SPIN LEVEL 100:cyclone: - 1 ROBUX = +1 SPEED!"
+    },
+
+    -- =================================================================
+    -- CÀI ĐẶT BOOTH & SPIN
+    -- =================================================================
+    ["EnableBoothFeatures"] = true, -- Bật/tắt toàn bộ tính năng booth (claim, text, spin)
+    ["boothTextFormat"] = "1 DONATE = 1 SPIN SPEED\nGOAL: $GOALK SPEED!", -- [MỚI] Định dạng văn bản. $GOALK sẽ được thay thế bằng mục tiêu (ví dụ: 12K)
+    ["hexBox"] = "#ffffff", -- Màu văn bản (HEX)
+    ["fontFace"] = "SciFi", -- Font chữ (xem Enum.Font)
+    ["boothOffset"] = 3, -- Khoảng cách đứng trước booth
+    ["spinEnabled"] = true, -- Bật/tắt xoay
+    ["spinBaseSpeed"] = 0.25, -- Tốc độ xoay cơ bản
+    ["spinSpeedPerR"] = 0.1, -- Tốc độ cộng thêm cho mỗi Robux được donate
+
+    -- =================================================================
+    -- CÀI ĐẶT HIỆU NĂNG & KHÁC
+    -- =================================================================
+    ["EnableGraphicsOptimization"] = true,
+    ["EnableCpuOptimization"] = true,
+    ["SetSimulationRadiusToZero"] = true,
+    ["TargetFps"] = 7,
+    ["EnableFileHistory"] = true,
+    ["InitialWaitTime"] = 10,
+    ["EnableCountdownText"] = true,
+    ["EnableCountdownColor"] = true,
+}
+-- --- KẾT THÚC CÀI ĐẶT ---
+
+-- Nền tảng an toàn (Anti-Cheat Bypass)
+local identifyexecutor = identifyexecutor or function() return 'Unknown' end
+local cloneref = (identifyexecutor() ~= "Synapse Z" and not identifyexecutor():find("Codex") and cloneref) or function(o) return o end
+
+-- Các service cần thiết
+local Players = cloneref(game:GetService("Players"))
+local TeleportService = cloneref(game:GetService("TeleportService"))
+local HttpService = cloneref(game:GetService("HttpService"))
+local TextChatService = cloneref(game:GetService("TextChatService"))
+local Workspace = cloneref(game:GetService("Workspace"))
+local Lighting = cloneref(game:GetService("Lighting"))
+local SoundService = cloneref(game:GetService("SoundService"))
+local RunService = cloneref(game:GetService("RunService"))
+local CoreGui = cloneref(game:GetService("CoreGui"))
+local ReplicatedStorage = cloneref(game:GetService("ReplicatedStorage"))
+local LocalPlayer = Players.LocalPlayer
+
+-- --- Cấu hình Script (Không nên thay đổi) ---
+local placeId = game.PlaceId; local currentJobId = game.JobId; local waitTimeBetweenFullScans = 7; local waitTimeBetweenPageFetches = 0.75; local baseRetryDelay = 1; local maxRetryDelay = 16; local PLATFORM_VERTICAL_OFFSET = 0; local SERVER_HISTORY_FILENAME = "server_hop_history.txt"; local SERVER_HOP_GUI_NAME = "ServerHopStatusGUI"; local AFK_PLATFORM_NAME = "MySafeAFKPlatform"; local STATIC_HEAD_ANCHOR_PART_NAME = "AFK_HeadAnchor_StaticCam"; local STATIC_BLACK_SCREEN_PART_NAME = "AFK_BlackScreen_StaticCam"; local NEON_COLORS = { GREEN = Color3.fromRGB(10, 255, 20), YELLOW = Color3.fromRGB(255, 255, 0), BLUE = Color3.fromRGB(0, 150, 255), RED = Color3.fromRGB(255, 20, 20) }
+
+-- --- Biến toàn cục ---
+local playerGui = LocalPlayer and LocalPlayer:WaitForChild("PlayerGui")
+local statusScreenGui, infoTextLabel, clockTextLabel, dateTextLabel, statusFrame
+local countdownShouldReset = false; local currentCountdownThread = nil; local playerMonitorThread = nil
+local Remotes = nil; local spinVelocity = SETTINGS.spinBaseSpeed or 0.25
+
+-- --- Kiểm tra và gán hàm đọc/ghi file ---
+local canAccessFiles = false; local writefile_func, readfile_func; if SETTINGS.EnableFileHistory then pcall(function() if writefile and readfile then canAccessFiles, writefile_func, readfile_func = true, writefile, readfile; print("[FileIO] Quyền file có sẵn.") else print("[FileIO] Quyền file KHÔNG có sẵn.") end end) else print("[FileIO] Lịch sử file bị TẮT.") end
+
+-- =================================================================
+-- HỆ THỐNG GIAO DIỆN
+-- =================================================================
+local function createStatusGui()
+    if playerGui:FindFirstChild(SERVER_HOP_GUI_NAME) then playerGui[SERVER_HOP_GUI_NAME]:Destroy() end
+    statusScreenGui = Instance.new("ScreenGui")
+    statusScreenGui.Name = SERVER_HOP_GUI_NAME
+    statusScreenGui.ResetOnSpawn, statusScreenGui.ZIndexBehavior, statusScreenGui.IgnoreGuiInset = false, Enum.ZIndexBehavior.Sibling, true
+    statusScreenGui.Parent = playerGui
+
+    local backgroundFrame = Instance.new("Frame")
+    backgroundFrame.Name = "Background"
+    backgroundFrame.Size = UDim2.new(1, 0, 1, 0)
+    backgroundFrame.BackgroundColor3 = Color3.new(0, 0, 0)
+    backgroundFrame.BorderSizePixel = 0
+    backgroundFrame.ZIndex = 1
+    backgroundFrame.Parent = statusScreenGui
+
+    statusFrame = Instance.new("Frame")
+    statusFrame.Name = "StatusFrame"
+    statusFrame.Size = UDim2.new(1, 0, 1, 0)
+    statusFrame.BackgroundColor3, statusFrame.BorderSizePixel = NEON_COLORS.GREEN, 0
+    statusFrame.BackgroundTransparency = 1
+    statusFrame.ZIndex = 2
+    statusFrame.Parent = statusScreenGui
+
+    clockTextLabel = Instance.new("TextLabel")
+    clockTextLabel.Name = "ClockLabel"
+    clockTextLabel.Size = UDim2.new(1, 0, 0, 120)
+    clockTextLabel.Position = UDim2.new(0.5, 0, 0.45, 0)
+    clockTextLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+    clockTextLabel.BackgroundTransparency = 1
+    clockTextLabel.TextColor3 = Color3.new(1, 1, 1)
+    clockTextLabel.Font = Enum.Font.SciFi
+    clockTextLabel.TextScaled = false
+    clockTextLabel.TextSize = 110
+    clockTextLabel.Text = "00:00:00"
+    clockTextLabel.ZIndex = 3
+    clockTextLabel.Parent = statusScreenGui
+
+    dateTextLabel = Instance.new("TextLabel")
+    dateTextLabel.Name = "DateLabel"
+    dateTextLabel.Size = UDim2.new(1, 0, 0, 50)
+    dateTextLabel.Position = UDim2.new(0.5, 0, 0.56, 0)
+    dateTextLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+    dateTextLabel.BackgroundTransparency = 1
+    dateTextLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    dateTextLabel.Font = Enum.Font.SourceSansSemibold
+    dateTextLabel.TextScaled = false
+    dateTextLabel.TextSize = 28
+    dateTextLabel.Text = "..."
+    dateTextLabel.ZIndex = 3
+    dateTextLabel.Parent = statusScreenGui
+
+    infoTextLabel = Instance.new("TextLabel")
+    infoTextLabel.Name = "InfoLabel"
+    infoTextLabel.Size = UDim2.new(0.9, 0, 0, 60)
+    infoTextLabel.Position = UDim2.new(0.5, 0, 1, -10)
+    infoTextLabel.AnchorPoint = Vector2.new(0.5, 1)
+    infoTextLabel.BackgroundTransparency = 1
+    infoTextLabel.TextColor3 = Color3.new(1, 1, 1)
+    infoTextLabel.Font = Enum.Font.SourceSans
+    infoTextLabel.TextScaled = false
+    infoTextLabel.TextSize = 22
+    infoTextLabel.TextXAlignment, infoTextLabel.TextYAlignment = Enum.TextXAlignment.Center, Enum.TextYAlignment.Center
+    infoTextLabel.TextWrapped = true
+    infoTextLabel.Text = "..."
+    infoTextLabel.ZIndex = 3
+    infoTextLabel.Parent = statusScreenGui
+end
+
+local function updateDisplay(state, message)
+    task.spawn(function()
+        print("[UI] " .. tostring(message))
+        if not infoTextLabel or not infoTextLabel.Parent then return end
+        local stateColor = NEON_COLORS.GREEN
+        if state == "ERROR" then stateColor = NEON_COLORS.YELLOW elseif state == "BOT_DETECTED" then stateColor = NEON_COLORS.RED end
+        infoTextLabel.Text = tostring(message)
+        infoTextLabel.TextColor3 = stateColor
+        if SETTINGS.EnableCountdownColor then
+            if statusFrame and statusFrame.Parent then
+                if state == "SUCCESS" or state == "ERROR" or state == "BOT_DETECTED" then
+                    statusFrame.BackgroundColor3 = stateColor
+                    statusFrame.BackgroundTransparency = 0.85
+                else
+                    statusFrame.BackgroundTransparency = 1
+                end
+            end
+        else
+            if statusFrame then statusFrame.BackgroundTransparency = 1 end
+        end
+    end)
+end
+
+local vietnameseDays = {
+    ["Sunday"] = "Chủ Nhật", ["Monday"] = "Thứ Hai", ["Tuesday"] = "Thứ Ba",
+    ["Wednesday"] = "Thứ Tư", ["Thursday"] = "Thứ Năm", ["Friday"] = "Thứ Sáu", ["Saturday"] = "Thứ Bảy"
+}
+
+local function getVietnameseDateString()
+    local dateTable = os.date("*t") 
+    local dayOfWeekEn = os.date("%A") 
+    local dayOfWeekVn = vietnameseDays[dayOfWeekEn] or dayOfWeekEn
+    return string.format("%s, ngày %02d tháng %02d năm %d", dayOfWeekVn, dateTable.day, dateTable.month, dateTable.year)
+end
+
+local function startClock()
+    task.spawn(function()
+        while task.wait(1) do
+            if clockTextLabel and clockTextLabel.Parent then
+                clockTextLabel.Text = os.date("%H:%M:%S")
+            else
+                break
+            end
+            if dateTextLabel and dateTextLabel.Parent then
+                dateTextLabel.Text = getVietnameseDateString()
+            end
+        end
+    end)
+end
+
+-- =================================================================
+-- CÁC HÀM TIỆN ÍCH
+-- =================================================================
+local serverHistoryCache = {}; local function loadServerHistory() if not canAccessFiles then return {} end; local historySet = {}; local s, c = pcall(readfile_func, SERVER_HISTORY_FILENAME); if s and c then for line in string.gmatch(c,"[^".."\r\n".."]+") do local tL=line:match("^%s*(.-)%s*$") if tL and #tL>0 then historySet[tL]=true;end end end; local hS=0;for _ in pairs(historySet)do hS=hS+1 end; local mS=SETTINGS.MaxServerHistorySize; if mS and mS>0 and hS>=mS then print(string.format("[FileIO] Lịch sử server đạt giới hạn (%d/%d). Đang xóa...",hS,mS));if updateDisplay then updateDisplay("INFO","Lịch sử server đầy, đang reset...")end;historySet={};pcall(writefile_func,SERVER_HISTORY_FILENAME,"");print("[FileIO] Lịch sử server đã được xóa.");task.wait(2)end; serverHistoryCache=historySet;return historySet end
+local function addJobIdToHistoryAndSave(jId) if not jId or not canAccessFiles then return end; serverHistoryCache[jId]=true; local l={}; for id in pairs(serverHistoryCache)do table.insert(l,id)end; pcall(writefile_func,SERVER_HISTORY_FILENAME,table.concat(l,"\n")) end
+local function createSafePlatform() updateDisplay("INFO", "Đang tạo platform..."); if game.Workspace:FindFirstChild(AFK_PLATFORM_NAME) then updateDisplay("INFO", "Platform đã có."); return end; local p=Instance.new("Part");p.Name=AFK_PLATFORM_NAME;p.Anchored=true;p.CanCollide=true;p.Size=Vector3.new(20000,40,20000);p.Color=Color3.fromRGB(50,50,50);p.Transparency=0; local char=LocalPlayer.Character; local hum=char and char:FindFirstChildOfClass("Humanoid"); local hrp=char and char:FindFirstChild("HumanoidRootPart"); if hum and hrp then local hrpP=hrp.Position;local hrpSY=hrp.Size.Y;local hipH=hum.HipHeight;local fCIY=hrpP.Y-(hrpSY/2)-hipH;local pTTY=fCIY-PLATFORM_VERTICAL_OFFSET;local pCY=pTTY-(p.Size.Y/2);p.Position=Vector3.new(hrpP.X,pCY,hrpP.Z); else p.Position=Vector3.new(0,-30-PLATFORM_VERTICAL_OFFSET,0); end; p.Parent=game.Workspace; updateDisplay("SUCCESS", "Platform đã tạo."); end
+local function setupStaticAfkView() updateDisplay("INFO", "Thiết lập view AFK tĩnh..."); local player = LocalPlayer; local character = player.Character or player.CharacterAdded:Wait(); if not character then return end; local head = character:WaitForChild("Head", 10); if not head then return end; local camera = workspace.CurrentCamera; if not camera then return end; local staticHeadAnchor = workspace:FindFirstChild(STATIC_HEAD_ANCHOR_PART_NAME) or Instance.new("Part"); staticHeadAnchor.Name=STATIC_HEAD_ANCHOR_PART_NAME; staticHeadAnchor.Size=Vector3.new(0.1,0.1,0.1); staticHeadAnchor.Transparency=1; staticHeadAnchor.CanCollide=false; staticHeadAnchor.Parent=workspace; staticHeadAnchor.CFrame = CFrame.new(head.Position); staticHeadAnchor.Anchored = true; local blackTarget = workspace:FindFirstChild(STATIC_BLACK_SCREEN_PART_NAME) or Instance.new("Part"); blackTarget.Name=STATIC_BLACK_SCREEN_PART_NAME; blackTarget.Size=Vector3.new(2500,2500,10); blackTarget.Color=Color3.new(0,0,0); blackTarget.CanCollide=false; blackTarget.Parent=workspace; local eastPositionFromAnchor = staticHeadAnchor.Position + Vector3.new(150,0,0); blackTarget.CFrame=CFrame.new(eastPositionFromAnchor); blackTarget.Anchored=true; camera.CameraType=Enum.CameraType.Scriptable; camera.CFrame=CFrame.new(staticHeadAnchor.Position,blackTarget.Position); camera.Focus=blackTarget.CFrame; updateDisplay("SUCCESS", "View AFK tĩnh đã thiết lập.") end
+local function optimizeForCpu() if not SETTINGS.EnableCpuOptimization then return end; updateDisplay("INFO", "Bắt đầu tối ưu hóa CPU..."); pcall(function() if type(setfpscap) == "function" and SETTINGS.TargetFps and SETTINGS.TargetFps > 0 then print("[CPU-Opt] Giới hạn FPS đang hoạt động ở mức: " .. tostring(SETTINGS.TargetFps)) end; if SETTINGS.SetSimulationRadiusToZero then if LocalPlayer then LocalPlayer.SimulationRadius = 0; print("[CPU-Opt] SimulationRadius đã được đặt về 0.") end end end); updateDisplay("SUCCESS", "Tối ưu hóa CPU hoàn tất.") end
+local function optimizeGraphics() updateDisplay("INFO", "Bắt đầu tối ưu đồ họa..."); if SETTINGS.EnableSafePlatform then createSafePlatform(); end; task.wait(0.1); pcall(function() local itemsToDel={}; for _,item in pairs(game.Workspace:GetChildren()) do local keep=(LocalPlayer.Character and item.Name==LocalPlayer.Character.Name)or(item==workspace.CurrentCamera)or(SETTINGS.EnableSafePlatform and item.Name==AFK_PLATFORM_NAME)or(SETTINGS.EnableStaticAfkView and(item.Name==STATIC_HEAD_ANCHOR_PART_NAME or item.Name==STATIC_BLACK_SCREEN_PART_NAME));if not keep then table.insert(itemsToDel,item)end end; for _,item in ipairs(itemsToDel)do pcall(function()item:Destroy()end)end;Lighting.GlobalShadows,Lighting.Brightness,Lighting.Ambient,Lighting.OutdoorAmbient,Lighting.ExposureCompensation=false,0,Color3.new(0,0,0),Color3.new(0,0,0),-2;pcall(function()Lighting.Atmosphere:Destroy()end);pcall(function()Lighting.Sky:Destroy()end); if LocalPlayer.PlayerGui then for _,gui in pairs(LocalPlayer.PlayerGui:GetChildren())do if gui.Name~=SERVER_HOP_GUI_NAME then pcall(function()gui:Destroy()end)end end end;local sO=settings();if sO and sO.Rendering then sO.Rendering.QualityLevel=Enum.QualityLevel.Level01;pcall(function()if RunService:IsClient()then RunService:Set3dRenderingEnabled(false)end end)end;SoundService.RespectFilteringEnabled,SoundService.AmbientReverb=true,Enum.ReverbType.NoReverb;for _,sound in pairs(game:GetDescendants())do if sound:IsA("Sound")then sound.Volume=0;sound:Stop()end end; end); updateDisplay("SUCCESS", "Đồ họa đã được tối ưu."); end
+local function rgb(hex) hex = hex:gsub("#", ""); local r = tonumber("0x" .. hex:sub(1, 2)) or 255; local g = tonumber("0x" .. hex:sub(3, 4)) or 255; local b = tonumber("0x" .. hex:sub(5, 6)) or 255; return Color3.fromRGB(r, g, b) end
+local function formatNumber(n) if n >= 10000 then return string.format("%.1fk", n / 1000) elseif n >= 1000 then return string.format("%.2fk", n / 1000) else return tostring(n) end end
+
+-- =================================================================
+-- LOGIC TÌM SERVER
+-- =================================================================
+local chosenServer = nil; local serversUrlBase = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Asc&limit=100"
+function searchForServer()
+    if not SETTINGS.EnableFileHistory then serverHistoryCache = {} else loadServerHistory() end
+    local histC = 0; for _ in pairs(serverHistoryCache) do histC = histC + 1 end
+    updateDisplay("INFO", string.format("Bắt đầu tìm server... (Tránh %d)", histC + 1))
+    
+    local searchStartTime = tick()
+    local sLActive = true
+    chosenServer = nil
+    
+    while sLActive and not chosenServer do
+        local nextCur = nil
+        updateDisplay("INFO", "Đang quét server...")
+        local allScanned = false
+        while not allScanned and not chosenServer do
+            local pAtt = 0
+            local maxAtt = 4
+            local pFetched = false
+       ["EnableAutoReply"] = false,
+    ["ReplyRadius"] = 25,
     ["ReplyCooldown"] = 10,
     ["ReplyRules"] = {
         { keywords = { "hi", "hello", "hey", "sup", "yo", "wsg", "howdy", "greetings", "wassup", "heya" }, replies = { "Hello!", "Hi there", "Hey!", "Yo", "What's up?", "Heya", "Sup", "Heyo!", "What's good?", "Well hello there." } },
