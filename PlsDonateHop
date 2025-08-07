@@ -1,7 +1,3 @@
---[[
- V4.9 cần hoạt động kèm script please donate chưa có auto claim booth sửa text spin
-]]
-
 local SETTINGS = {
     -- =================================================================
     -- CÀI ĐẶT CHỐNG BOT
@@ -62,6 +58,8 @@ local SETTINGS = {
     -- Cài đặt giao diện
     ["EnableCountdownText"] = true,
     ["EnableCountdownColor"] = true,
+    -- [THAY ĐỔI] Thêm cài đặt màu hex cố định cho thanh đếm ngược.
+    ["CountdownFixedColorHex"] = "#000000", -- Thay đổi mã màu ở đây (ví dụ: "#FF0000" cho màu đỏ)
 }
 -- --- KẾT THÚC CÀI ĐẶT ---
 
@@ -112,7 +110,6 @@ local chosenServer = nil; local serversUrlBase = "https://games.roblox.com/v1/ga
 function searchForServer() if not SETTINGS.EnableFileHistory then serverHistoryCache = {} else loadServerHistory() end; local histC=0;for _ in pairs(serverHistoryCache)do histC=histC+1 end; updateDisplay("INFO", string.format("Bắt đầu tìm server... (Tránh %d)",histC+1)); local sLActive=true; chosenServer=nil; while sLActive and not chosenServer do local nextCur=nil; updateDisplay("INFO", "Đang quét server..."); local allScanned=false; while not allScanned and not chosenServer do local pAtt=0;local maxAtt=4;local pFetched=false;local curRetry=baseRetryDelay; while not pFetched and pAtt<maxAtt do pAtt=pAtt+1;if pAtt>1 then updateDisplay("INFO", string.format("Thử lại (%d/%d)...",pAtt,maxAtt));task.wait(curRetry);curRetry=math.min(curRetry*2,maxRetryDelay) end; local s,d=pcall(game.HttpGet,game,serversUrlBase..(nextCur and "&cursor="..nextCur or ""),true);if s then pFetched=true;local sListD=HttpService:JSONDecode(d);if sListD and sListD.data then local pSuitS={}; for _,sInf in ipairs(sListD.data)do if not(sInf.id==currentJobId or serverHistoryCache[sInf.id])then if sInf.playing and sInf.maxPlayers and sInf.maxPlayers>0 then local pR=sInf.playing/sInf.maxPlayers if pR>=SETTINGS.MinPlayerPercentage and pR<SETTINGS.MaxPlayerPercentage and sInf.playing<sInf.maxPlayers then table.insert(pSuitS,sInf)end end end end; if #pSuitS>0 then chosenServer=pSuitS[math.random(1,#pSuitS)];allScanned=true;break end; nextCur=sListD.nextPageCursor;if not nextCur then allScanned=true;end else updateDisplay("ERROR","Dữ liệu server lỗi.")end else updateDisplay("ERROR","Lỗi API.");if pAtt>=maxAtt then allScanned=true end end end;if chosenServer or allScanned then break end;task.wait(waitTimeBetweenPageFetches) end; if chosenServer then updateDisplay("SUCCESS", "ĐÃ CHỌN SERVER!");sLActive=false elseif allScanned then updateDisplay("INFO", string.format("Không tìm thấy. Chờ %ds.",waitTimeBetweenFullScans));task.wait(waitTimeBetweenFullScans)end end; if chosenServer then updateDisplay("SUCCESS", "Chuẩn bị dịch chuyển..."); addJobIdToHistoryAndSave(currentJobId); task.wait(1); local sTP,eTP=pcall(TeleportService.TeleportToPlaceInstance,TeleportService,placeId,chosenServer.id,LocalPlayer); if not sTP then updateDisplay("ERROR", "Lỗi dịch chuyển! Thử lại..."); serverHistoryCache[chosenServer.id]=true;chosenServer=nil;task.wait(5);searchForServer() end else updateDisplay("ERROR", "Không thể tìm thấy server. Dừng lại.") end end
 
 -- --- Quản lý AFK (Countdown, Donate, Player Count) ---
--- [ĐÃ CẬP NHẬT] Hàm đếm ngược giờ sẽ hiển thị cả số người chơi
 function startInitialCountdown() 
     updateDisplay("INFO", "Bắt đầu chu trình..."); 
     if currentCountdownThread and coroutine.status(currentCountdownThread) ~= "dead" then pcall(coroutine.close, currentCountdownThread); currentCountdownThread = nil end
@@ -144,14 +141,11 @@ function startInitialCountdown()
             
             if SETTINGS.EnableCountdownText then 
                 if statusTextLabel and statusTextLabel.Parent then
-                    -- Lấy số người chơi hiện tại và tối đa
                     local currentPlayers = #Players:GetPlayers()
                     local maxPlayers = Players.MaxPlayers
                     
-                    -- Tạo chuỗi hiển thị mới
                     local playerCountText = string.format("%d/%d", currentPlayers, maxPlayers)
                     local timerText = string.format("%02d:%02d", math.floor(i/60), i%60)
-                    -- [THAY ĐỔI] Đưa thời gian lên trên và số người chơi xuống dưới
                     statusTextLabel.Text = string.format("%s\n%s", timerText, playerCountText)
                     statusTextLabel.TextColor3 = Color3.new(1,1,1) 
                 end 
@@ -159,7 +153,15 @@ function startInitialCountdown()
             
             if SETTINGS.EnableCountdownColor then 
                 if statusFrame and statusFrame.Parent then 
-                    statusFrame.BackgroundColor3 = (i % 2 == 0) and NEON_COLORS.BLUE or NEON_COLORS.RED
+                    -- [THAY ĐỔI] Sử dụng màu hex cố định thay vì hiệu ứng nhấp nháy.
+                    local success, color = pcall(Color3.fromHex, SETTINGS.CountdownFixedColorHex or "#FFFFFF")
+                    if success then
+                        statusFrame.BackgroundColor3 = color
+                    else
+                        -- Nếu mã hex không hợp lệ, dùng màu mặc định để tránh lỗi
+                        print("[UI] Lỗi mã hex không hợp lệ, sử dụng màu mặc định.")
+                        statusFrame.BackgroundColor3 = NEON_COLORS.BLUE 
+                    end
                     statusFrame.BackgroundTransparency = 0.6 
                 end 
             end
