@@ -1,45 +1,48 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# Script quan ly toan dien chu trinh cua Roblox, PHIEN BAN CAI TIEN v2.
-# Su dung pgrep/pkill de tang do tin cay khi kiem tra va dung tien trinh.
-# Giai doan 1: Mo va dam bao tat ca cac phien ban deu chay.
-# Giai doan 2: Khoi dong lai tuan tu (staggered restart) tung phien ban mot trong mot vong lap vo tan.
+# Script quan ly toan dien chu trinh cua Roblox: Mo, kiem tra, duy tri, va khoi dong lai dinh ky.
+# PHIEN BAN HOAN CHINH: Tu dong yeu cau root, su dung 'kill' de tat, va co chu trinh hoat dong phuc tap.
+# b c d e f g h i j k l m n o p q r s t u v w x y z
 #---------------------------------------------------
 # -- CAI DAT CHINH --
-# Tat ca cac tuy chinh deu o day. De de nhin hon, chu thich duoc dat sau moi bien.
+# Tat ca cac tuy chinh deu o day.
 #---------------------------------------------------
 
-# --- CAI DAT CHUNG ---
-Suffixes="b c d e f"          # Cac hau to phien ban muon mo (phan cach boi dau cach).
-VipServerUrl="roblox://placeId=8737602449" # URL cua VIP Server ban muon tham gia.
+# Bat/Tat chu trinh khoi dong lai.
+# true:  Mo -> Kiem tra -> Doi 1 gio -> Tat -> Lap lai.
+# false: Mo -> Kiem tra -> Ket thuc script.
+EnableRestartCycle=true
 
-# --- GIAI DOAN 1: KHOI DONG & XAC MINH ---
-InitialOpenDelay=10           # (Giay) Thoi gian cho giua moi lan mo phien ban trong lan dau.
-VerificationInterval=20       # (Giay) Thoi gian cho giua moi lan kiem tra cac phien ban con thieu.
+# Them hoac xoa cac hau to phien ban ban muon mo (phan cach boi dau cach)
+Suffixes="b c d e f"
 
-# --- GIAI DOAN 2: KHOI DONG LAI TUAN TU ---
-StaggeredRestartDelay=900     # (Giay) Thoi gian cho truoc khi tat/mo lai phien ban TIEP THEO (600s = 10 phut).
+# URL cua VIP Server ban muon tham gia
+VipServerUrl="roblox://placeId=8737602449"
 
-# --- CAI DAT HE THONG (Khong nen thay doi) ---
+# Thoi gian (giay) cho giua moi lan mo mot phien ban trong lan dau
+OpenDelay=10
+
+# Thoi gian (giay) cho giua moi lan kiem tra cac phien ban chua chay
+CheckInterval=20
+
+# Thoi gian (giay) script se duy tri cac phien ban truoc khi tat toan bo (chi dung khi EnableRestartCycle=true)
+# 3600 giay = 1 gio
+RestartInterval=3600
+
+# Thoi gian (giay) cho sau khi tat toan bo truoc khi bat dau lai chu ky moi (chi dung khi EnableRestartCycle=true)
+Cooldown=10
+
+# Ten goi co ban cua Roblox (khong nen thay doi)
 BasePackageName="com.roblox.clien"
-
-#---------------------------------------------------
-# -- KIEM TRA CONG CU CAN THIET --
-#---------------------------------------------------
-if ! command -v pgrep &> /dev/null; then
-    echo "Loi: Lenh 'pgrep' khong duoc tim thay. Day la mot phan cua 'procps'."
-    echo "Vui long chay lenh sau trong Termux de cai dat:"
-    echo "pkg install procps"
-    exit 1
-fi
 
 #---------------------------------------------------
 # -- TU DONG KIEM TRA ROOT --
 #---------------------------------------------------
+# Kiem tra xem script co dang chay voi quyen root khong (EUID = 0)
 if [[ $EUID -ne 0 ]]; then
-    echo "Script nay can quyen root de thuc thi 'pkill'."
-    echo "Dang co gang chay lai script voi 'su'..."
-    su -c "bash \"$0\""
-    exit 0
+   echo "Script nay can quyen root de thuc thi 'kill'."
+   echo "Dang co gang chay lai script voi 'su'..."
+   su -c "bash \"$0\""
+   exit 0
 fi
 
 #---------------------------------------------------
@@ -48,7 +51,8 @@ fi
 #---------------------------------------------------
 
 echo "THANH CONG: Script dang chay voi quyen root."
-echo "--- KHOI DONG SCRIPT QUAN LY ROBLOX (PHIEN BAN TUAN TU v2) ---"
+echo "--- KHOI DONG SCRIPT QUAN LY TOAN DIEN ROBLOX ---"
+echo "Che do khoi dong lai dinh ky: $EnableRestartCycle"
 
 # Chuyen chuoi Suffixes thanh mot mang cac ten goi day du
 read -r -a suffixes_array <<< "$Suffixes"
@@ -63,86 +67,88 @@ if (( totalInstances == 0 )); then
     exit 1
 fi
 
-#=================================================
-# GIAI DOAN 1: MO VA XAC MINH
-#=================================================
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] BAT DAU GIAI DOAN 1: KHOI DONG & XAC MINH."
+# Ham thuc hien viec mo va kiem tra
+function open_and_check() {
+    echo "================================================="
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] BAT DAU QUA TRINH MO VA KIEM TRA."
+    echo "================================================="
 
-# --- Buoc 1.1: Mo toan bo Roblox trong danh sach ---
-echo "Buoc 1.1: Dang mo $totalInstances phien ban..."
-for package in "${all_packages[@]}"; do
-    echo "  => Dang mo: $package"
-    am start -a android.intent.action.VIEW -d "$VipServerUrl" -p "$package"
-    echo "     ...cho $InitialOpenDelay giay."
-    sleep "$InitialOpenDelay"
-done
-
-# --- Buoc 1.2: Kiem tra lien tuc cho den khi tat ca deu chay ---
-echo "Buoc 1.2: Kiem tra va khoi dong lai cac phien ban con thieu..."
-while true; do
-    not_running_packages=()
-    echo "-------------------------------------------------"
-    echo "Dang quet trang thai cac phien ban (su dung pgrep)..."
+    # --- Buoc 1: Mo toan bo Roblox trong danh sach ---
+    echo "Buoc 1: Dang mo $totalInstances phien ban..."
     for package in "${all_packages[@]}"; do
-        # Su dung pgrep -f de kiem tra tien trinh mot cach dang tin cay hon
-        if ! pgrep -f "$package" > /dev/null; then
-            not_running_packages+=("$package")
-        fi
+        echo "  => Dang mo: $package"
+        am start -a android.intent.action.VIEW -d "$VipServerUrl" -p "$package"
+        echo "     ...cho $OpenDelay giay."
+        sleep "$OpenDelay"
     done
 
-    if (( ${#not_running_packages[@]} == 0 )); then
-        echo "THANH CONG: Tat ca $totalInstances phien ban deu dang chay."
-        break # Thoat vong lap kiem tra, chuyen sang Giai doan 2
-    else
-        echo "Phat hien ${#not_running_packages[@]} phien ban chua chay. Dang mo lai..."
-        for package_to_start in "${not_running_packages[@]}"; do
-            echo "  => Mo lai: $package_to_start"
-            am start -a android.intent.action.VIEW -d "$VipServerUrl" -p "$package_to_start"
-            sleep 2 # Cho mot chut sau khi mo
-        done
-        echo "Se kiem tra lai sau $VerificationInterval giay."
-        sleep "$VerificationInterval"
-    fi
-done
-
-#=================================================
-# GIAI DOAN 2: KHOI DONG LAI TUAN TU
-#=================================================
-echo ""
-echo "================================================="
-echo "[$(date '+%Y-%m-%d %H:%M:%S')] BAT DAU GIAI DOAN 2: KHOI DONG LAI TUAN TU."
-echo "Moi phien ban se duoc khoi dong lai sau moi $StaggeredRestartDelay giay."
-echo "================================================="
-
-# Vong lap chinh, chay vo han de khoi dong lai tuan tu
-while true; do
-    # Lap qua tung phien ban de khoi dong lai
-    for package_to_restart in "${all_packages[@]}"; do
+    # --- Buoc 2: Kiem tra 2 lan de dam bao tat ca da mo ---
+    echo "Buoc 2: Kiem tra va khoi dong lai cac phien ban con thieu (toi da 2 lan)."
+    for i in 1 2; do
         echo "-------------------------------------------------"
-        echo "Phien ban tiep theo se khoi dong lai la: $package_to_restart"
-        echo "Dang cho $StaggeredRestartDelay giay..."
+        echo "Dang cho $CheckInterval giay truoc khi kiem tra lan thu $i..."
+        sleep "$CheckInterval"
         
-        sleep "$StaggeredRestartDelay"
+        not_running_packages=()
+        echo "Dang quet trang thai (Lan $i/2)..."
+        for package in "${all_packages[@]}"; do
+            if ! pidof "$package" > /dev/null; then
+                not_running_packages+=("$package")
+            fi
+        done
 
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] Da het gio. Dang khoi dong lai $package_to_restart..."
-        
-        # Su dung pkill -f de dung tien trinh mot cach dang tin cay
-        if pgrep -f "$package_to_restart" > /dev/null; then
-            echo "  => Dung phien ban $package_to_restart bang lenh 'pkill -9 -f'."
-            pkill -9 -f "$package_to_restart"
-            sleep 3 # Cho de he dieu hanh giai phong process
+        if (( ${#not_running_packages[@]} > 0 )); then
+            echo "Phat hien ${#not_running_packages[@]} phien ban chua chay. Dang mo lai..."
+            for package_to_start in "${not_running_packages[@]}"; do
+                echo "  => Mo lai: $package_to_start"
+                am start -a android.intent.action.VIEW -d "$VipServerUrl" -p "$package_to_start"
+                sleep "$OpenDelay"
+            done
         else
-            echo "  => Phien ban $package_to_restart da tu dong, khong can 'pkill'."
+            echo "Tat ca cac phien ban deu dang chay. Khong can mo lai."
+            break # Thoat khoi vong lap kiem tra neu tat ca da chay
         fi
-
-        # Mo lai phien ban do
-        echo "  => Mo lai phien ban $package_to_restart."
-        am start -a android.intent.action.VIEW -d "$VipServerUrl" -p "$package_to_restart"
-        echo "Da hoan tat khoi dong lai cho $package_to_restart."
     done
+    echo "-------------------------------------------------"
+    echo "Da hoan tat qua trinh mo va kiem tra."
+}
+
+# Logic chinh dua tren cau hinh EnableRestartCycle
+if [ "$EnableRestartCycle" = true ]; then
+    # Vong lap chinh, chay vo han
+    while true; do
+        open_and_check
+
+        # --- Buoc 3: Bat dau doi ---
+        echo "Buoc 3: Script se duy tri cac phien ban trong $RestartInterval giay (1 gio)."
+        sleep "$RestartInterval"
+
+        # --- Buoc 4: Tat toan bo cac phien ban ---
+        echo "-------------------------------------------------"
+        echo "Buoc 4: [$(date '+%Y-%m-%d %H:%M:%S')] DA HET GIO. Dang tat toan bo cac phien ban..."
+        for package_to_stop in "${all_packages[@]}"; do
+            pid_to_kill=$(pidof "$package_to_stop")
+            if [[ -n "$pid_to_kill" ]]; then
+                echo "  => Dung phien ban $package_to_stop (PID: $pid_to_kill) bang lenh 'kill -9'."
+                kill -9 "$pid_to_kill"
+            else
+                echo "  => Phien ban $package_to_stop da tu dong."
+            fi
+        done
+        echo "Da hoan tat viec dung cac phien ban."
+
+        # --- Buoc 5: Cho va lap lai ---
+        echo "-------------------------------------------------"
+        echo "Buoc 5: Script se cho $Cooldown giay truoc khi bat dau lai tu dau."
+        sleep "$Cooldown"
+    done
+else
+    # Chay mot lan va thoat
+    open_and_check
     echo "================================================="
-    echo "DA HOAN TAT MOT CHU KY KHOI DONG LAI. Lap lai tu phien ban dau tien."
+    echo "Script da hoan tat. Ket thuc theo cau hinh (EnableRestartCycle=false)."
     echo "================================================="
-done
+    exit 0
+fi
 
 exit 0
