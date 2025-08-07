@@ -17,7 +17,7 @@ InitialOpenDelay=10           # (Giay) Thoi gian cho giua moi lan mo phien ban t
 VerificationInterval=20       # (Giay) Thoi gian cho giua moi lan kiem tra cac phien ban con thieu.
 
 # --- GIAI DOAN 2: KHOI DONG LAI TUAN TU ---
-StaggeredRestartDelay=600     # (Giay) Thoi gian cho truoc khi tat/mo lai phien ban TIEP THEO (600s = 10 phut).
+StaggeredRestartDelay=900     # (Giay) Thoi gian cho truoc khi tat/mo lai phien ban TIEP THEO (600s = 10 phut).
 
 # --- CAI DAT HE THONG (Khong nen thay doi) ---
 BasePackageName="com.roblox.clien"
