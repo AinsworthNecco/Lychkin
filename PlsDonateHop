@@ -9,20 +9,21 @@ local SETTINGS = {
     -- =================================================================
     -- CÀI ĐẶT SERVER HOP & AFK
     -- =================================================================
-    -- Filter
     ["WaitMinutes"] = 10,
     ["MinPlayerPercentage"] = 0.50,
     ["MaxPlayerPercentage"] = 0.99,
     ["MaxServerHistorySize"] = 500, -- Xóa lịch sử server sau khi đã lưu X server. Đặt là 0 để tắt.
-    ["EnableServerFilter"] = false,
 
-    ["EnableServerHop"] = true,
-    
     -- Kiểm tra số người chơi định kỳ
     ["EnablePlayerCountCheck"] = true, -- Bật/tắt kiểm tra số người chơi mỗi phút.
     ["MinPlayerThreshold"] = 15,       -- Nếu người chơi trong server ít hơn số này, sẽ tự động chuyển.
 
     -- Bật/Tắt các tính năng chính
+    ["EnableServerHop"] = true,
+    -- [THAY ĐỔI] Thêm công tắc bật/tắt bộ lọc server.
+    -- Nếu 'true', sẽ lọc server theo Min/Max PlayerPercentage (server vừa phải).
+    -- Nếu 'false', sẽ vào server đông nhất có thể tham gia.
+    ["EnableServerFilter"] = true, 
     ["EnableSafePlatform"] = true,
     ["EnableStaticAfkView"] = true,
     ["EnableDonateReset"] = true,
@@ -107,18 +108,23 @@ local function setupStaticAfkView() updateDisplay("INFO", "Thiết lập view AF
 local function optimizeForCpu() if not SETTINGS.EnableCpuOptimization then return end; updateDisplay("INFO", "Bắt đầu tối ưu hóa CPU..."); pcall(function() if type(setfpscap) == "function" and SETTINGS.TargetFps and SETTINGS.TargetFps > 0 then print("[CPU-Opt] Giới hạn FPS đang hoạt động ở mức: " .. tostring(SETTINGS.TargetFps)) end; if SETTINGS.SetSimulationRadiusToZero then if LocalPlayer then LocalPlayer.SimulationRadius = 0; print("[CPU-Opt] SimulationRadius đã được đặt về 0.") end end end); updateDisplay("SUCCESS", "Tối ưu hóa CPU hoàn tất.") end
 local function optimizeGraphics() updateDisplay("INFO", "Bắt đầu tối ưu đồ họa..."); if SETTINGS.EnableSafePlatform then createSafePlatform(); end; task.wait(0.1); pcall(function() local itemsToDel={}; for _,item in pairs(game.Workspace:GetChildren()) do local keep=(LocalPlayer.Character and item.Name==LocalPlayer.Character.Name)or(item==workspace.CurrentCamera)or(SETTINGS.EnableSafePlatform and item.Name==AFK_PLATFORM_NAME)or(SETTINGS.EnableStaticAfkView and(item.Name==STATIC_HEAD_ANCHOR_PART_NAME or item.Name==STATIC_BLACK_SCREEN_PART_NAME));if not keep then table.insert(itemsToDel,item)end end; for _,item in ipairs(itemsToDel)do pcall(function()item:Destroy()end)end;Lighting.GlobalShadows,Lighting.Brightness,Lighting.Ambient,Lighting.OutdoorAmbient,Lighting.ExposureCompensation=false,0,Color3.new(0,0,0),Color3.new(0,0,0),-2;pcall(function()Lighting.Atmosphere:Destroy()end);pcall(function()Lighting.Sky:Destroy()end); if LocalPlayer.PlayerGui then for _,gui in pairs(LocalPlayer.PlayerGui:GetChildren())do if gui.Name~=SERVER_HOP_GUI_NAME then pcall(function()gui:Destroy()end)end end end;local sO=settings();if sO and sO.Rendering then sO.Rendering.QualityLevel=Enum.QualityLevel.Level01;pcall(function()if RunService:IsClient()then RunService:Set3dRenderingEnabled(false)end end)end;SoundService.RespectFilteringEnabled,SoundService.AmbientReverb=true,Enum.ReverbType.NoReverb;for _,sound in pairs(game:GetDescendants())do if sound:IsA("Sound")then sound.Volume=0;sound:Stop()end end; end); updateDisplay("SUCCESS", "Đồ họa đã được tối ưu."); end
 
--- --- Logic Tìm Server ---
-local chosenServer = nil; local serversUrlBase = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Asc&limit=100"
+-- --- Logic Tìm Server (ĐÃ CẬP NHẬT) ---
 function searchForServer()
     if not SETTINGS.EnableFileHistory then serverHistoryCache = {} else loadServerHistory() end
     local histC = 0
     for _ in pairs(serverHistoryCache) do histC = histC + 1 end
     updateDisplay("INFO", string.format("Bắt đầu tìm server... (Tránh %d)", histC + 1))
+
+    -- [THAY ĐỔI] Chọn thứ tự sắp xếp dựa trên chế độ lọc. 'Desc' (giảm dần) cho server đông nhất.
+    local sortOrder = SETTINGS.EnableServerFilter and "Asc" or "Desc"
+    local serversUrlBase = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=" .. sortOrder .. "&limit=100"
+    
     local sLActive = true
     chosenServer = nil
     while sLActive and not chosenServer do
         local nextCur = nil
-        local filterMode = SETTINGS.EnableServerFilter and "Lọc" or "Ngẫu nhiên"
+        -- [THAY ĐỔI] Cập nhật thông báo để rõ ràng hơn
+        local filterMode = SETTINGS.EnableServerFilter and "Lọc (Vừa phải)" or "Không lọc (Đông nhất)"
         updateDisplay("INFO", string.format("Đang quét server... (Chế độ: %s)", filterMode))
         local allScanned = false
         while not allScanned and not chosenServer do
@@ -138,28 +144,37 @@ function searchForServer()
                     pFetched = true
                     local sListD = HttpService:JSONDecode(d)
                     if sListD and sListD.data then
-                        local pSuitS = {}
+                        local pSuitS = {} -- Chỉ dùng cho chế độ lọc (Asc)
                         for _, sInf in ipairs(sListD.data) do
                             if not (sInf.id == currentJobId or serverHistoryCache[sInf.id]) then
                                 if sInf.playing and sInf.maxPlayers and sInf.maxPlayers > 0 then
                                     if SETTINGS.EnableServerFilter then
+                                        -- Chế độ LỌC: tìm server trong khoảng % người chơi (sắp xếp Tăng dần)
                                         local pR = sInf.playing / sInf.maxPlayers
                                         if pR >= SETTINGS.MinPlayerPercentage and pR < SETTINGS.MaxPlayerPercentage and sInf.playing < sInf.maxPlayers then
                                             table.insert(pSuitS, sInf)
                                         end
                                     else
-                                        if sInf.playing > 0 and sInf.playing < sInf.maxPlayers then
-                                            table.insert(pSuitS, sInf)
+                                        -- Chế độ KHÔNG LỌC: tìm server đông nhất (sắp xếp Giảm dần)
+                                        if sInf.playing < sInf.maxPlayers then
+                                            chosenServer = sInf -- Lấy server đầu tiên tìm thấy vì đã được sắp xếp
+                                            break -- Thoát khỏi vòng lặp for
                                         end
                                     end
                                 end
                             end
                         end
-                        if #pSuitS > 0 then
-                            chosenServer = pSuitS[math.random(1, #pSuitS)]
-                            allScanned = true
-                            break
+
+                        if chosenServer then -- Nếu đã chọn server ở chế độ không lọc
+                            break -- Thoát khỏi vòng lặp while not pFetched
                         end
+
+                        -- Xử lý cho chế độ LỌC sau khi quét xong 1 trang
+                        if SETTINGS.EnableServerFilter and #pSuitS > 0 then
+                            chosenServer = pSuitS[math.random(1, #pSuitS)]
+                            break -- Thoát khỏi vòng lặp while not pFetched
+                        end
+
                         nextCur = sListD.nextPageCursor
                         if not nextCur then
                             allScanned = true
@@ -331,9 +346,7 @@ task.spawn(function()
     
     updateDisplay("INFO", "Bắt đầu luồng quyết định...")
 
-    -- [SỬA LỖI] Tách biệt hoàn toàn logic khi EnableServerHop bị tắt.
     if not SETTINGS.EnableServerHop then
-        -- Logic khi Server Hop bị TẮT hoàn toàn
         if SETTINGS.EnableSafePlatform then createSafePlatform() end
         if SETTINGS.EnableStaticAfkView then setupStaticAfkView() end
         if SETTINGS.EnableCpuOptimization then optimizeForCpu() end
@@ -341,10 +354,9 @@ task.spawn(function()
         task.spawn(setupDiscordWebhook)
         updateDisplay("INFO", "Server Hop TẮT.\nHoàn thành thiết lập.")
         print("[MainInit] Script đã hoàn tất (Server Hop Tắt).")
-        return -- Dừng script ở đây nếu không cần hop
+        return 
     end
 
-    -- Logic khi Server Hop được BẬT
     local botCount = 0
     if SETTINGS.EnableAntiBotScan then botCount = scanForBots() end
 
