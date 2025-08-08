@@ -1,6 +1,6 @@
 local SETTINGS = {
     -- =================================================================
-    -- CÀI ĐẶT CHỐNG BOT
+    -- 1CÀI ĐẶT CHỐNG BOT
     -- =================================================================
     ["EnableAntiBotScan"] = true,
     ["BOT_KEYWORDS"] = { "spin", "afk", "restaurant", "jump", "gift", "speed", "develop" },
