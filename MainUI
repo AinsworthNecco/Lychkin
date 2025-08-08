@@ -13,7 +13,7 @@ local SETTINGS = {
     ["MinPlayerPercentage"] = 0.50,
     ["MaxPlayerPercentage"] = 0.99,
     ["MaxServerHistorySize"] = 500, -- Xóa lịch sử server sau khi đã lưu X server. Đặt là 0 để tắt.
-    ["EnableServerFilter"] = true,
+    ["EnableServerFilter"] = false,
     -- Kiểm tra số người chơi định kỳ
     ["EnablePlayerCountCheck"] = true, -- Bật/tắt kiểm tra số người chơi mỗi phút.
     ["MinPlayerThreshold"] = 15,       -- Nếu người chơi trong server ít hơn số này, sẽ tự động chuyển.
