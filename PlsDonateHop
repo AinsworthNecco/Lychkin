@@ -1,6 +1,6 @@
 local SETTINGS = {
     -- =================================================================
-    -- 1CÀI ĐẶT CHỐNG BOT
+    -- CÀI ĐẶT CHỐNG BOT
     -- =================================================================
     ["EnableAntiBotScan"] = true,
     ["BOT_KEYWORDS"] = { "spin", "afk", "restaurant", "jump", "gift", "speed", "develop" },
@@ -82,7 +82,7 @@ local LocalPlayer = Players.LocalPlayer
 local placeId = game.PlaceId; local currentJobId = game.JobId; local waitTimeBetweenFullScans = 7; local waitTimeBetweenPageFetches = 0.75; local baseRetryDelay = 1; local maxRetryDelay = 16; local PLATFORM_VERTICAL_OFFSET = 0; local SERVER_HISTORY_FILENAME = "server_hop_history.txt"; local SERVER_HOP_GUI_NAME = "ServerHopStatusGUI"; local AFK_PLATFORM_NAME = "MySafeAFKPlatform"; local STATIC_HEAD_ANCHOR_PART_NAME = "AFK_HeadAnchor_StaticCam"; local STATIC_BLACK_SCREEN_PART_NAME = "AFK_BlackScreen_StaticCam"; local NEON_COLORS = { GREEN = Color3.fromRGB(10, 255, 20), YELLOW = Color3.fromRGB(255, 255, 0), BLUE = Color3.fromRGB(0, 150, 255), RED = Color3.fromRGB(255, 20, 20) }
 
 -- --- Biến toàn cục ---
-local playerGui
+local playerGui = LocalPlayer and LocalPlayer:WaitForChild("PlayerGui")
 local statusScreenGui, statusTextLabel, statusFrame
 local countdownShouldReset = false; local currentCountdownThread = nil; local playerMonitorThread = nil
 
@@ -112,43 +112,40 @@ local function universalHttpGet(url)
 end
 
 local function createStatusGui() 
-    local success, err = pcall(function()
-        if not playerGui then error("PlayerGui is not available.") end
-        if playerGui:FindFirstChild(SERVER_HOP_GUI_NAME) then playerGui[SERVER_HOP_GUI_NAME]:Destroy() end
-        statusScreenGui = Instance.new("ScreenGui")
-        statusScreenGui.Name = SERVER_HOP_GUI_NAME
-        statusScreenGui.ResetOnSpawn, statusScreenGui.ZIndexBehavior, statusScreenGui.IgnoreGuiInset = false, Enum.ZIndexBehavior.Sibling, true
-        statusScreenGui.Parent = playerGui
-        
-        statusFrame = Instance.new("Frame")
-        statusFrame.Name = "StatusFrame"
-        statusFrame.Size = UDim2.new(1, 0, 1, 0)
-        statusFrame.BackgroundColor3, statusFrame.BorderSizePixel = NEON_COLORS.GREEN, 0
-        statusFrame.BackgroundTransparency = 1
-        statusFrame.ZIndex = 1
-        statusFrame.Parent = statusScreenGui
-        
-        local FIXED_TEXT_SIZE = 50
-        statusTextLabel = Instance.new("TextLabel")
-        statusTextLabel.Name = "StatusLabel"
-        statusTextLabel.Size = UDim2.new(0.9, 0, 0, FIXED_TEXT_SIZE + 80)
-        statusTextLabel.Position = UDim2.new(0.5, 0, 0.5, 0)
-        statusTextLabel.AnchorPoint = Vector2.new(0.5, 0.5)
-        statusTextLabel.BackgroundTransparency = 1
-        statusTextLabel.TextColor3 = Color3.new(1, 1, 1)
-        statusTextLabel.Font = Enum.Font.SourceSansSemibold
-        statusTextLabel.TextScaled = false
-        statusTextLabel.TextSize = FIXED_TEXT_SIZE
-        statusTextLabel.TextXAlignment, statusTextLabel.TextYAlignment = Enum.TextXAlignment.Center, Enum.TextYAlignment.Center
-        statusTextLabel.TextWrapped = true
-        statusTextLabel.Text = "..."
-        statusTextLabel.ZIndex = 2
-        statusTextLabel.Parent = statusScreenGui
-    end)
-    if not success then
-        print("[UI_FATAL_ERROR] Could not create status GUI: " .. tostring(err))
+    if not playerGui then 
+        print("[UI_FATAL_ERROR] PlayerGui không tồn tại khi tạo giao diện.")
+        return 
     end
-    return success
+    if playerGui:FindFirstChild(SERVER_HOP_GUI_NAME) then playerGui[SERVER_HOP_GUI_NAME]:Destroy() end
+    statusScreenGui = Instance.new("ScreenGui")
+    statusScreenGui.Name = SERVER_HOP_GUI_NAME
+    statusScreenGui.ResetOnSpawn, statusScreenGui.ZIndexBehavior, statusScreenGui.IgnoreGuiInset = false, Enum.ZIndexBehavior.Sibling, true
+    statusScreenGui.Parent = playerGui
+    
+    statusFrame = Instance.new("Frame")
+    statusFrame.Name = "StatusFrame"
+    statusFrame.Size = UDim2.new(1, 0, 1, 0)
+    statusFrame.BackgroundColor3, statusFrame.BorderSizePixel = NEON_COLORS.GREEN, 0
+    statusFrame.BackgroundTransparency = 1
+    statusFrame.ZIndex = 1
+    statusFrame.Parent = statusScreenGui
+    
+    local FIXED_TEXT_SIZE = 50
+    statusTextLabel = Instance.new("TextLabel")
+    statusTextLabel.Name = "StatusLabel"
+    statusTextLabel.Size = UDim2.new(0.9, 0, 0, FIXED_TEXT_SIZE + 80)
+    statusTextLabel.Position = UDim2.new(0.5, 0, 0.5, 0)
+    statusTextLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+    statusTextLabel.BackgroundTransparency = 1
+    statusTextLabel.TextColor3 = Color3.new(1, 1, 1)
+    statusTextLabel.Font = Enum.Font.SourceSansSemibold
+    statusTextLabel.TextScaled = false
+    statusTextLabel.TextSize = FIXED_TEXT_SIZE
+    statusTextLabel.TextXAlignment, statusTextLabel.TextYAlignment = Enum.TextXAlignment.Center, Enum.TextYAlignment.Center
+    statusTextLabel.TextWrapped = true
+    statusTextLabel.Text = "..."
+    statusTextLabel.ZIndex = 2
+    statusTextLabel.Parent = statusScreenGui
 end
 
 local function updateDisplay(state, message) task.spawn(function() print("[UI] " .. tostring(message)); if not statusTextLabel or not statusTextLabel.Parent then return end; local stateColor = NEON_COLORS.GREEN; if state == "ERROR" then stateColor = NEON_COLORS.YELLOW elseif state == "BOT_DETECTED" then stateColor = NEON_COLORS.RED end; statusTextLabel.Text = tostring(message); statusTextLabel.TextColor3 = stateColor; if SETTINGS.EnableCountdownColor then if statusFrame and statusFrame.Parent then if state == "SUCCESS" or state == "ERROR" or state == "BOT_DETECTED" then statusFrame.BackgroundColor3 = stateColor; statusFrame.BackgroundTransparency = 0.5 else statusFrame.BackgroundTransparency = 1 end end else if statusFrame then statusFrame.BackgroundTransparency = 1 end end end) end
@@ -282,12 +279,13 @@ local function scanForBots() updateDisplay("INFO", "Bắt đầu quét bot...");
 -- =================================================================
 -- LOGIC KHỞI CHẠY CHÍNH
 -- =================================================================
-local function Initialize()
-    -- [THAY ĐỔI] Logic chính được chuyển vào đây để đảm bảo khởi tạo an toàn.
-    if not createStatusGui() then
-        print("Script will not continue due to GUI creation failure.")
-        return
-    end
+task.spawn(function()
+    -- [THAY ĐỔI] Quay lại cấu trúc khởi tạo gốc và đảm bảo GUI được tạo trước tiên.
+    print("[Init] Script starting...")
+    
+    -- 1. Tạo giao diện ngay lập tức để người dùng biết script đang chạy.
+    pcall(createStatusGui)
+    print("[Init] GUI creation attempt finished.")
 
     updateDisplay("INFO", "Đang khởi tạo...")
     task.wait(0.5)
@@ -332,22 +330,4 @@ local function Initialize()
         updateDisplay("INFO", "Server Hop TẮT.\nHoàn thành thiết lập.")
     end
     print("[MainInit] Script đã hoàn tất.")
-end
-
--- [THAY ĐỔI] Cấu trúc khởi tạo an toàn để chống lỗi script chạy quá sớm.
-if not game:IsLoaded() then
-    print("[Init] Game is not loaded yet. Waiting...")
-    game.Loaded:Wait()
-    print("[Init] Game loaded.")
-end
-
-if not LocalPlayer then
-    print("[Init_FATAL_ERROR] LocalPlayer not found. Script cannot run.")
-else
-    playerGui = LocalPlayer:WaitForChild("PlayerGui", 30)
-    if not playerGui then
-        print("[Init_FATAL_ERROR] PlayerGui not found after 30s. Script cannot run.")
-    else
-        Initialize()
-    end
-end
+end)
