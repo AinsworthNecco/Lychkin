@@ -82,7 +82,7 @@ local LocalPlayer = Players.LocalPlayer
 local placeId = game.PlaceId; local currentJobId = game.JobId; local waitTimeBetweenFullScans = 7; local waitTimeBetweenPageFetches = 0.75; local baseRetryDelay = 1; local maxRetryDelay = 16; local PLATFORM_VERTICAL_OFFSET = 0; local SERVER_HISTORY_FILENAME = "server_hop_history.txt"; local SERVER_HOP_GUI_NAME = "ServerHopStatusGUI"; local AFK_PLATFORM_NAME = "MySafeAFKPlatform"; local STATIC_HEAD_ANCHOR_PART_NAME = "AFK_HeadAnchor_StaticCam"; local STATIC_BLACK_SCREEN_PART_NAME = "AFK_BlackScreen_StaticCam"; local NEON_COLORS = { GREEN = Color3.fromRGB(10, 255, 20), YELLOW = Color3.fromRGB(255, 255, 0), BLUE = Color3.fromRGB(0, 150, 255), RED = Color3.fromRGB(255, 20, 20) }
 
 -- --- Biến toàn cục ---
-local playerGui -- [THAY ĐỔI] Chỉ khai báo, không gán giá trị ngay để tránh lỗi script chạy sớm.
+local playerGui = LocalPlayer and LocalPlayer:WaitForChild("PlayerGui")
 local statusScreenGui, statusTextLabel, statusFrame
 local countdownShouldReset = false; local currentCountdownThread = nil; local playerMonitorThread = nil
 
@@ -93,25 +93,28 @@ local canAccessFiles = false; local writefile_func, readfile_func; if SETTINGS.E
 -- HÀM TIỆN ÍCH (HTTP, GIAO DIỆN, FILE, PLATFORM, VIEW, CPU, GRAPHICS)
 -- =================================================================
 
+-- [THAY ĐỔI] Thêm hàm HttpGet tương thích nhiều executor để khắc phục lỗi bị kẹt khi tìm server.
 local function universalHttpGet(url)
-    local success, response_body, response_data
-    local request_methods = {
-        syn_request = function() if syn and syn.request then response_data = syn.request({ Url = url, Method = "GET" }); return response_data.Body end; return nil end,
-        http_request = function() if http and http.request then response_data = http.request({ Url = url, Method = "GET" }); return response_data.Body end; return nil end,
-        fluxus_request = function() if fluxus and fluxus.request then response_data = fluxus.request({ Url = url, Method = "GET" }); return response_data.Body end; return nil end,
-        native_request = function() if request then response_data = request({ Url = url, Method = "GET" }); return response_data.Body end; return nil end,
-        game_http_get = function() return game:HttpGet(url, true) end
-    }
-    for name, method in pairs(request_methods) do
-        success, response_body = pcall(method)
-        if success and response_body then print("[HTTP] Yêu cầu thành công bằng: " .. name); return true, response_body end
+    local success, response_body
+    -- Thử request với các hàm phổ biến, bắt đầu với các hàm mới hơn
+    local success, response = pcall(function()
+        if syn and syn.request then print("[HTTP] Using syn.request"); return syn.request({Url = url, Method = "GET"}).Body
+        elseif http and http.request then print("[HTTP] Using http.request"); return http.request({Url = url, Method = "GET"}).Body
+        elseif fluxus and fluxus.request then print("[HTTP] Using fluxus.request"); return fluxus.request({Url = url, Method = "GET"}).Body
+        elseif request then print("[HTTP] Using global request"); return request({Url = url, Method = "GET"}).Body
+        else print("[HTTP] Using game:HttpGet"); return game:HttpGet(url, true) end
+    end)
+
+    if success and response then
+        return true, response
+    else
+        print("[HTTP_ERROR] Request failed. Error: " .. tostring(response))
+        return false, nil
     end
-    print("[HTTP_ERROR] Tất cả các phương thức HTTP đều thất bại. Lỗi cuối cùng: " .. tostring(response_body))
-    return false, nil
 end
 
 local function createStatusGui() 
-    if not playerGui then print("[UI Error] PlayerGui is nil, cannot create status GUI."); return end -- [THAY ĐỔI] Thêm kiểm tra an toàn.
+    if not playerGui then print("[UI Error] PlayerGui is nil, cannot create status GUI."); return end
     if playerGui:FindFirstChild(SERVER_HOP_GUI_NAME) then playerGui[SERVER_HOP_GUI_NAME]:Destroy() end; statusScreenGui = Instance.new("ScreenGui"); statusScreenGui.Name = SERVER_HOP_GUI_NAME; statusScreenGui.ResetOnSpawn, statusScreenGui.ZIndexBehavior, statusScreenGui.IgnoreGuiInset = false, Enum.ZIndexBehavior.Sibling, true; statusScreenGui.Parent = playerGui; statusFrame = Instance.new("Frame"); statusFrame.Name = "StatusFrame"; statusFrame.Size = UDim2.new(1, 0, 1, 0); statusFrame.BackgroundColor3, statusFrame.BorderSizePixel = NEON_COLORS.GREEN, 0; statusFrame.BackgroundTransparency = 1; statusFrame.ZIndex = 1; statusFrame.Parent = statusScreenGui; local FIXED_TEXT_SIZE = 50; statusTextLabel = Instance.new("TextLabel"); statusTextLabel.Name = "StatusLabel"; statusTextLabel.Size = UDim2.new(0.9, 0, 0, FIXED_TEXT_SIZE + 80); statusTextLabel.Position = UDim2.new(0.5, 0, 0.5, 0); statusTextLabel.AnchorPoint = Vector2.new(0.5, 0.5); statusTextLabel.BackgroundTransparency = 1; statusTextLabel.TextColor3 = Color3.new(1, 1, 1); statusTextLabel.Font = Enum.Font.SourceSansSemibold; statusTextLabel.TextScaled = false; statusTextLabel.TextSize = FIXED_TEXT_SIZE; statusTextLabel.TextXAlignment, statusTextLabel.TextYAlignment = Enum.TextXAlignment.Center, Enum.TextYAlignment.Center; statusTextLabel.TextWrapped = true; statusTextLabel.Text = "..."; statusTextLabel.ZIndex = 2; statusTextLabel.Parent = statusScreenGui 
 end
 local function updateDisplay(state, message) task.spawn(function() print("[UI] " .. tostring(message)); if not statusTextLabel or not statusTextLabel.Parent then return end; local stateColor = NEON_COLORS.GREEN; if state == "ERROR" then stateColor = NEON_COLORS.YELLOW elseif state == "BOT_DETECTED" then stateColor = NEON_COLORS.RED end; statusTextLabel.Text = tostring(message); statusTextLabel.TextColor3 = stateColor; if SETTINGS.EnableCountdownColor then if statusFrame and statusFrame.Parent then if state == "SUCCESS" or state == "ERROR" or state == "BOT_DETECTED" then statusFrame.BackgroundColor3 = stateColor; statusFrame.BackgroundTransparency = 0.5 else statusFrame.BackgroundTransparency = 1 end end else if statusFrame then statusFrame.BackgroundTransparency = 1 end end end) end
@@ -246,21 +249,6 @@ local function scanForBots() updateDisplay("INFO", "Bắt đầu quét bot...");
 -- LOGIC KHỞI CHẠY CHÍNH
 -- =================================================================
 task.spawn(function()
-    -- [THAY ĐỔI] Di chuyển các bước khởi tạo quan trọng vào đây để đảm bảo chúng chạy đúng thứ tự.
-    if not LocalPlayer then
-        print("[Init Error] LocalPlayer not found on script start.")
-        return
-    end
-
-    print("[Init] Waiting for PlayerGui...")
-    playerGui = LocalPlayer:WaitForChild("PlayerGui", 20) -- Chờ tối đa 20 giây
-
-    if not playerGui then
-        print("[Init Error] PlayerGui not found after 20 seconds. Script cannot continue.")
-        return
-    end
-    print("[Init] PlayerGui found. Creating GUI...")
-
     pcall(createStatusGui)
     updateDisplay("INFO", "Đang khởi tạo...")
     task.wait(0.5)
