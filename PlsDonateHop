@@ -9,21 +9,20 @@ local SETTINGS = {
     -- =================================================================
     -- CÀI ĐẶT SERVER HOP & AFK
     -- =================================================================
+    -- Filter
     ["WaitMinutes"] = 10,
     ["MinPlayerPercentage"] = 0.50,
     ["MaxPlayerPercentage"] = 0.99,
     ["MaxServerHistorySize"] = 500, -- Xóa lịch sử server sau khi đã lưu X server. Đặt là 0 để tắt.
+    ["EnableServerFilter"] = false,
 
+    ["EnableServerHop"] = true,
+    
     -- Kiểm tra số người chơi định kỳ
     ["EnablePlayerCountCheck"] = true, -- Bật/tắt kiểm tra số người chơi mỗi phút.
     ["MinPlayerThreshold"] = 15,       -- Nếu người chơi trong server ít hơn số này, sẽ tự động chuyển.
 
     -- Bật/Tắt các tính năng chính
-    ["EnableServerHop"] = true,
-    -- [THAY ĐỔI] Thêm công tắc bật/tắt bộ lọc server.
-    -- Nếu 'true', sẽ lọc server theo Min/Max PlayerPercentage.
-    -- Nếu 'false', sẽ vào một server ngẫu nhiên (chỉ cần không đầy và không rỗng).
-    ["EnableServerFilter"] = true, 
     ["EnableSafePlatform"] = true,
     ["EnableStaticAfkView"] = true,
     ["EnableDonateReset"] = true,
