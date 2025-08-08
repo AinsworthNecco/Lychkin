@@ -26,7 +26,7 @@ CheckInterval=20
 
 # Thoi gian (giay) script se duy tri cac phien ban truoc khi tat toan bo (chi dung khi EnableRestartCycle=true)
 # 3600 giay = 1 gio
-RestartInterval=3600
+RestartInterval=7200
 
 # Thoi gian (giay) cho sau khi tat toan bo truoc khi bat dau lai chu ky moi (chi dung khi EnableRestartCycle=true)
 Cooldown=10
