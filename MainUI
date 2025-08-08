@@ -1,8 +1,8 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# Script quan ly toan dien chu trinh cua Roblox, PHIEN BAN CAI TIEN v2.
-# Su dung pgrep/pkill de tang do tin cay khi kiem tra va dung tien trinh.
+# Script quan ly toan dien chu trinh cua Roblox, PHIEN BAN HOAN NGUYEN.
+# Su dung lai cac lenh goc 'pidof' va 'kill' theo yeu cau.
 # Giai doan 1: Mo va dam bao tat ca cac phien ban deu chay.
-# Giai doan 2: Khoi dong lai tuan tu (staggered restart) tung phien ban mot trong mot vong lap vo tan.
+# Giai doan 2: Khoi dong lai tuan tu (staggered restart) tung phien ban mot.
 #---------------------------------------------------
 # -- CAI DAT CHINH --
 # Tat ca cac tuy chinh deu o day. De de nhin hon, chu thich duoc dat sau moi bien.
@@ -23,20 +23,10 @@ StaggeredRestartDelay=900     # (Giay) Thoi gian cho truoc khi tat/mo lai phien 
 BasePackageName="com.roblox.clien"
 
 #---------------------------------------------------
-# -- KIEM TRA CONG CU CAN THIET --
-#---------------------------------------------------
-if ! command -v pgrep &> /dev/null; then
-    echo "Loi: Lenh 'pgrep' khong duoc tim thay. Day la mot phan cua 'procps'."
-    echo "Vui long chay lenh sau trong Termux de cai dat:"
-    echo "pkg install procps"
-    exit 1
-fi
-
-#---------------------------------------------------
 # -- TU DONG KIEM TRA ROOT --
 #---------------------------------------------------
 if [[ $EUID -ne 0 ]]; then
-    echo "Script nay can quyen root de thuc thi 'pkill'."
+    echo "Script nay can quyen root de thuc thi 'kill'."
     echo "Dang co gang chay lai script voi 'su'..."
     su -c "bash \"$0\""
     exit 0
@@ -48,7 +38,7 @@ fi
 #---------------------------------------------------
 
 echo "THANH CONG: Script dang chay voi quyen root."
-echo "--- KHOI DONG SCRIPT QUAN LY ROBLOX (PHIEN BAN TUAN TU v2) ---"
+echo "--- KHOI DONG SCRIPT QUAN LY ROBLOX (PHIEN BAN TUAN TU - LENH GOC) ---"
 
 # Chuyen chuoi Suffixes thanh mot mang cac ten goi day du
 read -r -a suffixes_array <<< "$Suffixes"
@@ -82,10 +72,10 @@ echo "Buoc 1.2: Kiem tra va khoi dong lai cac phien ban con thieu..."
 while true; do
     not_running_packages=()
     echo "-------------------------------------------------"
-    echo "Dang quet trang thai cac phien ban (su dung pgrep)..."
+    echo "Dang quet trang thai cac phien ban (su dung pidof)..."
     for package in "${all_packages[@]}"; do
-        # Su dung pgrep -f de kiem tra tien trinh mot cach dang tin cay hon
-        if ! pgrep -f "$package" > /dev/null; then
+        # Su dung lenh goc 'pidof' de kiem tra
+        if ! pidof "$package" > /dev/null; then
             not_running_packages+=("$package")
         fi
     done
@@ -126,13 +116,14 @@ while true; do
 
         echo "[$(date '+%Y-%m-%d %H:%M:%S')] Da het gio. Dang khoi dong lai $package_to_restart..."
         
-        # Su dung pkill -f de dung tien trinh mot cach dang tin cay
-        if pgrep -f "$package_to_restart" > /dev/null; then
-            echo "  => Dung phien ban $package_to_restart bang lenh 'pkill -9 -f'."
-            pkill -9 -f "$package_to_restart"
+        # Su dung lenh goc 'pidof' va 'kill'
+        pid_to_kill=$(pidof "$package_to_restart")
+        if [[ -n "$pid_to_kill" ]]; then
+            echo "  => Dung phien ban $package_to_restart (PID: $pid_to_kill) bang lenh 'kill -9'."
+            kill -9 "$pid_to_kill"
             sleep 3 # Cho de he dieu hanh giai phong process
         else
-            echo "  => Phien ban $package_to_restart da tu dong, khong can 'pkill'."
+            echo "  => Phien ban $package_to_restart da tu dong, khong can 'kill'."
         fi
 
         # Mo lai phien ban do
