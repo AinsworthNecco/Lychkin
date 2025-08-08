@@ -13,13 +13,17 @@ local SETTINGS = {
     ["MinPlayerPercentage"] = 0.50,
     ["MaxPlayerPercentage"] = 0.99,
     ["MaxServerHistorySize"] = 500, -- Xóa lịch sử server sau khi đã lưu X server. Đặt là 0 để tắt.
-    ["EnableServerFilter"] = false,
-    
--- Kiểm tra số người chơi định kỳ
+
+    -- Kiểm tra số người chơi định kỳ
     ["EnablePlayerCountCheck"] = true, -- Bật/tắt kiểm tra số người chơi mỗi phút.
     ["MinPlayerThreshold"] = 15,       -- Nếu người chơi trong server ít hơn số này, sẽ tự động chuyển.
 
-    -- Bật/Tắt các tính năng chính 
+    -- Bật/Tắt các tính năng chính
+    ["EnableServerHop"] = true,
+    -- [THAY ĐỔI] Thêm công tắc bật/tắt bộ lọc server.
+    -- Nếu 'true', sẽ lọc server theo Min/Max PlayerPercentage.
+    -- Nếu 'false', sẽ vào một server ngẫu nhiên (chỉ cần không đầy và không rỗng).
+    ["EnableServerFilter"] = true, 
     ["EnableSafePlatform"] = true,
     ["EnableStaticAfkView"] = true,
     ["EnableDonateReset"] = true,
@@ -139,15 +143,12 @@ function searchForServer()
                         for _, sInf in ipairs(sListD.data) do
                             if not (sInf.id == currentJobId or serverHistoryCache[sInf.id]) then
                                 if sInf.playing and sInf.maxPlayers and sInf.maxPlayers > 0 then
-                                    -- [LOGIC ĐÃ THAY ĐỔI] Chọn server dựa trên cài đặt EnableServerFilter
                                     if SETTINGS.EnableServerFilter then
-                                        -- Chế độ lọc: Giữ nguyên logic cũ, lọc theo % người chơi
                                         local pR = sInf.playing / sInf.maxPlayers
                                         if pR >= SETTINGS.MinPlayerPercentage and pR < SETTINGS.MaxPlayerPercentage and sInf.playing < sInf.maxPlayers then
                                             table.insert(pSuitS, sInf)
                                         end
                                     else
-                                        -- Chế độ không lọc: Chỉ cần server không đầy và không rỗng
                                         if sInf.playing > 0 and sInf.playing < sInf.maxPlayers then
                                             table.insert(pSuitS, sInf)
                                         end
@@ -290,13 +291,12 @@ local function startPlayerCountMonitor()
             if currentPlayers < SETTINGS.MinPlayerThreshold then
                 updateDisplay("ERROR", string.format("Server vắng! (%d/%d người)\nĐang tìm server mới...", currentPlayers, SETTINGS.MinPlayerThreshold))
                 
-                -- Dừng các coroutine khác trước khi chuyển server
                 if currentCountdownThread and coroutine.status(currentCountdownThread) ~= "dead" then pcall(coroutine.close, currentCountdownThread); currentCountdownThread = nil end
                 if playerMonitorThread and coroutine.status(playerMonitorThread) ~= "dead" then pcall(coroutine.close, playerMonitorThread); playerMonitorThread = nil end
                 
-                task.wait(3) -- Chờ người dùng đọc thông báo
+                task.wait(3) 
                 searchForServer()
-                break -- Thoát vòng lặp vì sắp chuyển server
+                break 
             else
                 print(string.format("[PlayerMonitor] Check OK: %d/%d players.", currentPlayers, SETTINGS.MinPlayerThreshold))
             end
@@ -316,7 +316,7 @@ local function setupDiscordWebhook() if not SETTINGS.EnableDiscordWebhook or not
 local function scanForBots() updateDisplay("INFO", "Bắt đầu quét bot..."); task.wait(2); local _boothlocation; local suc, _shuffled = pcall(function() return Workspace:WaitForChild('MapUI', 5) end); if not suc or not _shuffled then local playerGuiMap = LocalPlayer:WaitForChild("PlayerGui"); if playerGuiMap then local mapUiContainer = playerGuiMap:WaitForChild('MapUIContainer', 5); if mapUiContainer then _boothlocation = mapUiContainer:WaitForChild('MapUI', 5) end end else _boothlocation = _shuffled end; if not _boothlocation then updateDisplay("ERROR", "LỖI: Không tìm thấy MapUI để quét bot."); return 0 end; local boothUI = _boothlocation:WaitForChild("BoothUI"); if not boothUI then updateDisplay("ERROR", "LỖI: Không tìm thấy BoothUI bên trong MapUI."); return 0 end; local currentBotCount = 0; for _, uiFrame in ipairs(boothUI:GetChildren()) do local success, err = pcall(function() local ownerName = uiFrame.Details.Owner.Text; if ownerName ~= "unclaimed" then local boothText = string.lower(uiFrame.Sign.TextLabel.Text); for _, keyword in ipairs(SETTINGS.BOT_KEYWORDS) do if string.find(boothText, keyword) then currentBotCount = currentBotCount + 1; local alertMessage = string.format("PHÁT HIỆN BOT #%d\n'%s'", currentBotCount, ownerName); updateDisplay("BOT_DETECTED", alertMessage); task.wait(2.5); break end end end end); if not success then print("[Anti-Bot] Lỗi khi quét gian hàng: " .. tostring(err)) end end; updateDisplay("INFO", "Quét xong. Phát hiện: " .. currentBotCount .. " bot."); task.wait(3); return currentBotCount end
 
 -- =================================================================
--- LOGIC KHỞI CHẠY CHÍNH
+-- LOGIC KHỞI CHẠY CHÍNH (ĐÃ SỬA LỖI)
 -- =================================================================
 task.spawn(function()
     pcall(createStatusGui)
@@ -332,35 +332,40 @@ task.spawn(function()
     
     updateDisplay("INFO", "Bắt đầu luồng quyết định...")
 
-    if SETTINGS.EnableServerHop then
-        local botCount = 0
-        if SETTINGS.EnableAntiBotScan then botCount = scanForBots() end
-
-        if SETTINGS.EnableAntiBotScan and botCount >= SETTINGS.DETECTION_THRESHOLD then
-            updateDisplay("ERROR", string.format("Phát hiện %d/%d bot!\nĐang tìm server mới...", botCount, SETTINGS.DETECTION_THRESHOLD))
-            task.wait(3)
-            searchForServer()
-        else
-            if SETTINGS.EnableAntiBotScan then updateDisplay("SUCCESS", "Server sạch.\nBắt đầu AFK.") else updateDisplay("INFO", "Bỏ qua quét bot.\nBắt đầu AFK.") end
-            task.wait(2)
-            
-            if SETTINGS.EnableSafePlatform then createSafePlatform() end
-            if SETTINGS.EnableStaticAfkView then setupStaticAfkView() end
-            if SETTINGS.EnableCpuOptimization then optimizeForCpu() end
-            if SETTINGS.EnableGraphicsOptimization then optimizeGraphics() end
-            task.spawn(setupDiscordWebhook)
-            
-            -- Bắt đầu cả hai chu trình: đếm ngược và theo dõi người chơi
-            startInitialCountdown()
-            startPlayerCountMonitor()
-        end
-    else
+    -- [SỬA LỖI] Tách biệt hoàn toàn logic khi EnableServerHop bị tắt.
+    if not SETTINGS.EnableServerHop then
+        -- Logic khi Server Hop bị TẮT hoàn toàn
         if SETTINGS.EnableSafePlatform then createSafePlatform() end
         if SETTINGS.EnableStaticAfkView then setupStaticAfkView() end
         if SETTINGS.EnableCpuOptimization then optimizeForCpu() end
         if SETTINGS.EnableGraphicsOptimization then optimizeGraphics() end
         task.spawn(setupDiscordWebhook)
         updateDisplay("INFO", "Server Hop TẮT.\nHoàn thành thiết lập.")
+        print("[MainInit] Script đã hoàn tất (Server Hop Tắt).")
+        return -- Dừng script ở đây nếu không cần hop
     end
-    print("[MainInit] Script đã hoàn tất.")
+
+    -- Logic khi Server Hop được BẬT
+    local botCount = 0
+    if SETTINGS.EnableAntiBotScan then botCount = scanForBots() end
+
+    if SETTINGS.EnableAntiBotScan and botCount >= SETTINGS.DETECTION_THRESHOLD then
+        updateDisplay("ERROR", string.format("Phát hiện %d/%d bot!\nĐang tìm server mới...", botCount, SETTINGS.DETECTION_THRESHOLD))
+        task.wait(3)
+        searchForServer()
+    else
+        if SETTINGS.EnableAntiBotScan then updateDisplay("SUCCESS", "Server sạch.\nBắt đầu AFK.") else updateDisplay("INFO", "Bỏ qua quét bot.\nBắt đầu AFK.") end
+        task.wait(2)
+        
+        if SETTINGS.EnableSafePlatform then createSafePlatform() end
+        if SETTINGS.EnableStaticAfkView then setupStaticAfkView() end
+        if SETTINGS.EnableCpuOptimization then optimizeForCpu() end
+        if SETTINGS.EnableGraphicsOptimization then optimizeGraphics() end
+        task.spawn(setupDiscordWebhook)
+        
+        startInitialCountdown()
+        startPlayerCountMonitor()
+    end
+    
+    print("[MainInit] Script đã hoàn tất (Server Hop Bật).")
 end)
