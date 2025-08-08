@@ -1,7 +1,14 @@
 -- =================================================================
--- SCRIPT AFK & SERVER HOP (PHIÊN BẢN AN TOÀN HƠN)
+-- SCRIPT AFK & SERVER HOP (PHIÊN BẢN SỬA LỖI KHỞI TẠO)
 -- =================================================================
 print("[Loader] Script bắt đầu thực thi.")
+
+-- [SỬA LỖI] Chờ game tải hoàn toàn trước khi làm bất cứ điều gì
+if not game:IsLoaded() then
+    print("[Loader] Game chưa tải, đang chờ...")
+    game.Loaded:Wait()
+    print("[Loader] Game đã tải xong.")
+end
 
 local SETTINGS = {
     -- =================================================================
@@ -67,13 +74,30 @@ local SETTINGS = {
 }
 -- --- KẾT THÚC CÀI ĐẶT ---
 
--- Nền tảng an toàn (Anti-Cheat Bypass)
+-- [SỬA LỖI] Kiểm tra executor một cách an toàn
 local identifyexecutor = identifyexecutor or function() return 'Unknown' end
-local cloneref = (identifyexecutor() ~= "Synapse Z" and not identifyexecutor():find("Codex") and cloneref) or function(o) return o end
+local executor_name = identifyexecutor() or "Unknown"
+local cloneref = (executor_name ~= "Synapse Z" and not string.find(executor_name, "Codex") and cloneref) or function(o) return o end
+print("[Loader] Executor được xác định là: " .. executor_name)
 
--- Các service cần thiết
-local TeleportService, HttpService, Players, TextChatService, Workspace
-local Lighting, SoundService, RunService, CoreGui, LocalPlayer, playerGui
+-- [SỬA LỖI] Tải tất cả các service và biến quan trọng ngay từ đầu
+local Players = game:GetService("Players")
+local LocalPlayer = Players.LocalPlayer
+local playerGui = LocalPlayer:WaitForChild("PlayerGui", 20)
+local TeleportService = cloneref(game:GetService("TeleportService"))
+local HttpService = cloneref(game:GetService("HttpService"))
+local TextChatService = cloneref(game:GetService("TextChatService"))
+local Workspace = cloneref(game:GetService("Workspace"))
+local Lighting = cloneref(game:GetService("Lighting"))
+local SoundService = cloneref(game:GetService("SoundService"))
+local RunService = cloneref(game:GetService("RunService"))
+local CoreGui = cloneref(game:GetService("CoreGui"))
+
+if not playerGui then
+    warn("[Loader-FATAL] Không thể tìm thấy PlayerGui. Script không thể tiếp tục.")
+    return
+end
+print("[Loader] Tất cả các service đã được tải thành công.")
 
 -- --- Biến toàn cục ---
 local statusScreenGui, statusTextLabel, statusFrame
@@ -286,31 +310,6 @@ local function scanForBots() updateDisplay("INFO", "Bắt đầu quét bot...");
 -- =================================================================
 task.spawn(function()
     print("[Loader] Luồng chính đã bắt đầu.")
-    
-    -- [THAY ĐỔI] Tải các service và biến một cách an toàn
-    local success
-    success, Players = pcall(game.GetService, game, "Players")
-    if not success then print("[Loader-FATAL] Không thể tải service Players."); return end
-    
-    success, LocalPlayer = pcall(function() return Players.LocalPlayer end)
-    if not success or not LocalPlayer then print("[Loader-FATAL] Không thể lấy LocalPlayer."); return end
-    
-    success, playerGui = pcall(function() return LocalPlayer:WaitForChild("PlayerGui", 20) end)
-    if not success or not playerGui then print("[Loader-FATAL] Không thể tìm thấy PlayerGui."); return end
-    
-    print("[Loader] LocalPlayer và PlayerGui đã được tải thành công.")
-
-    -- Tải các service còn lại
-    TeleportService = cloneref(game:GetService("TeleportService"))
-    HttpService = cloneref(game:GetService("HttpService"))
-    TextChatService = cloneref(game:GetService("TextChatService"))
-    Workspace = cloneref(game:GetService("Workspace"))
-    Lighting = cloneref(game:GetService("Lighting"))
-    SoundService = cloneref(game:GetService("SoundService"))
-    RunService = cloneref(game:GetService("RunService"))
-    CoreGui = cloneref(game:GetService("CoreGui"))
-    
-    print("[Loader] Tất cả các service đã được tải.")
     
     -- Kiểm tra file
     if SETTINGS.EnableFileHistory then pcall(function() if writefile and readfile then canAccessFiles, writefile_func, readfile_func = true, writefile, readfile; print("[FileIO] Quyền file có sẵn.") else print("[FileIO] Quyền file KHÔNG có sẵn.") end end) else print("[FileIO] Lịch sử file bị TẮT.") end
