@@ -82,7 +82,7 @@ local LocalPlayer = Players.LocalPlayer
 local placeId = game.PlaceId; local currentJobId = game.JobId; local waitTimeBetweenFullScans = 7; local waitTimeBetweenPageFetches = 0.75; local baseRetryDelay = 1; local maxRetryDelay = 16; local PLATFORM_VERTICAL_OFFSET = 0; local SERVER_HISTORY_FILENAME = "server_hop_history.txt"; local SERVER_HOP_GUI_NAME = "ServerHopStatusGUI"; local AFK_PLATFORM_NAME = "MySafeAFKPlatform"; local STATIC_HEAD_ANCHOR_PART_NAME = "AFK_HeadAnchor_StaticCam"; local STATIC_BLACK_SCREEN_PART_NAME = "AFK_BlackScreen_StaticCam"; local NEON_COLORS = { GREEN = Color3.fromRGB(10, 255, 20), YELLOW = Color3.fromRGB(255, 255, 0), BLUE = Color3.fromRGB(0, 150, 255), RED = Color3.fromRGB(255, 20, 20) }
 
 -- --- Biến toàn cục ---
-local playerGui = LocalPlayer and LocalPlayer:WaitForChild("PlayerGui")
+local playerGui -- [THAY ĐỔI] Chỉ khai báo, không gán giá trị ngay để tránh lỗi script chạy sớm.
 local statusScreenGui, statusTextLabel, statusFrame
 local countdownShouldReset = false; local currentCountdownThread = nil; local playerMonitorThread = nil
 
@@ -93,65 +93,27 @@ local canAccessFiles = false; local writefile_func, readfile_func; if SETTINGS.E
 -- HÀM TIỆN ÍCH (HTTP, GIAO DIỆN, FILE, PLATFORM, VIEW, CPU, GRAPHICS)
 -- =================================================================
 
--- [THAY ĐỔI] Thêm hàm HttpGet tương thích nhiều executor để khắc phục lỗi bị kẹt khi tìm server.
 local function universalHttpGet(url)
     local success, response_body, response_data
-
-    -- Bảng các phương thức request để thử lần lượt
     local request_methods = {
-        -- Synapse X / Z
-        syn_request = function()
-            if syn and syn.request then
-                response_data = syn.request({ Url = url, Method = "GET" })
-                return response_data.Body
-            end
-            return nil
-        end,
-        -- Krnl (cũ), một số executor khác
-        http_request = function()
-            if http and http.request then
-                response_data = http.request({ Url = url, Method = "GET" })
-                return response_data.Body
-            end
-            return nil
-        end,
-        -- Fluxus
-        fluxus_request = function()
-            if fluxus and fluxus.request then
-                response_data = fluxus.request({ Url = url, Method = "GET" })
-                return response_data.Body
-            end
-            return nil
-        end,
-        -- Một số executor hiện đại hơn (Arceus X, etc.)
-        native_request = function()
-            if request then
-                response_data = request({ Url = url, Method = "GET" })
-                return response_data.Body
-            end
-            return nil
-        end,
-        -- Phương thức mặc định của Roblox, dùng làm phương án cuối cùng
-        game_http_get = function()
-            return game:HttpGet(url, true)
-        end
+        syn_request = function() if syn and syn.request then response_data = syn.request({ Url = url, Method = "GET" }); return response_data.Body end; return nil end,
+        http_request = function() if http and http.request then response_data = http.request({ Url = url, Method = "GET" }); return response_data.Body end; return nil end,
+        fluxus_request = function() if fluxus and fluxus.request then response_data = fluxus.request({ Url = url, Method = "GET" }); return response_data.Body end; return nil end,
+        native_request = function() if request then response_data = request({ Url = url, Method = "GET" }); return response_data.Body end; return nil end,
+        game_http_get = function() return game:HttpGet(url, true) end
     }
-
-    -- Thử từng phương thức cho đến khi thành công
     for name, method in pairs(request_methods) do
         success, response_body = pcall(method)
-        if success and response_body then
-            print("[HTTP] Yêu cầu thành công bằng: " .. name)
-            return true, response_body
-        end
+        if success and response_body then print("[HTTP] Yêu cầu thành công bằng: " .. name); return true, response_body end
     end
-
-    -- Nếu tất cả đều thất bại
     print("[HTTP_ERROR] Tất cả các phương thức HTTP đều thất bại. Lỗi cuối cùng: " .. tostring(response_body))
     return false, nil
 end
 
-local function createStatusGui() if playerGui:FindFirstChild(SERVER_HOP_GUI_NAME) then playerGui[SERVER_HOP_GUI_NAME]:Destroy() end; statusScreenGui = Instance.new("ScreenGui"); statusScreenGui.Name = SERVER_HOP_GUI_NAME; statusScreenGui.ResetOnSpawn, statusScreenGui.ZIndexBehavior, statusScreenGui.IgnoreGuiInset = false, Enum.ZIndexBehavior.Sibling, true; statusScreenGui.Parent = playerGui; statusFrame = Instance.new("Frame"); statusFrame.Name = "StatusFrame"; statusFrame.Size = UDim2.new(1, 0, 1, 0); statusFrame.BackgroundColor3, statusFrame.BorderSizePixel = NEON_COLORS.GREEN, 0; statusFrame.BackgroundTransparency = 1; statusFrame.ZIndex = 1; statusFrame.Parent = statusScreenGui; local FIXED_TEXT_SIZE = 50; statusTextLabel = Instance.new("TextLabel"); statusTextLabel.Name = "StatusLabel"; statusTextLabel.Size = UDim2.new(0.9, 0, 0, FIXED_TEXT_SIZE + 80); statusTextLabel.Position = UDim2.new(0.5, 0, 0.5, 0); statusTextLabel.AnchorPoint = Vector2.new(0.5, 0.5); statusTextLabel.BackgroundTransparency = 1; statusTextLabel.TextColor3 = Color3.new(1, 1, 1); statusTextLabel.Font = Enum.Font.SourceSansSemibold; statusTextLabel.TextScaled = false; statusTextLabel.TextSize = FIXED_TEXT_SIZE; statusTextLabel.TextXAlignment, statusTextLabel.TextYAlignment = Enum.TextXAlignment.Center, Enum.TextYAlignment.Center; statusTextLabel.TextWrapped = true; statusTextLabel.Text = "..."; statusTextLabel.ZIndex = 2; statusTextLabel.Parent = statusScreenGui end
+local function createStatusGui() 
+    if not playerGui then print("[UI Error] PlayerGui is nil, cannot create status GUI."); return end -- [THAY ĐỔI] Thêm kiểm tra an toàn.
+    if playerGui:FindFirstChild(SERVER_HOP_GUI_NAME) then playerGui[SERVER_HOP_GUI_NAME]:Destroy() end; statusScreenGui = Instance.new("ScreenGui"); statusScreenGui.Name = SERVER_HOP_GUI_NAME; statusScreenGui.ResetOnSpawn, statusScreenGui.ZIndexBehavior, statusScreenGui.IgnoreGuiInset = false, Enum.ZIndexBehavior.Sibling, true; statusScreenGui.Parent = playerGui; statusFrame = Instance.new("Frame"); statusFrame.Name = "StatusFrame"; statusFrame.Size = UDim2.new(1, 0, 1, 0); statusFrame.BackgroundColor3, statusFrame.BorderSizePixel = NEON_COLORS.GREEN, 0; statusFrame.BackgroundTransparency = 1; statusFrame.ZIndex = 1; statusFrame.Parent = statusScreenGui; local FIXED_TEXT_SIZE = 50; statusTextLabel = Instance.new("TextLabel"); statusTextLabel.Name = "StatusLabel"; statusTextLabel.Size = UDim2.new(0.9, 0, 0, FIXED_TEXT_SIZE + 80); statusTextLabel.Position = UDim2.new(0.5, 0, 0.5, 0); statusTextLabel.AnchorPoint = Vector2.new(0.5, 0.5); statusTextLabel.BackgroundTransparency = 1; statusTextLabel.TextColor3 = Color3.new(1, 1, 1); statusTextLabel.Font = Enum.Font.SourceSansSemibold; statusTextLabel.TextScaled = false; statusTextLabel.TextSize = FIXED_TEXT_SIZE; statusTextLabel.TextXAlignment, statusTextLabel.TextYAlignment = Enum.TextXAlignment.Center, Enum.TextYAlignment.Center; statusTextLabel.TextWrapped = true; statusTextLabel.Text = "..."; statusTextLabel.ZIndex = 2; statusTextLabel.Parent = statusScreenGui 
+end
 local function updateDisplay(state, message) task.spawn(function() print("[UI] " .. tostring(message)); if not statusTextLabel or not statusTextLabel.Parent then return end; local stateColor = NEON_COLORS.GREEN; if state == "ERROR" then stateColor = NEON_COLORS.YELLOW elseif state == "BOT_DETECTED" then stateColor = NEON_COLORS.RED end; statusTextLabel.Text = tostring(message); statusTextLabel.TextColor3 = stateColor; if SETTINGS.EnableCountdownColor then if statusFrame and statusFrame.Parent then if state == "SUCCESS" or state == "ERROR" or state == "BOT_DETECTED" then statusFrame.BackgroundColor3 = stateColor; statusFrame.BackgroundTransparency = 0.5 else statusFrame.BackgroundTransparency = 1 end end else if statusFrame then statusFrame.BackgroundTransparency = 1 end end end) end
 local serverHistoryCache = {}; local function loadServerHistory() if not canAccessFiles then return {} end; local historySet = {}; local s, c = pcall(readfile_func, SERVER_HISTORY_FILENAME); if s and c then for line in string.gmatch(c,"[^".."\r\n".."]+") do local tL=line:match("^%s*(.-)%s*$") if tL and #tL>0 then historySet[tL]=true;end end end; local hS=0;for _ in pairs(historySet)do hS=hS+1 end; local mS=SETTINGS.MaxServerHistorySize; if mS and mS>0 and hS>=mS then print(string.format("[FileIO] Lịch sử server đạt giới hạn (%d/%d). Đang xóa...",hS,mS));if updateDisplay then updateDisplay("INFO","Lịch sử server đầy, đang reset...")end;historySet={};pcall(writefile_func,SERVER_HISTORY_FILENAME,"");print("[FileIO] Lịch sử server đã được xóa.");task.wait(2)end; serverHistoryCache=historySet;return historySet end
 local function addJobIdToHistoryAndSave(jId) if not jId or not canAccessFiles then return end; serverHistoryCache[jId]=true; local l={}; for id in pairs(serverHistoryCache)do table.insert(l,id)end; pcall(writefile_func,SERVER_HISTORY_FILENAME,table.concat(l,"\n")) end
@@ -163,7 +125,6 @@ local function optimizeGraphics() updateDisplay("INFO", "Bắt đầu tối ưu 
 -- --- Logic Tìm Server ---
 local chosenServer = nil; local serversUrlBase = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Asc&limit=100"
 function searchForServer() if not SETTINGS.EnableFileHistory then serverHistoryCache = {} else loadServerHistory() end; local histC=0;for _ in pairs(serverHistoryCache)do histC=histC+1 end; updateDisplay("INFO", string.format("Bắt đầu tìm server... (Tránh %d)",histC+1)); local sLActive=true; chosenServer=nil; while sLActive and not chosenServer do local nextCur=nil; updateDisplay("INFO", "Đang quét server..."); local allScanned=false; while not allScanned and not chosenServer do local pAtt=0;local maxAtt=4;local pFetched=false;local curRetry=baseRetryDelay; while not pFetched and pAtt<maxAtt do pAtt=pAtt+1;if pAtt>1 then updateDisplay("INFO", string.format("Thử lại (%d/%d)...",pAtt,maxAtt));task.wait(curRetry);curRetry=math.min(curRetry*2,maxRetryDelay) end; 
--- [THAY ĐỔI] Sử dụng hàm HttpGet mới để tương thích tốt hơn
 local s,d = universalHttpGet(serversUrlBase..(nextCur and "&cursor="..nextCur or ""));
 if s then pFetched=true;local sListD=HttpService:JSONDecode(d);if sListD and sListD.data then local pSuitS={}; for _,sInf in ipairs(sListD.data)do if not(sInf.id==currentJobId or serverHistoryCache[sInf.id])then if sInf.playing and sInf.maxPlayers and sInf.maxPlayers>0 then local pR=sInf.playing/sInf.maxPlayers if pR>=SETTINGS.MinPlayerPercentage and pR<SETTINGS.MaxPlayerPercentage and sInf.playing<sInf.maxPlayers then table.insert(pSuitS,sInf)end end end end; if #pSuitS>0 then chosenServer=pSuitS[math.random(1,#pSuitS)];allScanned=true;break end; nextCur=sListD.nextPageCursor;if not nextCur then allScanned=true;end else updateDisplay("ERROR","Dữ liệu server lỗi.")end else updateDisplay("ERROR","Lỗi API.");if pAtt>=maxAtt then allScanned=true end end end;if chosenServer or allScanned then break end;task.wait(waitTimeBetweenPageFetches) end; if chosenServer then updateDisplay("SUCCESS", "ĐÃ CHỌN SERVER!");sLActive=false elseif allScanned then updateDisplay("INFO", string.format("Không tìm thấy. Chờ %ds.",waitTimeBetweenFullScans));task.wait(waitTimeBetweenFullScans)end end; if chosenServer then updateDisplay("SUCCESS", "Chuẩn bị dịch chuyển..."); addJobIdToHistoryAndSave(currentJobId); task.wait(1); local sTP,eTP=pcall(TeleportService.TeleportToPlaceInstance,TeleportService,placeId,chosenServer.id,LocalPlayer); if not sTP then updateDisplay("ERROR", "Lỗi dịch chuyển! Thử lại..."); serverHistoryCache[chosenServer.id]=true;chosenServer=nil;task.wait(5);searchForServer() end else updateDisplay("ERROR", "Không thể tìm thấy server. Dừng lại.") end end
 
@@ -285,6 +246,21 @@ local function scanForBots() updateDisplay("INFO", "Bắt đầu quét bot...");
 -- LOGIC KHỞI CHẠY CHÍNH
 -- =================================================================
 task.spawn(function()
+    -- [THAY ĐỔI] Di chuyển các bước khởi tạo quan trọng vào đây để đảm bảo chúng chạy đúng thứ tự.
+    if not LocalPlayer then
+        print("[Init Error] LocalPlayer not found on script start.")
+        return
+    end
+
+    print("[Init] Waiting for PlayerGui...")
+    playerGui = LocalPlayer:WaitForChild("PlayerGui", 20) -- Chờ tối đa 20 giây
+
+    if not playerGui then
+        print("[Init Error] PlayerGui not found after 20 seconds. Script cannot continue.")
+        return
+    end
+    print("[Init] PlayerGui found. Creating GUI...")
+
     pcall(createStatusGui)
     updateDisplay("INFO", "Đang khởi tạo...")
     task.wait(0.5)
