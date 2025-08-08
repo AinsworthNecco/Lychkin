@@ -106,117 +106,113 @@ local function optimizeForCpu() if not SETTINGS.EnableCpuOptimization then retur
 local function optimizeGraphics() updateDisplay("INFO", "Bắt đầu tối ưu đồ họa..."); if SETTINGS.EnableSafePlatform then createSafePlatform(); end; task.wait(0.1); pcall(function() local itemsToDel={}; for _,item in pairs(game.Workspace:GetChildren()) do local keep=(LocalPlayer.Character and item.Name==LocalPlayer.Character.Name)or(item==workspace.CurrentCamera)or(SETTINGS.EnableSafePlatform and item.Name==AFK_PLATFORM_NAME)or(SETTINGS.EnableStaticAfkView and(item.Name==STATIC_HEAD_ANCHOR_PART_NAME or item.Name==STATIC_BLACK_SCREEN_PART_NAME));if not keep then table.insert(itemsToDel,item)end end; for _,item in ipairs(itemsToDel)do pcall(function()item:Destroy()end)end;Lighting.GlobalShadows,Lighting.Brightness,Lighting.Ambient,Lighting.OutdoorAmbient,Lighting.ExposureCompensation=false,0,Color3.new(0,0,0),Color3.new(0,0,0),-2;pcall(function()Lighting.Atmosphere:Destroy()end);pcall(function()Lighting.Sky:Destroy()end); if LocalPlayer.PlayerGui then for _,gui in pairs(LocalPlayer.PlayerGui:GetChildren())do if gui.Name~=SERVER_HOP_GUI_NAME then pcall(function()gui:Destroy()end)end end end;local sO=settings();if sO and sO.Rendering then sO.Rendering.QualityLevel=Enum.QualityLevel.Level01;pcall(function()if RunService:IsClient()then RunService:Set3dRenderingEnabled(false)end end)end;SoundService.RespectFilteringEnabled,SoundService.AmbientReverb=true,Enum.ReverbType.NoReverb;for _,sound in pairs(game:GetDescendants())do if sound:IsA("Sound")then sound.Volume=0;sound:Stop()end end; end); updateDisplay("SUCCESS", "Đồ họa đã được tối ưu."); end
 
 -- --- Logic Tìm Server ---
--- Hàm HTTP GET tương thích nhiều executor
-local function httpGet(url)
-    -- Ưu tiên dùng hàm request của executor
-    local req = (http and http.request) or (syn and syn.request) or (fluxus and fluxus.request) or request
-    if req then
-        local ok, res = pcall(req, { Url = url, Method = "GET" })
-        if ok and res and res.Body then
-            return res.Body
+local chosenServer = nil; local serversUrlBase = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Desc&limit=100"
+function searchForServer() if not SETTINGS.EnableFileHistory then serverHistoryCache = {} else loadServerHistory() end; local histC=0;for _ in pairs(serverHistoryCache)do histC=histC+1 end; updateDisplay("INFO", string.format("Bắt đầu tìm server... (Tránh %d)",histC+1)); local sLActive=true; chosenServer=nil; while sLActive and not chosenServer do local nextCur=nil; updateDisplay("INFO", "Đang quét server..."); local allScanned=false; while not allScanned and not chosenServer do local pAtt=0;local maxAtt=4;local pFetched=false;local curRetry=baseRetryDelay; while not pFetched and pAtt<maxAtt do pAtt=pAtt+1;if pAtt>1 then updateDisplay("INFO", string.format("Thử lại (%d/%d)...",pAtt,maxAtt));task.wait(curRetry);curRetry=math.min(curRetry*2,maxRetryDelay) end; local s,d=pcall(game.HttpGet,game,serversUrlBase..(nextCur and "&cursor="..nextCur or ""),true);if s then pFetched=true;local sListD=HttpService:JSONDecode(d);if sListD and sListD.data then local pSuitS={}; for _,sInf in ipairs(sListD.data)do if not(sInf.id==currentJobId or serverHistoryCache[sInf.id])then if sInf.playing and sInf.maxPlayers and sInf.maxPlayers>0 then local pR=sInf.playing/sInf.maxPlayers if pR>=SETTINGS.MinPlayerPercentage and pR<SETTINGS.MaxPlayerPercentage and sInf.playing<sInf.maxPlayers then table.insert(pSuitS,sInf)end end end end; if #pSuitS>0 then chosenServer=pSuitS[math.random(1,#pSuitS)];allScanned=true;break end; nextCur=sListD.nextPageCursor;if not nextCur then allScanned=true;end else updateDisplay("ERROR","Dữ liệu server lỗi.")end else updateDisplay("ERROR","Lỗi API.");if pAtt>=maxAtt then allScanned=true end end end;if chosenServer or allScanned then break end;task.wait(waitTimeBetweenPageFetches) end; if chosenServer then updateDisplay("SUCCESS", "ĐÃ CHỌN SERVER!");sLActive=false elseif allScanned then updateDisplay("INFO", string.format("Không tìm thấy. Chờ %ds.",waitTimeBetweenFullScans));task.wait(waitTimeBetweenFullScans)end end; if chosenServer then updateDisplay("SUCCESS", "Chuẩn bị dịch chuyển..."); addJobIdToHistoryAndSave(currentJobId); task.wait(1); local sTP,eTP=pcall(TeleportService.TeleportToPlaceInstance,TeleportService,placeId,chosenServer.id,LocalPlayer); if not sTP then updateDisplay("ERROR", "Lỗi dịch chuyển! Thử lại..."); serverHistoryCache[chosenServer.id]=true;chosenServer=nil;task.wait(5);searchForServer() end else updateDisplay("ERROR", "Không thể tìm thấy server. Dừng lại.") end end
+
+-- --- Quản lý AFK (Countdown, Donate, Player Count) ---
+function startInitialCountdown() 
+    updateDisplay("INFO", "Bắt đầu chu trình..."); 
+    if currentCountdownThread and coroutine.status(currentCountdownThread) ~= "dead" then pcall(coroutine.close, currentCountdownThread); currentCountdownThread = nil end
+    
+    local function performCountdownThenSearch(minutesToWait) 
+        if not minutesToWait or minutesToWait <= 0 then 
+            updateDisplay("ERROR", "Thời gian chờ lỗi.");
+            searchForServer();
+            return 
         end
+        
+        if not SETTINGS.EnableCountdownText then 
+            if statusTextLabel then statusTextLabel.Text = "" end 
+        end
+        if not SETTINGS.EnableCountdownColor then 
+            if statusFrame then statusFrame.BackgroundTransparency = 1 end 
+        end
+        
+        local totalS = minutesToWait * 60
+        for i = totalS, 0, -1 do 
+            if countdownShouldReset and SETTINGS.EnableDonateReset then 
+                countdownShouldReset = false
+                if statusTextLabel then statusTextLabel.Text = "" end
+                if statusFrame then statusFrame.BackgroundTransparency = 1 end
+                updateDisplay("SUCCESS", "Donate! Reset thời gian.")
+                startInitialCountdown()
+                return 
+            end
+            
+            if SETTINGS.EnableCountdownText then 
+                if statusTextLabel and statusTextLabel.Parent then
+                    local currentPlayers = #Players:GetPlayers()
+                    local maxPlayers = Players.MaxPlayers
+                    
+                    local playerCountText = string.format("%d/%d", currentPlayers, maxPlayers)
+                    local timerText = string.format("%02d:%02d", math.floor(i/60), i%60)
+                    statusTextLabel.Text = string.format("%s\n%s", timerText, playerCountText)
+                    statusTextLabel.TextColor3 = Color3.new(1,1,1) 
+                end 
+            end
+            
+            if SETTINGS.EnableCountdownColor then 
+                if statusFrame and statusFrame.Parent then 
+                    -- [THAY ĐỔI] Sử dụng màu hex cố định thay vì hiệu ứng nhấp nháy.
+                    local success, color = pcall(Color3.fromHex, SETTINGS.CountdownFixedColorHex or "#FFFFFF")
+                    if success then
+                        statusFrame.BackgroundColor3 = color
+                    else
+                        -- Nếu mã hex không hợp lệ, dùng màu mặc định để tránh lỗi
+                        print("[UI] Lỗi mã hex không hợp lệ, sử dụng màu mặc định.")
+                        statusFrame.BackgroundColor3 = NEON_COLORS.BLUE 
+                    end
+                    statusFrame.BackgroundTransparency = 0.6 
+                end 
+            end
+            
+            task.wait(1) 
+        end
+        
+        if statusTextLabel then statusTextLabel.Text = "" end
+        if statusFrame then statusFrame.BackgroundTransparency = 1 end
+        updateDisplay("SUCCESS", "Hết giờ! Bắt đầu tìm server...")
+        searchForServer() 
     end
-    -- Nếu không có, fallback sang game:HttpGet
-    local ok, body = pcall(function()
-        return game:HttpGet(url, true)
+    
+    currentCountdownThread = coroutine.create(function() 
+        local s,e = pcall(performCountdownThenSearch, SETTINGS.WaitMinutes)
+        if not s then 
+            updateDisplay("ERROR", "Lỗi Coroutine. Thử lại sau 5s...")
+            task.wait(5)
+            if SETTINGS.EnableServerHop then startInitialCountdown() end 
+        end 
     end)
-    if ok then
-        return body
-    end
-    return nil
+    coroutine.resume(currentCountdownThread) 
 end
 
-local chosenServer = nil; local serversUrlBase = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Desc&limit=100"
-function searchForServer()
-    -- Tải lịch sử từ file (nếu có thể) chỉ một lần khi bắt đầu
-    if not SETTINGS.EnableFileHistory then serverHistoryCache = {} else loadServerHistory() end
-    local histC = 0
-    for _ in pairs(serverHistoryCache) do histC = histC + 1 end
-    updateDisplay("INFO", string.format("Bắt đầu tìm server... (Tránh %d)", histC + 1))
+-- Hàm kiểm tra số người chơi định kỳ
+local function startPlayerCountMonitor()
+    if not SETTINGS.EnablePlayerCountCheck or (SETTINGS.MinPlayerThreshold or 0) <= 0 then return end
+    if playerMonitorThread and coroutine.status(playerMonitorThread) ~= "dead" then pcall(coroutine.close, playerMonitorThread); playerMonitorThread = nil end
 
-    -- Sử dụng vòng lặp thay vì đệ quy để tránh reset cache
-    while true do
-        chosenServer = nil
-        local searchMode = "Desc" -- Bắt đầu bằng việc tìm từ server nhiều người nhất
-        local nextCur = nil
-        updateDisplay("INFO", "Đang quét server (" .. searchMode .. ")...")
-        local allScannedInMode = false
+    playerMonitorThread = coroutine.create(function()
+        while true do
+            task.wait(60) -- Kiểm tra mỗi 60 giây
+            if not SETTINGS.EnablePlayerCountCheck or not SETTINGS.EnableServerHop then break end
 
-        while not allScannedInMode and not chosenServer do
-            local pAtt = 0
-            local maxAtt = 4
-            local pFetched = false
-            local curRetry = baseRetryDelay
-
-            while not pFetched and pAtt < maxAtt do
-                pAtt = pAtt + 1
-                if pAtt > 1 then
-                    updateDisplay("INFO", string.format("Thử lại (%d/%d)...", pAtt, maxAtt))
-                    task.wait(curRetry)
-                    curRetry = math.min(curRetry * 2, maxRetryDelay)
-                end
+            local currentPlayers = #Players:GetPlayers()
+            if currentPlayers < SETTINGS.MinPlayerThreshold then
+                updateDisplay("ERROR", string.format("Server vắng! (%d/%d người)\nĐang tìm server mới...", currentPlayers, SETTINGS.MinPlayerThreshold))
                 
-                local currentUrl = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=" .. searchMode .. "&limit=100"
-                local d = httpGet(currentUrl .. (nextCur and "&cursor=" .. nextCur or ""))
-                local s = d ~= nil
-
-                if s then
-                    pFetched = true
-                    local sListD, dec_err = pcall(HttpService.JSONDecode, HttpService, d)
-                    if sListD and sListD.data then
-                        local pSuitS = {}
-                        for _, sInf in ipairs(sListD.data) do
-                            if not (sInf.id == currentJobId or serverHistoryCache[sInf.id]) then
-                                if sInf.playing and sInf.maxPlayers and sInf.maxPlayers > 0 then
-                                    local pR = sInf.playing / sInf.maxPlayers
-                                    if pR >= SETTINGS.MinPlayerPercentage and pR < SETTINGS.MaxPlayerPercentage and sInf.playing < sInf.maxPlayers then
-                                        table.insert(pSuitS, sInf)
-                                    end
-                                end
-                            end
-                        end
-                        if #pSuitS > 0 then
-                            chosenServer = pSuitS[math.random(1, #pSuitS)]
-                            break -- Thoát khỏi vòng lặp quét trang khi đã tìm thấy server
-                        end
-                        nextCur = sListD.nextPageCursor
-                        if not nextCur then allScannedInMode = true end
-                    else
-                        updateDisplay("ERROR", "Lỗi giải mã JSON.")
-                    end
-                else
-                    updateDisplay("ERROR", "Lỗi API.")
-                    if pAtt >= maxAtt then allScannedInMode = true end
-                end
-            end
-            if chosenServer or allScannedInMode then break end
-            task.wait(waitTimeBetweenPageFetches)
-        end
-
-        -- Xử lý kết quả sau khi quét
-        if chosenServer then
-            updateDisplay("SUCCESS", "ĐÃ CHỌN SERVER! Chuẩn bị dịch chuyển...")
-            addJobIdToHistoryAndSave(currentJobId) -- Lưu server hiện tại
-            task.wait(1)
-            
-            local sTP, eTP = pcall(TeleportService.TeleportToPlaceInstance, TeleportService, placeId, chosenServer.id, LocalPlayer)
-            
-            if sTP then
-                -- Dịch chuyển thành công, thoát khỏi vòng lặp chính
-                return
+                -- Dừng các coroutine khác trước khi chuyển server
+                if currentCountdownThread and coroutine.status(currentCountdownThread) ~= "dead" then pcall(coroutine.close, currentCountdownThread); currentCountdownThread = nil end
+                if playerMonitorThread and coroutine.status(playerMonitorThread) ~= "dead" then pcall(coroutine.close, playerMonitorThread); playerMonitorThread = nil end
+                
+                task.wait(3) -- Chờ người dùng đọc thông báo
+                searchForServer()
+                break -- Thoát vòng lặp vì sắp chuyển server
             else
-                -- Dịch chuyển thất bại, thêm server lỗi vào cache và lặp lại
-                updateDisplay("ERROR", "Lỗi dịch chuyển! Đang tìm server khác...")
-                serverHistoryCache[chosenServer.id] = true
-                chosenServer = nil
-                task.wait(3) -- Chờ một chút trước khi thử lại
+                print(string.format("[PlayerMonitor] Check OK: %d/%d players.", currentPlayers, SETTINGS.MinPlayerThreshold))
             end
-        else
-            -- Không tìm thấy server nào sau khi quét hết
-            updateDisplay("ERROR", string.format("Không tìm thấy server phù hợp. Chờ %ds.", waitTimeBetweenFullScans))
-            task.wait(waitTimeBetweenFullScans)
         end
-    end
+    end)
+    coroutine.resume(playerMonitorThread)
 end
 
 -- --- Các hàm thiết lập (Reconnect, AutoReply, Webhook) ---
