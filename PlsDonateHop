@@ -23,7 +23,7 @@ local SETTINGS = {
     -- [THAY ĐỔI] Thêm công tắc bật/tắt bộ lọc server.
     -- Nếu 'true', sẽ lọc server theo Min/Max PlayerPercentage (server vừa phải).
     -- Nếu 'false', sẽ vào server đông nhất có thể tham gia.
-    ["EnableServerFilter"] = true, 
+    ["EnableServerFilter"] = false, 
     ["EnableSafePlatform"] = true,
     ["EnableStaticAfkView"] = true,
     ["EnableDonateReset"] = true,
