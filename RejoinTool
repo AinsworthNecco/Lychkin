@@ -1,119 +1,150 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # Script quan ly toan dien chu trinh cua Roblox: Mo, kiem tra, duy tri, va khoi dong lai dinh ky.
-# PHIEN BAN HOAN CHINH: Tu dong yeu cau root, su dung 'kill' de tat, va co chu trinh hoat dong phuc tap.
+# PHIEN BAN IM LANG: Loai bo tat ca 'echo', chi hoat dong ngam va gui webhook.
+# b c d e f g h i j k l m n o p q r s t u v w x y z
+#---------------------------------------------------
+# -- CAI DAT CHINH --
+#---------------------------------------------------
 
-#----------------- CAI DAT -----------------
 EnableRestartCycle=true
 Suffixes="b c d e f"
 VipServerUrl="roblox://placeId=8737602449"
 OpenDelay=10
 CheckInterval=20
-RestartInterval=7200
+RestartInterval=7200 # 7200 giay = 2 tieng
 Cooldown=10
 BasePackageName="com.roblox.clien"
 
-# URL Webhook để thông báo (vd: Discord)
+# URL Webhook de thong bao (vd: Discord)
 WebhookUrl="https://discord.com/api/webhooks/1251040771952349274/uNLajABQNI711STH8eKvzmcckjz1w_-CsJxYNkobgpSnUTIhIlxM4gaT9A6bAfT9xFdd"
 
-# URL ảnh hiển thị trong embed (thay nếu bạn muốn ảnh khác)
-EmbedImage="https://i.pinimg.com/1200x/dd/d2/e8/ddd2e825294499abcb26576d9a815908.jpg"
+# URL hinh anh cho thong bao webhook
+# Hinh anh khi khoi dong thanh cong
+SuccessImageUrl="https://i.pinimg.com/736x/a0/a2/f7/a0a2f7c80479aa63df402b1502847e28.jpg"
+# Hinh anh khi khoi dong lai
+RestartImageUrl="https://i.pinimg.com/736x/a0/a2/f7/a0a2f7c80479aa63df402b1502847e28.jpg"
 
-# Màu hồng (hex FF69B4) -> decimal
-EMBED_COLOR=16738740
-#-------------------------------------------
-
-# Nếu không chạy với quyền root thì thử chạy lại bằng su
+#---------------------------------------------------
+# -- TU DONG KIEM TRA ROOT --
+#---------------------------------------------------
 if [[ $EUID -ne 0 ]]; then
-  su -c "bash \"$0\""
-  exit 0
+    su -c "bash \"$0\""
+    exit 0
 fi
 
-# Chuyển Suffixes thành mảng các package đầy đủ
+#---------------------------------------------------
+# -- HAM GUI WEBHOOK --
+#---------------------------------------------------
+function send_webhook() {
+    # Kiem tra xem WebhookUrl co duoc cau hinh khong
+    if [[ -z "$WebhookUrl" ]]; then
+        return
+    fi
+
+    local message_content="$1"
+    local image_url="$2"
+    local embed_color=16750204 # Mau hong (Pink)
+
+    # Tao payload JSON cho Discord Embed
+    json_payload=$(cat <<EOF
+{
+  "content": null,
+  "embeds": [
+    {
+      "description": "${message_content}",
+      "color": ${embed_color},
+      "image": {
+        "url": "${image_url}"
+      },
+      "timestamp": "$(date -u +%Y-%m-%dT%H:%M:%S.000Z)",
+      "footer": {
+        "text": "Roblox Management Script"
+      }
+    }
+  ],
+  "attachments": []
+}
+EOF
+)
+
+    # Gui webhook bang cURL
+    curl -H "Content-Type: application/json" \
+         -X POST \
+         -d "$json_payload" \
+         "$WebhookUrl" >/dev/null 2>&1
+}
+
+
+#---------------------------------------------------
+# -- LOGIC CHINH --
+#---------------------------------------------------
 read -r -a suffixes_array <<< "$Suffixes"
 all_packages=()
 for suffix in "${suffixes_array[@]}"; do
-  all_packages+=("${BasePackageName}${suffix}")
+    all_packages+=("${BasePackageName}${suffix}")
 done
 totalInstances=${#all_packages[@]}
+
 if (( totalInstances == 0 )); then
-  exit 1
+    exit 1
 fi
 
-# Hàm gửi embed lên Discord (mã màu hồng, message trong code block, kèm ảnh)
-send_embed() {
-  [ -z "$WebhookUrl" ] && return 0
-  local title="$1"
-  local body="$2"
-
-  # escape body: backslash, double-quote, newline -> \n
-  local body_escaped
-  body_escaped=$(printf '%s' "$body" | sed -e ':a' -e 'N' -e '$!ba' -e 's/\\/\\\\/g' -e 's/"/\\"/g' -e 's/\n/\\n/g')
-
-  local payload
-  payload=$(cat <<EOF
-{"embeds":[{"title":"$title","description":"\`\`\`$body_escaped\`\`\`","color":$EMBED_COLOR,"image":{"url":"$EmbedImage"}}]}
-EOF
-)
-  curl -s -H "Content-Type: application/json" -X POST -d "$payload" "$WebhookUrl" >/dev/null 2>&1
-}
-
-# Mở và kiểm tra các phiên bản
-open_and_check() {
-  for package in "${all_packages[@]}"; do
-    am start -a android.intent.action.VIEW -d "$VipServerUrl" -p "$package" >/dev/null 2>&1
-    sleep "$OpenDelay"
-  done
-
-  for i in 1 2; do
-    sleep "$CheckInterval"
-    not_running_packages=()
+function open_and_check() {
     for package in "${all_packages[@]}"; do
-      if ! pidof "$package" >/dev/null 2>&1; then
-        not_running_packages+=("$package")
-      fi
+        am start -a android.intent.action.VIEW -d "$VipServerUrl" -p "$package"
+        sleep "$OpenDelay"
     done
 
-    if (( ${#not_running_packages[@]} > 0 )); then
-      for p in "${not_running_packages[@]}"; do
-        am start -a android.intent.action.VIEW -d "$VipServerUrl" -p "$p" >/dev/null 2>&1
-        sleep "$OpenDelay"
-      done
-    else
-      break
-    fi
-  done
+    for i in 1 2; do
+        sleep "$CheckInterval"
+        
+        not_running_packages=()
+        for package in "${all_packages[@]}"; do
+            if ! pidof "$package" > /dev/null; then
+                not_running_packages+=("$package")
+            fi
+        done
+
+        if (( ${#not_running_packages[@]} > 0 )); then
+            for package_to_start in "${not_running_packages[@]}"; do
+                am start -a android.intent.action.VIEW -d "$VipServerUrl" -p "$package_to_start"
+                sleep "$OpenDelay"
+            done
+        else
+            break
+        fi
+    done
 }
 
 if [ "$EnableRestartCycle" = true ]; then
-  first_run=true
-  while true; do
-    open_and_check
+    while true; do
+        open_and_check
 
-    if $first_run && [[ -n "$WebhookUrl" ]]; then
-      msg="Sẽ tắt và khởi động lại sau ${RestartInterval} giây\nThời gian hiện tại: $(date '+%Y-%m-%d %H:%M:%S')"
-      send_embed "✅ Roblox đã mở thành công" "$msg"
-      first_run=false
-    fi
+        # --- GUI WEBHOOK KHI KHOI DONG THANH CONG ---
+        initial_message="✅ **KHOI DONG THANH CONG!**\n\nTat ca cac phien ban da chay.\nChu trinh se khoi dong lai sau: \`$((RestartInterval / 3600)) gio $(((RestartInterval % 3600) / 60)) phut\`"
+        send_webhook "$initial_message" "$SuccessImageUrl"
 
-    sleep "$RestartInterval"
+        sleep "$RestartInterval"
 
-    for package_to_stop in "${all_packages[@]}"; do
-      pid_to_kill=$(pidof "$package_to_stop")
-      if [[ -n "$pid_to_kill" ]]; then
-        kill -9 $pid_to_kill >/dev/null 2>&1
-      fi
+        for package_to_stop in "${all_packages[@]}"; do
+            pid_to_kill=$(pidof "$package_to_stop")
+            if [[ -n "$pid_to_kill" ]]; then
+                kill -9 "$pid_to_kill"
+            fi
+        done
+
+        # --- GUI WEBHOOK KHI KHOI DONG LAI ---
+        restart_message="⏳ **CHU TRINH KHOI DONG LAI**\n\nDa tat cac phien ban. Se bat dau lai sau: \`${Cooldown} giay\`"
+        send_webhook "$restart_message" "$RestartImageUrl"
+
+        sleep "$Cooldown"
     done
-
-    if [[ -n "$WebhookUrl" ]]; then
-      msg="Đã tắt. Sẽ mở lại sau ${Cooldown} giây\nThời gian hiện tại: $(date '+%Y-%m-%d %H:%M:%S')"
-      send_embed "⏳ Roblox đã tắt" "$msg"
-    fi
-
-    sleep "$Cooldown"
-  done
 else
-  open_and_check
-  exit 0
+    open_and_check
+    # --- GUI WEBHOOK KHI HOAN TAT (CHE DO 1 LAN) ---
+    final_message="🏁 **HOAN TAT**\n\nScript da chay xong va se ket thuc (EnableRestartCycle=false)."
+    send_webhook "$final_message" "$SuccessImageUrl"
+    exit 0
 fi
 
 exit 0
