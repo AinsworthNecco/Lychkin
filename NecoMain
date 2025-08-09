@@ -106,7 +106,10 @@ local function optimizeForCpu() if not SETTINGS.EnableCpuOptimization then retur
 local function optimizeGraphics() updateDisplay("INFO", "Bắt đầu tối ưu đồ họa..."); if SETTINGS.EnableSafePlatform then createSafePlatform(); end; task.wait(0.1); pcall(function() local itemsToDel={}; for _,item in pairs(game.Workspace:GetChildren()) do local keep=(LocalPlayer.Character and item.Name==LocalPlayer.Character.Name)or(item==workspace.CurrentCamera)or(SETTINGS.EnableSafePlatform and item.Name==AFK_PLATFORM_NAME)or(SETTINGS.EnableStaticAfkView and(item.Name==STATIC_HEAD_ANCHOR_PART_NAME or item.Name==STATIC_BLACK_SCREEN_PART_NAME));if not keep then table.insert(itemsToDel,item)end end; for _,item in ipairs(itemsToDel)do pcall(function()item:Destroy()end)end;Lighting.GlobalShadows,Lighting.Brightness,Lighting.Ambient,Lighting.OutdoorAmbient,Lighting.ExposureCompensation=false,0,Color3.new(0,0,0),Color3.new(0,0,0),-2;pcall(function()Lighting.Atmosphere:Destroy()end);pcall(function()Lighting.Sky:Destroy()end); if LocalPlayer.PlayerGui then for _,gui in pairs(LocalPlayer.PlayerGui:GetChildren())do if gui.Name~=SERVER_HOP_GUI_NAME then pcall(function()gui:Destroy()end)end end end;local sO=settings();if sO and sO.Rendering then sO.Rendering.QualityLevel=Enum.QualityLevel.Level01;pcall(function()if RunService:IsClient()then RunService:Set3dRenderingEnabled(false)end end)end;SoundService.RespectFilteringEnabled,SoundService.AmbientReverb=true,Enum.ReverbType.NoReverb;for _,sound in pairs(game:GetDescendants())do if sound:IsA("Sound")then sound.Volume=0;sound:Stop()end end; end); updateDisplay("SUCCESS", "Đồ họa đã được tối ưu."); end
 
 -- --- Logic Tìm Server ---
-local chosenServer = nil; local serversUrlBase = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Desc&limit=100"
+local chosenServer = nil; local serversUrlBase = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Asc&limit=100"
+-- =================================================================
+-- HÀM TÌM SERVER (ĐÃ CẬP NHẬT LOGIC)
+-- =================================================================
 function searchForServer()
     -- Tải lịch sử server đã truy cập
     if not SETTINGS.EnableFileHistory then serverHistoryCache = {} else loadServerHistory() end
@@ -212,6 +215,112 @@ function searchForServer()
     else
         updateDisplay("ERROR", "Không thể tìm thấy server nào phù hợp. Dừng lại.")
     end
+end
+
+-- --- Quản lý AFK (Countdown, Donate, Player Count) ---
+function startInitialCountdown() 
+    updateDisplay("INFO", "Bắt đầu chu trình..."); 
+    if currentCountdownThread and coroutine.status(currentCountdownThread) ~= "dead" then pcall(coroutine.close, currentCountdownThread); currentCountdownThread = nil end
+    
+    local function performCountdownThenSearch(minutesToWait) 
+        if not minutesToWait or minutesToWait <= 0 then 
+            updateDisplay("ERROR", "Thời gian chờ lỗi.");
+            searchForServer();
+            return 
+        end
+        
+        if not SETTINGS.EnableCountdownText then 
+            if statusTextLabel then statusTextLabel.Text = "" end 
+        end
+        if not SETTINGS.EnableCountdownColor then 
+            if statusFrame then statusFrame.BackgroundTransparency = 1 end 
+        end
+        
+        local totalS = minutesToWait * 60
+        for i = totalS, 0, -1 do 
+            if countdownShouldReset and SETTINGS.EnableDonateReset then 
+                countdownShouldReset = false
+                if statusTextLabel then statusTextLabel.Text = "" end
+                if statusFrame then statusFrame.BackgroundTransparency = 1 end
+                updateDisplay("SUCCESS", "Donate! Reset thời gian.")
+                startInitialCountdown()
+                return 
+            end
+            
+            if SETTINGS.EnableCountdownText then 
+                if statusTextLabel and statusTextLabel.Parent then
+                    local currentPlayers = #Players:GetPlayers()
+                    local maxPlayers = Players.MaxPlayers
+                    
+                    local playerCountText = string.format("%d/%d", currentPlayers, maxPlayers)
+                    local timerText = string.format("%02d:%02d", math.floor(i/60), i%60)
+                    statusTextLabel.Text = string.format("%s\n%s", timerText, playerCountText)
+                    statusTextLabel.TextColor3 = Color3.new(1,1,1) 
+                end 
+            end
+            
+            if SETTINGS.EnableCountdownColor then 
+                if statusFrame and statusFrame.Parent then 
+                    -- [THAY ĐỔI] Sử dụng màu hex cố định thay vì hiệu ứng nhấp nháy.
+                    local success, color = pcall(Color3.fromHex, SETTINGS.CountdownFixedColorHex or "#FFFFFF")
+                    if success then
+                        statusFrame.BackgroundColor3 = color
+                    else
+                        -- Nếu mã hex không hợp lệ, dùng màu mặc định để tránh lỗi
+                        print("[UI] Lỗi mã hex không hợp lệ, sử dụng màu mặc định.")
+                        statusFrame.BackgroundColor3 = NEON_COLORS.BLUE 
+                    end
+                    statusFrame.BackgroundTransparency = 0.6 
+                end 
+            end
+            
+            task.wait(1) 
+        end
+        
+        if statusTextLabel then statusTextLabel.Text = "" end
+        if statusFrame then statusFrame.BackgroundTransparency = 1 end
+        updateDisplay("SUCCESS", "Hết giờ! Bắt đầu tìm server...")
+        searchForServer() 
+    end
+    
+    currentCountdownThread = coroutine.create(function() 
+        local s,e = pcall(performCountdownThenSearch, SETTINGS.WaitMinutes)
+        if not s then 
+            updateDisplay("ERROR", "Lỗi Coroutine. Thử lại sau 5s...")
+            task.wait(5)
+            if SETTINGS.EnableServerHop then startInitialCountdown() end 
+        end 
+    end)
+    coroutine.resume(currentCountdownThread) 
+end
+
+-- Hàm kiểm tra số người chơi định kỳ
+local function startPlayerCountMonitor()
+    if not SETTINGS.EnablePlayerCountCheck or (SETTINGS.MinPlayerThreshold or 0) <= 0 then return end
+    if playerMonitorThread and coroutine.status(playerMonitorThread) ~= "dead" then pcall(coroutine.close, playerMonitorThread); playerMonitorThread = nil end
+
+    playerMonitorThread = coroutine.create(function()
+        while true do
+            task.wait(60) -- Kiểm tra mỗi 60 giây
+            if not SETTINGS.EnablePlayerCountCheck or not SETTINGS.EnableServerHop then break end
+
+            local currentPlayers = #Players:GetPlayers()
+            if currentPlayers < SETTINGS.MinPlayerThreshold then
+                updateDisplay("ERROR", string.format("Server vắng! (%d/%d người)\nĐang tìm server mới...", currentPlayers, SETTINGS.MinPlayerThreshold))
+                
+                -- Dừng các coroutine khác trước khi chuyển server
+                if currentCountdownThread and coroutine.status(currentCountdownThread) ~= "dead" then pcall(coroutine.close, currentCountdownThread); currentCountdownThread = nil end
+                if playerMonitorThread and coroutine.status(playerMonitorThread) ~= "dead" then pcall(coroutine.close, playerMonitorThread); playerMonitorThread = nil end
+                
+                task.wait(3) -- Chờ người dùng đọc thông báo
+                searchForServer()
+                break -- Thoát vòng lặp vì sắp chuyển server
+            else
+                print(string.format("[PlayerMonitor] Check OK: %d/%d players.", currentPlayers, SETTINGS.MinPlayerThreshold))
+            end
+        end
+    end)
+    coroutine.resume(playerMonitorThread)
 end
 
 -- --- Các hàm thiết lập (Reconnect, AutoReply, Webhook) ---
