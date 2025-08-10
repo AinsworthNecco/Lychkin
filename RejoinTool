@@ -1,15 +1,10 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# Script quan ly Roblox voi logic hoat dong lien tuc va co the tuy chinh.
-# LOGIC: Lien tuc kiem tra 5 phut/lan. Co the bat/tat khoi dong lai toan bo sau moi 3 gio.
+# Script Roblox voi logic sieu don gian: Cu 5 phut la gui lenh join lai cho tat ca.
+# LOGIC: Khong kiem tra, khong quan tam trang thai, chi lap di lap lai hanh dong join.
 #---------------------------------------------------
 # -- CAI DAT CHINH --
 # Tat ca cac tuy chinh deu o day.
 #---------------------------------------------------
-# b c d e f g h i j k l m n o p q r s t u v w x y z
-# Bat/Tat chu trinh khoi dong lai sau 3 gio.
-# true:  Lien tuc kiem tra -> Sau 3 gio se tat toan bo -> Lap lai.
-# false: Lien tuc kiem tra -> Khong bao gio tu dong tat.
-EnablePeriodicRestart=true
 
 # Them hoac xoa cac hau to phien ban ban muon mo (phan cach boi dau cach)
 Suffixes="b c d e f"
@@ -17,40 +12,22 @@ Suffixes="b c d e f"
 # URL cua VIP Server ban muon tham gia
 VipServerUrl="roblox://placeId=8737602449"
 
-# Thoi gian (giay) cho giua moi lan mo mot phien ban
+# Thoi gian (giay) cho giua moi lan gui lenh join
 OpenDelay=10
 
-# Thoi gian (giay) script se kiem tra cac phien ban (300 giay = 5 phut)
-CheckInterval=300
-
-# Thoi gian (giay) script se tat toan bo cac phien ban (10800 giay = 3 gio)
-# Chi co tac dung khi EnablePeriodicRestart=true
-RestartInterval=10800
+# Thoi gian (giay) script se cho truoc khi lap lai chu ky join (300 giay = 5 phut)
+RejoinInterval=60
 
 # Ten goi co ban cua Roblox (khong nen thay doi)
 BasePackageName="com.roblox.clien"
-
-#---------------------------------------------------
-# -- TU DONG KIEM TRA ROOT --
-#---------------------------------------------------
-# Kiem tra xem script co dang chay voi quyen root khong (EUID = 0)
-if [[ $EUID -ne 0 ]]; then
-    echo "Script nay can quyen root de thuc thi 'kill'."
-    echo "Dang co gang chay lai script voi 'su'..."
-    # Chay lai script voi su va truyen tat ca cac tham so
-    su -c "bash \"$0\" \"$@\""
-    exit 0
-fi
 
 #---------------------------------------------------
 # -- LOGIC CHINH --
 # Khong can sua phan duoi day.
 #---------------------------------------------------
 
-echo "THANH CONG: Script dang chay voi quyen root."
-echo "--- KHOI DONG SCRIPT QUAN LY ROBLOX LIEN TUC ---"
-echo "Che do khoi dong lai dinh ky (3 gio): $EnablePeriodicRestart"
-echo "Chu ky kiem tra (5 phut): $CheckInterval giay."
+echo "--- KHOI DONG SCRIPT FORCE REJOIN ROBLOX ---"
+echo "Chu ky gui lai lenh join: $RejoinInterval giay."
 
 # Chuyen chuoi Suffixes thanh mot mang cac ten goi day du
 read -r -a suffixes_array <<< "$Suffixes"
@@ -65,69 +42,29 @@ if (( totalInstances == 0 )); then
     exit 1
 fi
 
-# Ham kiem tra va mo cac phien ban con thieu
-function check_and_open_missing() {
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] Dang kiem tra cac phien ban..."
-    not_running_packages=()
+# Ham thuc hien viec gui lai lenh join cho tat ca
+function force_rejoin_all() {
+    echo "================================================="
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] BAT DAU CHU KY MOI. Gui lenh join cho $totalInstances phien ban..."
     for package in "${all_packages[@]}"; do
-        if ! pidof "$package" > /dev/null; then
-            not_running_packages+=("$package")
-        fi
+        echo "  => Gui lenh join den: $package"
+        # Su dung 'am start' de gui intent tham gia server
+        am start -a android.intent.action.VIEW -d "$VipServerUrl" -p "$package"
+        # Cho mot chut de he thong khong bi qua tai
+        sleep "$OpenDelay"
     done
-
-    if (( ${#not_running_packages[@]} > 0 )); then
-        echo "Phat hien ${#not_running_packages[@]} phien ban chua chay. Dang mo lai..."
-        for package_to_start in "${not_running_packages[@]}"; do
-            echo "  => Mo lai: $package_to_start"
-            am start -a android.intent.action.VIEW -d "$VipServerUrl" -p "$package_to_start"
-            sleep "$OpenDelay"
-        done
-    else
-        echo "Tat ca $totalInstances phien ban deu dang chay."
-    fi
+    echo "Da hoan tat gui lenh cho tat ca."
 }
-
-# Ham tat toan bo cac phien ban
-function kill_all_instances() {
-    echo "================================================="
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] DA DEN GIO KHOI DONG LAI. Dang tat toan bo..."
-    for package_to_stop in "${all_packages[@]}"; do
-        # Tim PID cua package
-        pid_to_kill=$(pidof "$package_to_stop")
-        if [[ -n "$pid_to_kill" ]]; then
-            # Su dung kill -9 de dam bao tat hoan toan
-            echo "  => Dung phien ban $package_to_stop (PID: $pid_to_kill) bang lenh 'kill -9'."
-            kill -9 "$pid_to_kill"
-        else
-            echo "  => Phien ban $package_to_stop da tu dong."
-        fi
-    done
-    echo "Da hoan tat viec dung cac phien ban."
-    echo "================================================="
-}
-
-# Lay thoi diem bat dau de tinh toan cho chu ky khoi dong lai
-last_restart_time=$(date +%s)
 
 # Vong lap chinh, chay vo han
 while true; do
-    # --- Buoc 1: Kiem tra xem da den luc khoi dong lai toan bo chua (neu da bat) ---
-    if [ "$EnablePeriodicRestart" = true ]; then
-        current_time=$(date +%s)
-        if (( current_time - last_restart_time >= RestartInterval )); then
-            kill_all_instances
-            # Dat lai moc thoi gian khoi dong lai
-            last_restart_time=$(date +%s)
-        fi
-    fi
+    # Luon luon goi ham de gui lenh join
+    force_rejoin_all
 
-    # --- Buoc 2: Kiem tra va mo cac phien ban con thieu ---
-    check_and_open_missing
-
-    # --- Buoc 3: Cho cho den lan kiem tra tiep theo ---
+    # Cho het 5 phut roi lap lai
     echo "-------------------------------------------------"
-    echo "Script se cho $CheckInterval giay truoc khi kiem tra lai..."
-    sleep "$CheckInterval"
+    echo "Script se cho $RejoinInterval giay truoc khi bat dau lai tu dau."
+    sleep "$RejoinInterval"
 done
 
 exit 0
