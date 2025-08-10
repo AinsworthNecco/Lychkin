@@ -5,7 +5,7 @@
 # -- CAI DAT CHINH --
 # Tat ca cac tuy chinh deu o day.
 #---------------------------------------------------
-
+# b c d e f g h i j k l m n o p q r s t u v w x y z
 # Bat/Tat chu trinh khoi dong lai sau 3 gio.
 # true:  Lien tuc kiem tra -> Sau 3 gio se tat toan bo -> Lap lai.
 # false: Lien tuc kiem tra -> Khong bao gio tu dong tat.
