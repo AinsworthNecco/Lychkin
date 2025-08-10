@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# Script Roblox voi logic sieu don gian: Cu 5 phut la gui lenh join lai cho tat ca.
-# LOGIC: Khong kiem tra, khong quan tam trang thai, chi lap di lap lai hanh dong join.
+# Script Roblox ket hop: Force Rejoin 5 phut/lan, Kill All 3 gio/lan, va chong crash.
+# LOGIC: Kich hoat Wake Lock -> Vong lap (Clear -> Kiem tra 3 gio -> Join tat ca) -> Doi 5 phut.
 #---------------------------------------------------
 # -- CAI DAT CHINH --
 # Tat ca cac tuy chinh deu o day.
@@ -16,18 +16,38 @@ VipServerUrl="roblox://placeId=8737602449"
 OpenDelay=10
 
 # Thoi gian (giay) script se cho truoc khi lap lai chu ky join (300 giay = 5 phut)
-RejoinInterval=60
+RejoinInterval=300
+
+# Thoi gian (giay) script se tat toan bo cac phien ban (10800 giay = 3 gio)
+KillAllInterval=10800
 
 # Ten goi co ban cua Roblox (khong nen thay doi)
 BasePackageName="com.roblox.clien"
+
+#---------------------------------------------------
+# -- TU DONG KIEM TRA ROOT --
+#---------------------------------------------------
+# Kiem tra xem script co dang chay voi quyen root khong (EUID = 0)
+if [[ $EUID -ne 0 ]]; then
+    echo "Script nay can quyen root de thuc thi 'kill'."
+    echo "Dang co gang chay lai script voi 'su'..."
+    su -c "bash \"$0\" \"$@\""
+    exit 0
+fi
 
 #---------------------------------------------------
 # -- LOGIC CHINH --
 # Khong can sua phan duoi day.
 #---------------------------------------------------
 
-echo "--- KHOI DONG SCRIPT FORCE REJOIN ROBLOX ---"
-echo "Chu ky gui lai lenh join: $RejoinInterval giay."
+echo "--- KHOI DONG SCRIPT ROBLOX TOAN DIEN ---"
+
+# Buoc 1: Kich hoat Wake Lock de giu cho Termux luon chay
+echo "Dang kich hoat Wake Lock de chong crash..."
+termux-wake-lock &
+
+echo "Chu ky gui lenh join: $RejoinInterval giay."
+echo "Chu ky tat toan bo: $KillAllInterval giay."
 
 # Chuyen chuoi Suffixes thanh mot mang cac ten goi day du
 read -r -a suffixes_array <<< "$Suffixes"
@@ -42,28 +62,58 @@ if (( totalInstances == 0 )); then
     exit 1
 fi
 
+# Ham tat toan bo cac phien ban
+function kill_all_instances() {
+    echo "================================================="
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] DA DEN GIO. Dang tat toan bo $totalInstances phien ban..."
+    for package_to_stop in "${all_packages[@]}"; do
+        pid_to_kill=$(pidof "$package_to_stop")
+        if [[ -n "$pid_to_kill" ]]; then
+            echo "  => Dung phien ban $package_to_stop (PID: $pid_to_kill) bang lenh 'kill -9'."
+            kill -9 "$pid_to_kill"
+        fi
+    done
+    echo "Da hoan tat viec dung cac phien ban."
+}
+
 # Ham thuc hien viec gui lai lenh join cho tat ca
 function force_rejoin_all() {
     echo "================================================="
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] BAT DAU CHU KY MOI. Gui lenh join cho $totalInstances phien ban..."
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] BAT DAU CHU KY JOIN. Gui lenh cho $totalInstances phien ban..."
     for package in "${all_packages[@]}"; do
         echo "  => Gui lenh join den: $package"
-        # Su dung 'am start' de gui intent tham gia server
         am start -a android.intent.action.VIEW -d "$VipServerUrl" -p "$package"
-        # Cho mot chut de he thong khong bi qua tai
         sleep "$OpenDelay"
     done
     echo "Da hoan tat gui lenh cho tat ca."
 }
 
+# Lay thoi diem bat dau de tinh toan cho chu ky tat toan bo
+last_kill_time=$(date +%s)
+
 # Vong lap chinh, chay vo han
 while true; do
+    # Xoa man hinh de log khong bi tich tu
+    clear
+    
+    current_time=$(date +%s)
+    
+    # Kiem tra xem da den luc tat toan bo chua
+    if (( current_time - last_kill_time >= KillAllInterval )); then
+        kill_all_instances
+        # Dat lai moc thoi gian
+        last_kill_time=$(date +%s)
+        # Cho mot chut sau khi kill de he thong on dinh
+        echo "Cho 5 giay sau khi tat toan bo..."
+        sleep 5
+    fi
+
     # Luon luon goi ham de gui lenh join
     force_rejoin_all
 
     # Cho het 5 phut roi lap lai
     echo "-------------------------------------------------"
-    echo "Script se cho $RejoinInterval giay truoc khi bat dau lai tu dau."
+    echo "Script se cho $RejoinInterval giay truoc khi bat dau lai chu ky."
     sleep "$RejoinInterval"
 done
 
