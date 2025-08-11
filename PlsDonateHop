@@ -12,10 +12,10 @@ local SETTINGS = {
     ["WaitMinutes"] = 10,
     ["MinPlayerPercentage"] = 0.60,
     ["MaxPlayerPercentage"] = 0.99,
-    ["MaxServerHistorySize"] = 500, -- Xóa lịch sử server sau khi đã lưu X server. Đặt là 0 để tắt.
+    ["MaxServerHistorySize"] = 300, -- Xóa lịch sử server sau khi đã lưu X server. Đặt là 0 để tắt.
     
     -- [CÀI ĐẶT MỚI] Cải thiện tính ngẫu nhiên khi tìm server
-    ["MinSuitableServers"] = 3, -- Chỉ hop khi tìm thấy ít nhất X server phù hợp.
+    ["MinSuitableServers"] = 10, -- Chỉ hop khi tìm thấy ít nhất X server phù hợp.
     ["MaxScanPages"] = 5,       -- Quét tối đa X trang server để tìm kiếm (mỗi trang 100 server).
 
     -- Kiểm tra số người chơi định kỳ
