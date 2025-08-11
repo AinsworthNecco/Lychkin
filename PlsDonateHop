@@ -10,9 +10,9 @@ local SETTINGS = {
     -- CÀI ĐẶT SERVER HOP & AFK
     -- =================================================================
     ["WaitMinutes"] = 10,
-    ["MinPlayerPercentage"] = 0.60,
+    ["MinPlayerPercentage"] = 0.70,
     ["MaxPlayerPercentage"] = 0.99,
-    ["MaxServerHistorySize"] = 500, -- Xóa lịch sử server sau khi đã lưu X server. Đặt là 0 để tắt.
+    ["MaxServerHistorySize"] = 250, -- Xóa lịch sử server sau khi đã lưu X server. Đặt là 0 để tắt.
 
     -- Kiểm tra số người chơi định kỳ
     ["EnablePlayerCountCheck"] = true, -- Bật/tắt kiểm tra số người chơi mỗi phút.
