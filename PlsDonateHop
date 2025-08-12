@@ -3,7 +3,7 @@ local SETTINGS = {
     -- CÀI ĐẶT CHỐNG BOT
     -- =================================================================
     ["EnableAntiBotScan"] = true,
-    ["BOT_KEYWORDS"] = { "spin", "afk", "restaurant", "jump", "gift", "speed", "develop", "streaming", "live", "game", "birthday" },
+    ["BOT_KEYWORDS"] = { "spin", "afk", "restaurant", "jump", "gift", "speed", "develop", "streaming", "live", "game" },
     ["DETECTION_THRESHOLD"] = 4, -- Đặt là 1 để kiểm tra. Thay đổi lại sau khi test xong.
 
     -- =================================================================
@@ -159,13 +159,45 @@ function searchForServer()
                                 end
                             end
                         end;
+                        
+                        -- =================================================================
+                        -- SỬA LỖI RACE CONDITION (V2)
+                        -- =================================================================
                         if #pSuitS > 0 then
-                            chosenServer = pSuitS[math.random(1, #pSuitS)];
-                            -- SỬA LỖI: Lưu ID server mới ngay lập tức để các tài khoản khác không vào cùng.
-                            addJobIdToHistoryAndSave(chosenServer.id) 
-                            allScanned = true;
-                            break
-                        end;
+                            -- Xáo trộn danh sách server tiềm năng để tránh tất cả các script cùng nhắm vào server đầu tiên.
+                            for i = #pSuitS, 2, -1 do
+                                local j = math.random(i)
+                                pSuitS[i], pSuitS[j] = pSuitS[j], pSuitS[i]
+                            end
+
+                            -- Lặp qua từng server tiềm năng và kiểm tra lại lần cuối trước khi chọn.
+                            for _, candidateServer in ipairs(pSuitS) do
+                                -- Tải lại lịch sử MỚI NHẤT từ file để đảm bảo không có script nào khác đã chọn server này.
+                                loadServerHistory() 
+                                
+                                -- Kiểm tra lại lần cuối cùng.
+                                if not serverHistoryCache[candidateServer.id] then
+                                    -- Server này chưa bị ai "xí". Chọn nó ngay!
+                                    updateDisplay("INFO", "Kiểm tra lần cuối OK. Đã chọn server!")
+                                    chosenServer = candidateServer
+                                    
+                                    -- Lưu ID server mới vào lịch sử NGAY LẬP TỨC.
+                                    addJobIdToHistoryAndSave(chosenServer.id)
+                                    
+                                    allScanned = true -- Đánh dấu đã tìm xong để thoát các vòng lặp ngoài.
+                                    break -- Thoát khỏi vòng lặp for này.
+                                end
+                            end
+                            
+                            -- Nếu đã chọn được server (chosenServer không còn là nil), vòng lặp while bên ngoài sẽ dừng lại.
+                            if chosenServer then
+                                break
+                            end
+                        end
+                        -- =================================================================
+                        -- KẾT THÚC SỬA LỖI
+                        -- =================================================================
+
                         nextCur = sListD.nextPageCursor;
                         if not nextCur then
                             allScanned = true;
@@ -198,7 +230,6 @@ function searchForServer()
         local sTP, eTP = pcall(TeleportService.TeleportToPlaceInstance, TeleportService, placeId, chosenServer.id, LocalPlayer);
         if not sTP then
             updateDisplay("ERROR", "Lỗi dịch chuyển! Server đã được lưu, sẽ tìm server khác...");
-            -- Dòng `serverHistoryCache[chosenServer.id] = true;` không cần thiết nữa vì đã lưu ở trên
             chosenServer = nil;
             task.wait(5);
             searchForServer()
