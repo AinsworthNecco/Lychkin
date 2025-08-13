@@ -129,7 +129,6 @@ function searchForServer()
                     curRetry = math.min(curRetry * 2, maxRetryDelay)
                 end;
                 
-                -- [ĐOẠN CODE ĐÃ SỬA]
                 local headers = {
                     ["User-Agent"] = "Roblox/WinInet",
                     ["Referer"] = "https://www.roblox.com/games/8737602449/",
@@ -144,7 +143,6 @@ function searchForServer()
                     })
                 end)
                 local d = (s and response) and response.Body or nil
-                -- [KẾT THÚC ĐOẠN CODE SỬA]
 
                 if s and d then
                     pFetched = true;
@@ -161,11 +159,45 @@ function searchForServer()
                                 end
                             end
                         end;
+                        
+                        -- =================================================================
+                        -- SỬA LỖI RACE CONDITION (V2)
+                        -- =================================================================
                         if #pSuitS > 0 then
-                            chosenServer = pSuitS[math.random(1, #pSuitS)];
-                            allScanned = true;
-                            break
-                        end;
+                            -- Xáo trộn danh sách server tiềm năng để tránh tất cả các script cùng nhắm vào server đầu tiên.
+                            for i = #pSuitS, 2, -1 do
+                                local j = math.random(i)
+                                pSuitS[i], pSuitS[j] = pSuitS[j], pSuitS[i]
+                            end
+
+                            -- Lặp qua từng server tiềm năng và kiểm tra lại lần cuối trước khi chọn.
+                            for _, candidateServer in ipairs(pSuitS) do
+                                -- Tải lại lịch sử MỚI NHẤT từ file để đảm bảo không có script nào khác đã chọn server này.
+                                loadServerHistory() 
+                                
+                                -- Kiểm tra lại lần cuối cùng.
+                                if not serverHistoryCache[candidateServer.id] then
+                                    -- Server này chưa bị ai "xí". Chọn nó ngay!
+                                    updateDisplay("INFO", "Kiểm tra lần cuối OK. Đã chọn server!")
+                                    chosenServer = candidateServer
+                                    
+                                    -- Lưu ID server mới vào lịch sử NGAY LẬP TỨC.
+                                    addJobIdToHistoryAndSave(chosenServer.id)
+                                    
+                                    allScanned = true -- Đánh dấu đã tìm xong để thoát các vòng lặp ngoài.
+                                    break -- Thoát khỏi vòng lặp for này.
+                                end
+                            end
+                            
+                            -- Nếu đã chọn được server (chosenServer không còn là nil), vòng lặp while bên ngoài sẽ dừng lại.
+                            if chosenServer then
+                                break
+                            end
+                        end
+                        -- =================================================================
+                        -- KẾT THÚC SỬA LỖI
+                        -- =================================================================
+
                         nextCur = sListD.nextPageCursor;
                         if not nextCur then
                             allScanned = true;
@@ -193,12 +225,11 @@ function searchForServer()
     end;
     if chosenServer then
         updateDisplay("SUCCESS", "Chuẩn bị dịch chuyển...");
-        addJobIdToHistoryAndSave(currentJobId);
+        addJobIdToHistoryAndSave(currentJobId); -- Vẫn lưu server cũ để không quay lại
         task.wait(1);
         local sTP, eTP = pcall(TeleportService.TeleportToPlaceInstance, TeleportService, placeId, chosenServer.id, LocalPlayer);
         if not sTP then
-            updateDisplay("ERROR", "Lỗi dịch chuyển! Thử lại...");
-            serverHistoryCache[chosenServer.id] = true;
+            updateDisplay("ERROR", "Lỗi dịch chuyển! Server đã được lưu, sẽ tìm server khác...");
             chosenServer = nil;
             task.wait(5);
             searchForServer()
