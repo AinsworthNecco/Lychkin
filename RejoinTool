@@ -20,7 +20,7 @@
 
 # Định dạng mới: "hậu_tố:ID_người_dùng". Phân cách mỗi tài khoản bằng dấu cách.
 # Ví dụ: Accounts=("b:123456" "c:789012" "d:345678")
-Accounts=("b:123456" "c:789012")
+Accounts=("b:8033531994")
 
 # URL của VIP Server bạn muốn tham gia
 VipServerUrl="roblox://placeId=8737602449"
