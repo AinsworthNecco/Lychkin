@@ -1,16 +1,32 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# Script Roblox ket hop: Force Rejoin 5 phut/lan, Kill All 3 gio/lan, va chong crash.
-# LOGIC: Kich hoat Wake Lock -> Vong lap (Clear -> Kiem tra 3 gio -> Join tat ca) -> Doi 5 phut.
+# Script Roblox nâng cao:
+# 1. Vòng lặp chính để Force Rejoin mỗi X phút.
+# 2. Vòng lặp riêng để kiểm tra tài khoản offline mỗi Y giây.
+# 3. Tùy chọn Kill All mỗi Z giờ.
+# 4. Chống crash bằng Termux Wake Lock.
+#
+# YÊU CẦU: `curl` và `jq`. Cài đặt bằng: pkg install curl jq
+#
+# LOGIC:
+# Kích hoạt Wake Lock -> Chạy vòng lặp kiểm tra trạng thái trong nền.
+# Vòng lặp chính:
+#   1. (Tùy chọn) Kiểm tra đã đến giờ Kill All chưa.
+#   2. Gửi lệnh join lại cho tất cả các phiên bản.
+#   3. Đợi X phút rồi lặp lại.
 #---------------------------------------------------
-# -- CAI DAT CHINH --
-# Tat ca cac tuy chinh deu o day.
+# -- CÀI ĐẶT CHÍNH --
+# Tất cả các tùy chỉnh đều ở đây.
 #---------------------------------------------------
 
-# Them hoac xoa cac hau to phien ban ban muon mo (phan cach boi dau cach)
-Suffixes="b c d e f"
+# Định dạng mới: "hậu_tố:ID_người_dùng". Phân cách mỗi tài khoản bằng dấu cách.
+# Ví dụ: Accounts=("b:123456" "c:789012" "d:345678")
+Accounts=("b:123456" "c:789012")
 
-# URL cua VIP Server ban muon tham gia
+# URL của VIP Server bạn muốn tham gia
 VipServerUrl="roblox://placeId=8737602449"
+
+# Bật (true) hoặc tắt (false) tính năng tự động tắt toàn bộ sau một khoảng thời gian
+EnableKillAll=true
 
 # Thoi gian (giay) cho giua moi lan gui lenh join
 OpenDelay=10
@@ -18,102 +34,173 @@ OpenDelay=10
 # Thoi gian (giay) script se cho truoc khi lap lai chu ky join (300 giay = 5 phut)
 RejoinInterval=300
 
+# Thoi gian (giay) giua moi lan kiem tra trang thai offline
+StatusCheckInterval=60
+
 # Thoi gian (giay) script se tat toan bo cac phien ban (10800 giay = 3 gio)
+# Chỉ có tác dụng khi `EnableKillAll` là `true`.
 KillAllInterval=10800
 
 # Ten goi co ban cua Roblox (khong nen thay doi)
 BasePackageName="com.roblox.clien"
 
 #---------------------------------------------------
-# -- TU DONG KIEM TRA ROOT --
+# -- TỰ ĐỘNG KIỂM TRA ROOT & DEPENDENCY --
 #---------------------------------------------------
 # Kiem tra xem script co dang chay voi quyen root khong (EUID = 0)
 if [[ $EUID -ne 0 ]]; then
-    echo "Script nay can quyen root de thuc thi 'kill'."
-    echo "Dang co gang chay lai script voi 'su'..."
+    echo "Script này cần quyền root để thực thi 'kill'."
+    echo "Đang cố gắng chạy lại script với 'su'..."
     su -c "bash \"$0\" \"$@\""
     exit 0
 fi
 
+# Kiểm tra xem các công cụ cần thiết đã được cài đặt chưa
+for cmd in curl jq; do
+    if ! command -v $cmd &> /dev/null; then
+        echo "Lỗi: '$cmd' không được tìm thấy. Vui lòng cài đặt bằng lệnh:"
+        echo "pkg install $cmd"
+        exit 1
+    fi
+done
+
 #---------------------------------------------------
-# -- LOGIC CHINH --
-# Khong can sua phan duoi day.
+# -- LOGIC CHÍNH --
+# Không cần sửa phần dưới đây.
 #---------------------------------------------------
 
-echo "--- KHOI DONG SCRIPT ROBLOX TOAN DIEN ---"
+echo "--- KHỞI ĐỘNG SCRIPT ROBLOX VỚI CÁC VÒNG LẶP RIÊNG BIỆT ---"
 
 # Buoc 1: Kich hoat Wake Lock de giu cho Termux luon chay
-echo "Dang kich hoat Wake Lock de chong crash..."
+echo "Đang kích hoạt Wake Lock để chống crash..."
 termux-wake-lock &
 
-echo "Chu ky gui lenh join: $RejoinInterval giay."
-echo "Chu ky tat toan bo: $KillAllInterval giay."
+echo "Chu kỳ gửi lệnh join: $RejoinInterval giây."
+echo "Chu kỳ kiểm tra trạng thái: $StatusCheckInterval giây."
+if [[ "$EnableKillAll" == "true" ]]; then
+    echo "Tính năng Kill All: Bật. Chu kỳ: $KillAllInterval giây."
+else
+    echo "Tính năng Kill All: Tắt."
+fi
 
-# Chuyen chuoi Suffixes thanh mot mang cac ten goi day du
-read -r -a suffixes_array <<< "$Suffixes"
+# Phân tích cú pháp cấu hình Accounts
 all_packages=()
-for suffix in "${suffixes_array[@]}"; do
-    all_packages+=("${BasePackageName}${suffix}")
+all_user_ids=()
+for account_info in "${Accounts[@]}"; do
+    suffix=$(echo "$account_info" | cut -d ':' -f 1)
+    user_id=$(echo "$account_info" | cut -d ':' -f 2)
+    
+    if [[ -n "$suffix" && -n "$user_id" ]]; then
+        all_packages+=("${BasePackageName}${suffix}")
+        all_user_ids+=("$user_id")
+    fi
 done
+
 totalInstances=${#all_packages[@]}
 
 if (( totalInstances == 0 )); then
-    echo "Loi: Vui long dinh nghia it nhat mot hau to trong bien 'Suffixes'."
+    echo "Lỗi: Vui lòng định nghĩa ít nhất một tài khoản trong biến 'Accounts' theo định dạng 'hậu_tố:ID'."
     exit 1
 fi
 
 # Ham tat toan bo cac phien ban
 function kill_all_instances() {
     echo "================================================="
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] DA DEN GIO. Dang tat toan bo $totalInstances phien ban..."
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] ĐÃ ĐẾN GIỜ KILL ALL. Đang tắt toàn bộ $totalInstances phiên bản..."
     for package_to_stop in "${all_packages[@]}"; do
         pid_to_kill=$(pidof "$package_to_stop")
         if [[ -n "$pid_to_kill" ]]; then
-            echo "  => Dung phien ban $package_to_stop (PID: $pid_to_kill) bang lenh 'kill -9'."
+            echo "  => Dừng phiên bản $package_to_stop (PID: $pid_to_kill) bằng lệnh 'kill -9'."
             kill -9 "$pid_to_kill"
         fi
     done
-    echo "Da hoan tat viec dung cac phien ban."
+    echo "Đã hoàn tất việc dừng các phiên bản."
+}
+
+# Hàm kiểm tra tài khoản offline và kill nếu cần
+function check_and_kill_offline() {
+    if (( ${#all_user_ids[@]} == 0 )); then
+        return
+    fi
+    local user_id_list=$(printf ",%s" "${all_user_ids[@]}")
+    user_id_list=${user_id_list:1}
+    local payload="{\"userIds\": [${user_id_list}]}"
+    local offline_ids
+    offline_ids=$(curl -s -X POST "https://presence.roblox.com/v1/presence/users" \
+        -H "Content-Type: application/json" -H "Accept: application/json" \
+        -d "$payload" | jq -r '.userPresences[] | select(.userPresenceType == 0) | .userId')
+
+    if [[ -z "$offline_ids" ]]; then
+        return
+    fi
+    
+    echo "[VÒNG LẶP TRẠNG THÁI] Phát hiện User ID offline: ${offline_ids}"
+    for i in "${!all_packages[@]}"; do
+        local package="${all_packages[$i]}"
+        local user_id="${all_user_ids[$i]}"
+        if [[ " ${offline_ids} " =~ " ${user_id} " ]]; then
+            local pid_to_kill=$(pidof "$package")
+            if [[ -n "$pid_to_kill" ]]; then
+                echo "[VÒNG LẶP TRẠNG THÁI] Tắt phiên bản $package (PID: $pid_to_kill) của User ID $user_id."
+                kill -9 "$pid_to_kill"
+            fi
+        fi
+    done
+}
+
+# Vòng lặp riêng để kiểm tra trạng thái, chạy trong nền
+function status_check_loop() {
+    while true; do
+        clear
+        echo "================================================="
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [VÒNG LẶP TRẠNG THÁI] Đang kiểm tra..."
+        check_and_kill_offline
+        echo "[VÒNG LẶP TRẠNG THÁI] Sẽ kiểm tra lại sau $StatusCheckInterval giây."
+        sleep "$StatusCheckInterval"
+    done
 }
 
 # Ham thuc hien viec gui lai lenh join cho tat ca
 function force_rejoin_all() {
     echo "================================================="
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] BAT DAU CHU KY JOIN. Gui lenh cho $totalInstances phien ban..."
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] [VÒNG LẶP CHÍNH] Bắt đầu chu kỳ JOIN..."
     for package in "${all_packages[@]}"; do
-        echo "  => Gui lenh join den: $package"
+        echo "  => Gửi lệnh join đến: $package"
         am start -a android.intent.action.VIEW -d "$VipServerUrl" -p "$package"
         sleep "$OpenDelay"
     done
-    echo "Da hoan tat gui lenh cho tat ca."
+    echo "[VÒNG LẶP CHÍNH] Đã hoàn tất gửi lệnh."
 }
+
+# Khởi chạy vòng lặp kiểm tra trạng thái trong nền
+echo "-------------------------------------------------"
+echo "Khởi chạy vòng lặp kiểm tra trạng thái trong nền..."
+status_check_loop &
+echo "-------------------------------------------------"
 
 # Lay thoi diem bat dau de tinh toan cho chu ky tat toan bo
 last_kill_time=$(date +%s)
 
 # Vong lap chinh, chay vo han
 while true; do
-    # Xoa man hinh de log khong bi tich tu
-    clear
-    
     current_time=$(date +%s)
     
-    # Kiem tra xem da den luc tat toan bo chua
-    if (( current_time - last_kill_time >= KillAllInterval )); then
-        kill_all_instances
-        # Dat lai moc thoi gian
-        last_kill_time=$(date +%s)
-        # Cho mot chut sau khi kill de he thong on dinh
-        echo "Cho 5 giay sau khi tat toan bo..."
-        sleep 5
+    # 1. Kiểm tra xem có bật KillAll không và đã đến lúc chưa
+    if [[ "$EnableKillAll" == "true" ]]; then
+        if (( current_time - last_kill_time >= KillAllInterval )); then
+            kill_all_instances
+            last_kill_time=$(date +%s)
+            echo "[VÒNG LẶP CHÍNH] Chờ 10 giây sau khi Kill All..."
+            sleep 10
+        fi
     fi
 
-    # Luon luon goi ham de gui lenh join
+    # 2. Luon luon goi ham de gui lenh join
     force_rejoin_all
 
-    # Cho het 5 phut roi lap lai
+    # 3. Cho het chu kỳ rồi lặp lại
     echo "-------------------------------------------------"
-    echo "Script se cho $RejoinInterval giay truoc khi bat dau lai chu ky."
+    echo "[VÒNG LẶP CHÍNH] Sẽ lặp lại chu kỳ join sau $RejoinInterval giây."
     sleep "$RejoinInterval"
 done
 
