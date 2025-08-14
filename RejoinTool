@@ -3,11 +3,11 @@
 # LOGIC: Kich hoat Wake Lock -> Vong lap (Clear -> Kiem tra 3 gio -> Join tat ca) -> Doi 5 phut.
 #---------------------------------------------------
 # -- CAI DAT CHINH --
-# Tat ca cac tuy chinh deu o day.
+#  b c d e f g h i j k l m n o p q r s t u v w x y z
 #---------------------------------------------------
 
 # Them hoac xoa cac hau to phien ban ban muon mo (phan cach boi dau cach)
-Suffixes="b c d e f"
+Suffixes="g h i j k"
 
 # URL cua VIP Server ban muon tham gia
 VipServerUrl="roblox://placeId=8737602449"
