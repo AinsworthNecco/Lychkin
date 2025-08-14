@@ -10,9 +10,9 @@ local SETTINGS = {
     -- CÀI ĐẶT SERVER HOP & AFK
     -- =================================================================
     ["WaitMinutes"] = 10,
-    ["MinPlayerPercentage"] = 0.60,
+    ["MinPlayerPercentage"] = 0.70,
     ["MaxPlayerPercentage"] = 0.99,
-    ["MaxServerHistorySize"] = 300, -- Xóa lịch sử server sau khi đã lưu X server. Đặt là 0 để tắt.
+    ["MaxServerHistorySize"] = 250, -- Xóa lịch sử server sau khi đã lưu X server. Đặt là 0 để tắt.
 
     -- Kiểm tra số người chơi định kỳ
     ["EnablePlayerCountCheck"] = true, -- Bật/tắt kiểm tra số người chơi mỗi phút.
@@ -79,7 +79,7 @@ local CoreGui = cloneref(game:GetService("CoreGui"))
 local LocalPlayer = Players.LocalPlayer
 
 -- --- Cấu hình Script (Không nên thay đổi) ---
-local placeId = game.PlaceId; local currentJobId = game.JobId; local waitTimeBetweenFullScans = 7; local waitTimeBetweenPageFetches = 0.75; local baseRetryDelay = 1; local maxRetryDelay = 16; local PLATFORM_VERTICAL_OFFSET = 0; local SERVER_HISTORY_FILENAME = "server_hop_history.txt"; local SERVER_LOCK_FILENAME = "server_hop.lock"; local SCRIPT_INSTANCE_ID = tostring(math.random(1, 10000000)); local SERVER_HOP_GUI_NAME = "ServerHopStatusGUI"; local AFK_PLATFORM_NAME = "MySafeAFKPlatform"; local STATIC_HEAD_ANCHOR_PART_NAME = "AFK_HeadAnchor_StaticCam"; local STATIC_BLACK_SCREEN_PART_NAME = "AFK_BlackScreen_StaticCam"; local NEON_COLORS = { GREEN = Color3.fromRGB(10, 255, 20), YELLOW = Color3.fromRGB(255, 255, 0), BLUE = Color3.fromRGB(0, 150, 255), RED = Color3.fromRGB(255, 20, 20) }
+local placeId = game.PlaceId; local currentJobId = game.JobId; local waitTimeBetweenFullScans = 7; local waitTimeBetweenPageFetches = 0.75; local baseRetryDelay = 1; local maxRetryDelay = 16; local PLATFORM_VERTICAL_OFFSET = 0; local SERVER_HISTORY_FILENAME = "server_hop_history.txt"; local SERVER_HOP_GUI_NAME = "ServerHopStatusGUI"; local AFK_PLATFORM_NAME = "MySafeAFKPlatform"; local STATIC_HEAD_ANCHOR_PART_NAME = "AFK_HeadAnchor_StaticCam"; local STATIC_BLACK_SCREEN_PART_NAME = "AFK_BlackScreen_StaticCam"; local NEON_COLORS = { GREEN = Color3.fromRGB(10, 255, 20), YELLOW = Color3.fromRGB(255, 255, 0), BLUE = Color3.fromRGB(0, 150, 255), RED = Color3.fromRGB(255, 20, 20) }
 
 -- --- Biến toàn cục ---
 local playerGui = LocalPlayer and LocalPlayer:WaitForChild("PlayerGui")
@@ -104,75 +104,51 @@ local function setupStaticAfkView() updateDisplay("INFO", "Thiết lập view AF
 local function optimizeForCpu() if not SETTINGS.EnableCpuOptimization then return end; updateDisplay("INFO", "Bắt đầu tối ưu hóa CPU..."); pcall(function() if type(setfpscap) == "function" and SETTINGS.TargetFps and SETTINGS.TargetFps > 0 then print("[CPU-Opt] Giới hạn FPS đang hoạt động ở mức: " .. tostring(SETTINGS.TargetFps)) end; if SETTINGS.SetSimulationRadiusToZero then if LocalPlayer then LocalPlayer.SimulationRadius = 0; print("[CPU-Opt] SimulationRadius đã được đặt về 0.") end end end); updateDisplay("SUCCESS", "Tối ưu hóa CPU hoàn tất.") end
 local function optimizeGraphics() updateDisplay("INFO", "Bắt đầu tối ưu đồ họa..."); if SETTINGS.EnableSafePlatform then createSafePlatform(); end; task.wait(0.1); pcall(function() local itemsToDel={}; for _,item in pairs(game.Workspace:GetChildren()) do local keep=(LocalPlayer.Character and item.Name==LocalPlayer.Character.Name)or(item==workspace.CurrentCamera)or(SETTINGS.EnableSafePlatform and item.Name==AFK_PLATFORM_NAME)or(SETTINGS.EnableStaticAfkView and(item.Name==STATIC_HEAD_ANCHOR_PART_NAME or item.Name==STATIC_BLACK_SCREEN_PART_NAME));if not keep then table.insert(itemsToDel,item)end end; for _,item in ipairs(itemsToDel)do pcall(function()item:Destroy()end)end;Lighting.GlobalShadows,Lighting.Brightness,Lighting.Ambient,Lighting.OutdoorAmbient,Lighting.ExposureCompensation=false,0,Color3.new(0,0,0),Color3.new(0,0,0),-2;pcall(function()Lighting.Atmosphere:Destroy()end);pcall(function()Lighting.Sky:Destroy()end); if LocalPlayer.PlayerGui then for _,gui in pairs(LocalPlayer.PlayerGui:GetChildren())do if gui.Name~=SERVER_HOP_GUI_NAME then pcall(function()gui:Destroy()end)end end end;local sO=settings();if sO and sO.Rendering then sO.Rendering.QualityLevel=Enum.QualityLevel.Level01;pcall(function()if RunService:IsClient()then RunService:Set3dRenderingEnabled(false)end end)end;SoundService.RespectFilteringEnabled,SoundService.AmbientReverb=true,Enum.ReverbType.NoReverb;for _,sound in pairs(game:GetDescendants())do if sound:IsA("Sound")then sound.Volume=0;sound:Stop()end end; end); updateDisplay("SUCCESS", "Đồ họa đã được tối ưu."); end
 
--- =================================================================
--- LOGIC TÌM SERVER (V3 - CƠ CHẾ KHÓA)
--- =================================================================
+-- --- Logic Tìm Server ---
 local chosenServer = nil; local serversUrlBase = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Asc&limit=100"
 function searchForServer()
-    -- Phần 1: Yêu cầu và chiếm giữ "Khóa"
-    local hasLock = false
-    updateDisplay("INFO", "Đang yêu cầu khóa chọn server...")
-    while not hasLock do
-        local lockContent = readfile_func(SERVER_LOCK_FILENAME)
-        local lockOwnerId, lockTimestampStr = "", "0"
-        
-        if lockContent and lockContent:match(";") then
-            lockOwnerId, lockTimestampStr = lockContent:match("([^;]*);(.*)")
-        end
-        local lockTimestamp = tonumber(lockTimestampStr) or 0
-
-        -- Kiểm tra xem khóa có bị "kẹt" (quá 20 giây) hoặc không tồn tại
-        if (tick() - lockTimestamp > 20) or (lockContent == nil or lockContent == "") then
-            -- Thử chiếm lấy khóa bằng cách ghi ID và thời gian của mình
-            local myLockString = SCRIPT_INSTANCE_ID .. ";" .. tostring(tick())
-            writefile_func(SERVER_LOCK_FILENAME, myLockString)
-            task.wait(0.3) -- Chờ một chút để các script khác (nếu có) cũng ghi
-
-            -- Đọc lại để xác nhận mình là người giữ khóa
-            local newLockContent = readfile_func(SERVER_LOCK_FILENAME)
-            if newLockContent == myLockString then
-                hasLock = true
-                updateDisplay("SUCCESS", "Đã giữ khóa! Bắt đầu chọn server...")
-            end
-        end
-
-        if not hasLock then
-            updateDisplay("INFO", "Server đang được chọn bởi acc khác. Đang chờ...")
-            task.wait(math.random(3, 6)) -- Chờ một khoảng ngẫu nhiên trước khi thử lại
-        end
-    end
-
-    -- Phần 2: Tìm Server (Được bảo vệ bởi Khóa)
-    -- Vì đã có khóa, chúng ta có thể yên tâm tìm server mà không sợ bị tranh chấp.
-    pcall(function()
-        if not SETTINGS.EnableFileHistory then serverHistoryCache = {} else loadServerHistory() end
-        local histC = 0; for _ in pairs(serverHistoryCache) do histC = histC + 1 end
-        updateDisplay("INFO", string.format("Bắt đầu tìm server... (Tránh %d)", histC + 1))
-        
-        chosenServer = nil
-        local nextCur = nil
-        local allScanned = false
-        
+    if not SETTINGS.EnableFileHistory then serverHistoryCache = {} else loadServerHistory() end;
+    local histC = 0; for _ in pairs(serverHistoryCache) do histC = histC + 1 end;
+    updateDisplay("INFO", string.format("Bắt đầu tìm server... (Tránh %d)", histC + 1));
+    local sLActive = true;
+    chosenServer = nil;
+    while sLActive and not chosenServer do
+        local nextCur = nil;
+        updateDisplay("INFO", "Đang quét server...");
+        local allScanned = false;
         while not allScanned and not chosenServer do
-            local pAtt, maxAtt, pFetched, curRetry = 0, 4, false, baseRetryDelay
+            local pAtt = 0;
+            local maxAtt = 4;
+            local pFetched = false;
+            local curRetry = baseRetryDelay;
             while not pFetched and pAtt < maxAtt do
-                pAtt = pAtt + 1
+                pAtt = pAtt + 1;
                 if pAtt > 1 then
-                    updateDisplay("INFO", string.format("Thử lại (%d/%d)...", pAtt, maxAtt))
-                    task.wait(curRetry)
+                    updateDisplay("INFO", string.format("Thử lại (%d/%d)...", pAtt, maxAtt));
+                    task.wait(curRetry);
                     curRetry = math.min(curRetry * 2, maxRetryDelay)
-                end
+                end;
                 
-                local headers = { ["User-Agent"] = "Roblox/WinInet", ["Referer"] = "https://www.roblox.com/games/8737602449/", ["Origin"] = "https://www.roblox.com" }
+                local headers = {
+                    ["User-Agent"] = "Roblox/WinInet",
+                    ["Referer"] = "https://www.roblox.com/games/8737602449/",
+                    ["Origin"] = "https://www.roblox.com"
+                }
                 local req = (syn and syn.request) or (http and http.request) or (fluxus and fluxus.request) or request
-                local s, response = pcall(function() return req({ Url = serversUrlBase .. (nextCur and "&cursor=" .. nextCur or ""), Method = "GET", Headers = headers }) end)
+                local s, response = pcall(function()
+                    return req({
+                        Url = serversUrlBase .. (nextCur and "&cursor=" .. nextCur or ""),
+                        Method = "GET",
+                        Headers = headers
+                    })
+                end)
                 local d = (s and response) and response.Body or nil
 
                 if s and d then
-                    pFetched = true
-                    local sListD = HttpService:JSONDecode(d)
+                    pFetched = true;
+                    local sListD = HttpService:JSONDecode(d);
                     if sListD and sListD.data then
-                        local pSuitS = {}
+                        local pSuitS = {};
                         for _, sInf in ipairs(sListD.data) do
                             if not (sInf.id == currentJobId or serverHistoryCache[sInf.id]) then
                                 if sInf.playing and sInf.maxPlayers and sInf.maxPlayers > 0 then
@@ -182,53 +158,84 @@ function searchForServer()
                                     end
                                 end
                             end
-                        end
+                        end;
+                        
+                        -- =================================================================
+                        -- SỬA LỖI RACE CONDITION (V2)
+                        -- =================================================================
                         if #pSuitS > 0 then
-                            chosenServer = pSuitS[math.random(1, #pSuitS)]
-                            allScanned = true
-                            break
+                            -- Xáo trộn danh sách server tiềm năng để tránh tất cả các script cùng nhắm vào server đầu tiên.
+                            for i = #pSuitS, 2, -1 do
+                                local j = math.random(i)
+                                pSuitS[i], pSuitS[j] = pSuitS[j], pSuitS[i]
+                            end
+
+                            -- Lặp qua từng server tiềm năng và kiểm tra lại lần cuối trước khi chọn.
+                            for _, candidateServer in ipairs(pSuitS) do
+                                -- Tải lại lịch sử MỚI NHẤT từ file để đảm bảo không có script nào khác đã chọn server này.
+                                loadServerHistory() 
+                                
+                                -- Kiểm tra lại lần cuối cùng.
+                                if not serverHistoryCache[candidateServer.id] then
+                                    -- Server này chưa bị ai "xí". Chọn nó ngay!
+                                    updateDisplay("INFO", "Kiểm tra lần cuối OK. Đã chọn server!")
+                                    chosenServer = candidateServer
+                                    
+                                    -- Lưu ID server mới vào lịch sử NGAY LẬP TỨC.
+                                    addJobIdToHistoryAndSave(chosenServer.id)
+                                    
+                                    allScanned = true -- Đánh dấu đã tìm xong để thoát các vòng lặp ngoài.
+                                    break -- Thoát khỏi vòng lặp for này.
+                                end
+                            end
+                            
+                            -- Nếu đã chọn được server (chosenServer không còn là nil), vòng lặp while bên ngoài sẽ dừng lại.
+                            if chosenServer then
+                                break
+                            end
                         end
-                        nextCur = sListD.nextPageCursor
-                        if not nextCur then allScanned = true end
+                        -- =================================================================
+                        -- KẾT THÚC SỬA LỖI
+                        -- =================================================================
+
+                        nextCur = sListD.nextPageCursor;
+                        if not nextCur then
+                            allScanned = true;
+                        end
                     else
                         updateDisplay("ERROR", "Dữ liệu server lỗi.")
                     end
                 else
-                    updateDisplay("ERROR", "Lỗi API.")
-                    if pAtt >= maxAtt then allScanned = true end
+                    updateDisplay("ERROR", "Lỗi API.");
+                    if pAtt >= maxAtt then
+                        allScanned = true
+                    end
                 end
-            end
-            if chosenServer or allScanned then break end
+            end;
+            if chosenServer or allScanned then break end;
             task.wait(waitTimeBetweenPageFetches)
+        end;
+        if chosenServer then
+            updateDisplay("SUCCESS", "ĐÃ CHỌN SERVER!");
+            sLActive = false
+        elseif allScanned then
+            updateDisplay("INFO", string.format("Không tìm thấy. Chờ %ds.", waitTimeBetweenFullScans));
+            task.wait(waitTimeBetweenFullScans)
         end
-    end)
-
-    -- Phần 3: Trả Khóa và Dịch chuyển
+    end;
     if chosenServer then
-        updateDisplay("SUCCESS", "ĐÃ CHỌN SERVER! Đang trả khóa...")
-        addJobIdToHistoryAndSave(chosenServer.id) -- Lưu server vừa chọn vào lịch sử
-    else
-        updateDisplay("ERROR", "Không tìm thấy server. Đang trả khóa...")
-    end
-
-    -- Trả khóa bằng cách xóa nội dung file lock
-    writefile_func(SERVER_LOCK_FILENAME, "")
-
-    if chosenServer then
-        updateDisplay("SUCCESS", "Chuẩn bị dịch chuyển...")
-        addJobIdToHistoryAndSave(currentJobId) -- Vẫn lưu server cũ để không quay lại
-        task.wait(1)
-        local sTP, eTP = pcall(TeleportService.TeleportToPlaceInstance, TeleportService, placeId, chosenServer.id, LocalPlayer)
+        updateDisplay("SUCCESS", "Chuẩn bị dịch chuyển...");
+        addJobIdToHistoryAndSave(currentJobId); -- Vẫn lưu server cũ để không quay lại
+        task.wait(1);
+        local sTP, eTP = pcall(TeleportService.TeleportToPlaceInstance, TeleportService, placeId, chosenServer.id, LocalPlayer);
         if not sTP then
-            updateDisplay("ERROR", "Lỗi dịch chuyển! Server đã được lưu, sẽ tìm server khác...")
-            chosenServer = nil
-            task.wait(5)
-            searchForServer() -- Bắt đầu lại toàn bộ quy trình (lấy khóa, tìm kiếm...)
+            updateDisplay("ERROR", "Lỗi dịch chuyển! Server đã được lưu, sẽ tìm server khác...");
+            chosenServer = nil;
+            task.wait(5);
+            searchForServer()
         end
     else
-        updateDisplay("ERROR", "Không thể tìm thấy server. Thử lại sau...")
-        task.wait(waitTimeBetweenFullScans)
-        searchForServer() -- Bắt đầu lại toàn bộ quy trình
+        updateDisplay("ERROR", "Không thể tìm thấy server. Dừng lại.")
     end
 end
 
