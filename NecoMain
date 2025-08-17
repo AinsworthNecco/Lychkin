@@ -19,8 +19,8 @@ local SETTINGS = {
 
     -- [NÂNG CẤP] Cài đặt kiểm tra server vắng
     ["EnablePlayerCountCheck"] = true, -- Bật/tắt kiểm tra số người chơi mỗi phút.
-    ["MinPlayerThreshold"] = 15,       -- Nếu người chơi trong server ít hơn số này, sẽ bắt đầu đếm ngược để chuyển.
-    ["LowPlayerConsecutiveChecks"] = 1, -- [MỚI] Số lần kiểm tra liên tiếp (mỗi lần cách nhau 60s) mà server vắng trước khi quyết định chuyển. Đặt là 3 nghĩa là server phải vắng trong 3 phút liên tục.
+    ["MinPlayerThreshold"] = 10,       -- Nếu người chơi trong server ít hơn số này, sẽ bắt đầu đếm ngược để chuyển.
+    ["LowPlayerConsecutiveChecks"] = 3, -- [MỚI] Số lần kiểm tra liên tiếp (mỗi lần cách nhau 60s) mà server vắng trước khi quyết định chuyển. Đặt là 3 nghĩa là server phải vắng trong 3 phút liên tục.
 
     -- =================================================================
     -- CÀI ĐẶT TÍNH NĂNG PHỤ
@@ -57,7 +57,7 @@ local SETTINGS = {
 
     ["EnableAutoSpam"] = true,
     ["SpamInterval"] = 60,
-    ["SpamMessages"] = { "Goal: MAX SPIN LEVEL 100🌀 - 1 ROBUX = +1 SPEED!", "Goal: MAX SPIN LEVEL 100:cyclone: - 1 ROBUX = +1 SPEED!" },
+    ["SpamMessages"] = { "Goal: MAX SPIN LEVEL 100:cyclone: - 1 ROBUX = +1 SPEED!", "Goal: MAX SPIN LEVEL 100:cyclone: - 1 ROBUX = +1 SPEED!" },
 
     -- =================================================================
     -- CÀI ĐẶT BOOTH & SPIN
@@ -107,7 +107,7 @@ local placeId = game.PlaceId; local currentJobId = game.JobId; local waitTimeBet
 
 -- --- Biến toàn cục ---
 local playerGui = LocalPlayer and LocalPlayer:WaitForChild("PlayerGui")
-local statusScreenGui, infoTextLabel, clockTextLabel, dateTextLabel, statusFrame, boothIdInput, claimBoothButton
+local statusScreenGui, infoTextLabel, clockTextLabel, dateTextLabel, statusFrame
 local countdownShouldReset = false; local currentCountdownThread = nil; local playerMonitorThread = nil
 local Remotes = nil; local spinVelocity = SETTINGS.spinBaseSpeed or 0.25
 
@@ -183,40 +183,6 @@ local function createStatusGui()
     infoTextLabel.Text = "..."
     infoTextLabel.ZIndex = 3
     infoTextLabel.Parent = statusScreenGui
-    
-    local boothSelectorFrame = Instance.new("Frame")
-    boothSelectorFrame.Name = "BoothSelectorFrame"
-    boothSelectorFrame.Size = UDim2.new(0, 300, 0, 40)
-    boothSelectorFrame.Position = UDim2.new(0.5, 0, 0, 10)
-    boothSelectorFrame.AnchorPoint = Vector2.new(0.5, 0)
-    boothSelectorFrame.BackgroundTransparency = 0.5
-    boothSelectorFrame.BackgroundColor3 = Color3.new(0, 0, 0)
-    boothSelectorFrame.ZIndex = 4
-    boothSelectorFrame.Parent = statusScreenGui
-    
-    boothIdInput = Instance.new("TextBox")
-    boothIdInput.Name = "BoothIdInput"
-    boothIdInput.Size = UDim2.new(0.6, 0, 1, 0)
-    boothIdInput.Position = UDim2.new(0, 0, 0, 0)
-    boothIdInput.Font = Enum.Font.SourceSans
-    boothIdInput.TextSize = 18
-    boothIdInput.PlaceholderText = "Nhập ID Booth..."
-    boothIdInput.TextColor3 = Color3.new(1,1,1)
-    boothIdInput.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-    boothIdInput.ZIndex = 5
-    boothIdInput.Parent = boothSelectorFrame
-    
-    claimBoothButton = Instance.new("TextButton")
-    claimBoothButton.Name = "ClaimBoothButton"
-    claimBoothButton.Size = UDim2.new(0.4, 0, 1, 0)
-    claimBoothButton.Position = UDim2.new(0.6, 0, 0, 0)
-    claimBoothButton.Font = Enum.Font.SourceSansBold
-    claimBoothButton.Text = "Claim"
-    claimBoothButton.TextSize = 18
-    claimBoothButton.TextColor3 = Color3.new(1,1,1)
-    claimBoothButton.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
-    claimBoothButton.ZIndex = 5
-    claimBoothButton.Parent = boothSelectorFrame
 end
 
 local function updateDisplay(state, message)
@@ -619,13 +585,6 @@ task.spawn(function()
             startSpin(); updateSpinSpeed()
         end
     end)
-    
-    if claimBoothButton then
-        claimBoothButton.MouseButton1Click:Connect(function()
-            local id = tonumber(boothIdInput.Text)
-            if id then task.spawn(claimAndSetupBooth, id) else updateDisplay("ERROR", "Vui lòng nhập một ID booth hợp lệ (chỉ số).") end
-        end)
-    end
 
     updateDisplay("INFO", string.format("Chờ game tải trong %d giây...", SETTINGS.InitialWaitTime))
     task.wait(SETTINGS.InitialWaitTime)
