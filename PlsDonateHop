@@ -8,9 +8,9 @@ local SETTINGS = {
         "Lychkin02",
         "Lychkin03",
         "Lychkin04",
-        "Lychkin05" 
+        "Lychkin05"
     },
-    ["AvoidCheckInterval"] = 15, -- Thời gian (giây) giữa mỗi lần quét
+    -- ["AvoidCheckInterval"] = 15, -- Không cần thiết nữa vì chỉ quét 1 lần
 
     -- =================================================================
     -- CÀI ĐẶT CHỐNG BOT
@@ -97,7 +97,7 @@ local placeId = game.PlaceId; local currentJobId = game.JobId; local waitTimeBet
 -- --- Biến toàn cục ---
 local playerGui = LocalPlayer and LocalPlayer:WaitForChild("PlayerGui")
 local statusScreenGui, statusTextLabel, statusFrame
-local countdownShouldReset = false; local currentCountdownThread = nil; local playerMonitorThread = nil; local avoidPlayerMonitorThread = nil
+local countdownShouldReset = false; local currentCountdownThread = nil; local playerMonitorThread = nil
 
 -- --- Kiểm tra và gán hàm đọc/ghi file ---
 local canAccessFiles = false; local writefile_func, readfile_func; if SETTINGS.EnableFileHistory then pcall(function() if writefile and readfile then canAccessFiles, writefile_func, readfile_func = true, writefile, readfile; print("[FileIO] Quyền file có sẵn.") else print("[FileIO] Quyền file KHÔNG có sẵn.") end end) else print("[FileIO] Lịch sử file bị TẮT.") end
@@ -310,8 +310,7 @@ local function startPlayerCountMonitor()
                 
                 if currentCountdownThread and coroutine.status(currentCountdownThread) ~= "dead" then pcall(coroutine.close, currentCountdownThread); currentCountdownThread = nil end
                 if playerMonitorThread and coroutine.status(playerMonitorThread) ~= "dead" then pcall(coroutine.close, playerMonitorThread); playerMonitorThread = nil end
-                if avoidPlayerMonitorThread and coroutine.status(avoidPlayerMonitorThread) ~= "dead" then pcall(coroutine.close, avoidPlayerMonitorThread); avoidPlayerMonitorThread = nil end
-
+                
                 task.wait(3)
                 searchForServer()
                 break
@@ -324,11 +323,12 @@ local function startPlayerCountMonitor()
 end
 
 -- =================================================================
--- HÀM MỚI: KIỂM TRA TÀI KHOẢN CẦN NÉ
+-- HÀM MỚI: KIỂM TRA TÀI KHOẢN CẦN NÉ (CHỈ 1 LẦN)
 -- =================================================================
-local function startAvoidPlayerMonitor()
-    if not SETTINGS.EnableAvoidPlayers or not SETTINGS.AVOID_PLAYERS or #SETTINGS.AVOID_PLAYERS == 0 then return end
-    if avoidPlayerMonitorThread and coroutine.status(avoidPlayerMonitorThread) ~= "dead" then pcall(coroutine.close, avoidPlayerMonitorThread); avoidPlayerMonitorThread = nil end
+local function checkAvoidPlayersOnce()
+    if not SETTINGS.EnableAvoidPlayers or not SETTINGS.AVOID_PLAYERS or #SETTINGS.AVOID_PLAYERS == 0 then
+        return false -- Trả về false nếu tính năng bị tắt hoặc danh sách trống
+    end
 
     -- Tạo một set để tra cứu tên người chơi nhanh hơn
     local avoidNamesSet = {}
@@ -336,31 +336,20 @@ local function startAvoidPlayerMonitor()
         avoidNamesSet[name] = true
     end
 
-    avoidPlayerMonitorThread = coroutine.create(function()
-        while true do
-            task.wait(SETTINGS.AvoidCheckInterval)
-            if not SETTINGS.EnableAvoidPlayers or not SETTINGS.EnableServerHop then break end
-
-            local playersInServer = Players:GetPlayers()
-            for _, player in ipairs(playersInServer) do
-                -- Quan trọng: Không kiểm tra chính mình
-                if player.Name ~= LocalPlayer.Name and avoidNamesSet[player.Name] then
-                    updateDisplay("ERROR", string.format("Phát hiện tài khoản '%s'!\nĐang tìm server mới...", player.Name))
-                    
-                    -- Dừng các luồng đang chạy
-                    if currentCountdownThread and coroutine.status(currentCountdownThread) ~= "dead" then pcall(coroutine.close, currentCountdownThread); currentCountdownThread = nil end
-                    if playerMonitorThread and coroutine.status(playerMonitorThread) ~= "dead" then pcall(coroutine.close, playerMonitorThread); playerMonitorThread = nil end
-                    if avoidPlayerMonitorThread and coroutine.status(avoidPlayerMonitorThread) ~= "dead" then pcall(coroutine.close, avoidPlayerMonitorThread); avoidPlayerMonitorThread = nil end
-                    
-                    task.wait(3)
-                    searchForServer()
-                    return -- Dừng hoàn toàn coroutine này
-                end
-            end
-            print("[AvoidPlayerMonitor] Quét xong, không phát hiện tài khoản cần né.")
+    local playersInServer = Players:GetPlayers()
+    for _, player in ipairs(playersInServer) do
+        -- Quan trọng: Không kiểm tra chính mình
+        if player.Name ~= LocalPlayer.Name and avoidNamesSet[player.Name] then
+            updateDisplay("ERROR", string.format("Phát hiện tài khoản '%s'!\nĐang tìm server mới...", player.Name))
+            
+            task.wait(3)
+            searchForServer()
+            return true -- Trả về true để báo hiệu rằng đã bắt đầu hop
         end
-    end)
-    coroutine.resume(avoidPlayerMonitorThread)
+    end
+
+    print("[AvoidPlayerCheck] Quét 1 lần OK, không phát hiện tài khoản cần né.")
+    return false -- Trả về false nếu không tìm thấy ai
 end
 
 
@@ -392,6 +381,7 @@ task.spawn(function()
     updateDisplay("INFO", "Bắt đầu luồng quyết định...")
 
     if SETTINGS.EnableServerHop then
+        -- Bước 1: Quét bot
         local botCount = 0
         if SETTINGS.EnableAntiBotScan then botCount = scanForBots() end
 
@@ -400,18 +390,23 @@ task.spawn(function()
             task.wait(3)
             searchForServer()
         else
-            if SETTINGS.EnableAntiBotScan then updateDisplay("SUCCESS", "Server sạch.\nBắt đầu AFK.") else updateDisplay("INFO", "Bỏ qua quét bot.\nBắt đầu AFK.") end
-            task.wait(2)
-            
-            if SETTINGS.EnableSafePlatform then createSafePlatform() end
-            if SETTINGS.EnableStaticAfkView then setupStaticAfkView() end
-            if SETTINGS.EnableCpuOptimization then optimizeForCpu() end
-            if SETTINGS.EnableGraphicsOptimization then optimizeGraphics() end
-            task.spawn(setupDiscordWebhook)
-            
-            startInitialCountdown()
-            startPlayerCountMonitor()
-            startAvoidPlayerMonitor() -- << KHỞI CHẠY TÍNH NĂNG MỚI
+            -- Bước 2: Quét tài khoản cần né (chỉ 1 lần)
+            local willHopForAvoid = checkAvoidPlayersOnce()
+
+            -- Bước 3: Nếu không hop vì lý do nào ở trên, bắt đầu AFK
+            if not willHopForAvoid then
+                if SETTINGS.EnableAntiBotScan then updateDisplay("SUCCESS", "Server sạch.\nBắt đầu AFK.") else updateDisplay("INFO", "Bỏ qua quét bot.\nBắt đầu AFK.") end
+                task.wait(2)
+                
+                if SETTINGS.EnableSafePlatform then createSafePlatform() end
+                if SETTINGS.EnableStaticAfkView then setupStaticAfkView() end
+                if SETTINGS.EnableCpuOptimization then optimizeForCpu() end
+                if SETTINGS.EnableGraphicsOptimization then optimizeGraphics() end
+                task.spawn(setupDiscordWebhook)
+                
+                startInitialCountdown()
+                startPlayerCountMonitor()
+            end
         end
     else
         if SETTINGS.EnableSafePlatform then createSafePlatform() end
