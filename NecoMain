@@ -261,11 +261,17 @@ function searchForServer()
                     curRetry = math.min(curRetry * 2, maxRetryDelay)
                 end;
                 
+                local headers = {
+                    ["User-Agent"] = "Roblox/WinInet",
+                    ["Referer"] = "https://www.roblox.com/games/8737602449/",
+                    ["Origin"] = "https://www.roblox.com"
+                }
                 local req = (syn and syn.request) or (http and http.request) or (fluxus and fluxus.request) or request
                 local s, response = pcall(function()
                     return req({
                         Url = serversUrlBase .. (nextCur and "&cursor=" .. nextCur or ""),
-                        Method = "GET"
+                        Method = "GET",
+                        Headers = headers
                     })
                 end)
                 local d = (s and response) and response.Body or nil
@@ -286,6 +292,9 @@ function searchForServer()
                             end
                         end;
                         
+                        -- =================================================================
+                        -- SỬA LỖI RACE CONDITION (V2)
+                        -- =================================================================
                         if #pSuitS > 0 then
                             -- Xáo trộn danh sách server tiềm năng để tránh tất cả các script cùng nhắm vào server đầu tiên.
                             for i = #pSuitS, 2, -1 do
@@ -296,7 +305,7 @@ function searchForServer()
                             -- Lặp qua từng server tiềm năng và kiểm tra lại lần cuối trước khi chọn.
                             for _, candidateServer in ipairs(pSuitS) do
                                 -- Tải lại lịch sử MỚI NHẤT từ file để đảm bảo không có script nào khác đã chọn server này.
-                                loadServerHistory()    
+                                loadServerHistory() 
                                 
                                 -- Kiểm tra lại lần cuối cùng.
                                 if not serverHistoryCache[candidateServer.id] then
@@ -304,7 +313,7 @@ function searchForServer()
                                     updateDisplay("INFO", "Kiểm tra lần cuối OK. Đã chọn server!")
                                     chosenServer = candidateServer
                                     
-                                    -- Lưu ID server mới vào lịch sử NGAY LẬP TỨC để "đặt chỗ".
+                                    -- Lưu ID server mới vào lịch sử NGAY LẬP TỨC.
                                     addJobIdToHistoryAndSave(chosenServer.id)
                                     
                                     allScanned = true -- Đánh dấu đã tìm xong để thoát các vòng lặp ngoài.
@@ -312,10 +321,15 @@ function searchForServer()
                                 end
                             end
                             
+                            -- Nếu đã chọn được server (chosenServer không còn là nil), vòng lặp while bên ngoài sẽ dừng lại.
                             if chosenServer then
                                 break
                             end
                         end
+                        -- =================================================================
+                        -- KẾT THÚC SỬA LỖI
+                        -- =================================================================
+
                         nextCur = sListD.nextPageCursor;
                         if not nextCur then
                             allScanned = true;
