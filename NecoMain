@@ -19,8 +19,8 @@ local SETTINGS = {
 
     -- [NÂNG CẤP] Cài đặt kiểm tra server vắng
     ["EnablePlayerCountCheck"] = true, -- Bật/tắt kiểm tra số người chơi mỗi phút.
-    ["MinPlayerThreshold"] = 10,       -- Nếu người chơi trong server ít hơn số này, sẽ bắt đầu đếm ngược để chuyển.
-    ["LowPlayerConsecutiveChecks"] = 3, -- [MỚI] Số lần kiểm tra liên tiếp (mỗi lần cách nhau 60s) mà server vắng trước khi quyết định chuyển. Đặt là 3 nghĩa là server phải vắng trong 3 phút liên tục.
+    ["MinPlayerThreshold"] = 25,       -- Nếu người chơi trong server ít hơn số này, sẽ bắt đầu đếm ngược để chuyển.
+    ["LowPlayerConsecutiveChecks"] = 1, -- [MỚI] Số lần kiểm tra liên tiếp (mỗi lần cách nhau 60s) mà server vắng trước khi quyết định chuyển. Đặt là 3 nghĩa là server phải vắng trong 3 phút liên tục.
 
     -- =================================================================
     -- CÀI ĐẶT TÍNH NĂNG PHỤ
@@ -57,7 +57,7 @@ local SETTINGS = {
 
     ["EnableAutoSpam"] = true,
     ["SpamInterval"] = 60,
-    ["SpamMessages"] = { "Goal: MAX SPIN LEVEL 100:cyclone: - 1 ROBUX = +1 SPEED!", "Goal: MAX SPIN LEVEL 100:cyclone: - 1 ROBUX = +1 SPEED!" },
+    ["SpamMessages"] = { "Goal: MAX SPIN LEVEL 100🌀 - 1 ROBUX = +1 SPEED!", "Goal: MAX SPIN LEVEL 100:cyclone: - 1 ROBUX = +1 SPEED!" },
 
     -- =================================================================
     -- CÀI ĐẶT BOOTH & SPIN
