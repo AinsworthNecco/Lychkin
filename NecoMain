@@ -19,7 +19,7 @@ local SETTINGS = {
 
     -- [NÂNG CẤP] Cài đặt kiểm tra server vắng
     ["EnablePlayerCountCheck"] = true, -- Bật/tắt kiểm tra số người chơi mỗi phút.
-    ["MinPlayerThreshold"] = 25,       -- Nếu người chơi trong server ít hơn số này, sẽ bắt đầu đếm ngược để chuyển.
+    ["MinPlayerThreshold"] = 15,       -- Nếu người chơi trong server ít hơn số này, sẽ bắt đầu đếm ngược để chuyển.
     ["LowPlayerConsecutiveChecks"] = 1, -- [MỚI] Số lần kiểm tra liên tiếp (mỗi lần cách nhau 60s) mà server vắng trước khi quyết định chuyển. Đặt là 3 nghĩa là server phải vắng trong 3 phút liên tục.
 
     -- =================================================================
