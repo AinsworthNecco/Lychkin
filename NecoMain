@@ -186,30 +186,7 @@ local function createStatusGui()
     infoTextLabel.Text = "..."
     infoTextLabel.ZIndex = 3
     infoTextLabel.Parent = statusScreenGui
-    
-    -- [MỚI] Giao diện tự chọn Booth
-    local boothSelectorFrame = Instance.new("Frame")
-    boothSelectorFrame.Name = "BoothSelectorFrame"
-    boothSelectorFrame.Size = UDim2.new(0, 300, 0, 40)
-    boothSelectorFrame.Position = UDim2.new(0.5, 0, 0, 10)
-    boothSelectorFrame.AnchorPoint = Vector2.new(0.5, 0)
-    boothSelectorFrame.BackgroundTransparency = 0.5
-    boothSelectorFrame.BackgroundColor3 = Color3.new(0, 0, 0)
-    boothSelectorFrame.ZIndex = 4
-    boothSelectorFrame.Parent = statusScreenGui
-    
-    boothIdInput = Instance.new("TextBox")
-    boothIdInput.Name = "BoothIdInput"
-    boothIdInput.Size = UDim2.new(0.6, 0, 1, 0)
-    boothIdInput.Position = UDim2.new(0, 0, 0, 0)
-    boothIdInput.Font = Enum.Font.SourceSans
-    boothIdInput.TextSize = 18
-    boothIdInput.PlaceholderText = "Nhập ID Booth..."
-    boothIdInput.TextColor3 = Color3.new(1,1,1)
-    boothIdInput.BackgroundColor3 = Color3.fromRGB(45, 45, 45)
-    boothIdInput.ZIndex = 5
-    boothIdInput.Parent = boothSelectorFrame
-    
+
     claimBoothButton = Instance.new("TextButton")
     claimBoothButton.Name = "ClaimBoothButton"
     claimBoothButton.Size = UDim2.new(0.4, 0, 1, 0)
@@ -685,21 +662,6 @@ task.spawn(function()
             updateSpinSpeed()
         end
     end)
-    
-    -- [MỚI] Kết nối sự kiện cho nút claim booth
-    if claimBoothButton then
-        claimBoothButton.MouseButton1Click:Connect(function()
-            local id = tonumber(boothIdInput.Text)
-            if id then
-                task.spawn(claimAndSetupBooth, id)
-            else
-                updateDisplay("ERROR", "Vui lòng nhập một ID booth hợp lệ (chỉ số).")
-            end
-        end)
-    end
-
-    updateDisplay("INFO", string.format("Chờ game tải trong %d giây...", SETTINGS.InitialWaitTime))
-    task.wait(SETTINGS.InitialWaitTime)
     
     -- BƯỚC QUAN TRỌNG: Tìm Remotes TRƯỚC TIÊN
     local remotesFound = findRemotes()
