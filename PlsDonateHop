@@ -10,7 +10,6 @@ local SETTINGS = {
         "Lychkin04",
         "Lychkin05"
     },
-    -- ["AvoidCheckInterval"] = 15, -- Không cần thiết nữa vì chỉ quét 1 lần
 
     -- =================================================================
     -- CÀI ĐẶT CHỐNG BOT
