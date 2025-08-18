@@ -94,7 +94,7 @@ local SETTINGS = {
     ["SetSimulationRadiusToZero"] = true,
     ["TargetFps"] = 7,
     ["EnableFileHistory"] = true,
-    ["InitialWaitTime"] = 10,
+    ["InitialWaitTime"] = 1,
     ["EnableCountdownText"] = true,
     ["EnableCountdownColor"] = true,
 }
