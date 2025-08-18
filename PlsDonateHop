@@ -36,7 +36,7 @@ local SETTINGS = {
     ["EnableSafePlatform"] = true,
     ["EnableStaticAfkView"] = true,
     ["EnableDonateReset"] = true,
-    ["EnableAutoReconnect"] = false,
+    ["EnableAutoReconnect"] = true,
     
     -- Cài đặt Thông Báo Donate qua Discord
     ["EnableDiscordWebhook"] = true,
