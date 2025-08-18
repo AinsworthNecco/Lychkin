@@ -301,7 +301,7 @@ local function startPlayerCountMonitor()
 
     playerMonitorThread = coroutine.create(function()
         while true do
-            task.wait(60) -- Kiểm tra mỗi 60 giây
+            task.wait(20) -- Kiểm tra mỗi 60 giây
             if not SETTINGS.EnablePlayerCountCheck or not SETTINGS.EnableServerHop then break end
 
             local currentPlayers = #Players:GetPlayers()
