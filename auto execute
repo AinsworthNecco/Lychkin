@@ -1,3 +1,6 @@
+-- =================================================================
+-- AUTO EXECUTE 
+-- =================================================================
 local url = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/NecoMain"
 local q = syn and syn.queue_on_teleport or queue_on_teleport
 
