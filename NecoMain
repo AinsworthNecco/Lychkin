@@ -263,9 +263,9 @@ local function optimizeGraphics() updateDisplay("INFO", "Bắt đầu tối ưu 
 local function rgb(hex) hex = hex:gsub("#", ""); local r = tonumber("0x" .. hex:sub(1, 2)) or 255; local g = tonumber("0x" .. hex:sub(3, 4)) or 255; local b = tonumber("0x" .. hex:sub(5, 6)) or 255; return Color3.fromRGB(r, g, b) end
 
 -- =================================================================
--- LOGIC TÌM SERVER (AN TOÀN HƠN)
+-- LOGIC TÌM SERVER
 -- =================================================================
-local chosenServer = nil; local serversUrlBase = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Desc&limit=100"
+local chosenServer = nil; local serversUrlBase = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Asc&limit=100"
 function searchForServer()
     if not SETTINGS.EnableFileHistory then serverHistoryCache = {} else loadServerHistory() end;
     local histC = 0; for _ in pairs(serverHistoryCache) do histC = histC + 1 end;
