@@ -1,6 +1,7 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # Script Roblox All-in-One: Kiem tra trang thai, rejoin, va dinh ky tat toan bo.
 # LOGIC: Wake Lock -> Vong lap (Kiem tra chu ky Kill All -> Kiem tra tung tai khoan -> Kill & Rejoin neu can) -> Doi.
+# b c d e f g h i j k l m n o p q r s t u v w x y z
 #---------------------------------------------------
 # -- CAI DAT CHINH --
 #---------------------------------------------------
@@ -8,7 +9,7 @@
 # Lien ket hau to phien ban voi ID tai khoan Roblox tuong ung.
 # Dinh dang: "hau_to_1:ID_1 hau_to_2:ID_2 ..."
 # VI DU: AccountMap="b:12345678 c:87654321"
-AccountMap="b:8033531994 c:8033535049 d:8033528354 e:8033544205 f:8033543342 g:8825003633"
+AccountMap="b:8033531994 c:8033535049 d:8033528354 e:8033544205 f:8033543342 g:8825003633 h:8824995724"
 
 # URL cua VIP Server ban muon tham gia
 VipServerUrl="roblox://placeId=8737602449"
