@@ -15,7 +15,7 @@ AccountMap="b:8033531994 c:8033535049 d:8033528354 e:8033544205 f:8033543342 g:8
 VipServerUrl="roblox://placeId=8737602449"
 
 # Thoi gian (giay) giua moi chu ky kiem tra va join lai (300 giay = 5 phut)
-CycleInterval=600
+CycleInterval=300
 
 # Thoi gian (giay) de tat toan bo cac phien ban (10800 giay = 3 gio)
 KillAllInterval=10800
