@@ -1,20 +1,23 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# Script Roblox All-in-One: Tu dong kiem tra, tat va join lai neu khong o trong game.
-# LOGIC: Kich hoat Wake Lock -> Vong lap (Kiem tra tung tai khoan -> Kill & Rejoin neu can) -> Doi.
+# Script Roblox All-in-One: Kiem tra trang thai, rejoin, va dinh ky tat toan bo.
+# LOGIC: Wake Lock -> Vong lap (Kiem tra chu ky Kill All -> Kiem tra tung tai khoan -> Kill & Rejoin neu can) -> Doi.
 #---------------------------------------------------
 # -- CAI DAT CHINH --
 #---------------------------------------------------
 
 # Lien ket hau to phien ban voi ID tai khoan Roblox tuong ung.
 # Dinh dang: "hau_to_1:ID_1 hau_to_2:ID_2 ..."
-# b c d e f g h i j k l m n o p q r s t u v w x y z
-AccountMap="b:8033531994 c:8033535049 d:8033528354 e:8033544205 f:8033543342 g:8825003633"
+# VI DU: AccountMap="b:12345678 c:87654321"
+AccountMap="b:2061769761"
 
 # URL cua VIP Server ban muon tham gia
 VipServerUrl="roblox://placeId=8737602449"
 
 # Thoi gian (giay) giua moi chu ky kiem tra va join lai (300 giay = 5 phut)
-CycleInterval=900
+CycleInterval=300
+
+# Thoi gian (giay) de tat toan bo cac phien ban (10800 giay = 3 gio)
+KillAllInterval=10800
 
 # Thoi gian (giay) cho giua moi lan gui lenh join (neu can)
 OpenDelay=10
@@ -45,6 +48,27 @@ echo "Dang kich hoat Wake Lock de chong crash..."
 termux-wake-lock &
 
 echo "Chu ky kiem tra va join lai: $CycleInterval giay."
+echo "Chu ky tat toan bo: $KillAllInterval giay."
+
+# Ham tat toan bo cac phien ban
+function kill_all_instances() {
+    read -r -a account_pairs <<< "$AccountMap"
+    if [[ ${#account_pairs[@]} -eq 0 ]]; then
+        echo "Loi: Khong co tai khoan nao de tat."
+        return
+    fi
+
+    for pair in "${account_pairs[@]}"; do
+        suffix="${pair%%:*}"
+        package_to_stop="${BasePackageName}${suffix}"
+        pid_to_kill=$(pidof "$package_to_stop")
+        if [[ -n "$pid_to_kill" ]]; then
+            echo "  => Dung phien ban $package_to_stop (PID: $pid_to_kill)."
+            kill -9 "$pid_to_kill"
+        fi
+    done
+    echo "Da hoan tat viec dung cac phien ban."
+}
 
 # Ham chinh de kiem tra, tat va join lai
 function manage_and_rejoin_instances() {
@@ -76,17 +100,15 @@ function manage_and_rejoin_instances() {
         if [[ "$PRESENCE_TYPE" -ne 2 ]]; then
             echo "   -> Trang thai: NOT IN GAME (Code: ${PRESENCE_TYPE:-N/A}). Khoi dong lai phien ban..."
             
-            # Buoc 1: Tat phien ban neu no dang chay
             pid_to_kill=$(pidof "$package_name")
             if [[ -n "$pid_to_kill" ]]; then
                 echo "      => Dang tat phien ban $package_name (PID: $pid_to_kill)."
                 kill -9 "$pid_to_kill"
-                sleep 3 # Cho mot chut de process chet han
+                sleep 3
             else
                 echo "      => Phien ban $package_name khong chay."
             fi
 
-            # Buoc 2: Gui lenh join game
             echo "      => Gui lenh join den: $package_name"
             am start -a android.intent.action.VIEW -d "$VipServerUrl" -p "$package_name"
             sleep "$OpenDelay"
@@ -96,10 +118,27 @@ function manage_and_rejoin_instances() {
     done
 }
 
+# Lay thoi diem bat dau de tinh toan cho chu ky tat toan bo
+last_kill_time=$(date +%s)
+
 # Vong lap chinh, chay vo han
 while true; do
     clear
+    current_time=$(date +%s)
+
+    # Kiem tra xem da den luc tat toan bo chua
+    if (( current_time - last_kill_time >= KillAllInterval )); then
+        echo "================================================="
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] DA DEN GIO. Dang tat toan bo phien ban..."
+        kill_all_instances
+        last_kill_time=$(date +%s) # Dat lai moc thoi gian
+        echo "Cho 10 giay sau khi tat toan bo de he thong on dinh..."
+        sleep 10
+    fi
+
+    # Luon luon goi ham kiem tra va join lai
     manage_and_rejoin_instances
+    
     echo "================================================="
     echo "Da hoan tat chu ky. Script se cho $CycleInterval giay truoc khi kiem tra lai."
     sleep "$CycleInterval"
