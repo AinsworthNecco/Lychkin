@@ -24,7 +24,12 @@ local SETTINGS = {
         "Lychkin02",
         "Lychkin03",
         "Lychkin04",
-        "Lychkin05"
+        "Lychkin05",
+        "YattaNeco1",
+        "YattaNeco2",
+        "YattaNeco3",
+        "YattaNeco4",
+        "YattaNeco5"
     },
 
     -- =================================================================
