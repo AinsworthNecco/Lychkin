@@ -21,7 +21,7 @@ CycleInterval=300
 KillAllInterval=10800
 
 # Thoi gian (giay) cho giua moi lan gui lenh join (neu can)
-OpenDelay=10
+OpenDelay=20
 
 # Ten goi co ban cua Roblox (khong nen thay doi)
 BasePackageName="com.roblox.clien"
