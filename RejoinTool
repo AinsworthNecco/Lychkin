@@ -1,27 +1,23 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# Script Roblox All-in-One: Kiem tra trang thai, rejoin, va dinh ky tat toan bo.
-# LOGIC: Wake Lock -> Vong lap (Kiem tra chu ky Kill All -> Kiem tra tung tai khoan -> Kill & Rejoin neu can) -> Doi.
-# b c d e f g h i j k l m n o p q r s t u v w x y z
+# Script Roblox All-in-One: Dinh ky lam moi phien, tu dong rejoin khi offline.
+# LOGIC: Wake Lock -> Vong lap (Kiem tra tung tai khoan -> Kill & Rejoin neu offline, Force Rejoin neu online) -> Doi.
 #---------------------------------------------------
 # -- CAI DAT CHINH --
 #---------------------------------------------------
 
 # Lien ket hau to phien ban voi ID tai khoan Roblox tuong ung.
 # Dinh dang: "hau_to_1:ID_1 hau_to_2:ID_2 ..."
-# VI DU: AccountMap="b:12345678 c:87654321"
 AccountMap="b:8033531994 c:8033535049 d:8033528354 e:8033544205 f:8033543342 g:8825003633"
+AccountMap="b:2061769761"
 
 # URL cua VIP Server ban muon tham gia
 VipServerUrl="roblox://placeId=8737602449"
 
-# Thoi gian (giay) giua moi chu ky kiem tra va join lai (300 giay = 5 phut)
+# Thoi gian (giay) giua moi chu ky lam moi (300 giay = 5 phut)
 CycleInterval=300
 
-# Thoi gian (giay) de tat toan bo cac phien ban (10800 giay = 3 gio)
-KillAllInterval=10800
-
-# Thoi gian (giay) cho giua moi lan gui lenh join (neu can)
-OpenDelay=20
+# Thoi gian (giay) cho giua moi lan gui lenh join
+OpenDelay=10
 
 # Ten goi co ban cua Roblox (khong nen thay doi)
 BasePackageName="com.roblox.clien"
@@ -29,7 +25,6 @@ BasePackageName="com.roblox.clien"
 #---------------------------------------------------
 # -- TU DONG KIEM TRA ROOT --
 #---------------------------------------------------
-# Kiem tra xem script co dang chay voi quyen root khong (EUID = 0)
 if [[ $EUID -ne 0 ]]; then
     echo "Script nay can quyen root de thuc thi 'kill'."
     echo "Dang co gang chay lai script voi 'su'..."
@@ -42,39 +37,18 @@ fi
 # Khong can sua phan duoi day.
 #---------------------------------------------------
 
-echo "--- KHOI DONG SCRIPT QUAN LY & REJOIN ROBLOX ---"
+echo "--- KHOI DONG SCRIPT QUAN LY & LAM MOI ROBLOX ---"
 
-# Buoc 1: Kich hoat Wake Lock de giu cho Termux luon chay
+# Kich hoat Wake Lock de giu cho Termux luon chay
 echo "Dang kich hoat Wake Lock de chong crash..."
 termux-wake-lock &
 
-echo "Chu ky kiem tra va join lai: $CycleInterval giay."
-echo "Chu ky tat toan bo: $KillAllInterval giay."
+echo "Chu ky lam moi phien: $CycleInterval giay."
 
-# Ham tat toan bo cac phien ban
-function kill_all_instances() {
-    read -r -a account_pairs <<< "$AccountMap"
-    if [[ ${#account_pairs[@]} -eq 0 ]]; then
-        echo "Loi: Khong co tai khoan nao de tat."
-        return
-    fi
-
-    for pair in "${account_pairs[@]}"; do
-        suffix="${pair%%:*}"
-        package_to_stop="${BasePackageName}${suffix}"
-        pid_to_kill=$(pidof "$package_to_stop")
-        if [[ -n "$pid_to_kill" ]]; then
-            echo "  => Dung phien ban $package_to_stop (PID: $pid_to_kill)."
-            kill -9 "$pid_to_kill"
-        fi
-    done
-    echo "Da hoan tat viec dung cac phien ban."
-}
-
-# Ham chinh de kiem tra, tat va join lai
-function manage_and_rejoin_instances() {
+# Ham chinh de kiem tra va lam moi
+function refresh_instances() {
     echo "================================================="
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] BAT DAU CHU KY KIEM TRA..."
+    echo "[$(date '+%Y-%m-%d %H:%M:%S')] BAT DAU CHU KY LAM MOI..."
 
     read -r -a account_pairs <<< "$AccountMap"
 
@@ -93,12 +67,14 @@ function manage_and_rejoin_instances() {
 
         PRESENCE_API="https://presence.roblox.com/v1/presence/users"
         PRESENCE_PAYLOAD="{\"userIds\": [$user_id]}"
-        PRESENCE_DATA_RAW=$(curl -s -X POST -H "Content-Type: application/json" -d "$PRESENCE_PAYLOAD" "$PRESENCE_API")
+        # THEM TIMEOUT 10 GIÂY CHO CURL DE TRÁNH TREO
+        PRESENCE_DATA_RAW=$(curl --max-time 10 -s -X POST -H "Content-Type: application/json" -d "$PRESENCE_PAYLOAD" "$PRESENCE_API")
         
         PRESENCE_TYPE=$(echo "$PRESENCE_DATA_RAW" | grep -o '"userPresenceType":[0-9]*' | sed 's/"userPresenceType"://')
 
-        # Ma "2" la "In Game". Neu khong phai la 2, thuc hien khoi dong lai.
+        # Ma "2" la "In Game".
         if [[ "$PRESENCE_TYPE" -ne 2 ]]; then
+            # NEU KHONG O TRONG GAME -> TAT VA BAT LAI
             echo "   -> Trang thai: NOT IN GAME (Code: ${PRESENCE_TYPE:-N/A}). Khoi dong lai phien ban..."
             
             pid_to_kill=$(pidof "$package_name")
@@ -106,42 +82,25 @@ function manage_and_rejoin_instances() {
                 echo "      => Dang tat phien ban $package_name (PID: $pid_to_kill)."
                 kill -9 "$pid_to_kill"
                 sleep 3
-            else
-                echo "      => Phien ban $package_name khong chay."
             fi
-
-            echo "      => Gui lenh join den: $package_name"
-            am start -a android.intent.action.VIEW -d "$VipServerUrl" -p "$package_name"
-            sleep "$OpenDelay"
         else
-            echo "   -> Trang thai: IN GAME (Code: 2). Khong can hanh dong."
+            # NEU DANG O TRONG GAME -> CHI GUI LENH JOIN DE LAM MOI
+            echo "   -> Trang thai: IN GAME (Code: 2). Gui lenh join de lam moi..."
         fi
+
+        # Luon luon gui lenh join trong ca hai truong hop
+        echo "      => Gui lenh join den: $package_name"
+        am start -a android.intent.action.VIEW -d "$VipServerUrl" -p "$package_name"
+        sleep "$OpenDelay"
     done
 }
-
-# Lay thoi diem bat dau de tinh toan cho chu ky tat toan bo
-last_kill_time=$(date +%s)
 
 # Vong lap chinh, chay vo han
 while true; do
     clear
-    current_time=$(date +%s)
-
-    # Kiem tra xem da den luc tat toan bo chua
-    if (( current_time - last_kill_time >= KillAllInterval )); then
-        echo "================================================="
-        echo "[$(date '+%Y-%m-%d %H:%M:%S')] DA DEN GIO. Dang tat toan bo phien ban..."
-        kill_all_instances
-        last_kill_time=$(date +%s) # Dat lai moc thoi gian
-        echo "Cho 10 giay sau khi tat toan bo de he thong on dinh..."
-        sleep 10
-    fi
-
-    # Luon luon goi ham kiem tra va join lai
-    manage_and_rejoin_instances
-    
+    refresh_instances
     echo "================================================="
-    echo "Da hoan tat chu ky. Script se cho $CycleInterval giay truoc khi kiem tra lai."
+    echo "Da hoan tat chu ky. Script se cho $CycleInterval giay truoc khi lam moi lai."
     sleep "$CycleInterval"
 done
 
