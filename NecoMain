@@ -48,7 +48,7 @@ local SETTINGS = {
     ["MaxServerHistorySize"] = 500,
     ["EnableServerHop"] = true,
     ["EnableDonateReset"] = true,
-    ["EnableAutoReconnect"] = true,
+    ["EnableAutoReconnect"] = false,
 
     -- [NÂNG CẤP] Cài đặt kiểm tra server vắng
     ["EnablePlayerCountCheck"] = true, -- Bật/tắt kiểm tra số người chơi mỗi phút.
