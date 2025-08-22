@@ -711,5 +711,15 @@ task.spawn(function()
         if SETTINGS.EnableGraphicsOptimization then optimizeGraphics() end
         updateDisplay("INFO", "Server Hop TẮT.\nHoàn thành thiết lập.")
     end
+-- Anti-AFK
+task.spawn(function()
+    local vu = game:GetService("VirtualUser")
+    game:GetService("Players").LocalPlayer.Idled:Connect(function()
+        vu:CaptureController()
+        vu:ClickButton2(Vector2.new(0,0))
+        print("[Anti-AFK] Đã chặn kick AFK!")
+    end)
+end)
+
     print("[MainInit] Script đã hoàn tất.")
 end)
