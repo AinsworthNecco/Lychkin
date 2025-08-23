@@ -48,7 +48,7 @@ local SETTINGS = {
     ["MaxServerHistorySize"] = 500,
     ["EnableServerHop"] = true,
     ["EnableDonateReset"] = true,
-    ["EnableAutoReconnect"] = false,
+    ["EnableAutoReconnect"] = true,
 
     -- [NÂNG CẤP] Cài đặt kiểm tra server vắng
     ["EnablePlayerCountCheck"] = true, -- Bật/tắt kiểm tra số người chơi mỗi phút.
@@ -101,7 +101,7 @@ local SETTINGS = {
     ["fontFace"] = "SciFi",     
     ["boothOffset"] = 3,     
     ["spinEnabled"] = true,     
-    ["spinBaseSpeed"] = 0.25,     
+    ["spinBaseSpeed"] = 0.5,     
     ["spinSpeedPerR"] = 0.1,     
 
     -- =================================================================
@@ -112,7 +112,7 @@ local SETTINGS = {
     ["SetSimulationRadiusToZero"] = true,
     ["TargetFps"] = 7,
     ["EnableFileHistory"] = true,
-    ["InitialWaitTime"] = 1,
+    ["InitialWaitTime"] = 3,
     ["EnableCountdownText"] = true,
     ["EnableCountdownColor"] = true,
 }
