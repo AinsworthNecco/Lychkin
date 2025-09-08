@@ -271,7 +271,138 @@ local function rgb(hex) hex = hex:gsub("#", ""); local r = tonumber("0x" .. hex:
 -- LOGIC TÌM SERVER
 -- =================================================================
 local chosenServer = nil; local serversUrlBase = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Asc&limit=100"
-function searchForServer() if not SETTINGS.EnableFileHistory then serverHistoryCache = {} else loadServerHistory() end; local histC=0;for _ in pairs(serverHistoryCache)do histC=histC+1 end; updateDisplay("INFO", string.format("Bắt đầu tìm server... (Tránh %d)",histC+1)); local sLActive=true; chosenServer=nil; while sLActive and not chosenServer do local nextCur=nil; updateDisplay("INFO", "Đang quét server..."); local allScanned=false; while not allScanned and not chosenServer do local pAtt=0;local maxAtt=4;local pFetched=false;local curRetry=baseRetryDelay; while not pFetched and pAtt<maxAtt do pAtt=pAtt+1;if pAtt>1 then updateDisplay("INFO", string.format("Thử lại (%d/%d)...",pAtt,maxAtt));task.wait(curRetry);curRetry=math.min(curRetry*2,maxRetryDelay) end; local s,d=pcall(game.HttpGet,game,serversUrlBase..(nextCur and "&cursor="..nextCur or ""),true);if s then pFetched=true;local sListD=HttpService:JSONDecode(d);if sListD and sListD.data then local pSuitS={}; for _,sInf in ipairs(sListD.data)do if not(sInf.id==currentJobId or serverHistoryCache[sInf.id])then if sInf.playing and sInf.maxPlayers and sInf.maxPlayers>0 then local pR=sInf.playing/sInf.maxPlayers if pR>=SETTINGS.MinPlayerPercentage and pR<SETTINGS.MaxPlayerPercentage and sInf.playing<sInf.maxPlayers then table.insert(pSuitS,sInf)end end end end; if #pSuitS>0 then chosenServer=pSuitS[math.random(1,#pSuitS)];allScanned=true;break end; nextCur=sListD.nextPageCursor;if not nextCur then allScanned=true;end else updateDisplay("ERROR","Dữ liệu server lỗi.")end else updateDisplay("ERROR","Lỗi API.");if pAtt>=maxAtt then allScanned=true end end end;if chosenServer or allScanned then break end;task.wait(waitTimeBetweenPageFetches) end; if chosenServer then updateDisplay("SUCCESS", "ĐÃ CHỌN SERVER!");sLActive=false elseif allScanned then updateDisplay("INFO", string.format("Không tìm thấy. Chờ %ds.",waitTimeBetweenFullScans));task.wait(waitTimeBetweenFullScans)end end; if chosenServer then updateDisplay("SUCCESS", "Chuẩn bị dịch chuyển..."); addJobIdToHistoryAndSave(currentJobId); task.wait(1); local sTP,eTP=pcall(TeleportService.TeleportToPlaceInstance,TeleportService,placeId,chosenServer.id,LocalPlayer); if not sTP then updateDisplay("ERROR", "Lỗi dịch chuyển! Thử lại..."); serverHistoryCache[chosenServer.id]=true;chosenServer=nil;task.wait(5);searchForServer() end else updateDisplay("ERROR", "Không thể tìm thấy server. Dừng lại.") end end
+function searchForServer()
+    if not SETTINGS.EnableFileHistory then serverHistoryCache = {} else loadServerHistory() end;
+    local histC = 0; for _ in pairs(serverHistoryCache) do histC = histC + 1 end;
+    updateDisplay("INFO", string.format("Bắt đầu tìm server... (Tránh %d)", histC + 1));
+    local sLActive = true;
+    chosenServer = nil;
+    while sLActive and not chosenServer do
+        local nextCur = nil;
+        updateDisplay("INFO", "Đang quét server...");
+        local allScanned = false;
+        while not allScanned and not chosenServer do
+            local pAtt = 0;
+            local maxAtt = 4;
+            local pFetched = false;
+            local curRetry = baseRetryDelay;
+            while not pFetched and pAtt < maxAtt do
+                pAtt = pAtt + 1;
+                if pAtt > 1 then
+                    updateDisplay("INFO", string.format("Thử lại (%d/%d)...", pAtt, maxAtt));
+                    task.wait(curRetry);
+                    curRetry = math.min(curRetry * 2, maxRetryDelay)
+                end;
+                
+                local headers = {
+                    ["User-Agent"] = "Roblox/WinInet",
+                    ["Referer"] = "https://www.roblox.com/games/8737602449/",
+                    ["Origin"] = "https://www.roblox.com"
+                }
+                local req = (syn and syn.request) or (http and http.request) or (fluxus and fluxus.request) or request
+                local s, response = pcall(function()
+                    return req({
+                        Url = serversUrlBase .. (nextCur and "&cursor=" .. nextCur or ""),
+                        Method = "GET",
+                        Headers = headers
+                    })
+                end)
+                local d = (s and response) and response.Body or nil
+
+                if s and d then
+                    pFetched = true;
+                    local sListD = HttpService:JSONDecode(d);
+                    if sListD and sListD.data then
+                        local pSuitS = {};
+                        for _, sInf in ipairs(sListD.data) do
+                            if not (sInf.id == currentJobId or serverHistoryCache[sInf.id]) then
+                                if sInf.playing and sInf.maxPlayers and sInf.maxPlayers > 0 then
+                                    local pR = sInf.playing / sInf.maxPlayers
+                                    if pR >= SETTINGS.MinPlayerPercentage and pR < SETTINGS.MaxPlayerPercentage and sInf.playing < sInf.maxPlayers then
+                                        table.insert(pSuitS, sInf)
+                                    end
+                                end
+                            end
+                        end;
+                        
+                        -- =================================================================
+                        -- SỬA LỖI RACE CONDITION (V2)
+                        -- =================================================================
+                        if #pSuitS > 0 then
+                            -- Xáo trộn danh sách server tiềm năng để tránh tất cả các script cùng nhắm vào server đầu tiên.
+                            for i = #pSuitS, 2, -1 do
+                                local j = math.random(i)
+                                pSuitS[i], pSuitS[j] = pSuitS[j], pSuitS[i]
+                            end
+
+                            -- Lặp qua từng server tiềm năng và kiểm tra lại lần cuối trước khi chọn.
+                            for _, candidateServer in ipairs(pSuitS) do
+                                -- Tải lại lịch sử MỚI NHẤT từ file để đảm bảo không có script nào khác đã chọn server này.
+                                loadServerHistory() 
+                                
+                                -- Kiểm tra lại lần cuối cùng.
+                                if not serverHistoryCache[candidateServer.id] then
+                                    -- Server này chưa bị ai "xí". Chọn nó ngay!
+                                    updateDisplay("INFO", "Kiểm tra lần cuối OK. Đã chọn server!")
+                                    chosenServer = candidateServer
+                                    
+                                    -- Lưu ID server mới vào lịch sử NGAY LẬP TỨC.
+                                    addJobIdToHistoryAndSave(chosenServer.id)
+                                    
+                                    allScanned = true -- Đánh dấu đã tìm xong để thoát các vòng lặp ngoài.
+                                    break -- Thoát khỏi vòng lặp for này.
+                                end
+                            end
+                            
+                            -- Nếu đã chọn được server (chosenServer không còn là nil), vòng lặp while bên ngoài sẽ dừng lại.
+                            if chosenServer then
+                                break
+                            end
+                        end
+                        -- =================================================================
+                        -- KẾT THÚC SỬA LỖI
+                        -- =================================================================
+
+                        nextCur = sListD.nextPageCursor;
+                        if not nextCur then
+                            allScanned = true;
+                        end
+                    else
+                        updateDisplay("ERROR", "Dữ liệu server lỗi.")
+                    end
+                else
+                    updateDisplay("ERROR", "Lỗi API.");
+                    if pAtt >= maxAtt then
+                        allScanned = true
+                    end
+                end
+            end;
+            if chosenServer or allScanned then break end;
+            task.wait(waitTimeBetweenPageFetches)
+        end;
+        if chosenServer then
+            updateDisplay("SUCCESS", "ĐÃ CHỌN SERVER!");
+            sLActive = false
+        elseif allScanned then
+            updateDisplay("INFO", string.format("Không tìm thấy. Chờ %ds.", waitTimeBetweenFullScans));
+            task.wait(waitTimeBetweenFullScans)
+        end
+    end;
+    if chosenServer then
+        updateDisplay("SUCCESS", "Chuẩn bị dịch chuyển...");
+        addJobIdToHistoryAndSave(currentJobId); -- Vẫn lưu server cũ để không quay lại
+        task.wait(1);
+        local sTP, eTP = pcall(TeleportService.TeleportToPlaceInstance, TeleportService, placeId, chosenServer.id, LocalPlayer);
+        if not sTP then
+            updateDisplay("ERROR", "Lỗi dịch chuyển! Server đã được lưu, sẽ tìm server khác...");
+            chosenServer = nil;
+            task.wait(5);
+            searchForServer()
+        end
+    else
+        updateDisplay("ERROR", "Không thể tìm thấy server. Dừng lại.")
+    end
+end
 -- =================================================================
 -- HỆ THỐNG BOOTH & SPIN
 -- =================================================================
