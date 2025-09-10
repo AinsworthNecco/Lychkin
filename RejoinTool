@@ -1,28 +1,15 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # Script Roblox Toan Dien: Tu dong khoi dong lai sau moi 3 gio de dam bao on dinh.
-# LOGIC: Kill All -> Wake Lock -> Vong lap lam moi trong 3 gio -> Tu khoi dong lai.
+# LOGIC: Kill All -> Vong lap lam moi trong 3 gio -> Tu khoi dong lai.
 #---------------------------------------------------
 # -- CAI DAT CHINH --
 #---------------------------------------------------
 
-# Lien ket hau to phien ban voi ID tai khoan Roblox tuong ung.
-# Dinh dang: "hau_to_1:ID_1 hau_to_2:ID_2 ..."
-# VI DU: AccountMap="b:8033531994 c:8033535049 d:8033528354 e:8033544205 f:8033543342 g:8825003633""
 AccountMap="b:8033531994 c:8033535049 d:8033528354 e:8033544205 f:8033543342 g:8825003633"
-
-# URL cua VIP Server ban muon tham gia
 VipServerUrl="roblox://placeId=8737602449"
-
-# Thoi gian (giay) giua moi chu ky kiem tra/lam moi (300 giay = 5 phut)
 CycleInterval=300
-
-# Thoi gian (giay) de script tu khoi dong lai (10800 giay = 3 gio)
 RestartInterval=10800
-
-# Thoi gian (giay) cho giua moi lan gui lenh join
 OpenDelay=10
-
-# Ten goi co ban cua Roblox (khong nen thay doi)
 BasePackageName="com.roblox.clien"
 
 #---------------------------------------------------
@@ -47,7 +34,7 @@ function kill_all_instances() {
     for pair in "${account_pairs[@]}"; do
         suffix="${pair%%:*}"
         package_to_stop="${BasePackageName}${suffix}"
-        pid_to_kill=$(ps -ef | grep "$package_to_stop" | grep -v grep | awk '{print $2}')
+        pid_to_kill=$(pidof "$package_to_stop")
         if [[ -n "$pid_to_kill" ]]; then
             echo "  => Dung phien ban $package_to_stop (PID: $pid_to_kill)."
             kill -9 "$pid_to_kill"
@@ -84,7 +71,7 @@ function refresh_instances() {
 
         if [[ "$PRESENCE_TYPE" -ne 2 ]]; then
             echo "   -> Trang thai: NOT IN GAME (Code: ${PRESENCE_TYPE:-N/A}). Khoi dong lai phien ban..."
-            pid_to_kill=$(ps -ef | grep "$package_name" | grep -v grep | awk '{print $2}')
+            pid_to_kill=$(pidof "$package_name")
             if [[ -n "$pid_to_kill" ]]; then
                 echo "      => Dang tat phien ban $package_name (PID: $pid_to_kill)."
                 kill -9 "$pid_to_kill"
@@ -106,9 +93,6 @@ echo "--- KHOI DONG CHU KY MOI (3 GIO) ---"
 echo "Dang tat toan bo cac phien ban cu de dam bao moi truong sach..."
 kill_all_instances
 sleep 5
-
-echo "Kich hoat Wake Lock de chong crash..."
-termux-wake-lock &
 
 # Tinh toan so lan lap trong mot chu ky 3 gio
 num_cycles=$((RestartInterval / CycleInterval))
