@@ -1,6 +1,7 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # Script Roblox Toàn Diện: Tối ưu hóa để chạy ổn định trên Android có root.
 # LOGIC: Dừng ứng dụng một cách an toàn -> Wake Lock -> Vòng lặp làm mới trong 3 giờ -> Tự khởi động lại.
+# PHIÊN BẢN 3: Sử dụng 'monkey' để khởi chạy ứng dụng một cách ổn định.
 #---------------------------------------------------
 # -- CÀI ĐẶT CHÍNH --
 #---------------------------------------------------
@@ -19,7 +20,9 @@ CycleInterval=300
 # Thời gian (giây) để script tự khởi động lại (10800 giây = 3 giờ)
 RestartInterval=10800
 
-# Thời gian (giây) chờ giữa mỗi lần gửi lệnh join
+# Thời gian (giây) chờ sau khi khởi chạy app và trước khi gửi lệnh join
+LaunchDelay=15
+# Thời gian (giây) chờ giữa mỗi lần gửi lệnh join cho các tài khoản
 OpenDelay=10
 
 # Tên gói cơ bản của Roblox (không nên thay đổi)
@@ -28,9 +31,8 @@ BasePackageName="com.roblox.client"
 #---------------------------------------------------
 # -- TỰ ĐỘNG KIỂM TRA ROOT --
 #---------------------------------------------------
-# Script sẽ tự động yêu cầu quyền root nếu chưa có
 if [[ $EUID -ne 0 ]]; then
-    echo "Script này cần quyền root để thực thi 'am force-stop'."
+    echo "Script này cần quyền root để thực thi các lệnh 'am' và 'monkey'."
     echo "Đang cố gắng chạy lại script với 'su'..."
     su -c "bash \"$0\" \"$@\""
     exit 0
@@ -40,15 +42,14 @@ fi
 # -- LOGIC CHÍNH --
 #---------------------------------------------------
 
-# <<< SỬA LỖI: Hàm dừng ứng dụng được cải tiến
-# Thêm kiểm tra xem ứng dụng có đang chạy không trước khi dừng.
+# Hàm dừng ứng dụng được cải tiến
 function stop_instance() {
     local package_name="$1"
-    # Kiểm tra xem có tiến trình nào khớp với tên gói không
     if pgrep -f "$package_name" >/dev/null; then
         echo "   => Phát hiện $package_name đang chạy. Dừng một cách an toàn..."
-        am force-stop "$package_name" >/dev/null 2>&1
-        sleep 2 # Thêm độ trễ nhỏ để hệ thống xử lý
+        # <<< SỬA LỖI: Thêm --user 0 để đảm bảo dừng đúng ứng dụng của người dùng
+        am force-stop --user 0 "$package_name" >/dev/null 2>&1
+        sleep 3 # Tăng độ trễ để hệ thống xử lý triệt để
     else
         echo "   => Phiên bản $package_name đã dừng."
     fi
@@ -103,14 +104,26 @@ function refresh_instances() {
         if [[ "$PRESENCE_TYPE" != "2" ]]; then
             echo "   -> Trạng thái: NOT IN GAME (Code: ${PRESENCE_TYPE:-N/A}). Khởi động lại phiên bản..."
             stop_instance "$package_name"
+            
+            # <<< SỬA LỖI LỚN: Sử dụng 'monkey' để khởi chạy ứng dụng
+            # Bước 1: Dùng monkey để khởi chạy gói ứng dụng. Cách này ổn định hơn 'am start'.
+            echo "   => Bước 1/2: Khởi chạy $package_name bằng monkey..."
+            monkey -p "$package_name" 1 >/dev/null 2>&1
+            
+            # Chờ ứng dụng tải xong
+            echo "   => Chờ $LaunchDelay giây để ứng dụng khởi động hoàn tất..."
+            sleep "$LaunchDelay"
+            
+            # Bước 2: Gửi Intent để join server
+            echo "   => Bước 2/2: Gửi lệnh join server đến $package_name..."
+            am start --user 0 -a android.intent.action.VIEW -d "$VipServerUrl" -p "$package_name"
+
         else
             echo "   -> Trạng thái: IN GAME (Code: 2). Gửi lệnh join để làm mới..."
+            echo "   => Gửi lệnh join đến: $package_name"
+            am start --user 0 -a android.intent.action.VIEW -d "$VipServerUrl" -p "$package_name"
         fi
 
-        echo "   => Gửi lệnh join đến: $package_name"
-        # <<< SỬA LỖI: Thêm cờ '--user 0' để chỉ định người dùng chính.
-        # Đây là thay đổi quan trọng nhất để khắc phục lỗi "unable to resolve Intent" và "Bad system call".
-        am start --user 0 -a android.intent.action.VIEW -d "$VipServerUrl" -p "$package_name"
         sleep "$OpenDelay"
     done
 }
