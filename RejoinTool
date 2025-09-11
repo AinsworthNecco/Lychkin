@@ -1,83 +1,70 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# Script Roblox Toàn Diện: Tối ưu hóa để chạy ổn định trên Android có root.
-# LOGIC: Dừng ứng dụng một cách an toàn -> Wake Lock -> Vòng lặp làm mới trong 3 giờ -> Tự khởi động lại.
-# PHIÊN BẢN 3: Sử dụng 'monkey' để khởi chạy ứng dụng một cách ổn định.
+# Script Roblox Toan Dien: Tu dong khoi dong lai sau moi 3 gio de dam bao on dinh.
+# LOGIC: Kill All -> Wake Lock -> Vong lap lam moi trong 3 gio -> Tu khoi dong lai.
 #---------------------------------------------------
-# -- CÀI ĐẶT CHÍNH --
+# -- CAI DAT CHINH --
 #---------------------------------------------------
 
-# Liên kết hậu tố phiên bản với ID tài khoản Roblox tương ứng.
-# Định dạng: "hậu_tố_1:ID_1 hậu_tố_2:ID_2 ..."
-# VÍ DỤ: AccountMap="b:8033531994 c:8033535049 d:8033528354 e:8033544205 f:8033543342 g:8825003633"
+# Lien ket hau to phien ban voi ID tai khoan Roblox tuong ung.
+# Dinh dang: "hau_to_1:ID_1 hau_to_2:ID_2 ..."
+# VI DU: AccountMap="b:8033531994 c:8033535049 d:8033528354 e:8033544205 f:8033543342 g:8825003633""
 AccountMap="b:8033531994 c:8033535049 d:8033528354 e:8033544205 f:8033543342 g:8825003633"
 
-# URL của VIP Server bạn muốn tham gia
+# URL cua VIP Server ban muon tham gia
 VipServerUrl="roblox://placeId=8737602449"
 
-# Thời gian (giây) giữa mỗi chu kỳ kiểm tra/làm mới (300 giây = 5 phút)
+# Thoi gian (giay) giua moi chu ky kiem tra/lam moi (300 giay = 5 phut)
 CycleInterval=300
 
-# Thời gian (giây) để script tự khởi động lại (10800 giây = 3 giờ)
+# Thoi gian (giay) de script tu khoi dong lai (10800 giay = 3 gio)
 RestartInterval=10800
 
-# Thời gian (giây) chờ sau khi khởi chạy app và trước khi gửi lệnh join
-LaunchDelay=15
-# Thời gian (giây) chờ giữa mỗi lần gửi lệnh join cho các tài khoản
+# Thoi gian (giay) cho giua moi lan gui lenh join
 OpenDelay=10
 
-# Tên gói cơ bản của Roblox (không nên thay đổi)
-BasePackageName="com.roblox.client"
+# Ten goi co ban cua Roblox (khong nen thay doi)
+BasePackageName="com.roblox.clien"
 
 #---------------------------------------------------
-# -- TỰ ĐỘNG KIỂM TRA ROOT --
+# -- TU DONG KIEM TRA ROOT --
 #---------------------------------------------------
 if [[ $EUID -ne 0 ]]; then
-    echo "Script này cần quyền root để thực thi các lệnh 'am' và 'monkey'."
-    echo "Đang cố gắng chạy lại script với 'su'..."
+    echo "Script nay can quyen root de thuc thi 'kill'."
+    echo "Dang co gang chay lai script voi 'su'..."
     su -c "bash \"$0\" \"$@\""
     exit 0
 fi
 
 #---------------------------------------------------
-# -- LOGIC CHÍNH --
+# -- LOGIC CHINH --
 #---------------------------------------------------
 
-# Hàm dừng ứng dụng được cải tiến
-function stop_instance() {
-    local package_name="$1"
-    if pgrep -f "$package_name" >/dev/null; then
-        echo "   => Phát hiện $package_name đang chạy. Dừng một cách an toàn..."
-        # <<< SỬA LỖI: Thêm --user 0 để đảm bảo dừng đúng ứng dụng của người dùng
-        am force-stop --user 0 "$package_name" >/dev/null 2>&1
-        sleep 3 # Tăng độ trễ để hệ thống xử lý triệt để
-    else
-        echo "   => Phiên bản $package_name đã dừng."
-    fi
-}
-
-# Hàm tắt toàn bộ các phiên bản
-function stop_all_instances() {
+# Ham tat toan bo cac phien ban
+function kill_all_instances() {
     read -r -a account_pairs <<< "$AccountMap"
     if [[ ${#account_pairs[@]} -eq 0 ]]; then return; fi
 
-    echo "Đang dừng tất cả các phiên bản Roblox..."
     for pair in "${account_pairs[@]}"; do
         suffix="${pair%%:*}"
         package_to_stop="${BasePackageName}${suffix}"
-        stop_instance "$package_to_stop"
+        pid_to_kill=$(ps -ef | grep "$package_to_stop" | grep -v grep | awk '{print $2}')
+        if [[ -n "$pid_to_kill" ]]; then
+            echo "  => Dung phien ban $package_to_stop (PID: $pid_to_kill)."
+            kill -9 "$pid_to_kill"
+        fi
     done
-    echo "Đã hoàn tất việc dừng các phiên bản."
+    echo "Da hoan tat viec dung cac phien ban."
 }
 
-# Hàm chính để kiểm tra và làm mới
+# Ham chinh de kiem tra va lam moi
 function refresh_instances() {
     echo "================================================="
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] BẮT ĐẦU CHU KỲ LÀM MỚI..."
+    echo "[$(date '+%Y-%-m-%d %H:%M:%S')] BAT DAU CHU KY LAM MOI..."
 
     read -r -a account_pairs <<< "$AccountMap"
 
     if [[ ${#account_pairs[@]} -eq 0 ]]; then
-        echo "Lỗi: Vui lòng định nghĩa ít nhất một cặp hậu_tố:ID trong biến 'AccountMap'."
+        echo "Loi: Vui long dinh nghia it nhat mot cap hau_to:ID trong bien 'AccountMap'."
         return
     fi
 
@@ -87,75 +74,59 @@ function refresh_instances() {
         package_name="${BasePackageName}${suffix}"
 
         echo "---"
-        echo "-> Đang kiểm tra phiên bản '$suffix' (ID: $user_id)..."
+        echo "-> Dang kiem tra phien ban '$suffix' (ID: $user_id)..."
 
         PRESENCE_API="https://presence.roblox.com/v1/presence/users"
         PRESENCE_PAYLOAD="{\"userIds\": [$user_id]}"
-        
         PRESENCE_DATA_RAW=$(curl --max-time 10 -s -X POST -H "Content-Type: application/json" -d "$PRESENCE_PAYLOAD" "$PRESENCE_API")
         
-        if [[ -z "$PRESENCE_DATA_RAW" ]]; then
-            echo "   -> Lỗi: Không nhận được phản hồi từ Roblox API. Bỏ qua lần kiểm tra này."
-            continue 
-        fi
-        
-        PRESENCE_TYPE=$(echo "$PRESENCE_DATA_RAW" | grep -o '"userPresenceType":[0-9]*' | cut -d':' -f2)
+        PRESENCE_TYPE=$(echo "$PRESENCE_DATA_RAW" | grep -o '"userPresenceType":[0-9]*' | sed 's/"userPresenceType"://')
 
-        if [[ "$PRESENCE_TYPE" != "2" ]]; then
-            echo "   -> Trạng thái: NOT IN GAME (Code: ${PRESENCE_TYPE:-N/A}). Khởi động lại phiên bản..."
-            stop_instance "$package_name"
-            
-            # <<< SỬA LỖI LỚN: Sử dụng 'monkey' để khởi chạy ứng dụng
-            # Bước 1: Dùng monkey để khởi chạy gói ứng dụng. Cách này ổn định hơn 'am start'.
-            echo "   => Bước 1/2: Khởi chạy $package_name bằng monkey..."
-            monkey -p "$package_name" 1 >/dev/null 2>&1
-            
-            # Chờ ứng dụng tải xong
-            echo "   => Chờ $LaunchDelay giây để ứng dụng khởi động hoàn tất..."
-            sleep "$LaunchDelay"
-            
-            # Bước 2: Gửi Intent để join server
-            echo "   => Bước 2/2: Gửi lệnh join server đến $package_name..."
-            am start --user 0 -a android.intent.action.VIEW -d "$VipServerUrl" -p "$package_name"
-
+        if [[ "$PRESENCE_TYPE" -ne 2 ]]; then
+            echo "   -> Trang thai: NOT IN GAME (Code: ${PRESENCE_TYPE:-N/A}). Khoi dong lai phien ban..."
+            pid_to_kill=$(ps -ef | grep "$package_name" | grep -v grep | awk '{print $2}')
+            if [[ -n "$pid_to_kill" ]]; then
+                echo "      => Dang tat phien ban $package_name (PID: $pid_to_kill)."
+                kill -9 "$pid_to_kill"
+                sleep 3
+            fi
         else
-            echo "   -> Trạng thái: IN GAME (Code: 2). Gửi lệnh join để làm mới..."
-            echo "   => Gửi lệnh join đến: $package_name"
-            am start --user 0 -a android.intent.action.VIEW -d "$VipServerUrl" -p "$package_name"
+            echo "   -> Trang thai: IN GAME (Code: 2). Gui lenh join de lam moi..."
         fi
 
+        echo "      => Gui lenh join den: $package_name"
+        am start -a android.intent.action.VIEW -d "$VipServerUrl" -p "$package_name"
         sleep "$OpenDelay"
     done
 }
 
-# --- ĐIỂM KHỞI ĐẦU CỦA SCRIPT ---
+# --- DIEM KHOI DAU CUA SCRIPT ---
 clear
-echo "--- KHỞI ĐỘNG CHU KỲ MỚI (3 GIỜ) ---"
-stop_all_instances
+echo "--- KHOI DONG CHU KY MOI (3 GIO) ---"
+echo "Dang tat toan bo cac phien ban cu de dam bao moi truong sach..."
+kill_all_instances
 sleep 5
 
-echo "Kích hoạt Wake Lock để chống crash..."
-termux-wake-lock
+echo "Kich hoat Wake Lock de chong crash..."
+termux-wake-lock &
 
-# Tính toán số lần lặp trong một chu kỳ 3 giờ
+# Tinh toan so lan lap trong mot chu ky 3 gio
 num_cycles=$((RestartInterval / CycleInterval))
 
-# Vòng lặp chính, chạy trong 3 giờ
+# Vong lap chinh, chay trong 3 gio
 for (( i=1; i<=num_cycles; i++ )); do
     clear
-    echo "--- Chu kỳ làm mới $i/$num_cycles (trong chu kỳ 3 giờ) ---"
+    echo "--- Chu ky lam moi $i/$num_cycles (trong chu ky 3 gio) ---"
     refresh_instances
     
     echo "================================================="
-    echo "Đã hoàn tất. Script sẽ chờ $CycleInterval giây trước khi làm mới lại."
+    echo "Da hoan tat. Script se cho $CycleInterval giay truoc khi lam moi lai."
     sleep "$CycleInterval"
 done
 
-# Sau khi hoan tất vòng lặp 3 giờ, tự khởi động lại script
+# Sau khi hoan tat vong lap 3 gio, tu khoi dong lai script
 echo "================================================="
-echo "ĐÃ HOÀN TẤT CHU KỲ 3 GIỜ. ĐANG TỰ KHỞI ĐỘNG LẠI SCRIPT..."
+echo "DA HOAN TAT CHU KY 3 GIO. DANG TU KHOI DONG LAI SCRIPT..."
 echo "================================================="
-termux-wake-unlock # Tạm thời mở khóa trước khi chạy lại
 sleep 5
 exec "$0" "$@"
-
