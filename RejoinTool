@@ -32,7 +32,6 @@ BasePackageName="com.roblox.client"
 if [[ $EUID -ne 0 ]]; then
     echo "Script này cần quyền root để thực thi 'am force-stop'."
     echo "Đang cố gắng chạy lại script với 'su'..."
-    # <<< THAY ĐỔI: Đảm bảo đường dẫn và đối số được truyền chính xác
     su -c "bash \"$0\" \"$@\""
     exit 0
 fi
@@ -41,13 +40,18 @@ fi
 # -- LOGIC CHÍNH --
 #---------------------------------------------------
 
-# <<< TỐI ƯU: Hàm dừng ứng dụng bằng 'am force-stop' - phương pháp an toàn cho Android
-# Thay vì 'kill -9', chúng ta yêu cầu hệ thống Android tự đóng ứng dụng.
+# <<< SỬA LỖI: Hàm dừng ứng dụng được cải tiến
+# Thêm kiểm tra xem ứng dụng có đang chạy không trước khi dừng.
 function stop_instance() {
     local package_name="$1"
-    echo "   => Dừng phiên bản $package_name một cách an toàn..."
-    am force-stop "$package_name" >/dev/null 2>&1
-    sleep 2 # Thêm độ trễ nhỏ để hệ thống xử lý
+    # Kiểm tra xem có tiến trình nào khớp với tên gói không
+    if pgrep -f "$package_name" >/dev/null; then
+        echo "   => Phát hiện $package_name đang chạy. Dừng một cách an toàn..."
+        am force-stop "$package_name" >/dev/null 2>&1
+        sleep 2 # Thêm độ trễ nhỏ để hệ thống xử lý
+    else
+        echo "   => Phiên bản $package_name đã dừng."
+    fi
 }
 
 # Hàm tắt toàn bộ các phiên bản
@@ -87,27 +91,26 @@ function refresh_instances() {
         PRESENCE_API="https://presence.roblox.com/v1/presence/users"
         PRESENCE_PAYLOAD="{\"userIds\": [$user_id]}"
         
-        # <<< TỐI ƯU: Thêm kiểm tra lỗi cho lệnh curl
         PRESENCE_DATA_RAW=$(curl --max-time 10 -s -X POST -H "Content-Type: application/json" -d "$PRESENCE_PAYLOAD" "$PRESENCE_API")
         
         if [[ -z "$PRESENCE_DATA_RAW" ]]; then
             echo "   -> Lỗi: Không nhận được phản hồi từ Roblox API. Bỏ qua lần kiểm tra này."
-            continue # Bỏ qua tài khoản này và chuyển đến tài khoản tiếp theo
+            continue 
         fi
         
-        # <<< TỐI ƯU: Cách lấy 'userPresenceType' ổn định hơn một chút
         PRESENCE_TYPE=$(echo "$PRESENCE_DATA_RAW" | grep -o '"userPresenceType":[0-9]*' | cut -d':' -f2)
 
         if [[ "$PRESENCE_TYPE" != "2" ]]; then
             echo "   -> Trạng thái: NOT IN GAME (Code: ${PRESENCE_TYPE:-N/A}). Khởi động lại phiên bản..."
-            # Dừng phiên bản hiện tại một cách an toàn trước khi khởi chạy lại
             stop_instance "$package_name"
         else
             echo "   -> Trạng thái: IN GAME (Code: 2). Gửi lệnh join để làm mới..."
         fi
 
         echo "   => Gửi lệnh join đến: $package_name"
-        am start -a android.intent.action.VIEW -d "$VipServerUrl" -p "$package_name"
+        # <<< SỬA LỖI: Thêm cờ '--user 0' để chỉ định người dùng chính.
+        # Đây là thay đổi quan trọng nhất để khắc phục lỗi "unable to resolve Intent" và "Bad system call".
+        am start --user 0 -a android.intent.action.VIEW -d "$VipServerUrl" -p "$package_name"
         sleep "$OpenDelay"
     done
 }
@@ -142,3 +145,4 @@ echo "================================================="
 termux-wake-unlock # Tạm thời mở khóa trước khi chạy lại
 sleep 5
 exec "$0" "$@"
+
