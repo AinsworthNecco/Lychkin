@@ -1,5 +1,5 @@
 local SETTINGS = {
-    -- =================================================================1
+    -- =================================================================
     -- CÀI ĐẶT NÉ NGƯỜI CHƠI
     -- =================================================================
     ["EnableAvoidPlayers"] = true, -- Bật/tắt tính năng né tài khoản
@@ -262,13 +262,35 @@ function attemptNextTeleport()
     local targetServer = candidateServers[randomIndex]
     table.remove(candidateServers, randomIndex)
     
-    local targetId = targetServer.id:sub(1, 12) .. "..."
-    updateDisplay("SUCCESS", string.format("Server được chọn!\nĐang vào: %s", targetId))
+    local targetIdShort = targetServer.id:sub(1, 12) .. "..."
+    updateDisplay("SUCCESS", string.format("Server được chọn!\nĐang vào: %s", targetIdShort))
     
-    -- ** THAY ĐỔI: Sử dụng logic TeleportToPlaceInstance theo yêu cầu **
-    pcall(function()
-        TeleportService:TeleportToPlaceInstance(placeId, targetServer.id, LocalPlayer)
-    end)
+    -- ** SỬA LỖI CUỐI CÙNG: Tách biệt và đảm bảo lệnh Teleport **
+    -- Hàm này sẽ cố gắng thực hiện dịch chuyển một cách đáng tin cậy nhất.
+    local function executeTeleport(jobId)
+        local success, err = pcall(function()
+            -- Lấy lại tham chiếu tới LocalPlayer để đảm bảo tính hợp lệ
+            local playerToTeleport = game:GetService("Players").LocalPlayer
+            if not playerToTeleport then
+                error("Không thể tìm thấy LocalPlayer để thực hiện dịch chuyển.")
+            end
+            
+            print(string.format("[Teleport] Bắt đầu dịch chuyển đến Job ID: %s", jobId))
+            TeleportService:TeleportToPlaceInstance(placeId, jobId, playerToTeleport)
+        end)
+        
+        if not success then
+            -- Mặc dù có TeleportInitFailed, chúng ta vẫn log lỗi ở đây để chắc chắn
+            updateDisplay("ERROR", "Lỗi pcall khi gọi Teleport!")
+            print("[Teleport] Lỗi pcall: " .. tostring(err))
+            task.wait(1)
+            attemptNextTeleport() -- Thử lại với server khác
+        end
+    end
+
+    -- Thêm một khoảng chờ nhỏ để GUI cập nhật trước khi teleport
+    task.wait(0.5)
+    executeTeleport(targetServer.id)
 end
 
 
@@ -548,3 +570,4 @@ task.spawn(function()
     end
     print("[MainInit] Script đã hoàn tất.")
 end)
+
