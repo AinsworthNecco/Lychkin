@@ -273,14 +273,6 @@ function attemptNextTeleport()
     TeleportService:TeleportAsync(placeId, {LocalPlayer}, teleportOptions)
 end
 
--- ** DEBUG: Thêm listener để xác nhận lệnh Teleport **
-TeleportService.Teleporting:Connect(function(destinationPlaceId, destinationInstanceId)
-    print("================ TELEPORT INITIATED ================")
-    print(string.format("[Teleport] ĐANG DỊCH CHUYỂN đến PlaceId: %d", destinationPlaceId))
-    print(string.format("[Teleport] JobId MỤC TIÊU: %s", destinationInstanceId))
-    print("====================================================")
-end)
-
 
 TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, errorMessage)
     if not SETTINGS.EnableServerHop then return end
