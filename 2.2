@@ -133,6 +133,29 @@ local candidateServers = {}
 local currentStage = 1
 
 -- --- Logic Tìm Server (Tích hợp từ Script A) ---
+local function prepareToHop()
+    print("[ServerHop] Preparing to hop servers...")
+    -- Dừng các coroutine đang chạy để tránh xung đột
+    if currentCountdownThread and coroutine.status(currentCountdownThread) ~= "dead" then 
+        pcall(coroutine.close, currentCountdownThread); 
+        currentCountdownThread = nil 
+    end
+    if playerMonitorThread and coroutine.status(playerMonitorThread) ~= "dead" then 
+        pcall(coroutine.close, playerMonitorThread); 
+        playerMonitorThread = nil 
+    end
+
+    -- Tải, cập nhật và lưu lịch sử server. Đây là bước quan trọng nhất.
+    if canAccessFiles then 
+        loadServerHistory() 
+    else
+        serverHistoryCache = {}
+    end
+    serverHistoryCache[currentJobId] = true
+    saveServerHistoryToFile()
+    print("[ServerHop] Current server JobId has been saved to history.")
+end
+
 function persistentFetch(url)
     local success, response = false, nil
     repeat
@@ -226,18 +249,8 @@ function searchForServer()
     currentStage = 1
     workspace:SetAttribute("NextServerCursor", nil)
     
-    -- Bước 1: Tải lịch sử server đã truy cập (nếu có quyền file)
-    if canAccessFiles then 
-        loadServerHistory() 
-    else
-        serverHistoryCache = {}
-    end
-
-    -- Bước 2: Thêm server hiện tại vào cache để không quay lại
-    serverHistoryCache[currentJobId] = true
-
-    -- Bước 3: Lưu lại cache đã cập nhật vào file (nếu có quyền)
-    saveServerHistoryToFile()
+    -- LƯU Ý: Logic lưu và tải lịch sử đã được chuyển ra hàm prepareToHop()
+    -- để đảm bảo nó luôn được gọi trước khi bắt đầu tìm kiếm.
     
     updateDisplay("INFO", "Bắt đầu Tầng 1: Quét 30 server đầu tiên...")
     local apiUrlBase = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Desc&limit=10"
@@ -292,6 +305,7 @@ function startInitialCountdown()
     local function performCountdownThenSearch(minutesToWait) 
         if not minutesToWait or minutesToWait <= 0 then 
             updateDisplay("ERROR", "Thời gian chờ lỗi.");
+            prepareToHop()
             searchForServer();
             return 
         end
@@ -345,6 +359,7 @@ function startInitialCountdown()
         if statusTextLabel then statusTextLabel.Text = "" end
         if statusFrame then statusFrame.BackgroundTransparency = 1 end
         updateDisplay("SUCCESS", "Hết giờ! Bắt đầu tìm server...")
+        prepareToHop()
         searchForServer() 
     end
     
@@ -366,17 +381,14 @@ local function startPlayerCountMonitor()
 
     playerMonitorThread = coroutine.create(function()
         while true do
-            task.wait(20) -- Kiểm tra mỗi 60 giây
+            task.wait(20) -- Kiểm tra mỗi 20 giây
             if not SETTINGS.EnablePlayerCountCheck or not SETTINGS.EnableServerHop then break end
 
             local currentPlayers = #Players:GetPlayers()
             if currentPlayers < SETTINGS.MinPlayerThreshold then
                 updateDisplay("ERROR", string.format("Server vắng! (%d/%d người)\nĐang tìm server mới...", currentPlayers, SETTINGS.MinPlayerThreshold))
-                
-                if currentCountdownThread and coroutine.status(currentCountdownThread) ~= "dead" then pcall(coroutine.close, currentCountdownThread); currentCountdownThread = nil end
-                if playerMonitorThread and coroutine.status(playerMonitorThread) ~= "dead" then pcall(coroutine.close, playerMonitorThread); playerMonitorThread = nil end
-                
                 task.wait(3)
+                prepareToHop()
                 searchForServer()
                 break
             else
@@ -406,8 +418,8 @@ local function checkAvoidPlayersOnce()
         -- Quan trọng: Không kiểm tra chính mình
         if player.Name ~= LocalPlayer.Name and avoidNamesSet[player.Name] then
             updateDisplay("ERROR", string.format("Phát hiện tài khoản '%s'!\nĐang tìm server mới...", player.Name))
-            
             task.wait(3)
+            prepareToHop()
             searchForServer()
             return true -- Trả về true để báo hiệu rằng đã bắt đầu hop
         end
@@ -453,6 +465,7 @@ task.spawn(function()
         if SETTINGS.EnableAntiBotScan and botCount >= SETTINGS.DETECTION_THRESHOLD then
             updateDisplay("ERROR", string.format("Phát hiện %d/%d bot!\nĐang tìm server mới...", botCount, SETTINGS.DETECTION_THRESHOLD))
             task.wait(3)
+            prepareToHop()
             searchForServer()
         else
             -- Bước 2: Quét tài khoản cần né (chỉ 1 lần)
