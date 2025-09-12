@@ -28,8 +28,6 @@ local SETTINGS = {
     -- CÀI ĐẶT SERVER HOP & AFK
     -- =================================================================
     ["WaitMinutes"] = 10,
-    ["MinPlayerPercentage"] = 0.50,
-    ["MaxPlayerPercentage"] = 0.99,
     ["MaxServerHistorySize"] = 250, -- Xóa lịch sử server sau khi đã lưu X server. Đặt là 0 để tắt.
 
     -- Kiểm tra số người chơi định kỳ
@@ -97,12 +95,13 @@ local CoreGui = cloneref(game:GetService("CoreGui"))
 local LocalPlayer = Players.LocalPlayer
 
 -- --- Cấu hình Script (Không nên thay đổi) ---
-local placeId = game.PlaceId; local currentJobId = game.JobId; local waitTimeBetweenFullScans = 7; local waitTimeBetweenPageFetches = 0.75; local baseRetryDelay = 1; local maxRetryDelay = 16; local PLATFORM_VERTICAL_OFFSET = 0; local SERVER_HISTORY_FILENAME = "server_hop_history.txt"; local SERVER_HOP_GUI_NAME = "ServerHopStatusGUI"; local AFK_PLATFORM_NAME = "MySafeAFKPlatform"; local STATIC_HEAD_ANCHOR_PART_NAME = "AFK_HeadAnchor_StaticCam"; local STATIC_BLACK_SCREEN_PART_NAME = "AFK_BlackScreen_StaticCam"; local NEON_COLORS = { GREEN = Color3.fromRGB(10, 255, 20), YELLOW = Color3.fromRGB(255, 255, 0), BLUE = Color3.fromRGB(0, 150, 255), RED = Color3.fromRGB(255, 20, 20) }
+local placeId = game.PlaceId; local currentJobId = game.JobId; local PLATFORM_VERTICAL_OFFSET = 0; local SERVER_HISTORY_FILENAME = "server_hop_history.txt"; local SERVER_HOP_GUI_NAME = "ServerHopStatusGUI"; local AFK_PLATFORM_NAME = "MySafeAFKPlatform"; local STATIC_HEAD_ANCHOR_PART_NAME = "AFK_HeadAnchor_StaticCam"; local STATIC_BLACK_SCREEN_PART_NAME = "AFK_BlackScreen_StaticCam"; local NEON_COLORS = { GREEN = Color3.fromRGB(10, 255, 20), YELLOW = Color3.fromRGB(255, 255, 0), BLUE = Color3.fromRGB(0, 150, 255), RED = Color3.fromRGB(255, 20, 20) }
 
 -- --- Biến toàn cục ---
 local playerGui = LocalPlayer and LocalPlayer:WaitForChild("PlayerGui")
 local statusScreenGui, statusTextLabel, statusFrame
 local countdownShouldReset = false; local currentCountdownThread = nil; local playerMonitorThread = nil
+local serverHistoryCache = {}
 
 -- --- Kiểm tra và gán hàm đọc/ghi file ---
 local canAccessFiles = false; local writefile_func, readfile_func; if SETTINGS.EnableFileHistory then pcall(function() if writefile and readfile then canAccessFiles, writefile_func, readfile_func = true, writefile, readfile; print("[FileIO] Quyền file có sẵn.") else print("[FileIO] Quyền file KHÔNG có sẵn.") end end) else print("[FileIO] Lịch sử file bị TẮT.") end
@@ -115,16 +114,175 @@ local function createStatusGui() if playerGui:FindFirstChild(SERVER_HOP_GUI_NAME
 local function updateDisplay(state, message) task.spawn(function() print("[UI] " .. tostring(message)); if not statusTextLabel or not statusTextLabel.Parent then return end; local stateColor = NEON_COLORS.GREEN; if state == "ERROR" then stateColor = NEON_COLORS.YELLOW elseif state == "BOT_DETECTED" then stateColor = NEON_COLORS.RED end; statusTextLabel.Text = tostring(message); statusTextLabel.TextColor3 = stateColor; if SETTINGS.EnableCountdownColor then if statusFrame and statusFrame.Parent then if state == "SUCCESS" or state == "ERROR" or state == "BOT_DETECTED" then statusFrame.BackgroundColor3 = stateColor; statusFrame.BackgroundTransparency = 0.5 else statusFrame.BackgroundTransparency = 1 end end else if statusFrame then statusFrame.BackgroundTransparency = 1 end end end) end
 
 -- --- Các hàm tiện ích (File, Platform, View, CPU, Graphics) ---
-local serverHistoryCache = {}; local function loadServerHistory() if not canAccessFiles then return {} end; local historySet = {}; local s, c = pcall(readfile_func, SERVER_HISTORY_FILENAME); if s and c then for line in string.gmatch(c,"[^".."\r\n".."]+") do local tL=line:match("^%s*(.-)%s*$") if tL and #tL>0 then historySet[tL]=true;end end end; local hS=0;for _ in pairs(historySet)do hS=hS+1 end; local mS=SETTINGS.MaxServerHistorySize; if mS and mS>0 and hS>=mS then print(string.format("[FileIO] Lịch sử server đạt giới hạn (%d/%d). Đang xóa...",hS,mS));if updateDisplay then updateDisplay("INFO","Lịch sử server đầy, đang reset...")end;historySet={};pcall(writefile_func,SERVER_HISTORY_FILENAME,"");print("[FileIO] Lịch sử server đã được xóa.");task.wait(2)end; serverHistoryCache=historySet;return historySet end
-local function addJobIdToHistoryAndSave(jId) if not jId or not canAccessFiles then return end; serverHistoryCache[jId]=true; local l={}; for id in pairs(serverHistoryCache)do table.insert(l,id)end; pcall(writefile_func,SERVER_HISTORY_FILENAME,table.concat(l,"\n")) end
+local function loadServerHistory() if not canAccessFiles then return {} end; local historySet = {}; local s, c = pcall(readfile_func, SERVER_HISTORY_FILENAME); if s and c then for line in string.gmatch(c,"[^".."\r\n".."]+") do local tL=line:match("^%s*(.-)%s*$") if tL and #tL>0 then historySet[tL]=true;end end end; local hS=0;for _ in pairs(historySet)do hS=hS+1 end; local mS=SETTINGS.MaxServerHistorySize; if mS and mS>0 and hS>=mS then print(string.format("[FileIO] Lịch sử server đạt giới hạn (%d/%d). Đang xóa...",hS,mS));if updateDisplay then updateDisplay("INFO","Lịch sử server đầy, đang reset...")end;historySet={};pcall(writefile_func,SERVER_HISTORY_FILENAME,"");print("[FileIO] Lịch sử server đã được xóa.");task.wait(2)end; serverHistoryCache=historySet;return historySet end
+local function saveServerHistoryToFile()
+    if not canAccessFiles then return end
+    local serverIds = {}
+    for id in pairs(serverHistoryCache) do
+        table.insert(serverIds, id)
+    end
+    pcall(writefile_func, SERVER_HISTORY_FILENAME, table.concat(serverIds, "\n"))
+end
 local function createSafePlatform() updateDisplay("INFO", "Đang tạo platform..."); if game.Workspace:FindFirstChild(AFK_PLATFORM_NAME) then updateDisplay("INFO", "Platform đã có."); return end; local p=Instance.new("Part");p.Name=AFK_PLATFORM_NAME;p.Anchored=true;p.CanCollide=true;p.Size=Vector3.new(20000,40,20000);p.Color=Color3.fromRGB(50,50,50);p.Transparency=0; local char=LocalPlayer.Character; local hum=char and char:FindFirstChildOfClass("Humanoid"); local hrp=char and char:FindFirstChild("HumanoidRootPart"); if hum and hrp then local hrpP=hrp.Position;local hrpSY=hrp.Size.Y;local hipH=hum.HipHeight;local fCIY=hrpP.Y-(hrpSY/2)-hipH;local pTTY=fCIY-PLATFORM_VERTICAL_OFFSET;local pCY=pTTY-(p.Size.Y/2);p.Position=Vector3.new(hrpP.X,pCY,hrpP.Z); else p.Position=Vector3.new(0,-30-PLATFORM_VERTICAL_OFFSET,0); end; p.Parent=game.Workspace; updateDisplay("SUCCESS", "Platform đã tạo."); end
 local function setupStaticAfkView() updateDisplay("INFO", "Thiết lập view AFK tĩnh..."); local player = LocalPlayer; local character = player.Character or player.CharacterAdded:Wait(); if not character then return end; local head = character:WaitForChild("Head", 10); if not head then return end; local camera = workspace.CurrentCamera; if not camera then return end; local staticHeadAnchor = workspace:FindFirstChild(STATIC_HEAD_ANCHOR_PART_NAME) or Instance.new("Part"); staticHeadAnchor.Name=STATIC_HEAD_ANCHOR_PART_NAME; staticHeadAnchor.Size=Vector3.new(0.1,0.1,0.1); staticHeadAnchor.Transparency=1; staticHeadAnchor.CanCollide=false; staticHeadAnchor.Parent=workspace; staticHeadAnchor.CFrame = CFrame.new(head.Position); staticHeadAnchor.Anchored = true; local blackTarget = workspace:FindFirstChild(STATIC_BLACK_SCREEN_PART_NAME) or Instance.new("Part"); blackTarget.Name=STATIC_BLACK_SCREEN_PART_NAME; blackTarget.Size=Vector3.new(2500,2500,10); blackTarget.Color=Color3.new(0,0,0); blackTarget.CanCollide=false; blackTarget.Parent=workspace; local eastPositionFromAnchor = staticHeadAnchor.Position + Vector3.new(150,0,0); blackTarget.CFrame=CFrame.new(eastPositionFromAnchor); blackTarget.Anchored=true; camera.CameraType=Enum.CameraType.Scriptable; camera.CFrame=CFrame.new(staticHeadAnchor.Position,blackTarget.Position); camera.Focus=blackTarget.CFrame; updateDisplay("SUCCESS", "View AFK tĩnh đã thiết lập.") end
 local function optimizeForCpu() if not SETTINGS.EnableCpuOptimization then return end; updateDisplay("INFO", "Bắt đầu tối ưu hóa CPU..."); pcall(function() if type(setfpscap) == "function" and SETTINGS.TargetFps and SETTINGS.TargetFps > 0 then print("[CPU-Opt] Giới hạn FPS đang hoạt động ở mức: " .. tostring(SETTINGS.TargetFps)) end; if SETTINGS.SetSimulationRadiusToZero then if LocalPlayer then LocalPlayer.SimulationRadius = 0; print("[CPU-Opt] SimulationRadius đã được đặt về 0.") end end end); updateDisplay("SUCCESS", "Tối ưu hóa CPU hoàn tất.") end
 local function optimizeGraphics() updateDisplay("INFO", "Bắt đầu tối ưu đồ họa..."); if SETTINGS.EnableSafePlatform then createSafePlatform(); end; task.wait(0.1); pcall(function() local itemsToDel={}; for _,item in pairs(game.Workspace:GetChildren()) do local keep=(LocalPlayer.Character and item.Name==LocalPlayer.Character.Name)or(item==workspace.CurrentCamera)or(SETTINGS.EnableSafePlatform and item.Name==AFK_PLATFORM_NAME)or(SETTINGS.EnableStaticAfkView and(item.Name==STATIC_HEAD_ANCHOR_PART_NAME or item.Name==STATIC_BLACK_SCREEN_PART_NAME));if not keep then table.insert(itemsToDel,item)end end; for _,item in ipairs(itemsToDel)do pcall(function()item:Destroy()end)end;Lighting.GlobalShadows,Lighting.Brightness,Lighting.Ambient,Lighting.OutdoorAmbient,Lighting.ExposureCompensation=false,0,Color3.new(0,0,0),Color3.new(0,0,0),-2;pcall(function()Lighting.Atmosphere:Destroy()end);pcall(function()Lighting.Sky:Destroy()end); if LocalPlayer.PlayerGui then for _,gui in pairs(LocalPlayer.PlayerGui:GetChildren())do if gui.Name~=SERVER_HOP_GUI_NAME then pcall(function()gui:Destroy()end)end end end;local sO=settings();if sO and sO.Rendering then sO.Rendering.QualityLevel=Enum.QualityLevel.Level01;pcall(function()if RunService:IsClient()then RunService:Set3dRenderingEnabled(false)end end)end;SoundService.RespectFilteringEnabled,SoundService.AmbientReverb=true,Enum.ReverbType.NoReverb;for _,sound in pairs(game:GetDescendants())do if sound:IsA("Sound")then sound.Volume=0;sound:Stop()end end; end); updateDisplay("SUCCESS", "Đồ họa đã được tối ưu."); end
 
--- --- Logic Tìm Server ---
-local chosenServer = nil; local serversUrlBase = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Asc&limit=100"
-function searchForServer() if not SETTINGS.EnableFileHistory then serverHistoryCache = {} else loadServerHistory() end; local histC=0;for _ in pairs(serverHistoryCache)do histC=histC+1 end; updateDisplay("INFO", string.format("Bắt đầu tìm server... (Tránh %d)",histC+1)); local sLActive=true; chosenServer=nil; while sLActive and not chosenServer do local nextCur=nil; updateDisplay("INFO", "Đang quét server..."); local allScanned=false; while not allScanned and not chosenServer do local pAtt=0;local maxAtt=4;local pFetched=false;local curRetry=baseRetryDelay; while not pFetched and pAtt<maxAtt do pAtt=pAtt+1;if pAtt>1 then updateDisplay("INFO", string.format("Thử lại (%d/%d)...",pAtt,maxAtt));task.wait(curRetry);curRetry=math.min(curRetry*2,maxRetryDelay) end; local s,d=pcall(game.HttpGet,game,serversUrlBase..(nextCur and "&cursor="..nextCur or ""),true);if s then pFetched=true;local sListD=HttpService:JSONDecode(d);if sListD and sListD.data then local pSuitS={}; for _,sInf in ipairs(sListD.data)do if not(sInf.id==currentJobId or serverHistoryCache[sInf.id])then if sInf.playing and sInf.maxPlayers and sInf.maxPlayers>0 then local pR=sInf.playing/sInf.maxPlayers if pR>=SETTINGS.MinPlayerPercentage and pR<SETTINGS.MaxPlayerPercentage and sInf.playing<sInf.maxPlayers then table.insert(pSuitS,sInf)end end end end; if #pSuitS>0 then chosenServer=pSuitS[math.random(1,#pSuitS)];allScanned=true;break end; nextCur=sListD.nextPageCursor;if not nextCur then allScanned=true;end else updateDisplay("ERROR","Dữ liệu server lỗi.")end else updateDisplay("ERROR","Lỗi API.");if pAtt>=maxAtt then allScanned=true end end end;if chosenServer or allScanned then break end;task.wait(waitTimeBetweenPageFetches) end; if chosenServer then updateDisplay("SUCCESS", "ĐÃ CHỌN SERVER!");sLActive=false elseif allScanned then updateDisplay("INFO", string.format("Không tìm thấy. Chờ %ds.",waitTimeBetweenFullScans));task.wait(waitTimeBetweenFullScans)end end; if chosenServer then updateDisplay("SUCCESS", "Chuẩn bị dịch chuyển..."); addJobIdToHistoryAndSave(currentJobId); task.wait(1); local sTP,eTP=pcall(TeleportService.TeleportToPlaceInstance,TeleportService,placeId,chosenServer.id,LocalPlayer); if not sTP then updateDisplay("ERROR", "Lỗi dịch chuyển! Thử lại..."); serverHistoryCache[chosenServer.id]=true;chosenServer=nil;task.wait(5);searchForServer() end else updateDisplay("ERROR", "Không thể tìm thấy server. Dừng lại.") end end
+-- --- Các biến trạng thái cho Server Hop ---
+local candidateServers = {}
+local currentStage = 1
+
+-- --- Logic Tìm Server (Tích hợp từ Script A) ---
+function persistentFetch(url)
+    local success, response = false, nil
+    repeat
+        local pcallSuccess, pcallResponse = pcall(function() return HttpService:JSONDecode(game:HttpGet(url, true)) end)
+        if pcallSuccess and pcallResponse and pcallResponse.data then
+            success, response = true, pcallResponse
+        else
+            local isRateLimited = false
+            if pcallSuccess and pcallResponse and pcallResponse.errors and pcallResponse.errors[1] and pcallResponse.errors[1].message and string.find(string.lower(pcallResponse.errors[1].message), "too many requests") then
+                isRateLimited = true
+            end
+            if isRateLimited then
+                updateDisplay("ERROR", "Bị giới hạn (429). Thử lại sau 30s...")
+                task.wait(30)
+            else
+                updateDisplay("ERROR", "Lỗi quét. Thử lại sau 5s...")
+                task.wait(5)
+            end
+        end
+    until success
+    return response
+end
+
+function attemptNextTeleport()
+    if #candidateServers == 0 then
+        currentStage = currentStage + 1
+        local nextCursor = workspace:GetAttribute("NextServerCursor")
+        
+        if not nextCursor then
+            updateDisplay("ERROR", "Hết server để thử. Dừng lại.")
+            return
+        end
+
+        updateDisplay("INFO", "Hết server tầng trước. Chuyển sang Tầng " .. currentStage .. "...")
+
+        if currentStage > 3 then
+            updateDisplay("ERROR", "Đã thử hết 3 tầng. Không tìm thấy server.")
+            return
+        end
+        
+        local apiUrlNextPage = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Desc&limit=10&cursor=" .. nextCursor
+        updateDisplay("INFO", "Đang quét Tầng " .. currentStage .. "...")
+        local nextPageResponse = persistentFetch(apiUrlNextPage)
+        
+        if nextPageResponse and nextPageResponse.data and #nextPageResponse.data > 0 then
+            workspace:SetAttribute("NextServerCursor", nextPageResponse.nextPageCursor)
+            for _, server in ipairs(nextPageResponse.data) do 
+                if not(server.id == currentJobId or serverHistoryCache[server.id]) then
+                    table.insert(candidateServers, server) 
+                end
+            end
+            updateDisplay("SUCCESS", "Quét Tầng " .. currentStage .. " xong! Tìm thấy " .. #candidateServers .. " server mới.")
+            attemptNextTeleport()
+        else
+            updateDisplay("ERROR", "Không lấy được dữ liệu cho Tầng " .. currentStage .. ". Dừng lại.")
+        end
+        return
+    end
+
+    math.randomseed(tick())
+    local randomIndex = math.random(1, #candidateServers)
+    local targetServer = candidateServers[randomIndex]
+    table.remove(candidateServers, randomIndex)
+    
+    updateDisplay("INFO", string.format("Thử dịch chuyển (Tầng %d, còn %d server)\nPlayers: %d/%d", currentStage, #candidateServers, targetServer.playing, targetServer.maxPlayers))
+
+    TeleportService:TeleportToPlaceInstance(placeId, targetServer.id, LocalPlayer)
+end
+
+TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, errorMessage)
+    if not SETTINGS.EnableServerHop then return end
+
+    local reason = "Lý do không xác định"
+    if teleportResult == Enum.TeleportResult.GameFull then
+        reason = "Server đầy!"
+    elseif teleportResult == Enum.TeleportResult.Flooded then
+         reason = "Thao tác quá nhanh!"
+    else
+        reason = errorMessage
+    end
+    
+    updateDisplay("ERROR", "Dịch chuyển thất bại: " .. reason)
+    updateDisplay("INFO", "Tìm server khác sau 1 giây...")
+    task.wait(1)
+    attemptNextTeleport()
+end)
+
+function searchForServer()
+    updateDisplay("INFO", "Bắt đầu tìm server theo logic mới...")
+    candidateServers = {}
+    currentStage = 1
+    workspace:SetAttribute("NextServerCursor", nil)
+    
+    -- Bước 1: Tải lịch sử server đã truy cập (nếu có quyền file)
+    if canAccessFiles then 
+        loadServerHistory() 
+    else
+        serverHistoryCache = {}
+    end
+
+    -- Bước 2: Thêm server hiện tại vào cache để không quay lại
+    serverHistoryCache[currentJobId] = true
+
+    -- Bước 3: Lưu lại cache đã cập nhật vào file (nếu có quyền)
+    saveServerHistoryToFile()
+    
+    updateDisplay("INFO", "Bắt đầu Tầng 1: Quét 30 server đầu tiên...")
+    local apiUrlBase = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Desc&limit=10"
+    local serverList = {}
+    local nextCursor = nil
+    local initialScanSuccess = true
+
+    for i = 1, 3 do
+        local currentUrl = apiUrlBase
+        if nextCursor then currentUrl = currentUrl .. "&cursor=" .. nextCursor end
+        
+        local response = persistentFetch(currentUrl)
+
+        if response and response.data and #response.data > 0 then
+            for _, server in ipairs(response.data) do table.insert(serverList, server) end
+            nextCursor = response.nextPageCursor
+            updateDisplay("INFO", "Đã lấy thành công trang server #" .. i)
+            if not nextCursor then break end
+        else
+            updateDisplay("ERROR", "Không thể lấy dữ liệu trang #" .. i .. ". Dừng quét.")
+            initialScanSuccess = false
+            break
+        end
+    end
+
+    if initialScanSuccess and #serverList >= 21 then
+        workspace:SetAttribute("NextServerCursor", nextCursor)
+        for i = 21, #serverList do
+             if not(serverList[i].id == currentJobId or serverHistoryCache[serverList[i].id]) then
+                table.insert(candidateServers, serverList[i])
+            end
+        end
+        updateDisplay("SUCCESS", "Quét Tầng 1 xong. Bắt đầu dịch chuyển...")
+        attemptNextTeleport()
+    elseif initialScanSuccess then
+        updateDisplay("ERROR", string.format("Không tìm thấy đủ 21 server (%d/21). Thử lại sau...", #serverList))
+        task.wait(5)
+        searchForServer()
+    else
+        updateDisplay("ERROR", "Quét ban đầu thất bại. Thử lại sau...")
+        task.wait(5)
+        searchForServer()
+    end
+end
+
 
 -- --- Quản lý AFK (Countdown, Donate, Player Count) ---
 function startInitialCountdown() 
