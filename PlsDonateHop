@@ -265,12 +265,10 @@ function attemptNextTeleport()
     local targetId = targetServer.id:sub(1, 12) .. "..."
     updateDisplay("SUCCESS", string.format("Server được chọn!\nĐang vào: %s", targetId))
     
-    -- ** SỬA LỖI: Dùng phương thức TeleportAsync với TeleportOptions **
-    local teleportOptions = Instance.new("TeleportOptions")
-    teleportOptions.ServerInstanceId = targetServer.id
-    
-    -- Không cần pcall ở đây vì sự kiện TeleportInitFailed sẽ xử lý lỗi
-    TeleportService:TeleportAsync(placeId, {LocalPlayer}, teleportOptions)
+    -- ** THAY ĐỔI: Sử dụng logic TeleportToPlaceInstance theo yêu cầu **
+    pcall(function()
+        TeleportService:TeleportToPlaceInstance(placeId, targetServer.id, LocalPlayer)
+    end)
 end
 
 
@@ -550,4 +548,3 @@ task.spawn(function()
     end
     print("[MainInit] Script đã hoàn tất.")
 end)
-
