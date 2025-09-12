@@ -2,4 +2,4 @@
 1.9b have auto claim booth auto text auto spin auto spam
 2.0 works with other executors havent tested with delta
 2.1 lọc acc tránh cùng server(Delta) muon dung executor khac thi doi phan logic tim server cua 2.0 sang
-
+2.2 tất cả phiên bản trước đều bị patch, bản 2.2 là bản hoạt động hiện tại đã test ở codex
