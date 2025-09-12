@@ -1,5 +1,5 @@
 local SETTINGS = {
-    -- =================================================================1
+    -- =================================================================
     -- CÀI ĐẶT NÉ NGƯỜI CHƠI
     -- =================================================================
     ["EnableAvoidPlayers"] = true, -- Bật/tắt tính năng né tài khoản
@@ -218,13 +218,9 @@ end
 
 local function executeTeleport(jobId)
     updateDisplay("SUCCESS", string.format("Server được chọn!\nĐang vào: %s...", jobId:sub(1, 12)))
-    
-    -- Thêm một khoảng chờ nhỏ để GUI cập nhật trước khi teleport
     task.wait(0.5)
-
     print(string.format("[Teleport] Bắt đầu dịch chuyển đến Job ID: %s", jobId))
     pcall(function()
-        -- Sử dụng logic chính xác từ script đơn giản của bạn
         TeleportService:TeleportToPlaceInstance(game.PlaceId, jobId, Players.LocalPlayer)
     end)
 end
@@ -253,16 +249,16 @@ function attemptNextTeleport()
         if nextPageResponse and nextPageResponse.data and #nextPageResponse.data > 0 then
             workspace:SetAttribute("NextServerCursor", nextPageResponse.nextPageCursor)
             local newCandidatesCount = 0
-            local ignoredCount = 0
+            local ignoredHistoryCount = 0
             for _, server in ipairs(nextPageResponse.data) do 
                 if not serverHistoryCache[server.id] then
                     table.insert(candidateServers, server)
                     newCandidatesCount = newCandidatesCount + 1
                 else
-                    ignoredCount = ignoredCount + 1
+                    ignoredHistoryCount = ignoredHistoryCount + 1
                 end
             end
-            print(string.format("[ServerScan] Tầng %d: Thêm %d, Bỏ qua %d (đã vào).", currentStage, newCandidatesCount, ignoredCount))
+            print(string.format("[ServerScan] Tầng %d: Thêm %d, Bỏ qua %d (lịch sử).", currentStage, newCandidatesCount, ignoredHistoryCount))
             updateDisplay("SUCCESS", "Quét Tầng " .. currentStage .. " xong! Tìm thấy " .. newCandidatesCount .. " server mới.")
             attemptNextTeleport()
         else
@@ -329,15 +325,16 @@ function searchForServer()
 
     if initialScanSuccess and #serverList >= 21 then
         workspace:SetAttribute("NextServerCursor", nextCursor)
-        local ignoredCount = 0
+        local ignoredHistoryCount = 0
         for i = 21, #serverList do
-             if not serverHistoryCache[serverList[i].id] then
-                table.insert(candidateServers, serverList[i])
-             else
-                ignoredCount = ignoredCount + 1
-             end
+            local server = serverList[i]
+            if not serverHistoryCache[server.id] then
+                table.insert(candidateServers, server)
+            else
+                ignoredHistoryCount = ignoredHistoryCount + 1
+            end
         end
-        print(string.format("[ServerScan] Tầng 1: Thêm %d, Bỏ qua %d (đã vào).", #candidateServers, ignoredCount))
+        print(string.format("[ServerScan] Tầng 1: Thêm %d, Bỏ qua %d (lịch sử).", #candidateServers, ignoredHistoryCount))
         updateDisplay("SUCCESS", "Quét Tầng 1 xong. Bắt đầu dịch chuyển...")
         attemptNextTeleport()
     elseif initialScanSuccess then
