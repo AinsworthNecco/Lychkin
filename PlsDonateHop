@@ -27,7 +27,7 @@ local SETTINGS = {
     -- =================================================================
     -- CÀI ĐẶT SERVER HOP & AFK
     -- =================================================================
-    ["WaitMinutes"] = 0.3,
+    ["WaitMinutes"] = 10,
     ["MaxServerHistorySize"] = 250, -- Xóa lịch sử server sau khi đã lưu X server. Đặt là 0 để tắt.
 
     -- Kiểm tra số người chơi định kỳ
@@ -102,6 +102,7 @@ local playerGui = LocalPlayer and LocalPlayer:WaitForChild("PlayerGui")
 local statusScreenGui, statusTextLabel, statusFrame
 local countdownShouldReset = false; local currentCountdownThread = nil; local playerMonitorThread = nil
 local serverHistoryCache = {} -- Cache lịch sử server cho toàn bộ phiên làm việc
+local isRateLimited = false -- Cờ trạng thái cho giới hạn request API
 
 -- --- Kiểm tra và gán hàm đọc/ghi file ---
 local canAccessFiles = false; local writefile_func, readfile_func; if SETTINGS.EnableFileHistory then pcall(function() if writefile and readfile then canAccessFiles, writefile_func, readfile_func = true, writefile, readfile; print("[FileIO] Quyền file có sẵn.") else print("[FileIO] Quyền file KHÔNG có sẵn.") end end) else print("[FileIO] Lịch sử file bị TẮT.") end
@@ -191,6 +192,9 @@ local function prepareToHop()
     saveServerHistoryToFile()
 end
 
+-- Khai báo trước
+local tryNextServer
+
 function persistentFetch(url)
     local success, response = false, nil
     repeat
@@ -198,13 +202,29 @@ function persistentFetch(url)
         if pcallSuccess and pcallResponse and pcallResponse.data then
             success, response = true, pcallResponse
         else
-            local isRateLimited = false
+            local wasRateLimited = false
             if pcallSuccess and pcallResponse and pcallResponse.errors and pcallResponse.errors[1] and pcallResponse.errors[1].message and string.find(string.lower(pcallResponse.errors[1].message), "too many requests") then
-                isRateLimited = true
+                wasRateLimited = true
             end
-            if isRateLimited then
-                updateDisplay("ERROR", "Bị giới hạn (429). Thử lại sau 30s...")
-                task.wait(30)
+
+            if wasRateLimited then
+                isRateLimited = true
+                updateDisplay("ERROR", "Bị giới hạn (429). Sẽ thử server có sẵn trong 30 giây...")
+                
+                local rateLimitStartTime = tick()
+                while tick() - rateLimitStartTime < 30 do
+                    local timeLeft = math.floor(30 - (tick() - rateLimitStartTime))
+                    if #candidateServers > 0 then
+                        updateDisplay("INFO", string.format("Đang thử server có sẵn... còn %d giây", timeLeft))
+                        tryNextServer() -- Thử vào server tiếp theo trong danh sách
+                    else
+                        updateDisplay("ERROR", string.format("Bị giới hạn (429) và không có server dự phòng. Chờ... %d giây", timeLeft))
+                    end
+                    task.wait(2) -- Chờ 2 giây giữa các lần thử
+                end
+                
+                isRateLimited = false
+                updateDisplay("INFO", "Hết thời gian giới hạn. Thử quét lại...")
             else
                 updateDisplay("ERROR", "Lỗi quét. Thử lại sau 5s...")
                 task.wait(5)
@@ -222,9 +242,6 @@ local function executeTeleport(jobId)
         TeleportService:TeleportToPlaceInstance(game.PlaceId, jobId, Players.LocalPlayer)
     end)
 end
-
--- Khai báo trước vì các hàm gọi lẫn nhau
-local tryNextServer
 
 local function fetchNextBatch()
     updateDisplay("INFO", "Đang quét 10 server tiếp theo...")
@@ -277,7 +294,10 @@ end
 tryNextServer = function()
     if #candidateServers == 0 then
         -- Không còn server trong danh sách hiện tại, tìm một loạt mới.
-        fetchNextBatch()
+        -- Chỉ fetch khi không bị giới hạn request để tránh vòng lặp vô hạn.
+        if not isRateLimited then
+            fetchNextBatch()
+        end
     else
         -- Có server, hãy thử vào một cái.
         local targetServer = table.remove(candidateServers, 1) -- Lấy và xóa server đầu tiên khỏi danh sách
@@ -512,3 +532,4 @@ task.spawn(function()
     end
     print("[MainInit] Script đã hoàn tất.")
 end)
+
