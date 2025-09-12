@@ -21,14 +21,14 @@ local SETTINGS = {
     -- CÀI ĐẶT CHỐNG BOT
     -- =================================================================
     ["EnableAntiBotScan"] = true,
-    ["BOT_KEYWORDS"] = { "spin", "afk", "restaurant", "jump", "gift", "speed", "develop", "streaming", "live", "game", "#", "dream", "first" },
+    ["BOT_KEYWORDS"] = { "spin", "afk", "restaurant", "jump", "gift", "speed", "develop", "streaming", "live", "game", "#", "dream", "first", "mom" },
     ["DETECTION_THRESHOLD"] = 4, -- Đặt là 1 để kiểm tra. Thay đổi lại sau khi test xong.
 
     -- =================================================================
     -- CÀI ĐẶT SERVER HOP & AFK
     -- =================================================================
     ["WaitMinutes"] = 10,
-    ["MaxServerHistorySize"] = 250, -- Xóa lịch sử server sau khi đã lưu X server. Đặt là 0 để tắt.
+    ["MaxServerHistorySize"] = 500, -- Xóa lịch sử server sau khi đã lưu X server. Đặt là 0 để tắt.
 
     -- Kiểm tra số người chơi định kỳ
     ["EnablePlayerCountCheck"] = true, -- Bật/tắt kiểm tra số người chơi mỗi phút.
