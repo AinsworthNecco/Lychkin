@@ -307,8 +307,8 @@ TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, erro
     end
     
     updateDisplay("ERROR", "Dịch chuyển thất bại: " .. reason)
-    updateDisplay("INFO", "Tìm server khác sau 1 giây...")
-    task.wait(1)
+    updateDisplay("INFO", "Tìm server khác sau 0.5 giây...")
+    task.wait(0.5)
     tryNextServer()
 end)
 
