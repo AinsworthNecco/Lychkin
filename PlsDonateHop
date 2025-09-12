@@ -1,5 +1,5 @@
 local SETTINGS = {
-    -- =================================================================
+    -- =================================================================1
     -- CÀI ĐẶT NÉ NGƯỜI CHƠI
     -- =================================================================
     ["EnableAvoidPlayers"] = true, -- Bật/tắt tính năng né tài khoản
@@ -92,13 +92,13 @@ local Lighting = cloneref(game:GetService("Lighting"))
 local SoundService = cloneref(game:GetService("SoundService"))
 local RunService = cloneref(game:GetService("RunService"))
 local CoreGui = cloneref(game:GetService("CoreGui"))
-local LocalPlayer = Players.LocalPlayer
 local rng = Random.new() -- Cải thiện tính ngẫu nhiên
 
 -- --- Cấu hình Script (Không nên thay đổi) ---
 local placeId = game.PlaceId; local currentJobId = game.JobId; local PLATFORM_VERTICAL_OFFSET = 0; local SERVER_HISTORY_FILENAME = "server_hop_history.txt"; local SERVER_HOP_GUI_NAME = "ServerHopStatusGUI"; local AFK_PLATFORM_NAME = "MySafeAFKPlatform"; local STATIC_HEAD_ANCHOR_PART_NAME = "AFK_HeadAnchor_StaticCam"; local STATIC_BLACK_SCREEN_PART_NAME = "AFK_BlackScreen_StaticCam"; local NEON_COLORS = { GREEN = Color3.fromRGB(10, 255, 20), YELLOW = Color3.fromRGB(255, 255, 0), BLUE = Color3.fromRGB(0, 150, 255), RED = Color3.fromRGB(255, 20, 20) }
 
 -- --- Biến toàn cục ---
+local LocalPlayer = Players.LocalPlayer
 local playerGui = LocalPlayer and LocalPlayer:WaitForChild("PlayerGui")
 local statusScreenGui, statusTextLabel, statusFrame
 local countdownShouldReset = false; local currentCountdownThread = nil; local playerMonitorThread = nil
@@ -216,6 +216,19 @@ function persistentFetch(url)
     return response
 end
 
+local function executeTeleport(jobId)
+    updateDisplay("SUCCESS", string.format("Server được chọn!\nĐang vào: %s...", jobId:sub(1, 12)))
+    
+    -- Thêm một khoảng chờ nhỏ để GUI cập nhật trước khi teleport
+    task.wait(0.5)
+
+    print(string.format("[Teleport] Bắt đầu dịch chuyển đến Job ID: %s", jobId))
+    pcall(function()
+        -- Sử dụng logic chính xác từ script đơn giản của bạn
+        TeleportService:TeleportToPlaceInstance(game.PlaceId, jobId, Players.LocalPlayer)
+    end)
+end
+
 function attemptNextTeleport()
     if #candidateServers == 0 then
         currentStage = currentStage + 1
@@ -262,34 +275,6 @@ function attemptNextTeleport()
     local targetServer = candidateServers[randomIndex]
     table.remove(candidateServers, randomIndex)
     
-    local targetIdShort = targetServer.id:sub(1, 12) .. "..."
-    updateDisplay("SUCCESS", string.format("Server được chọn!\nĐang vào: %s", targetIdShort))
-    
-    -- ** SỬA LỖI CUỐI CÙNG: Tách biệt và đảm bảo lệnh Teleport **
-    -- Hàm này sẽ cố gắng thực hiện dịch chuyển một cách đáng tin cậy nhất.
-    local function executeTeleport(jobId)
-        local success, err = pcall(function()
-            -- Lấy lại tham chiếu tới LocalPlayer để đảm bảo tính hợp lệ
-            local playerToTeleport = game:GetService("Players").LocalPlayer
-            if not playerToTeleport then
-                error("Không thể tìm thấy LocalPlayer để thực hiện dịch chuyển.")
-            end
-            
-            print(string.format("[Teleport] Bắt đầu dịch chuyển đến Job ID: %s", jobId))
-            TeleportService:TeleportToPlaceInstance(placeId, jobId, playerToTeleport)
-        end)
-        
-        if not success then
-            -- Mặc dù có TeleportInitFailed, chúng ta vẫn log lỗi ở đây để chắc chắn
-            updateDisplay("ERROR", "Lỗi pcall khi gọi Teleport!")
-            print("[Teleport] Lỗi pcall: " .. tostring(err))
-            task.wait(1)
-            attemptNextTeleport() -- Thử lại với server khác
-        end
-    end
-
-    -- Thêm một khoảng chờ nhỏ để GUI cập nhật trước khi teleport
-    task.wait(0.5)
     executeTeleport(targetServer.id)
 end
 
