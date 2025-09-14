@@ -366,7 +366,6 @@ local function scanForBots() updateDisplay("INFO", "Bắt đầu quét bot...");
             -- NÂNG CẤP: Hiển thị nội dung quét lên UI
             local scanMessage = string.format("Đang quét '%s'\n\"%s\"", ownerName, boothTextOriginal)
             updateDisplay("INFO", scanMessage)
-            task.wait(1.5) -- Chờ một chút để có thể đọc
             
             local boothText = string.lower(boothTextOriginal) -- Chuyển sang chữ thường để kiểm tra
             for _, keyword in ipairs(SETTINGS.BOT_KEYWORDS) do 
@@ -374,7 +373,7 @@ local function scanForBots() updateDisplay("INFO", "Bắt đầu quét bot...");
                     currentBotCount = currentBotCount + 1; 
                     local alertMessage = string.format("PHÁT HIỆN BOT #%d\n'%s'", currentBotCount, ownerName); 
                     updateDisplay("BOT_DETECTED", alertMessage); 
-                    task.wait(2.5); 
+                    task.wait(0.5); 
                     break 
                 end 
             end 
