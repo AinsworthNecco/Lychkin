@@ -5,7 +5,6 @@ local SETTINGS = {
     ["EnableAvoidPlayers"] = true, -- Bật/tắt tính năng né tài khoản
     ["AVOID_PLAYERS"] = {
         "HelloPlayer1st",
-        "Er1ka_iA",
         "Lychkin01", 
         "Lychkin02",
         "Lychkin03",
@@ -23,7 +22,7 @@ local SETTINGS = {
     -- =================================================================
     ["EnableAntiBotScan"] = true,
     ["BOT_KEYWORDS"] = { "spin", "afk", "restaurant", "jump", "gift", "speed", "develop", "streaming", "live", "game", "#", "dream", "first", "mom", "big" },
-    ["DETECTION_THRESHOLD"] = 4, -- Đặt là 1 để kiểm tra. Thay đổi lại sau khi test xong.
+    ["DETECTION_THRESHOLD"] = 3, -- Đặt là 1 để kiểm tra. Thay đổi lại sau khi test xong.
 
     -- =================================================================
     -- CÀI ĐẶT SERVER HOP & AFK
@@ -362,11 +361,8 @@ local function scanForBots() updateDisplay("INFO", "Bắt đầu quét bot...");
         local ownerName = uiFrame.Details.Owner.Text; 
         if ownerName ~= "unclaimed" then 
             local boothTextOriginal = uiFrame.Sign.TextLabel.Text
-            
-            -- NÂNG CẤP: Hiển thị nội dung quét lên UI
-            local scanMessage = string.format("Đang quét '%s'\n\"%s\"", ownerName, boothTextOriginal)
-            updateDisplay("INFO", scanMessage)
-            task.wait(1.5) -- Chờ một chút để có thể đọc
+            -- THÊM MỚI: In ra nội dung đang được quét
+            print(string.format("[BotScan] Đang quét '%s': \"%s\"", ownerName, boothTextOriginal)) 
             
             local boothText = string.lower(boothTextOriginal) -- Chuyển sang chữ thường để kiểm tra
             for _, keyword in ipairs(SETTINGS.BOT_KEYWORDS) do 
@@ -374,7 +370,7 @@ local function scanForBots() updateDisplay("INFO", "Bắt đầu quét bot...");
                     currentBotCount = currentBotCount + 1; 
                     local alertMessage = string.format("PHÁT HIỆN BOT #%d\n'%s'", currentBotCount, ownerName); 
                     updateDisplay("BOT_DETECTED", alertMessage); 
-                    task.wait(2.5); 
+                    task.wait(0.5); 
                     break 
                 end 
             end 
@@ -436,3 +432,5 @@ task.spawn(function()
     end
     print("[MainInit] Script đã hoàn tất.")
 end)
+
+
