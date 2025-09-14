@@ -21,14 +21,14 @@ local SETTINGS = {
     -- CÀI ĐẶT CHỐNG BOT
     -- =================================================================
     ["EnableAntiBotScan"] = true,
-    ["BOT_KEYWORDS"] = { "spin", "afk", "restaurant", "jump", "gift", "speed", "develop", "streaming", "live", "game", "#", "dream", "first" },
-    ["DETECTION_THRESHOLD"] = 4, -- Đặt là 1 để kiểm tra. Thay đổi lại sau khi test xong.
+    ["BOT_KEYWORDS"] = { "spin", "afk", "restaurant", "jump", "gift", "speed", "develop", "streaming", "live", "game", "#", "dream", "first", "mom", "big" },
+    ["DETECTION_THRESHOLD"] = 3, -- Đặt là 1 để kiểm tra. Thay đổi lại sau khi test xong.
 
     -- =================================================================
     -- CÀI ĐẶT SERVER HOP & AFK
     -- =================================================================
-    ["WaitMinutes"] = 0.3,
-    ["MaxServerHistorySize"] = 250, -- Xóa lịch sử server sau khi đã lưu X server. Đặt là 0 để tắt.
+    ["WaitMinutes"] = 10,
+    ["MaxServerHistorySize"] = 500, -- Xóa lịch sử server sau khi đã lưu X server. Đặt là 0 để tắt.
 
     -- Kiểm tra số người chơi định kỳ
     ["EnablePlayerCountCheck"] = true, -- Bật/tắt kiểm tra số người chơi mỗi phút.
@@ -39,7 +39,6 @@ local SETTINGS = {
     ["EnableSafePlatform"] = true,
     ["EnableStaticAfkView"] = true,
     ["EnableDonateReset"] = true,
-    ["EnableAutoReconnect"] = false,
     
     -- Cài đặt Thông Báo Donate qua Discord
     ["EnableDiscordWebhook"] = true,
@@ -103,6 +102,7 @@ local playerGui = LocalPlayer and LocalPlayer:WaitForChild("PlayerGui")
 local statusScreenGui, statusTextLabel, statusFrame
 local countdownShouldReset = false; local currentCountdownThread = nil; local playerMonitorThread = nil
 local serverHistoryCache = {} -- Cache lịch sử server cho toàn bộ phiên làm việc
+local isRateLimited = false -- Cờ trạng thái cho giới hạn request API
 
 -- --- Kiểm tra và gán hàm đọc/ghi file ---
 local canAccessFiles = false; local writefile_func, readfile_func; if SETTINGS.EnableFileHistory then pcall(function() if writefile and readfile then canAccessFiles, writefile_func, readfile_func = true, writefile, readfile; print("[FileIO] Quyền file có sẵn.") else print("[FileIO] Quyền file KHÔNG có sẵn.") end end) else print("[FileIO] Lịch sử file bị TẮT.") end
@@ -170,11 +170,10 @@ local function setupStaticAfkView() updateDisplay("INFO", "Thiết lập view AF
 local function optimizeForCpu() if not SETTINGS.EnableCpuOptimization then return end; updateDisplay("INFO", "Bắt đầu tối ưu hóa CPU..."); pcall(function() if type(setfpscap) == "function" and SETTINGS.TargetFps and SETTINGS.TargetFps > 0 then print("[CPU-Opt] Giới hạn FPS đang hoạt động ở mức: " .. tostring(SETTINGS.TargetFps)) end; if SETTINGS.SetSimulationRadiusToZero then if LocalPlayer then LocalPlayer.SimulationRadius = 0; print("[CPU-Opt] SimulationRadius đã được đặt về 0.") end end end); updateDisplay("SUCCESS", "Tối ưu hóa CPU hoàn tất.") end
 local function optimizeGraphics() updateDisplay("INFO", "Bắt đầu tối ưu đồ họa..."); if SETTINGS.EnableSafePlatform then createSafePlatform(); end; task.wait(0.1); pcall(function() local itemsToDel={}; for _,item in pairs(game.Workspace:GetChildren()) do local keep=(LocalPlayer.Character and item.Name==LocalPlayer.Character.Name)or(item==workspace.CurrentCamera)or(SETTINGS.EnableSafePlatform and item.Name==AFK_PLATFORM_NAME)or(SETTINGS.EnableStaticAfkView and(item.Name==STATIC_HEAD_ANCHOR_PART_NAME or item.Name==STATIC_BLACK_SCREEN_PART_NAME));if not keep then table.insert(itemsToDel,item)end end; for _,item in ipairs(itemsToDel)do pcall(function()item:Destroy()end)end;Lighting.GlobalShadows,Lighting.Brightness,Lighting.Ambient,Lighting.OutdoorAmbient,Lighting.ExposureCompensation=false,0,Color3.new(0,0,0),Color3.new(0,0,0),-2;pcall(function()Lighting.Atmosphere:Destroy()end);pcall(function()Lighting.Sky:Destroy()end); if LocalPlayer.PlayerGui then for _,gui in pairs(LocalPlayer.PlayerGui:GetChildren())do if gui.Name~=SERVER_HOP_GUI_NAME then pcall(function()gui:Destroy()end)end end end;local sO=settings();if sO and sO.Rendering then sO.Rendering.QualityLevel=Enum.QualityLevel.Level01;pcall(function()if RunService:IsClient()then RunService:Set3dRenderingEnabled(false)end end)end;SoundService.RespectFilteringEnabled,SoundService.AmbientReverb=true,Enum.ReverbType.NoReverb;for _,sound in pairs(game:GetDescendants())do if sound:IsA("Sound")then sound.Volume=0;sound:Stop()end end; end); updateDisplay("SUCCESS", "Đồ họa đã được tối ưu."); end
 
--- --- Các biến trạng thái cho Server Hop ---
+-- --- Logic Tìm Server (Đã được sửa đổi) ---
 local candidateServers = {}
-local currentStage = 1
+local nextServerCursor = nil
 
--- --- Logic Tìm Server (Tích hợp từ Script A) ---
 local function prepareToHop()
     print("[ServerHop] Preparing to hop servers...")
     -- Dừng các coroutine đang chạy để tránh xung đột
@@ -193,6 +192,9 @@ local function prepareToHop()
     saveServerHistoryToFile()
 end
 
+-- Khai báo trước
+local tryNextServer
+
 function persistentFetch(url)
     local success, response = false, nil
     repeat
@@ -200,13 +202,29 @@ function persistentFetch(url)
         if pcallSuccess and pcallResponse and pcallResponse.data then
             success, response = true, pcallResponse
         else
-            local isRateLimited = false
+            local wasRateLimited = false
             if pcallSuccess and pcallResponse and pcallResponse.errors and pcallResponse.errors[1] and pcallResponse.errors[1].message and string.find(string.lower(pcallResponse.errors[1].message), "too many requests") then
-                isRateLimited = true
+                wasRateLimited = true
             end
-            if isRateLimited then
-                updateDisplay("ERROR", "Bị giới hạn (429). Thử lại sau 30s...")
-                task.wait(30)
+
+            if wasRateLimited then
+                isRateLimited = true
+                updateDisplay("ERROR", "Bị giới hạn (429). Sẽ thử server có sẵn trong 30 giây...")
+                
+                local rateLimitStartTime = tick()
+                while tick() - rateLimitStartTime < 30 do
+                    local timeLeft = math.floor(30 - (tick() - rateLimitStartTime))
+                    if #candidateServers > 0 then
+                        updateDisplay("INFO", string.format("Đang thử server có sẵn... còn %d giây", timeLeft))
+                        tryNextServer() -- Thử vào server tiếp theo trong danh sách
+                    else
+                        updateDisplay("ERROR", string.format("Bị giới hạn (429) và không có server dự phòng. Chờ... %d giây", timeLeft))
+                    end
+                    task.wait(2) -- Chờ 2 giây giữa các lần thử
+                end
+                
+                isRateLimited = false
+                updateDisplay("INFO", "Hết thời gian giới hạn. Thử quét lại...")
             else
                 updateDisplay("ERROR", "Lỗi quét. Thử lại sau 5s...")
                 task.wait(5)
@@ -225,55 +243,76 @@ local function executeTeleport(jobId)
     end)
 end
 
-function attemptNextTeleport()
-    if #candidateServers == 0 then
-        currentStage = currentStage + 1
-        local nextCursor = workspace:GetAttribute("NextServerCursor")
-        
-        if not nextCursor then
-            updateDisplay("ERROR", "Hết server để thử. Dừng lại.")
-            return
-        end
-
-        updateDisplay("INFO", "Hết server tầng trước. Chuyển sang Tầng " .. currentStage .. "...")
-
-        if currentStage > 3 then
-            updateDisplay("ERROR", "Đã thử hết 3 tầng. Không tìm thấy server.")
-            return
-        end
-        
-        local apiUrlNextPage = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Desc&limit=10&cursor=" .. nextCursor
-        updateDisplay("INFO", "Đang quét Tầng " .. currentStage .. "...")
-        local nextPageResponse = persistentFetch(apiUrlNextPage)
-        
-        if nextPageResponse and nextPageResponse.data and #nextPageResponse.data > 0 then
-            workspace:SetAttribute("NextServerCursor", nextPageResponse.nextPageCursor)
-            local newCandidatesCount = 0
-            local ignoredHistoryCount = 0
-            for _, server in ipairs(nextPageResponse.data) do 
-                if not serverHistoryCache[server.id] then
-                    table.insert(candidateServers, server)
-                    newCandidatesCount = newCandidatesCount + 1
-                else
-                    ignoredHistoryCount = ignoredHistoryCount + 1
-                end
-            end
-            print(string.format("[ServerScan] Tầng %d: Thêm %d, Bỏ qua %d (lịch sử).", currentStage, newCandidatesCount, ignoredHistoryCount))
-            updateDisplay("SUCCESS", "Quét Tầng " .. currentStage .. " xong! Tìm thấy " .. newCandidatesCount .. " server mới.")
-            attemptNextTeleport()
-        else
-            updateDisplay("ERROR", "Không lấy được dữ liệu cho Tầng " .. currentStage .. ". Dừng lại.")
-        end
-        return
+local function fetchNextBatch()
+    updateDisplay("INFO", "Đang quét 10 server tiếp theo...")
+    
+    local apiUrl = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Desc&limit=10"
+    if nextServerCursor then
+        apiUrl = apiUrl .. "&cursor=" .. nextServerCursor
     end
 
-    local randomIndex = rng:NextInteger(1, #candidateServers)
-    local targetServer = candidateServers[randomIndex]
-    table.remove(candidateServers, randomIndex)
-    
-    executeTeleport(targetServer.id)
+    local response = persistentFetch(apiUrl)
+
+    if response and response.data and #response.data > 0 then
+        nextServerCursor = response.nextPageCursor -- Cập nhật con trỏ cho lần fetch tiếp theo
+        
+        local newCandidatesCount = 0
+        local ignoredHistoryCount = 0
+        
+        for _, server in ipairs(response.data) do
+            if not serverHistoryCache[server.id] then
+                table.insert(candidateServers, server)
+                newCandidatesCount = newCandidatesCount + 1
+            else
+                ignoredHistoryCount = ignoredHistoryCount + 1
+            end
+        end
+
+        print(string.format("[ServerScan] Quét xong. Thêm %d server mới. Bỏ qua %d (lịch sử).", newCandidatesCount, ignoredHistoryCount))
+        
+        if newCandidatesCount > 0 then
+             updateDisplay("SUCCESS", "Quét xong! Tìm thấy " .. newCandidatesCount .. " server hợp lệ.")
+             -- Trộn ngẫu nhiên danh sách để không phải lúc nào cũng thử server đầu tiên
+             for i = #candidateServers, 2, -1 do
+                 local j = rng:NextInteger(1, i)
+                 candidateServers[i], candidateServers[j] = candidateServers[j], candidateServers[i]
+             end
+             tryNextServer()
+        else
+            updateDisplay("INFO", "Trang này toàn server đã vào. Đang tìm trang tiếp...")
+            fetchNextBatch()
+        end
+
+    else
+        updateDisplay("ERROR", "Hết server hoặc lỗi API. Bắt đầu lại từ đầu sau 15s...")
+        nextServerCursor = nil -- Reset con trỏ để bắt đầu lại từ trang 1
+        task.wait(15)
+        fetchNextBatch()
+    end
 end
 
+tryNextServer = function()
+    if #candidateServers == 0 then
+        -- Không còn server trong danh sách hiện tại, tìm một loạt mới.
+        -- Chỉ fetch khi không bị giới hạn request để tránh vòng lặp vô hạn.
+        if not isRateLimited then
+            fetchNextBatch()
+        end
+    else
+        -- Có server, hãy thử vào một cái.
+        local targetServer = table.remove(candidateServers, 1) -- Lấy và xóa server đầu tiên khỏi danh sách
+        executeTeleport(targetServer.id)
+    end
+end
+
+-- Điểm bắt đầu chính cho việc hop, được đặt tên lại để thay thế hàm cũ
+function searchForServer()
+    updateDisplay("INFO", "Bắt đầu tìm server...")
+    candidateServers = {} -- Xóa dữ liệu cũ
+    nextServerCursor = nil -- Reset con trỏ cho một cuộc tìm kiếm mới
+    prepareToHop()
+    tryNextServer() -- Bắt đầu quá trình
+end
 
 TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, errorMessage)
     if not SETTINGS.EnableServerHop then return end
@@ -282,72 +321,16 @@ TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, erro
     if teleportResult == Enum.TeleportResult.GameFull then
         reason = "Server đầy!"
     elseif teleportResult == Enum.TeleportResult.Flooded then
-         reason = "Thao tác quá nhanh!"
+        reason = "Thao tác quá nhanh!"
     else
         reason = errorMessage
     end
     
     updateDisplay("ERROR", "Dịch chuyển thất bại: " .. reason)
-    updateDisplay("INFO", "Tìm server khác sau 1 giây...")
-    task.wait(1)
-    attemptNextTeleport()
+    updateDisplay("INFO", "Tìm server khác sau 0.5 giây...")
+    task.wait(0.5)
+    tryNextServer()
 end)
-
-function searchForServer()
-    updateDisplay("INFO", "Bắt đầu tìm server theo logic mới...")
-    candidateServers = {}
-    currentStage = 1
-    workspace:SetAttribute("NextServerCursor", nil)
-    
-    updateDisplay("INFO", "Bắt đầu Tầng 1: Quét 30 server đầu tiên...")
-    local apiUrlBase = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Desc&limit=10"
-    local serverList = {}
-    local nextCursor = nil
-    local initialScanSuccess = true
-
-    for i = 1, 3 do
-        local currentUrl = apiUrlBase
-        if nextCursor then currentUrl = currentUrl .. "&cursor=" .. nextCursor end
-        
-        local response = persistentFetch(currentUrl)
-
-        if response and response.data and #response.data > 0 then
-            for _, server in ipairs(response.data) do table.insert(serverList, server) end
-            nextCursor = response.nextPageCursor
-            updateDisplay("INFO", "Đã lấy thành công trang server #" .. i)
-            if not nextCursor then break end
-        else
-            updateDisplay("ERROR", "Không thể lấy dữ liệu trang #" .. i .. ". Dừng quét.")
-            initialScanSuccess = false
-            break
-        end
-    end
-
-    if initialScanSuccess and #serverList >= 21 then
-        workspace:SetAttribute("NextServerCursor", nextCursor)
-        local ignoredHistoryCount = 0
-        for i = 21, #serverList do
-            local server = serverList[i]
-            if not serverHistoryCache[server.id] then
-                table.insert(candidateServers, server)
-            else
-                ignoredHistoryCount = ignoredHistoryCount + 1
-            end
-        end
-        print(string.format("[ServerScan] Tầng 1: Thêm %d, Bỏ qua %d (lịch sử).", #candidateServers, ignoredHistoryCount))
-        updateDisplay("SUCCESS", "Quét Tầng 1 xong. Bắt đầu dịch chuyển...")
-        attemptNextTeleport()
-    elseif initialScanSuccess then
-        updateDisplay("ERROR", string.format("Không tìm thấy đủ 21 server (%d/21). Thử lại sau...", #serverList))
-        task.wait(5)
-        searchForServer()
-    else
-        updateDisplay("ERROR", "Quét ban đầu thất bại. Thử lại sau...")
-        task.wait(5)
-        searchForServer()
-    end
-end
-
 
 -- --- Quản lý AFK (Countdown, Donate, Player Count) ---
 function startInitialCountdown() 
@@ -483,8 +466,7 @@ local function checkAvoidPlayersOnce()
 end
 
 
--- --- Các hàm thiết lập (Reconnect, AutoReply, Webhook) ---
-local function setupAutoReconnect() pcall(function() local promptOverlay = game.CoreGui:WaitForChild('RobloxPromptGui'):WaitForChild('promptOverlay'); promptOverlay.ChildAdded:Connect(function(child) if child.Name == 'ErrorPrompt' and child:IsA('Frame') then updateDisplay("ERROR", "Phát hiện lỗi! Đang thử kết nối lại..."); local success, err = pcall(function() TeleportService:Teleport(placeId, LocalPlayer) end); if not success then task.wait(2); repeat TeleportService:Teleport(placeId, LocalPlayer); task.wait(5) until false end end end); updateDisplay("SUCCESS", "Tính năng tự động kết nối lại đã được kích hoạt.") end) end
+-- --- Các hàm thiết lập (AutoReply, Webhook) ---
 local function setupAutoReply() if not SETTINGS.EnableAutoReply then return end; local ChatChannel = TextChatService.TextChannels.RBXGeneral; local Cooldowns = {}; local function safeChat(msg) pcall(function() ChatChannel:SendAsync(msg) end) end; Players.PlayerChatted:Connect(function(_, player, message) if not SETTINGS.EnableAutoReply then return end; if player == LocalPlayer then return end; if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then return end; if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end; local distance = (player.Character.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude; if distance > SETTINGS.ReplyRadius then return end; if Cooldowns[player] and tick() - Cooldowns[player] < SETTINGS.ReplyCooldown then return end; local lowerMsg = string.lower(message); local replied = false; for _, rule in ipairs(SETTINGS.ReplyRules) do for _, keyword in ipairs(rule.keywords) do if string.find(lowerMsg, keyword) then local reply = rule.replies[math.random(1, #rule.replies)]; task.wait(math.random(1,3)); safeChat(reply); Cooldowns[player] = tick(); replied = true; break end end; if replied then break end end end); updateDisplay("SUCCESS", "Tính năng tự động trả lời đã được kích hoạt.") end
 local function setupDiscordWebhook() if not SETTINGS.EnableDiscordWebhook or not SETTINGS.WebhookURL or SETTINGS.WebhookURL == "" then print("[Webhook] Tính năng webhook bị tắt hoặc URL không hợp lệ."); return end; local leaderstats = LocalPlayer:WaitForChild("leaderstats", 30); if not leaderstats then updateDisplay("ERROR", "[Webhook] Không tìm thấy leaderstats sau 30 giây."); return end; local raised = leaderstats:WaitForChild("Raised", 30); if not raised then updateDisplay("ERROR", "[Webhook] Không tìm thấy 'Raised' trong leaderstats."); return end; local lastRaised = raised.Value; local function sendWebhook(amount, total) local pingContent = nil; if SETTINGS.EnablePingOnDonate then if amount >= (SETTINGS.PingAmount or 0) then if SETTINGS.PingUserID and SETTINGS.PingUserID ~= "" then pingContent = string.format("<@%s>", SETTINGS.PingUserID) else pingContent = "@everyone" end end end; local embed = { description = string.format("**%s**\n# +%d\nTOTAL : %d", LocalPlayer.Name, amount, total), color = SETTINGS.WebhookColor }; local payloadData = { embeds = { embed } }; if pingContent then payloadData.content = pingContent end; local payload = HttpService:JSONEncode(payloadData); local req = (syn and syn.request) or (http and http.request) or (fluxus and fluxus.request) or request; if req then pcall(function() req({ Url = SETTINGS.WebhookURL, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = payload }) end) else updateDisplay("ERROR", "[Webhook] Không tìm thấy hàm request để gửi webhook.") end end; raised.Changed:Connect(function(newRaisedValue) local difference = newRaisedValue - lastRaised; if difference > 0 then if SETTINGS.EnableDonateReset then countdownShouldReset = true end; sendWebhook(difference, newRaisedValue) end; lastRaised = newRaisedValue end); updateDisplay("SUCCESS", "Tính năng thông báo donate qua Discord đã được kích hoạt.") end
 
@@ -505,7 +487,6 @@ task.spawn(function()
     loadServerHistoryOnce()
 
     if type(setfpscap) == "function" and SETTINGS.TargetFps and SETTINGS.TargetFps > 0 then task.spawn(function() while task.wait() do pcall(setfpscap, SETTINGS.TargetFps) end end) end
-    if SETTINGS.EnableAutoReconnect then task.spawn(setupAutoReconnect) end
     if SETTINGS.EnableAutoReply then task.spawn(setupAutoReply) end
 
     updateDisplay("INFO", string.format("Chờ game tải trong %d giây...", SETTINGS.InitialWaitTime))
@@ -521,7 +502,6 @@ task.spawn(function()
         if SETTINGS.EnableAntiBotScan and botCount >= SETTINGS.DETECTION_THRESHOLD then
             updateDisplay("ERROR", string.format("Phát hiện %d/%d bot!\nĐang tìm server mới...", botCount, SETTINGS.DETECTION_THRESHOLD))
             task.wait(3)
-            prepareToHop()
             searchForServer()
         else
             -- Bước 2: Quét tài khoản cần né (chỉ 1 lần)
