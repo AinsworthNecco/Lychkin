@@ -30,6 +30,7 @@ local SETTINGS = {
     ["WaitMinutes"] = 10,
     ["MinPlayerPercentage"] = 0.50, -- Tối thiểu % người chơi
     ["MaxPlayerPercentage"] = 0.99, -- Tối đa % người chơi
+    ["SortOrder"] = "Asc", -- Sắp xếp server: "Asc" (ưu tiên server mới) hoặc "Desc" (ưu tiên server cũ)
     ["MaxServerHistorySize"] = 500, -- Xóa lịch sử server sau khi đã lưu X server. Đặt là 0 để tắt.
 
     -- Kiểm tra số người chơi định kỳ
@@ -75,6 +76,7 @@ local SETTINGS = {
     -- Cài đặt giao diện
     ["EnableCountdownText"] = true,
     ["EnableCountdownColor"] = true,
+    ["ShowCurrentJobID"] = false, -- Hiển thị JobID server hiện tại trên màn hình AFK
     ["CountdownFixedColorHex"] = "#000000",
 }
 -- --- KẾT THÚC CÀI ĐẶT ---
@@ -197,7 +199,7 @@ local function searchForServer()
     prepareToHop()
     updateDisplay("INFO", "Bắt đầu tìm server theo % người chơi...")
 
-    local serversUrlBase = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Asc&limit=100"
+    local serversUrlBase = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=" .. (SETTINGS.SortOrder or "Asc") .. "&limit=100"
     local nextCursor = nil
     local chosenServer = nil
     local attempts = 0
@@ -306,8 +308,14 @@ function startInitialCountdown()
                     
                     local playerCountText = string.format("%d/%d", currentPlayers, maxPlayers)
                     local timerText = string.format("%02d:%02d", math.floor(i/60), i%60)
-                    local jobIdText = "Server: " .. string.sub(currentJobId, 1, 12) .. "..."
-                    statusTextLabel.Text = string.format("%s\n%s\n%s", timerText, playerCountText, jobIdText)
+                    local textParts = {timerText, playerCountText}
+                    
+                    if SETTINGS.ShowCurrentJobID then
+                        local jobIdText = "Server: " .. string.sub(currentJobId, 1, 12) .. "..."
+                        table.insert(textParts, jobIdText)
+                    end
+                    
+                    statusTextLabel.Text = table.concat(textParts, "\n")
                     statusTextLabel.TextColor3 = Color3.new(1,1,1) 
                 end 
             end
@@ -465,3 +473,4 @@ task.spawn(function()
     end
     print("[MainInit] Script đã hoàn tất.")
 end)
+
