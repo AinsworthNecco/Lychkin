@@ -30,7 +30,7 @@ local SETTINGS = {
     -- =================================================================
     ["WaitMinutes"] = 10,
     ["MinPlayerPercentage"] = 0.50, -- Tối thiểu % người chơi
-    ["MaxPlayerPercentage"] = 0.99, -- Tối đa % người chơi
+    ["MaxPlayerPercentage"] = 0.1, -- Tối đa % người chơi
     ["MaxServerHistorySize"] = 500, -- Xóa lịch sử server sau khi đã lưu X server. Đặt là 0 để tắt.
 
     -- Kiểm tra số người chơi định kỳ
