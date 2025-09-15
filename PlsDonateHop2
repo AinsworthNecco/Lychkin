@@ -28,6 +28,8 @@ local SETTINGS = {
     -- CÀI ĐẶT SERVER HOP & AFK
     -- =================================================================
     ["WaitMinutes"] = 10,
+    ["MinPlayerPercentage"] = 0.50, -- Tối thiểu % người chơi
+    ["MaxPlayerPercentage"] = 0.99, -- Tối đa % người chơi
     ["MaxServerHistorySize"] = 500, -- Xóa lịch sử server sau khi đã lưu X server. Đặt là 0 để tắt.
 
     -- Kiểm tra số người chơi định kỳ
@@ -102,7 +104,6 @@ local playerGui = LocalPlayer and LocalPlayer:WaitForChild("PlayerGui")
 local statusScreenGui, statusTextLabel, statusFrame
 local countdownShouldReset = false; local currentCountdownThread = nil; local playerMonitorThread = nil
 local serverHistoryCache = {} -- Cache lịch sử server cho toàn bộ phiên làm việc
-local isRateLimited = false -- Cờ trạng thái cho giới hạn request API
 
 -- --- Kiểm tra và gán hàm đọc/ghi file ---
 local canAccessFiles = false; local writefile_func, readfile_func; if SETTINGS.EnableFileHistory then pcall(function() if writefile and readfile then canAccessFiles, writefile_func, readfile_func = true, writefile, readfile; print("[FileIO] Quyền file có sẵn.") else print("[FileIO] Quyền file KHÔNG có sẵn.") end end) else print("[FileIO] Lịch sử file bị TẮT.") end
@@ -170,9 +171,9 @@ local function setupStaticAfkView() updateDisplay("INFO", "Thiết lập view AF
 local function optimizeForCpu() if not SETTINGS.EnableCpuOptimization then return end; updateDisplay("INFO", "Bắt đầu tối ưu hóa CPU..."); pcall(function() if type(setfpscap) == "function" and SETTINGS.TargetFps and SETTINGS.TargetFps > 0 then print("[CPU-Opt] Giới hạn FPS đang hoạt động ở mức: " .. tostring(SETTINGS.TargetFps)) end; if SETTINGS.SetSimulationRadiusToZero then if LocalPlayer then LocalPlayer.SimulationRadius = 0; print("[CPU-Opt] SimulationRadius đã được đặt về 0.") end end end); updateDisplay("SUCCESS", "Tối ưu hóa CPU hoàn tất.") end
 local function optimizeGraphics() updateDisplay("INFO", "Bắt đầu tối ưu đồ họa..."); if SETTINGS.EnableSafePlatform then createSafePlatform(); end; task.wait(0.1); pcall(function() local itemsToDel={}; for _,item in pairs(game.Workspace:GetChildren()) do local keep=(LocalPlayer.Character and item.Name==LocalPlayer.Character.Name)or(item==workspace.CurrentCamera)or(SETTINGS.EnableSafePlatform and item.Name==AFK_PLATFORM_NAME)or(SETTINGS.EnableStaticAfkView and(item.Name==STATIC_HEAD_ANCHOR_PART_NAME or item.Name==STATIC_BLACK_SCREEN_PART_NAME));if not keep then table.insert(itemsToDel,item)end end; for _,item in ipairs(itemsToDel)do pcall(function()item:Destroy()end)end;Lighting.GlobalShadows,Lighting.Brightness,Lighting.Ambient,Lighting.OutdoorAmbient,Lighting.ExposureCompensation=false,0,Color3.new(0,0,0),Color3.new(0,0,0),-2;pcall(function()Lighting.Atmosphere:Destroy()end);pcall(function()Lighting.Sky:Destroy()end); if LocalPlayer.PlayerGui then for _,gui in pairs(LocalPlayer.PlayerGui:GetChildren())do if gui.Name~=SERVER_HOP_GUI_NAME then pcall(function()gui:Destroy()end)end end end;local sO=settings();if sO and sO.Rendering then sO.Rendering.QualityLevel=Enum.QualityLevel.Level01;pcall(function()if RunService:IsClient()then RunService:Set3dRenderingEnabled(false)end end)end;SoundService.RespectFilteringEnabled,SoundService.AmbientReverb=true,Enum.ReverbType.NoReverb;for _,sound in pairs(game:GetDescendants())do if sound:IsA("Sound")then sound.Volume=0;sound:Stop()end end; end); updateDisplay("SUCCESS", "Đồ họa đã được tối ưu."); end
 
--- --- Logic Tìm Server (Đã được sửa đổi) ---
-local candidateServers = {}
-local nextServerCursor = nil
+-- =================================================================
+-- LOGIC SERVER HOP THEO %
+-- =================================================================
 
 local function prepareToHop()
     print("[ServerHop] Preparing to hop servers...")
@@ -192,145 +193,81 @@ local function prepareToHop()
     saveServerHistoryToFile()
 end
 
--- Khai báo trước
-local tryNextServer
+local function searchForServer()
+    prepareToHop()
+    updateDisplay("INFO", "Bắt đầu tìm server theo % người chơi...")
 
-function persistentFetch(url)
-    local success, response = false, nil
-    repeat
-        local pcallSuccess, pcallResponse = pcall(function() return HttpService:JSONDecode(game:HttpGet(url, true)) end)
-        if pcallSuccess and pcallResponse and pcallResponse.data then
-            success, response = true, pcallResponse
-        else
-            local wasRateLimited = false
-            if pcallSuccess and pcallResponse and pcallResponse.errors and pcallResponse.errors[1] and pcallResponse.errors[1].message and string.find(string.lower(pcallResponse.errors[1].message), "too many requests") then
-                wasRateLimited = true
-            end
+    local serversUrlBase = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Asc&limit=100"
+    local nextCursor = nil
+    local chosenServer = nil
+    local attempts = 0
+    local maxAttempts = 5 -- Giới hạn số lần quét lại từ đầu để tránh vòng lặp vô hạn
 
-            if wasRateLimited then
-                isRateLimited = true
-                updateDisplay("ERROR", "Bị giới hạn (429). Sẽ thử server có sẵn trong 30 giây...")
-                
-                local rateLimitStartTime = tick()
-                while tick() - rateLimitStartTime < 30 do
-                    local timeLeft = math.floor(30 - (tick() - rateLimitStartTime))
-                    if #candidateServers > 0 then
-                        updateDisplay("INFO", string.format("Đang thử server có sẵn... còn %d giây", timeLeft))
-                        tryNextServer() -- Thử vào server tiếp theo trong danh sách
-                    else
-                        updateDisplay("ERROR", string.format("Bị giới hạn (429) và không có server dự phòng. Chờ... %d giây", timeLeft))
+    while not chosenServer and attempts < maxAttempts do
+        attempts = attempts + 1
+        local allScanned = false
+        
+        while not allScanned and not chosenServer do
+            local currentUrl = serversUrlBase .. (nextCursor and "&cursor=" .. nextCursor or "")
+            
+            local success, response = pcall(function()
+                return HttpService:JSONDecode(game:HttpGet(currentUrl, true))
+            end)
+
+            if success and response and response.data then
+                local suitableServers = {}
+                for _, serverInfo in ipairs(response.data) do
+                    -- ** LOGIC MỚI ĐÃ CẬP NHẬT **
+                    if not serverHistoryCache[serverInfo.id] and serverInfo.id ~= currentJobId and serverInfo.playing and serverInfo.maxPlayers and serverInfo.maxPlayers > 0 then
+                        local playerRatio = serverInfo.playing / serverInfo.maxPlayers
+                        -- Điều kiện 3: Nằm trong % quy định (cho phép bằng MaxPlayerPercentage)
+                        if playerRatio >= SETTINGS.MinPlayerPercentage and playerRatio <= SETTINGS.MaxPlayerPercentage then
+                            table.insert(suitableServers, serverInfo)
+                        end
                     end
-                    task.wait(2) -- Chờ 2 giây giữa các lần thử
                 end
-                
-                isRateLimited = false
-                updateDisplay("INFO", "Hết thời gian giới hạn. Thử quét lại...")
+
+                if #suitableServers > 0 then
+                    chosenServer = suitableServers[rng:NextInteger(1, #suitableServers)]
+                    break -- Thoát khỏi vòng lặp quét trang
+                end
+
+                nextCursor = response.nextPageCursor
+                if not nextCursor then
+                    allScanned = true
+                end
             else
-                updateDisplay("ERROR", "Lỗi quét. Thử lại sau 5s...")
+                updateDisplay("ERROR", "Lỗi API, thử lại sau 5 giây...")
                 task.wait(5)
             end
+            task.wait(0.5) -- Thêm độ trễ nhỏ giữa các lần gọi API
         end
-    until success
-    return response
-end
 
-local function executeTeleport(jobId)
-    updateDisplay("SUCCESS", string.format("Server được chọn!\nĐang vào: %s...", jobId:sub(1, 12)))
-    task.wait(0.5)
-    print(string.format("[Teleport] Bắt đầu dịch chuyển đến Job ID: %s", jobId))
-    pcall(function()
-        TeleportService:TeleportToPlaceInstance(game.PlaceId, jobId, Players.LocalPlayer)
-    end)
-end
-
-local function fetchNextBatch()
-    updateDisplay("INFO", "Đang quét 10 server tiếp theo...")
-    
-    local apiUrl = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Desc&limit=10"
-    if nextServerCursor then
-        apiUrl = apiUrl .. "&cursor=" .. nextServerCursor
+        if not chosenServer then
+            updateDisplay("INFO", "Không tìm thấy server phù hợp, quét lại từ đầu...")
+            nextCursor = nil -- Reset để quét lại từ trang đầu
+            task.wait(5)
+        end
     end
 
-    local response = persistentFetch(apiUrl)
-
-    if response and response.data and #response.data > 0 then
-        nextServerCursor = response.nextPageCursor -- Cập nhật con trỏ cho lần fetch tiếp theo
+    if chosenServer then
+        updateDisplay("SUCCESS", string.format("Server được chọn!\nĐang vào: %s...", chosenServer.id:sub(1, 12)))
+        task.wait(1)
         
-        local newCandidatesCount = 0
-        local ignoredHistoryCount = 0
-        
-        for _, server in ipairs(response.data) do
-            if not serverHistoryCache[server.id] then
-                table.insert(candidateServers, server)
-                newCandidatesCount = newCandidatesCount + 1
-            else
-                ignoredHistoryCount = ignoredHistoryCount + 1
-            end
-        end
+        local success, err = pcall(function()
+            TeleportService:TeleportToPlaceInstance(placeId, chosenServer.id, LocalPlayer)
+        end)
 
-        print(string.format("[ServerScan] Quét xong. Thêm %d server mới. Bỏ qua %d (lịch sử).", newCandidatesCount, ignoredHistoryCount))
-        
-        if newCandidatesCount > 0 then
-             updateDisplay("SUCCESS", "Quét xong! Tìm thấy " .. newCandidatesCount .. " server hợp lệ.")
-             -- Trộn ngẫu nhiên danh sách để không phải lúc nào cũng thử server đầu tiên
-             for i = #candidateServers, 2, -1 do
-                 local j = rng:NextInteger(1, i)
-                 candidateServers[i], candidateServers[j] = candidateServers[j], candidateServers[i]
-             end
-             tryNextServer()
-        else
-            updateDisplay("INFO", "Trang này toàn server đã vào. Đang tìm trang tiếp...")
-            fetchNextBatch()
-        end
-
-    else
-        updateDisplay("ERROR", "Hết server hoặc lỗi API. Bắt đầu lại từ đầu sau 15s...")
-        nextServerCursor = nil -- Reset con trỏ để bắt đầu lại từ trang 1
-        task.wait(15)
-        fetchNextBatch()
-    end
-end
-
-tryNextServer = function()
-    if #candidateServers == 0 then
-        -- Không còn server trong danh sách hiện tại, tìm một loạt mới.
-        -- Chỉ fetch khi không bị giới hạn request để tránh vòng lặp vô hạn.
-        if not isRateLimited then
-            fetchNextBatch()
+        if not success then
+            updateDisplay("ERROR", "Lỗi dịch chuyển! Thử tìm server khác...")
+            serverHistoryCache[chosenServer.id] = true -- Thêm server lỗi vào lịch sử
+            task.wait(3)
+            searchForServer() -- Gọi lại chính nó để tìm một server hoàn toàn mới
         end
     else
-        -- Có server, hãy thử vào một cái.
-        local targetServer = table.remove(candidateServers, 1) -- Lấy và xóa server đầu tiên khỏi danh sách
-        executeTeleport(targetServer.id)
+        updateDisplay("ERROR", "Không tìm thấy server sau nhiều lần thử. Dừng lại.")
     end
 end
-
--- Điểm bắt đầu chính cho việc hop, được đặt tên lại để thay thế hàm cũ
-function searchForServer()
-    updateDisplay("INFO", "Bắt đầu tìm server...")
-    candidateServers = {} -- Xóa dữ liệu cũ
-    nextServerCursor = nil -- Reset con trỏ cho một cuộc tìm kiếm mới
-    prepareToHop()
-    tryNextServer() -- Bắt đầu quá trình
-end
-
-TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, errorMessage)
-    if not SETTINGS.EnableServerHop then return end
-
-    local reason = "Lý do không xác định"
-    if teleportResult == Enum.TeleportResult.GameFull then
-        reason = "Server đầy!"
-    elseif teleportResult == Enum.TeleportResult.Flooded then
-        reason = "Thao tác quá nhanh!"
-    else
-        reason = errorMessage
-    end
-    
-    updateDisplay("ERROR", "Dịch chuyển thất bại: " .. reason)
-    updateDisplay("INFO", "Tìm server khác sau 0.5 giây...")
-    task.wait(0.5)
-    tryNextServer()
-end)
 
 -- --- Quản lý AFK (Countdown, Donate, Player Count) ---
 function startInitialCountdown() 
@@ -340,7 +277,6 @@ function startInitialCountdown()
     local function performCountdownThenSearch(minutesToWait) 
         if not minutesToWait or minutesToWait <= 0 then 
             updateDisplay("ERROR", "Thời gian chờ lỗi.");
-            prepareToHop()
             searchForServer();
             return 
         end
@@ -395,7 +331,6 @@ function startInitialCountdown()
         if statusTextLabel then statusTextLabel.Text = "" end
         if statusFrame then statusFrame.BackgroundTransparency = 1 end
         updateDisplay("SUCCESS", "Hết giờ! Bắt đầu tìm server...")
-        prepareToHop()
         searchForServer() 
     end
     
@@ -424,7 +359,6 @@ local function startPlayerCountMonitor()
             if currentPlayers < SETTINGS.MinPlayerThreshold then
                 updateDisplay("ERROR", string.format("Server vắng! (%d/%d người)\nĐang tìm server mới...", currentPlayers, SETTINGS.MinPlayerThreshold))
                 task.wait(3)
-                prepareToHop()
                 searchForServer()
                 break
             else
@@ -455,7 +389,6 @@ local function checkAvoidPlayersOnce()
         if player.Name ~= LocalPlayer.Name and avoidNamesSet[player.Name] then
             updateDisplay("ERROR", string.format("Phát hiện tài khoản '%s'!\nĐang tìm server mới...", player.Name))
             task.wait(3)
-            prepareToHop()
             searchForServer()
             return true -- Trả về true để báo hiệu rằng đã bắt đầu hop
         end
