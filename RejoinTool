@@ -1,13 +1,18 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # Script Roblox Toan Dien: Tu dong khoi dong lai sau moi 3 gio de dam bao on dinh.
-# LOGIC: Kill All -> Wake Lock -> Vong lap lam moi trong 3 gio -> Tu khoi dong lai.
+# PHIEN BAN NANG CAO: Bao gom cong tac de chuyen doi giua che do kiem tra THONG MINH và DON GIAN.
 #---------------------------------------------------
 # -- CAI DAT CHINH --
 #---------------------------------------------------
 
+# ## [MOI] CONG TAC CHUC NANG ##
+# Cong tac de bat/tat co che kiem tra online.
+# Dat la "ON" de su dung logic kiem tra thong minh (khuyen khich).
+# Dat la "OFF" de chi gui lenh join moi 5 phut (khong kiem tra).
+CheckOnlineStatus="ON"
+
 # Lien ket hau to phien ban voi ID tai khoan Roblox tuong ung.
 # Dinh dang: "hau_to_1:ID_1 hau_to_2:ID_2 ..."
-# VI DU: AccountMap="b:8033531994 c:8033535049 d:8033528354 e:8033544205 f:8033543342 g:8825003633""
 AccountMap="b:8033531994 c:8033535049 d:8033528354 e:8033544205 f:8033543342"
 
 # URL cua VIP Server ban muon tham gia
@@ -20,17 +25,17 @@ CycleInterval=300
 RestartInterval=10800
 
 # Thoi gian (giay) cho giua moi lan gui lenh join
-OpenDelay=10
+OpenDelay=15
 
 # Ten goi co ban cua Roblox (khong nen thay doi)
 BasePackageName="com.roblox.clien"
 
 #---------------------------------------------------
-# -- TU DONG KIEM TRA ROOT --
+# -- TU DONG KIEM TRA --
 #---------------------------------------------------
+# Kiem tra quyen root
 if [[ $EUID -ne 0 ]]; then
-    echo "Script nay can quyen root de thuc thi 'kill'."
-    echo "Dang co gang chay lai script voi 'su'..."
+    echo "Script nay can quyen root. Dang co gang chay lai voi 'su'..."
     su -c "bash \"$0\" \"$@\""
     exit 0
 fi
@@ -41,12 +46,14 @@ fi
 
 # Ham tat toan bo cac phien ban
 function kill_all_instances() {
+    echo "Dang dung tat ca cac phien ban Roblox dang chay..."
     read -r -a account_pairs <<< "$AccountMap"
     if [[ ${#account_pairs[@]} -eq 0 ]]; then return; fi
 
     for pair in "${account_pairs[@]}"; do
         suffix="${pair%%:*}"
         package_to_stop="${BasePackageName}${suffix}"
+        
         pid_to_kill=$(ps -ef | grep "$package_to_stop" | grep -v grep | awk '{print $2}')
         if [[ -n "$pid_to_kill" ]]; then
             echo "  => Dung phien ban $package_to_stop (PID: $pid_to_kill)."
@@ -59,55 +66,68 @@ function kill_all_instances() {
 # Ham chinh de kiem tra va lam moi
 function refresh_instances() {
     echo "================================================="
-    echo "[$(date '+%Y-%-m-%d %H:%M:%S')] BAT DAU CHU KY LAM MOI..."
-
     read -r -a account_pairs <<< "$AccountMap"
-
     if [[ ${#account_pairs[@]} -eq 0 ]]; then
         echo "Loi: Vui long dinh nghia it nhat mot cap hau_to:ID trong bien 'AccountMap'."
         return
     fi
 
-    for pair in "${account_pairs[@]}"; do
-        suffix="${pair%%:*}"
-        user_id="${pair##*:}"
-        package_name="${BasePackageName}${suffix}"
+    # Kiem tra gia tri cua cong tac de chon che do hoat dong
+    if [[ "$CheckOnlineStatus" == "ON" ]]; then
+        # CHE DO THONG MINH (Logic goc)
+        echo "[$(date '+%Y-%-m-%d %H:%M:%S')] BAT DAU CHU KY KIEM TRA (Che do: THONG MINH)..."
+        for pair in "${account_pairs[@]}"; do
+            suffix="${pair%%:*}"
+            user_id="${pair##*:}"
+            package_name="${BasePackageName}${suffix}"
 
-        echo "---"
-        echo "-> Dang kiem tra phien ban '$suffix' (ID: $user_id)..."
+            echo "---"
+            echo "-> Dang kiem tra phien ban '$suffix' (ID: $user_id)..."
 
-        PRESENCE_API="https://presence.roblox.com/v1/presence/users"
-        PRESENCE_PAYLOAD="{\"userIds\": [$user_id]}"
-        PRESENCE_DATA_RAW=$(curl --max-time 10 -s -X POST -H "Content-Type: application/json" -d "$PRESENCE_PAYLOAD" "$PRESENCE_API")
-        
-        PRESENCE_TYPE=$(echo "$PRESENCE_DATA_RAW" | grep -o '"userPresenceType":[0-9]*' | sed 's/"userPresenceType"://')
-
-        if [[ "$PRESENCE_TYPE" -ne 2 ]]; then
-            echo "   -> Trang thai: NOT IN GAME (Code: ${PRESENCE_TYPE:-N/A}). Khoi dong lai phien ban..."
-            pid_to_kill=$(ps -ef | grep "$package_name" | grep -v grep | awk '{print $2}')
-            if [[ -n "$pid_to_kill" ]]; then
-                echo "      => Dang tat phien ban $package_name (PID: $pid_to_kill)."
-                kill -9 "$pid_to_kill"
-                sleep 3
+            pid_is_running=$(ps -ef | grep "$package_name" | grep -v grep | awk '{print $2}')
+            PRESENCE_API="https://presence.roblox.com/v1/presence/users"
+            PRESENCE_PAYLOAD="{\"userIds\": [$user_id]}"
+            PRESENCE_DATA_RAW=$(curl --max-time 10 -s -X POST -H "Content-Type: application/json" -d "$PRESENCE_PAYLOAD" "$PRESENCE_API")
+            PRESENCE_TYPE=$(echo "$PRESENCE_DATA_RAW" | grep -o '"userPresenceType":[0-9]*' | sed 's/"userPresenceType"://')
+            
+            if [[ -n "$pid_is_running" ]]; then
+                if [[ "$PRESENCE_TYPE" == "2" ]]; then
+                    echo "   -> Trang thai: DANG CHAY & IN GAME (Code: 2). Khong can lam gi."
+                else
+                    echo "   -> Trang thai: DANG CHAY NHUNG NOT IN GAME (Code: ${PRESENCE_TYPE:-N/A}). Cho chu ky sau."
+                fi
+            else
+                if [[ "$PRESENCE_TYPE" == "2" ]]; then
+                    echo "   -> Trang thai: KHONG CHAY NHUNG API BAO IN GAME (Code: 2). Khoi dong lai."
+                else
+                    echo "   -> Trang thai: KHONG CHAY & NOT IN GAME (Code: ${PRESENCE_TYPE:-N/A}). Khoi dong phien ban..."
+                fi
+                echo "     => Gui lenh join den: $package_name"
+                am start -a android.intent.action.VIEW -d "$VipServerUrl" -p "$package_name"
+                sleep "$OpenDelay"
             fi
-        else
-            echo "   -> Trang thai: IN GAME (Code: 2). Gui lenh join de lam moi..."
-        fi
-
-        echo "      => Gui lenh join den: $package_name"
-        am start -a android.intent.action.VIEW -d "$VipServerUrl" -p "$package_name"
-        sleep "$OpenDelay"
-    done
+        done
+    else
+        # CHE DO DON GIAN (Chi gui lenh join)
+        echo "[$(date '+%Y-%-m-%d %H:%M:%S')] BAT DAU CHU KY GUI LENH (Che do: DON GIAN)..."
+        for pair in "${account_pairs[@]}"; do
+            suffix="${pair%%:*}"
+            package_name="${BasePackageName}${suffix}"
+            echo "---"
+            echo "-> Che do don gian: Gui lenh join den '$suffix' ($package_name)"
+            am start -a android.intent.action.VIEW -d "$VipServerUrl" -p "$package_name"
+            sleep "$OpenDelay"
+        done
+    fi
 }
 
 # --- DIEM KHOI DAU CUA SCRIPT ---
 clear
 echo "--- KHOI DONG CHU KY MOI (3 GIO) ---"
-echo "Dang tat toan bo cac phien ban cu de dam bao moi truong sach..."
 kill_all_instances
 sleep 5
 
-echo "Kich hoat Wake Lock de chong crash..."
+echo "Kich hoat Wake Lock de giu cho thiet bi thuc..."
 termux-wake-lock &
 
 # Tinh toan so lan lap trong mot chu ky 3 gio
@@ -116,11 +136,11 @@ num_cycles=$((RestartInterval / CycleInterval))
 # Vong lap chinh, chay trong 3 gio
 for (( i=1; i<=num_cycles; i++ )); do
     clear
-    echo "--- Chu ky lam moi $i/$num_cycles (trong chu ky 3 gio) ---"
+    echo "--- Chu ky $i/$num_cycles (trong chu ky 3 gio) ---"
     refresh_instances
     
     echo "================================================="
-    echo "Da hoan tat. Script se cho $CycleInterval giay truoc khi lam moi lai."
+    echo "Da hoan tat. Script se cho $CycleInterval giay truoc khi chay lai."
     sleep "$CycleInterval"
 done
 
@@ -130,3 +150,4 @@ echo "DA HOAN TAT CHU KY 3 GIO. DANG TU KHOI DONG LAI SCRIPT..."
 echo "================================================="
 sleep 5
 exec "$0" "$@"
+
