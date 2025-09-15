@@ -198,7 +198,7 @@ local function searchForServer()
     prepareToHop()
     updateDisplay("INFO", "Bắt đầu tìm server theo % người chơi...")
 
-    local serversUrlBase = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Asc&limit=100"
+    local serversUrlBase = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Desc&limit=100"
     local nextCursor = nil
     local chosenServer = nil
     local attempts = 0
