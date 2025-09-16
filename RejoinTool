@@ -20,7 +20,7 @@ VipServerUrl="roblox://placeId=8737602449"
 CycleInterval=300
 
 # Thoi gian (giay) de DONG TOAN BO ROBLOX (10800 giay = 3 gio)
-RestartRobloxInterval=3600
+RestartRobloxInterval=60
 
 # Thoi gian (giay) de KHOI DONG LAI TOAN BO SCRIPT (18000 giay = 5 gio)
 # Day la bien phap quan trong nhat de tranh loi "Bad system call".
