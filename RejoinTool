@@ -9,7 +9,7 @@
 
 # Lien ket hau to phien ban voi ID tai khoan Roblox tuong ung.
 # Dinh dang: "b c d e f g"
-AccountMap="b c d e f g"
+AccountMap="b c d e f"
 
 # URL cua VIP Server ban muon tham gia
 VipServerUrl="roblox://placeId=8737602449"
