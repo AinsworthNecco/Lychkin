@@ -1,8 +1,8 @@
 #!/data/data/com.termux/files/usr/bin/bash
-# Script Roblox Toan Dien voi 3 chu ky hoat dong doc lap:
+# Script Roblox Toan Dien voi 2 chu ky hoat dong doc lap:
 # 1. Chu ky 10 phut: Lien tuc gui lenh khoi dong Roblox.
 # 2. Chu ky 3 gio: Tat toan bo cac phien ban Roblox.
-# 3. Chu ky 4 gio: Khoi dong lai toan bo Termux.
+# (Da loai bo chu ky 4 gio khoi dong lai Termux)
 #---------------------------------------------------
 # -- CAI DAT CHINH --
 #---------------------------------------------------
@@ -19,9 +19,6 @@ CycleInterval=600
 
 # Thoi gian (giay) de tat toan bo Roblox (10800 giay = 3 gio)
 RobloxKillInterval=10800
-
-# Thoi gian (giay) de khoi dong lai toan bo Termux (14400 giay = 4 gio)
-TermuxRestartInterval=14400
 
 # Thoi gian (giay) cho giua moi lan gui lenh join trong mot chu ky
 OpenDelay=15
@@ -81,7 +78,7 @@ function simple_join_instances() {
 }
 
 
-# Ham cho VONG LAP QUAN LY ROBLOX (chay ngam)
+# Ham cho VONG LAP QUAN LY ROBLOX (chay o luong chinh)
 function roblox_manager_loop() {
     # Vong lap vo tan de quan ly cac chu ky 3 gio
     while true; do
@@ -93,7 +90,7 @@ function roblox_manager_loop() {
         # Vong lap 10 phut: Lien tuc gui lenh join trong 3 gio
         for (( i=1; i<=num_cycles; i++ )); do
             clear
-            echo "--- Chu ky 3 gio (Vong lap $i/$num_cycles) | Chu ky 4 gio se reset sau... ---"
+            echo "--- Chu ky 3 gio (Vong lap $i/$num_cycles) ---"
             simple_join_instances
             
             echo "================================================="
@@ -108,56 +105,15 @@ function roblox_manager_loop() {
     done
 }
 
-# Ham cho VONG LAP KHOI DONG LAI TERMUX (chay o luong chinh)
-function termux_restarter_timer() {
-    echo "-------------------------------------------------"
-    echo "LUONG DEM GIO KHOI DONG LAI TERMUX DA KICH HOAT."
-    echo "Se khoi dong lai toan bo sau $TermuxRestartInterval giay (4 gio)."
-    echo "-------------------------------------------------"
-    
-    # Chi don gian la cho het thoi gian
-    sleep "$TermuxRestartInterval"
-
-    # Sau 4 gio, chuan bi khoi dong lai Termux
-    echo "================================================="
-    echo "DA HOAN TAT CHU KY 4 GIO. DANG KHOI DONG LAI TOAN BO TERMUX..."
-    echo "================================================="
-    sleep 5
-    
-    # Chuan bi lenh de chay ngam, lenh nay se chay lai script sau khi Termux mo lai
-    SCRIPT_PATH=$(realpath "$0")
-    (
-        sleep 5
-        am start --user 0 -n com.termux/com.termux.app.TermuxActivity
-        sleep 5
-        input text "bash '${SCRIPT_PATH}'"
-        input keyevent 66
-    ) &
-
-    # Dung luong quan ly Roblox dang chay ngam
-    if [[ -n "$1" ]]; then
-        kill "$1"
-    fi
-    
-    # Tien hanh dung toan bo Termux
-    echo "Dang dung Termux... Script se tu dong chay lai sau it phut."
-    killall com.termux
-    exit 0
-}
-
 # --- DIEM KHOI DAU CUA SCRIPT ---
 clear
-echo "--- KHOI DONG HE THONG SCRIPT VOI 3 CHU KY ---"
+echo "--- KHOI DONG HE THONG SCRIPT VOI 2 CHU KY ---"
 kill_all_roblox_instances # Don dep truoc khi bat dau
 sleep 5
 
 echo "Kich hoat Wake Lock de giu cho thiet bi thuc..."
 termux-wake-lock &
 
-# Chay vong lap quan ly Roblox (chu ky 10 phut & 3 gio) o che do NEN
-roblox_manager_loop &
-MANAGER_PID=$! # Luu lai ID cua tien trinh
-
-# Chay bo dem thoi gian khoi dong lai Termux (chu ky 4 gio) o che do CHINH
-termux_restarter_timer $MANAGER_PID
-
+# Chay vong lap quan ly Roblox (chu ky 10 phut & 3 gio) o che do CHINH
+# Script se chay vo tan o day cho den khi ban tu tat.
+roblox_manager_loop
