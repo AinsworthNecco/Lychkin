@@ -30,7 +30,7 @@ local SETTINGS = {
     -- =================================================================
     ["GithubServerListURL"] = "https://gist.githubusercontent.com/AinsworthNecco/2582fc470f4594f789b3441605d3a442/raw/3114bf95338b05c1cb473277f6b7b64382fbf3a2/server_list.txt",
     ["WaitMinutes"] = 10,
-    ["MaxServerHistorySize"] = 250, -- Xóa lịch sử server sau khi đã lưu X server. Đặt là 0 để tắt.
+    ["MaxServerHistorySize"] = 500, -- Xóa lịch sử server sau khi đã lưu X server. Đặt là 0 để tắt.
 
     -- Kiểm tra số người chơi định kỳ
     ["EnablePlayerCountCheck"] = true, -- Bật/tắt kiểm tra số người chơi mỗi phút.
@@ -122,41 +122,67 @@ local function optimizeForCpu() if not SETTINGS.EnableCpuOptimization then retur
 local function optimizeGraphics() updateDisplay("INFO", "Bắt đầu tối ưu đồ họa..."); if SETTINGS.EnableSafePlatform then createSafePlatform(); end; task.wait(0.1); pcall(function() local itemsToDel={}; for _,item in pairs(game.Workspace:GetChildren()) do local keep=(LocalPlayer.Character and item.Name==LocalPlayer.Character.Name)or(item==workspace.CurrentCamera)or(SETTINGS.EnableSafePlatform and item.Name==AFK_PLATFORM_NAME)or(SETTINGS.EnableStaticAfkView and(item.Name==STATIC_HEAD_ANCHOR_PART_NAME or item.Name==STATIC_BLACK_SCREEN_PART_NAME));if not keep then table.insert(itemsToDel,item)end end; for _,item in ipairs(itemsToDel)do pcall(function()item:Destroy()end)end;Lighting.GlobalShadows,Lighting.Brightness,Lighting.Ambient,Lighting.OutdoorAmbient,Lighting.ExposureCompensation=false,0,Color3.new(0,0,0),Color3.new(0,0,0),-2;pcall(function()Lighting.Atmosphere:Destroy()end);pcall(function()Lighting.Sky:Destroy()end); if LocalPlayer.PlayerGui then for _,gui in pairs(LocalPlayer.PlayerGui:GetChildren())do if gui.Name~=SERVER_HOP_GUI_NAME then pcall(function()gui:Destroy()end)end end end;local sO=settings();if sO and sO.Rendering then sO.Rendering.QualityLevel=Enum.QualityLevel.Level01;pcall(function()if RunService:IsClient()then RunService:Set3dRenderingEnabled(false)end end)end;SoundService.RespectFilteringEnabled,SoundService.AmbientReverb=true,Enum.ReverbType.NoReverb;for _,sound in pairs(game:GetDescendants())do if sound:IsA("Sound")then sound.Volume=0;sound:Stop()end end; end); updateDisplay("SUCCESS", "Đồ họa đã được tối ưu."); end
 
 -- =================================================================
--- LOGIC TÌM SERVER (V7 - GITHUB & EVENT-DRIVEN SPAM)
+-- LOGIC TÌM SERVER (V8 - GITHUB & DYNAMIC SPAM)
 -- =================================================================
 local function startSpamMode()
     if not SETTINGS.EnableServerHop then return end
-    updateDisplay("ERROR", "Teleport thất bại! Bắt đầu spam ngẫu nhiên...")
+    updateDisplay("ERROR", "Teleport thất bại! Bắt đầu spam tốc độ cao...")
     task.wait(1)
 
-    -- Tải danh sách server để spam
-    local success, responseData = pcall(function() return game:HttpGet(SETTINGS.GithubServerListURL, true) end)
-    if not success or not responseData then
-        updateDisplay("ERROR", "Lỗi tải danh sách server để spam. Thử lại trong " .. waitTimeBetweenRetries .. "s.")
-        task.wait(waitTimeBetweenRetries)
-        searchForServer() -- Thử lại toàn bộ quá trình tìm kiếm
-        return
-    end
-    
-    local allJobIds = {}
-    for jobId in string.gmatch(responseData, "[^%s]+") do table.insert(allJobIds, jobId) end
-    if #allJobIds == 0 then
-        updateDisplay("ERROR", "Danh sách server trống để spam. Thử lại trong " .. waitTimeBetweenRetries .. "s.")
-        task.wait(waitTimeBetweenRetries)
-        searchForServer() -- Thử lại toàn bộ quá trình tìm kiếm
-        return
+    -- Đảm bảo server hiện tại đã nằm trong lịch sử
+    if not serverHistoryCache[currentJobId] then
+        addJobIdToHistoryAndSave(currentJobId)
     end
 
-    addJobIdToHistoryAndSave(currentJobId)
+    local allJobIds = {}
+    local spamPool = {}
+    local lastRefreshTime = 0 -- Đặt là 0 để buộc làm mới ngay lần đầu
+
+    local function refreshAndBuildSpamPool()
+        updateDisplay("INFO", "Đang làm mới danh sách server từ Github...")
+        local success, responseData = pcall(function() return game:HttpGet(SETTINGS.GithubServerListURL, true) end)
+        
+        if not success or not responseData then
+            updateDisplay("ERROR", "Lỗi tải danh sách server. Chờ 5s...")
+            task.wait(5)
+            return -- Thử lại ở lần lặp tiếp theo
+        end
+        
+        allJobIds = {}
+        for jobId in string.gmatch(responseData, "[^%s]+") do table.insert(allJobIds, jobId) end
+        
+        spamPool = {}
+        for _, jobId in ipairs(allJobIds) do
+            if jobId ~= currentJobId and not serverHistoryCache[jobId] then
+                table.insert(spamPool, jobId)
+            end
+        end
+        
+        lastRefreshTime = tick()
+
+        if #spamPool == 0 then
+            updateDisplay("INFO", "Hết server để thử. Chờ 5s để làm mới lại...")
+            task.wait(5)
+        else
+            updateDisplay("SUCCESS", "Làm mới thành công! Có " .. #spamPool .. " server hợp lệ.")
+        end
+    end
 
     while true do
-        local randomSpamJobId = allJobIds[math.random(1, #allJobIds)]
-        if randomSpamJobId ~= currentJobId and not serverHistoryCache[randomSpamJobId] then
-            updateDisplay("INFO", "Thử ép tham gia: " .. randomSpamJobId:sub(1,12) .. "...")
-            TeleportService:TeleportToPlaceInstance(placeId, randomSpamJobId, LocalPlayer)
-            task.wait(0.75) 
+        -- Điều kiện để làm mới: đã hơn 5 giây trôi qua
+        if tick() - lastRefreshTime > 5 then
+            refreshAndBuildSpamPool()
         end
-        task.wait() -- Thêm một wait nhỏ để tránh crash nếu không có server hợp lệ
+
+        if #spamPool > 0 then
+            local randomSpamJobId = spamPool[math.random(1, #spamPool)]
+            updateDisplay("INFO", "Spam tham gia: " .. randomSpamJobId:sub(1,12) .. "...")
+            TeleportService:TeleportToPlaceInstance(placeId, randomSpamJobId, LocalPlayer)
+            task.wait(0.1) -- Spam nhanh hơn
+        else
+            -- Nếu spamPool trống, vòng lặp sẽ tự động đợi và gọi refreshAndBuildSpamPool()
+            task.wait(0.1) -- Wait nhẹ để không bị treo
+        end
     end
 end
 
