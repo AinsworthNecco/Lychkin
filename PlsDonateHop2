@@ -41,7 +41,6 @@ local SETTINGS = {
     ["EnableSafePlatform"] = true,
     ["EnableStaticAfkView"] = true,
     ["EnableDonateReset"] = true,
-    ["EnableAutoReconnect"] = false,
     
     -- Cài đặt Thông Báo Donate qua Discord
     ["EnableDiscordWebhook"] = true,
@@ -123,7 +122,7 @@ local function optimizeForCpu() if not SETTINGS.EnableCpuOptimization then retur
 local function optimizeGraphics() updateDisplay("INFO", "Bắt đầu tối ưu đồ họa..."); if SETTINGS.EnableSafePlatform then createSafePlatform(); end; task.wait(0.1); pcall(function() local itemsToDel={}; for _,item in pairs(game.Workspace:GetChildren()) do local keep=(LocalPlayer.Character and item.Name==LocalPlayer.Character.Name)or(item==workspace.CurrentCamera)or(SETTINGS.EnableSafePlatform and item.Name==AFK_PLATFORM_NAME)or(SETTINGS.EnableStaticAfkView and(item.Name==STATIC_HEAD_ANCHOR_PART_NAME or item.Name==STATIC_BLACK_SCREEN_PART_NAME));if not keep then table.insert(itemsToDel,item)end end; for _,item in ipairs(itemsToDel)do pcall(function()item:Destroy()end)end;Lighting.GlobalShadows,Lighting.Brightness,Lighting.Ambient,Lighting.OutdoorAmbient,Lighting.ExposureCompensation=false,0,Color3.new(0,0,0),Color3.new(0,0,0),-2;pcall(function()Lighting.Atmosphere:Destroy()end);pcall(function()Lighting.Sky:Destroy()end); if LocalPlayer.PlayerGui then for _,gui in pairs(LocalPlayer.PlayerGui:GetChildren())do if gui.Name~=SERVER_HOP_GUI_NAME then pcall(function()gui:Destroy()end)end end end;local sO=settings();if sO and sO.Rendering then sO.Rendering.QualityLevel=Enum.QualityLevel.Level01;pcall(function()if RunService:IsClient()then RunService:Set3dRenderingEnabled(false)end end)end;SoundService.RespectFilteringEnabled,SoundService.AmbientReverb=true,Enum.ReverbType.NoReverb;for _,sound in pairs(game:GetDescendants())do if sound:IsA("Sound")then sound.Volume=0;sound:Stop()end end; end); updateDisplay("SUCCESS", "Đồ họa đã được tối ưu."); end
 
 -- =================================================================
--- LOGIC TÌM SERVER (V4 - GITHUB & RETRY)
+-- LOGIC TÌM SERVER (V6 - GITHUB & SMARTER SPAM)
 -- =================================================================
 function searchForServer()
     if not SETTINGS.EnableFileHistory then serverHistoryCache = {} else loadServerHistory() end
@@ -170,6 +169,7 @@ function searchForServer()
     -- Bước 4: Thêm server hiện tại vào lịch sử và bắt đầu thử tham gia các server trong "bể"
     addJobIdToHistoryAndSave(currentJobId)
     
+    -- Vòng lặp thử từng server trong bể một cách có hệ thống
     while #serverPool > 0 do
         local randomIndex = math.random(1, #serverPool)
         local chosenJobId = table.remove(serverPool, randomIndex)
@@ -182,14 +182,27 @@ function searchForServer()
             -- Dịch chuyển đã bắt đầu, công việc của script ở client này đã xong.
             return 
         else
-            -- Dịch chuyển thất bại (server đầy, không hợp lệ, v.v.)
-            updateDisplay("ERROR", "Server đầy hoặc lỗi. Đang thử server khác...")
-            serverHistoryCache[chosenJobId] = true -- Tạm thời thêm vào lịch sử để tránh thử lại ngay
-            -- Không chờ, vòng lặp sẽ tiếp tục đến server tiếp theo
+            -- Dịch chuyển thất bại (server đầy, lỗi 771, v.v.). Bắt đầu chế độ spam.
+            updateDisplay("ERROR", "Server đầy/lỗi! Bắt đầu spam ngẫu nhiên...")
+            task.wait(1) -- Cho người dùng thấy tin nhắn
+
+            -- Vòng lặp spam vô hạn
+            while true do
+                local randomSpamJobId = allJobIds[math.random(1, #allJobIds)]
+                -- ĐIỀU KIỆN MỚI: Không spam vào server hiện tại HOẶC server đã có trong lịch sử
+                if randomSpamJobId ~= currentJobId and not serverHistoryCache[randomSpamJobId] then
+                    updateDisplay("INFO", "Thử ép tham gia: " .. randomSpamJobId:sub(1,12) .. "...")
+                    -- Nếu nó thành công, script sẽ kết thúc. Nếu nó lỗi, vòng lặp sẽ tiếp tục.
+                    TeleportService:TeleportToPlaceInstance(placeId, randomSpamJobId, LocalPlayer)
+                    task.wait(0.75) -- Đợi một chút giữa các lần thử để tránh quá tải
+                end
+            end
+            -- Code ở đây sẽ không bao giờ được thực thi.
+            return
         end
     end
 
-    -- Bước 5: Nếu vòng lặp kết thúc, tất cả server trong "bể" đều lỗi.
+    -- Bước 5: Nếu vòng lặp kết thúc (không thể xảy ra với logic spam mới, nhưng giữ lại để phòng hờ)
     updateDisplay("ERROR", "Tất cả server trong danh sách đều lỗi. Thử lại sau " .. waitTimeBetweenRetries .. "s.")
     task.wait(waitTimeBetweenRetries)
     searchForServer()
@@ -330,8 +343,7 @@ local function checkAvoidPlayersOnce()
 end
 
 
--- --- Các hàm thiết lập (Reconnect, AutoReply, Webhook) ---
-local function setupAutoReconnect() pcall(function() local promptOverlay = game.CoreGui:WaitForChild('RobloxPromptGui'):WaitForChild('promptOverlay'); promptOverlay.ChildAdded:Connect(function(child) if child.Name == 'ErrorPrompt' and child:IsA('Frame') then updateDisplay("ERROR", "Phát hiện lỗi! Đang thử kết nối lại..."); local success, err = pcall(function() TeleportService:Teleport(placeId, LocalPlayer) end); if not success then task.wait(2); repeat TeleportService:Teleport(placeId, LocalPlayer); task.wait(5) until false end end end); updateDisplay("SUCCESS", "Tính năng tự động kết nối lại đã được kích hoạt.") end) end
+-- --- Các hàm thiết lập (AutoReply, Webhook) ---
 local function setupAutoReply() if not SETTINGS.EnableAutoReply then return end; local ChatChannel = TextChatService.TextChannels.RBXGeneral; local Cooldowns = {}; local function safeChat(msg) pcall(function() ChatChannel:SendAsync(msg) end) end; Players.PlayerChatted:Connect(function(_, player, message) if not SETTINGS.EnableAutoReply then return end; if player == LocalPlayer then return end; if not player.Character or not player.Character:FindFirstChild("HumanoidRootPart") then return end; if not LocalPlayer.Character or not LocalPlayer.Character:FindFirstChild("HumanoidRootPart") then return end; local distance = (player.Character.HumanoidRootPart.Position - LocalPlayer.Character.HumanoidRootPart.Position).Magnitude; if distance > SETTINGS.ReplyRadius then return end; if Cooldowns[player] and tick() - Cooldowns[player] < SETTINGS.ReplyCooldown then return end; local lowerMsg = string.lower(message); local replied = false; for _, rule in ipairs(SETTINGS.ReplyRules) do for _, keyword in ipairs(rule.keywords) do if string.find(lowerMsg, keyword) then local reply = rule.replies[math.random(1, #rule.replies)]; task.wait(math.random(1,3)); safeChat(reply); Cooldowns[player] = tick(); replied = true; break end end; if replied then break end end end); updateDisplay("SUCCESS", "Tính năng tự động trả lời đã được kích hoạt.") end
 local function setupDiscordWebhook() if not SETTINGS.EnableDiscordWebhook or not SETTINGS.WebhookURL or SETTINGS.WebhookURL == "" then print("[Webhook] Tính năng webhook bị tắt hoặc URL không hợp lệ."); return end; local leaderstats = LocalPlayer:WaitForChild("leaderstats", 30); if not leaderstats then updateDisplay("ERROR", "[Webhook] Không tìm thấy leaderstats sau 30 giây."); return end; local raised = leaderstats:WaitForChild("Raised", 30); if not raised then updateDisplay("ERROR", "[Webhook] Không tìm thấy 'Raised' trong leaderstats."); return end; local lastRaised = raised.Value; local function sendWebhook(amount, total) local pingContent = nil; if SETTINGS.EnablePingOnDonate then if amount >= (SETTINGS.PingAmount or 0) then if SETTINGS.PingUserID and SETTINGS.PingUserID ~= "" then pingContent = string.format("<@%s>", SETTINGS.PingUserID) else pingContent = "@everyone" end end end; local embed = { description = string.format("**%s**\n# +%d\nTOTAL : %d", LocalPlayer.Name, amount, total), color = SETTINGS.WebhookColor }; local payloadData = { embeds = { embed } }; if pingContent then payloadData.content = pingContent end; local payload = HttpService:JSONEncode(payloadData); local req = (syn and syn.request) or (http and http.request) or (fluxus and fluxus.request) or request; if req then pcall(function() req({ Url = SETTINGS.WebhookURL, Method = "POST", Headers = { ["Content-Type"] = "application/json" }, Body = payload }) end) else updateDisplay("ERROR", "[Webhook] Không tìm thấy hàm request để gửi webhook.") end end; raised.Changed:Connect(function(newRaisedValue) local difference = newRaisedValue - lastRaised; if difference > 0 then if SETTINGS.EnableDonateReset then countdownShouldReset = true end; sendWebhook(difference, newRaisedValue) end; lastRaised = newRaisedValue end); updateDisplay("SUCCESS", "Tính năng thông báo donate qua Discord đã được kích hoạt.") end
 
@@ -369,7 +381,6 @@ task.spawn(function()
     task.wait(0.5)
 
     if type(setfpscap) == "function" and SETTINGS.TargetFps and SETTINGS.TargetFps > 0 then task.spawn(function() while task.wait() do pcall(setfpscap, SETTINGS.TargetFps) end end) end
-    if SETTINGS.EnableAutoReconnect then task.spawn(setupAutoReconnect) end
     if SETTINGS.EnableAutoReply then task.spawn(setupAutoReply) end
 
     updateDisplay("INFO", string.format("Chờ game tải trong %d giây...", SETTINGS.InitialWaitTime))
