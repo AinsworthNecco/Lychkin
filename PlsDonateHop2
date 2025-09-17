@@ -30,7 +30,7 @@ local SETTINGS = {
     -- =================================================================
     ["GithubServerListURL"] = "https://gist.githubusercontent.com/AinsworthNecco/2582fc470f4594f789b3441605d3a442/raw/3114bf95338b05c1cb473277f6b7b64382fbf3a2/server_list.txt",
     ["WaitMinutes"] = 10,
-    ["MaxServerHistorySize"] = 500, -- Xóa lịch sử server sau khi đã lưu X server. Đặt là 0 để tắt.
+    ["MaxServerHistorySize"] = 250, -- Xóa lịch sử server sau khi đã lưu X server. Đặt là 0 để tắt.
 
     -- Kiểm tra số người chơi định kỳ
     ["EnablePlayerCountCheck"] = true, -- Bật/tắt kiểm tra số người chơi mỗi phút.
