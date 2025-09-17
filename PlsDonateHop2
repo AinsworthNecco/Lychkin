@@ -178,7 +178,7 @@ local function startSpamMode()
             local randomSpamJobId = spamPool[math.random(1, #spamPool)]
             updateDisplay("INFO", "Spam tham gia: " .. randomSpamJobId:sub(1,12) .. "...")
             TeleportService:TeleportToPlaceInstance(placeId, randomSpamJobId, LocalPlayer)
-            task.wait(0.1) -- Spam nhanh hơn
+            task.wait(0.3) -- Spam nhanh hơn
         else
             -- Nếu spamPool trống, vòng lặp sẽ tự động đợi và gọi refreshAndBuildSpamPool()
             task.wait(0.1) -- Wait nhẹ để không bị treo
