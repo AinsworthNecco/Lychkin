@@ -122,8 +122,44 @@ local function optimizeForCpu() if not SETTINGS.EnableCpuOptimization then retur
 local function optimizeGraphics() updateDisplay("INFO", "Bắt đầu tối ưu đồ họa..."); if SETTINGS.EnableSafePlatform then createSafePlatform(); end; task.wait(0.1); pcall(function() local itemsToDel={}; for _,item in pairs(game.Workspace:GetChildren()) do local keep=(LocalPlayer.Character and item.Name==LocalPlayer.Character.Name)or(item==workspace.CurrentCamera)or(SETTINGS.EnableSafePlatform and item.Name==AFK_PLATFORM_NAME)or(SETTINGS.EnableStaticAfkView and(item.Name==STATIC_HEAD_ANCHOR_PART_NAME or item.Name==STATIC_BLACK_SCREEN_PART_NAME));if not keep then table.insert(itemsToDel,item)end end; for _,item in ipairs(itemsToDel)do pcall(function()item:Destroy()end)end;Lighting.GlobalShadows,Lighting.Brightness,Lighting.Ambient,Lighting.OutdoorAmbient,Lighting.ExposureCompensation=false,0,Color3.new(0,0,0),Color3.new(0,0,0),-2;pcall(function()Lighting.Atmosphere:Destroy()end);pcall(function()Lighting.Sky:Destroy()end); if LocalPlayer.PlayerGui then for _,gui in pairs(LocalPlayer.PlayerGui:GetChildren())do if gui.Name~=SERVER_HOP_GUI_NAME then pcall(function()gui:Destroy()end)end end end;local sO=settings();if sO and sO.Rendering then sO.Rendering.QualityLevel=Enum.QualityLevel.Level01;pcall(function()if RunService:IsClient()then RunService:Set3dRenderingEnabled(false)end end)end;SoundService.RespectFilteringEnabled,SoundService.AmbientReverb=true,Enum.ReverbType.NoReverb;for _,sound in pairs(game:GetDescendants())do if sound:IsA("Sound")then sound.Volume=0;sound:Stop()end end; end); updateDisplay("SUCCESS", "Đồ họa đã được tối ưu."); end
 
 -- =================================================================
--- LOGIC TÌM SERVER (V6 - GITHUB & SMARTER SPAM)
+-- LOGIC TÌM SERVER (V7 - GITHUB & EVENT-DRIVEN SPAM)
 -- =================================================================
+local function startSpamMode()
+    if not SETTINGS.EnableServerHop then return end
+    updateDisplay("ERROR", "Teleport thất bại! Bắt đầu spam ngẫu nhiên...")
+    task.wait(1)
+
+    -- Tải danh sách server để spam
+    local success, responseData = pcall(function() return game:HttpGet(SETTINGS.GithubServerListURL, true) end)
+    if not success or not responseData then
+        updateDisplay("ERROR", "Lỗi tải danh sách server để spam. Thử lại trong " .. waitTimeBetweenRetries .. "s.")
+        task.wait(waitTimeBetweenRetries)
+        searchForServer() -- Thử lại toàn bộ quá trình tìm kiếm
+        return
+    end
+    
+    local allJobIds = {}
+    for jobId in string.gmatch(responseData, "[^%s]+") do table.insert(allJobIds, jobId) end
+    if #allJobIds == 0 then
+        updateDisplay("ERROR", "Danh sách server trống để spam. Thử lại trong " .. waitTimeBetweenRetries .. "s.")
+        task.wait(waitTimeBetweenRetries)
+        searchForServer() -- Thử lại toàn bộ quá trình tìm kiếm
+        return
+    end
+
+    addJobIdToHistoryAndSave(currentJobId)
+
+    while true do
+        local randomSpamJobId = allJobIds[math.random(1, #allJobIds)]
+        if randomSpamJobId ~= currentJobId and not serverHistoryCache[randomSpamJobId] then
+            updateDisplay("INFO", "Thử ép tham gia: " .. randomSpamJobId:sub(1,12) .. "...")
+            TeleportService:TeleportToPlaceInstance(placeId, randomSpamJobId, LocalPlayer)
+            task.wait(0.75) 
+        end
+        task.wait() -- Thêm một wait nhỏ để tránh crash nếu không có server hợp lệ
+    end
+end
+
 function searchForServer()
     if not SETTINGS.EnableFileHistory then serverHistoryCache = {} else loadServerHistory() end
     updateDisplay("INFO", "Bắt đầu tìm server từ Github...")
@@ -166,7 +202,7 @@ function searchForServer()
         return
     end
 
-    -- Bước 4: Thêm server hiện tại vào lịch sử và bắt đầu thử tham gia các server trong "bể"
+    -- Bước 4: Thêm server hiện tại vào lịch sử
     addJobIdToHistoryAndSave(currentJobId)
     
     -- Vòng lặp thử từng server trong bể một cách có hệ thống
@@ -179,30 +215,20 @@ function searchForServer()
         local sTP, eTP = pcall(TeleportService.TeleportToPlaceInstance, TeleportService, placeId, chosenJobId, LocalPlayer)
         
         if sTP then
-            -- Dịch chuyển đã bắt đầu, công việc của script ở client này đã xong.
+            -- Dịch chuyển đã được BẮT ĐẦU thành công.
+            -- Script sẽ kết thúc. Nếu dịch chuyển THẤT BẠI sau đó, sự kiện TeleportInitFailed sẽ xử lý.
             return 
         else
-            -- Dịch chuyển thất bại (server đầy, lỗi 771, v.v.). Bắt đầu chế độ spam.
-            updateDisplay("ERROR", "Server đầy/lỗi! Bắt đầu spam ngẫu nhiên...")
-            task.wait(1) -- Cho người dùng thấy tin nhắn
-
-            -- Vòng lặp spam vô hạn
-            while true do
-                local randomSpamJobId = allJobIds[math.random(1, #allJobIds)]
-                -- ĐIỀU KIỆN MỚI: Không spam vào server hiện tại HOẶC server đã có trong lịch sử
-                if randomSpamJobId ~= currentJobId and not serverHistoryCache[randomSpamJobId] then
-                    updateDisplay("INFO", "Thử ép tham gia: " .. randomSpamJobId:sub(1,12) .. "...")
-                    -- Nếu nó thành công, script sẽ kết thúc. Nếu nó lỗi, vòng lặp sẽ tiếp tục.
-                    TeleportService:TeleportToPlaceInstance(placeId, randomSpamJobId, LocalPlayer)
-                    task.wait(0.75) -- Đợi một chút giữa các lần thử để tránh quá tải
-                end
-            end
-            -- Code ở đây sẽ không bao giờ được thực thi.
-            return
+            -- Dịch chuyển thất bại NGAY LẬP TỨC (ví dụ: JobId không hợp lệ).
+            -- Chỉ cần ghi lại lỗi và thử server tiếp theo trong pool.
+            updateDisplay("ERROR", "Server không hợp lệ. Đang thử server khác...")
+            serverHistoryCache[chosenJobId] = true -- Thêm vào lịch sử để không thử lại
         end
+        task.wait(0.2) -- Đợi một chút
     end
 
-    -- Bước 5: Nếu vòng lặp kết thúc (không thể xảy ra với logic spam mới, nhưng giữ lại để phòng hờ)
+    -- Bước 5: Nếu vòng lặp kết thúc, tất cả server trong pool đều lỗi ngay lập tức.
+    -- Đây là trường hợp hiếm gặp, nhưng chúng ta sẽ bắt đầu lại toàn bộ quá trình.
     updateDisplay("ERROR", "Tất cả server trong danh sách đều lỗi. Thử lại sau " .. waitTimeBetweenRetries .. "s.")
     task.wait(waitTimeBetweenRetries)
     searchForServer()
@@ -379,6 +405,14 @@ task.spawn(function()
     pcall(createStatusGui)
     updateDisplay("INFO", "Đang khởi tạo...")
     task.wait(0.5)
+
+    -- Gắn sự kiện TeleportInitFailed để kích hoạt spam mode khi cần
+    TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, errorMessage)
+        if player == LocalPlayer and SETTINGS.EnableServerHop then
+            task.wait(1) -- Chờ một chút để người dùng có thể thấy thông báo lỗi gốc
+            startSpamMode()
+        end
+    end)
 
     if type(setfpscap) == "function" and SETTINGS.TargetFps and SETTINGS.TargetFps > 0 then task.spawn(function() while task.wait() do pcall(setfpscap, SETTINGS.TargetFps) end end) end
     if SETTINGS.EnableAutoReply then task.spawn(setupAutoReply) end
