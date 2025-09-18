@@ -196,42 +196,45 @@ end
 local tryNextServer
 
 function persistentFetch(url)
-    local success, response = false, nil
-    repeat
-        local pcallSuccess, pcallResponse = pcall(function() return HttpService:JSONDecode(game:HttpGet(url, true)) end)
-        if pcallSuccess and pcallResponse and pcallResponse.data then
-            success, response = true, pcallResponse
-        else
-            local wasRateLimited = false
-            if pcallSuccess and pcallResponse and pcallResponse.errors and pcallResponse.errors[1] and pcallResponse.errors[1].message and string.find(string.lower(pcallResponse.errors[1].message), "too many requests") then
-                wasRateLimited = true
-            end
+    local success, response = false, nil
+    local retryDelay = 5 -- Bước 1: Thêm biến này
+    repeat
+        local pcallSuccess, pcallResponse = pcall(function() return HttpService:JSONDecode(game:HttpGet(url, true)) end)
+        if pcallSuccess and pcallResponse and pcallResponse.data then
+            success, response = true, pcallResponse
+        else
+            local wasRateLimited = false
+            if pcallSuccess and pcallResponse and pcallResponse.errors and pcallResponse.errors[1] and pcallResponse.errors[1].message and string.find(string.lower(pcallResponse.errors[1].message), "too many requests") then
+                wasRateLimited = true
+            end
 
-            if wasRateLimited then
-                isRateLimited = true
-                updateDisplay("ERROR", "Bị giới hạn (429). Sẽ thử server có sẵn trong 30 giây...")
-                
-                local rateLimitStartTime = tick()
-                while tick() - rateLimitStartTime < 30 do
-                    local timeLeft = math.floor(30 - (tick() - rateLimitStartTime))
-                    if #candidateServers > 0 then
-                        updateDisplay("INFO", string.format("Đang thử server có sẵn... còn %d giây", timeLeft))
-                        tryNextServer() -- Thử vào server tiếp theo trong danh sách
-                    else
-                        updateDisplay("ERROR", string.format("Bị giới hạn (429) và không có server dự phòng. Chờ... %d giây", timeLeft))
-                    end
-                    task.wait(2) -- Chờ 2 giây giữa các lần thử
-                end
-                
-                isRateLimited = false
-                updateDisplay("INFO", "Hết thời gian giới hạn. Thử quét lại...")
-            else
-                updateDisplay("ERROR", "Lỗi quét. Thử lại sau 5s...")
-                task.wait(5)
-            end
-        end
-    until success
-    return response
+            if wasRateLimited then
+                isRateLimited = true
+                updateDisplay("ERROR", "Bị giới hạn (429). Sẽ thử server có sẵn trong 30 giây...")
+                
+                local rateLimitStartTime = tick()
+                while tick() - rateLimitStartTime < 30 do
+                    local timeLeft = math.floor(30 - (tick() - rateLimitStartTime))
+                    if #candidateServers > 0 then
+                        updateDisplay("INFO", string.format("Đang thử server có sẵn... còn %d giây", timeLeft))
+                        tryNextServer()
+                    else
+                        updateDisplay("ERROR", string.format("Bị giới hạn (429) và không có server dự phòng. Chờ... %d giây", timeLeft))
+                    end
+                    task.wait(2)
+                end
+                
+                isRateLimited = false
+                updateDisplay("INFO", "Hết thời gian giới hạn. Thử quét lại...")
+            else
+                -- Bước 2 & 3: Thay thế logic chờ
+                updateDisplay("ERROR", string.format("Lỗi quét. Thử lại sau %ds...", retryDelay))
+                task.wait(retryDelay)
+                retryDelay = math.min(retryDelay * 2, 60)
+            end
+        end
+    until success
+    return response
 end
 
 local function executeTeleport(jobId)
