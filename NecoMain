@@ -2,7 +2,7 @@ getgenv().NKey = "Please Write Your Key Here"
 getgenv().NScript = "BananaHubBountyBF"
     getgenv().Setting = {
         ["Team"] = "Pirate",
-        ["Method Click"] = {["Click Gun"] = false ,["Click Melee"] = true,["Click Sword"] = false,["Click Fruit"] = false, ["LowHealth"] = 5000, ["Delay Click"] = 0.3},
+        ["Method Click"] = {["Click Gun"] = false ,["Click Melee"] = false,["Click Sword"] = false,["Click Fruit"] = false, ["LowHealth"] = 5000, ["Delay Click"] = 0.3},
         ["Race V4"] = {["Enable"] = true},
         ["Webhook"] = {["Enabled"] = false,["Url Webhook"] = ""},
         ["Misc"] = {["AutoBuyRandomandStoreFruit"] = true,["AutoBuySurprise"] = true},
