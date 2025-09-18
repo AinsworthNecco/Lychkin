@@ -1,72 +1,193 @@
-getgenv().NKey = "Please Write Your Key Here"
-getgenv().NScript = "BananaHubBountyBF"
-    getgenv().Setting = {
-        ["Team"] = "Pirate",
-        ["Method Click"] = {["Click Gun"] = false ,["Click Melee"] = false,["Click Sword"] = false,["Click Fruit"] = false, ["LowHealth"] = 5000, ["Delay Click"] = 1},
-        ["Race V4"] = {["Enable"] = true},
-        ["Webhook"] = {["Enabled"] = true,["Url Webhook"] = "https://discord.com/api/webhooks/1251040425591046145/r6roXOx5MJyK8QW10f3ysOpIbvaniVFUtuStDLpurCggfJ8uWom8lQjE-khy13UXDqEg"},
-        ["Misc"] = {["AutoBuyRandomandStoreFruit"] = true,["AutoBuySurprise"] = true},
-        ["SafeZone"] = {["Enable"] = true,["LowHealth"] = 4500,["MaxHealth"] = 8000,["Teleport Y"] = 2000},
-        ["Method Use Skill"] = {["Use Random"] = true,["Use Number"] = false},
-        ["Use random skill if player target low health"] = { --- suport only method use skill Number
-            ["Enabled"] = true,
-            ["Low Health"] = 4000,
-        },
-        ["Use Portal Teleport"] = false,
-        ["Target Time"] = 20,
-        ["Aim Prediction"] = 0.5,
-        ["Select Region"] = {["Enabled"] = false,["Region"] = {["Singapore"] = true,["United States"] = false,["Netherlands"] = false,["Germany"] =false,["India"] = false,["Australia"] = false}},
-        ["Ignore Devil Fruit"] = {"Human-Human","Portal-Portal"}, 
-        ["Dodge Skill Player"] = true, --- Beta per 50% can dodge 
-        ["Spam Dash"] = false, ---- risk can banned 1 day
-        ["Equip Weapon"] = {
-            ["Enabled"] = false,
-            ["Melee"] = {
-                ["Enabled"] = false,
-                ["Name Weapon"] = "",
-            },
-            ["Sword"] = {
-                ["Enabled"] = false,
-                ["Name Weapon"] = "",
-            },
-            ["Gun"] = {
-                ["Enabled"] = false,
-                ["Name Weapon"] = "",
-            },
-        },
-        ["Weapons"] = {
-            ["Melee"] = {
-                ["Enable"] = true,
-                ["Skills"] = {
-                    ["Z"] = {["Enable"] = true,["HoldTime"] = 0.3,["Number"] = 2},
-                    ["X"] = {["Enable"] = true,["HoldTime"] = 0.3,["Number"] = 3},
-                    ["C"] = {["Enable"] = true,["HoldTime"] = 0.3,["Number"] = 5},
-                },
-            },
-            ["Blox Fruit"] = {
-                ["Enable"] = true,
-                ["Skills"] = {
-                    ["Z"] = {["Enable"] = true,["HoldTime"] = 2,["Number"] = 4},
-                    ["X"] = {["Enable"] = true,["HoldTime"] = 0.3,["Number"] = 6},
-                    ["C"] = {["Enable"] = true,["HoldTime"] = 0.3,["Number"] = 9},
-                    ["V"] = {["Enable"] = false,["HoldTime"] = 0.3,["Number"] = 0},
-                    ["F"] = {["Enable"] = true,["HoldTime"] = 0.3,["Number"] = 8},
-                },
-            },
-            ["Gun"] = {
-                ["Enable"] = false,
-                ["Skills"] = {
-                    ["Z"] = {["Enable"] = true,["HoldTime"] = 0.3,["Number"] = 1},
-                    ["X"] = {["Enable"] = true,["HoldTime"] = 0.3,["Number"] = 7},
-                },
-            },
-            ["Sword"] = {
-                ["Enable"] = true,
-                ["Skills"] = {
-                    ["Z"] = {["Enable"] = true,["HoldTime"] = 1.5,["Number"] = 0},
-                    ["X"] = {["Enable"] = true,["HoldTime"] = 0.5,["Number"] = 0},
-                },
-            },
-        }
-    }
-loadstring(game:HttpGet("https://raw.githubusercontent.com/Wraith1vs11/Rejoin/refs/heads/main/UGPhone's%20Scripts"))()
+--[[
+    SCRIPT KIỂM TRA HỆ THỐNG PROXY
+    Mục đích: Script này được thiết kế để kiểm tra khả năng của hệ thống proxy trong việc
+    vượt qua rate limit của Roblox API khi quét danh sách server.
+
+    Cách hoạt động:
+    1. Tải danh sách proxy từ URL được cung cấp.
+    2. Bắt đầu một vòng lặp vô hạn để quét các server game.
+    3. Luôn thử quét bằng IP gốc trước.
+    4. Nếu bị rate limit, nó sẽ tự động chuyển sang sử dụng proxy ngẫu nhiên từ danh sách.
+    5. In ra console thông tin về mỗi lần quét:
+        - Quét bằng IP gốc hay proxy.
+        - Proxy nào đang được sử dụng (nếu có).
+        - Số lượng server tìm thấy trong lần quét đó.
+    6. Tiếp tục vòng lặp để quét trang tiếp theo và thu thập càng nhiều server càng tốt.
+]]
+
+-- =================================================================
+-- CÀI ĐẶT
+-- =================================================================
+local SETTINGS = {
+    -- URL chứa danh sách proxy của bạn.
+    ["ProxyListURL"] = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/Proxy",
+    
+    -- ID của game bạn muốn quét (ví dụ: 6284583030 là của PLS DONATE).
+    ["TargetPlaceId"] = "6284583030" 
+}
+
+-- =================================================================
+-- KHỞI TẠO
+-- =================================================================
+local HttpService = game:GetService("HttpService")
+local rng = Random.new()
+
+-- Biến toàn cục cho proxy
+local proxyList = {}
+local http_request_func = (syn and syn.request) or (http and http.request) or (fluxus and fluxus.request) or request
+
+-- =================================================================
+-- HỆ THỐNG PROXY
+-- =================================================================
+
+-- Hàm tải và xử lý danh sách proxy từ URL
+local function fetchProxyList()
+    print("[Proxy] Bắt đầu tải danh sách proxy...")
+    local success, response = pcall(game.HttpGet, game, SETTINGS.ProxyListURL)
+    if not success or not response then
+        print("[Proxy] LỖI: Không thể tải file proxy. Script không thể tiếp tục nếu không có proxy.")
+        return
+    end
+
+    local proxies = {}
+    for line in string.gmatch(response, "[^\r\n]+") do
+        local trimmed = line:match("^%s*(.-)%s*$")
+        if #trimmed > 0 then
+            local parts = {}
+            for part in string.gmatch(trimmed, "[^:]+") do table.insert(parts, part) end
+            
+            if #parts == 4 then -- Định dạng: ip:port:user:pass
+                table.insert(proxies, { ip = parts[1], port = parts[2], user = parts[3], pass = parts[4], type = "auth" })
+            elseif #parts == 2 then -- Định dạng: ip:port
+                table.insert(proxies, { ip = parts[1], port = parts[2], type = "no_auth" })
+            end
+        end
+    end
+
+    proxyList = proxies
+    if #proxyList > 0 then
+        print(string.format("[Proxy] Tải thành công %d proxy.", #proxyList))
+    else
+        print("[Proxy] CẢNH BÁO: Không tìm thấy proxy hợp lệ trong file.")
+    end
+end
+
+-- Hàm thực hiện request, có khả năng chuyển đổi proxy linh hoạt
+local function makeRequest(url)
+    -- Thử kết nối trực tiếp trước
+    local success, response = pcall(function() return HttpService:JSONDecode(game:HttpGet(url, true)) end)
+    if success and response.data then
+        print("[Request] Quét thành công bằng IP GỐC.")
+        return response
+    end
+
+    -- Kiểm tra có phải lỗi rate limit không
+    local isRateLimitError = false
+    if success and response.errors and string.find(string.lower(response.errors[1].message), "too many requests") then
+        isRateLimitError = true
+    end
+
+    if not isRateLimitError then
+        print("[Request] Lỗi không xác định khi dùng IP gốc. Đang thử lại...")
+        task.wait(3)
+        return makeRequest(url)
+    end
+    
+    -- Nếu bị rate limit, chuyển sang proxy
+    print("[Request] Bị giới hạn! Chuyển sang dùng proxy...")
+    if #proxyList == 0 or not http_request_func then
+        print("[Request] Không có proxy hoặc executor không hỗ trợ. Chờ 20 giây...")
+        task.wait(20)
+        return makeRequest(url)
+    end
+
+    local shuffledProxies = {}
+    for _, p in ipairs(proxyList) do table.insert(shuffledProxies, p) end
+
+    -- Vòng lặp thử proxy
+    while true do
+        -- Xáo trộn danh sách
+        for i = #shuffledProxies, 2, -1 do
+            local j = rng:NextInteger(1, i)
+            shuffledProxies[i], shuffledProxies[j] = shuffledProxies[j], shuffledProxies[i]
+        end
+
+        for i, proxyData in ipairs(shuffledProxies) do
+            local proxyDisplay = proxyData.ip .. ":" .. proxyData.port
+            print(string.format("[Proxy] Đang thử proxy %d/%d (%s)", i, #shuffledProxies, proxyDisplay))
+            
+            local proxyString
+            if proxyData.type == "auth" then
+                proxyString = string.format("http://%s:%s@%s:%s", proxyData.user, proxyData.pass, proxyData.ip, proxyData.port)
+            else
+                proxyString = string.format("http://%s:%s", proxyData.ip, proxyData.port)
+            end
+            
+            local reqSuccess, reqResponse = pcall(http_request_func, { Url = url, Method = "GET", Proxy = proxyString })
+
+            if reqSuccess and reqResponse.Success and reqResponse.Body then
+                local decodeSuccess, decodedBody = pcall(HttpService.JSONDecode, HttpService, reqResponse.Body)
+                if decodeSuccess and decodedBody.data then
+                    print(string.format("[Proxy] Quét thành công bằng proxy: %s", proxyDisplay))
+                    return decodedBody
+                end
+            end
+            task.wait(0.1)
+        end
+
+        print("[Proxy] Tất cả proxy đều thất bại. Đợi 5 giây rồi thử lại bằng IP gốc...")
+        task.wait(5)
+        return makeRequest(url) -- Quay lại từ đầu, thử IP gốc trước
+    end
+end
+
+
+-- =================================================================
+-- LOGIC QUÉT CHÍNH
+-- =================================================================
+local function startScanning()
+    local totalServersFound = 0
+    local nextCursor = nil
+    
+    while true do
+        local apiUrl = "https://games.roblox.com/v1/games/" .. SETTINGS.TargetPlaceId .. "/servers/Public?sortOrder=Desc&limit=100&excludeFullGames=true"
+        if nextCursor then
+            apiUrl = apiUrl .. "&cursor=" .. nextCursor
+        end
+
+        print("\n-------------------------------------------------")
+        print(string.format("[Scanner] Đang quét trang tiếp theo (Cursor: %s)...", tostring(nextCursor)))
+        
+        local response = makeRequest(apiUrl)
+
+        if response and response.data and #response.data > 0 then
+            local count = #response.data
+            totalServersFound = totalServersFound + count
+            print(string.format("[Scanner] Tìm thấy %d server ở trang này. Tổng cộng: %d", count, totalServersFound))
+            
+            nextCursor = response.nextPageCursor
+            if not nextCursor then
+                print("[Scanner] Đã quét hết tất cả các server! Bắt đầu lại từ đầu sau 10 giây.")
+                task.wait(10)
+            end
+        else
+            print("[Scanner] Không tìm thấy server hoặc gặp lỗi API. Chờ 10 giây rồi thử lại.")
+            task.wait(10)
+        end
+        
+        task.wait(1) -- Chờ 1 giây giữa mỗi lần quét để tránh spam quá mức
+    end
+end
+
+-- =================================================================
+-- KHỞI CHẠY
+-- =================================================================
+task.spawn(function()
+    fetchProxyList()
+    
+    if #proxyList == 0 then
+        print("CẢNH BÁO: Không có proxy nào được tải. Script sẽ chỉ chạy với IP gốc và sẽ bị rate limit rất nhanh.")
+    end
+
+    startScanning()
+end)
