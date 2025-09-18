@@ -9,7 +9,7 @@
 # [QUAN TRONG] Lien ket hau to phien ban voi TEN TAI KHOAN Roblox.
 # Dinh dang: "hau_to_1:username_1 hau_to_2:username_2"
 # VI DU: "b:Player1 c:Player_Two"
-AccountMap="b:userB c:userC d:userD e:userE f:userF"
+AccountMap="b:Lychkin01 c:Lychkin02 d:Lychkin03 e:Lychkin04 f:Lychkin05"
 
 # URL RAW cua file Gist chua trang thai tai khoan (username:status)
 GistStatusUrl="https://gist.githubusercontent.com/AinsworthNecco/2582fc470f4594f789b3441605d3a442/raw/"
