@@ -1,6 +1,6 @@
 #!/data/data/com.termux/files/usr/bin/bash
 # Script Dieu Khien Roblox Dua Tren Gist
-# PHIEN BAN 2.0: Su dung hai vong lap doc lap de MO va KIEM TRA/DUNG.
+# PHIEN BAN 2.1: Sua loi so sanh trang thai do ky tu xuong dong (CRLF).
 # Lien ket phien ban bang Tên người dùng va lay trang thai tu GitHub Gist.
 #---------------------------------------------------
 # -- CAI DAT CHINH --
@@ -21,7 +21,7 @@ VipServerUrl="roblox://placeId=8737602449"
 LaunchInterval=600
 
 # Thoi gian (giay) giua moi lan KIEM TRA trang thai tu Gist (1800 giay = 30 phut)
-CheckInterval=180
+CheckInterval=120
 
 # Thoi gian (giay) cho giua moi lan gui lenh 'am start' trong mot chu ky
 OpenDelay=15
@@ -116,8 +116,8 @@ function check_and_kill_loop() {
                     continue
                 fi
                 
-                # Lay trang thai (so sau dau ':')
-                local status=$(echo "$user_line" | cut -d':' -f2)
+                # Lay trang thai (so sau dau ':') va loai bo ky tu \r
+                local status=$(echo "$user_line" | cut -d':' -f2 | tr -d '\r')
                 
                 if [[ "$status" == "0" ]]; then
                     echo "  -> Trang thai: 0 (In-Game). Bo qua."
@@ -146,3 +146,4 @@ check_and_kill_loop &
 
 # Doi cho cac tac vu nen hoan thanh (se khong bao gio xay ra, giup script chay mai mai)
 wait
+
