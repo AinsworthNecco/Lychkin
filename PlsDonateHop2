@@ -195,53 +195,46 @@ end
 -- Khai báo trước
 local tryNextServer
 
--- =======================================================================================
--- HÀM persistentFetch ĐÃ ĐƯỢC CẬP NHẬT VỚI LOGIC EXPONENTIAL BACKOFF
--- =======================================================================================
 function persistentFetch(url)
-    local success, response = false, nil
-    local retryDelay = 5 -- Thời gian chờ ban đầu (5 giây)
-    local maxDelay = 60  -- Thời gian chờ tối đa (1 phút)
+    local success, response = false, nil
+    local retryDelay = 5 -- Thời gian chờ ban đầu là 5 giây
+    repeat
+        local pcallSuccess, pcallResponse = pcall(function() return HttpService:JSONDecode(game:HttpGet(url, true)) end)
+        if pcallSuccess and pcallResponse and pcallResponse.data then
+            success, response = true, pcallResponse
+        else
+            local wasRateLimited = false
+            if pcallSuccess and pcallResponse and pcallResponse.errors and pcallResponse.errors[1] and pcallResponse.errors[1].message and string.find(string.lower(pcallResponse.errors[1].message), "too many requests") then
+                wasRateLimited = true
+            end
 
-    repeat
-        local pcallSuccess, pcallResponse = pcall(function() return HttpService:JSONDecode(game:HttpGet(url, true)) end)
-        if pcallSuccess and pcallResponse and pcallResponse.data then
-            success, response = true, pcallResponse
-        else
-            local wasRateLimited = false
-            if pcallSuccess and pcallResponse and pcallResponse.errors and pcallResponse.errors[1] and pcallResponse.errors[1].message and string.find(string.lower(pcallResponse.errors[1].message), "too many requests") then
-                wasRateLimited = true
-            end
-
-            if wasRateLimited then
-                isRateLimited = true
-                updateDisplay("ERROR", "Bị giới hạn (429). Sẽ thử server có sẵn trong 30 giây...")
-                
-                local rateLimitStartTime = tick()
-                while tick() - rateLimitStartTime < 30 do
-                    local timeLeft = math.floor(30 - (tick() - rateLimitStartTime))
-                    if #candidateServers > 0 then
-                        updateDisplay("INFO", string.format("Đang thử server có sẵn... còn %d giây", timeLeft))
-                        tryNextServer() -- Thử vào server tiếp theo trong danh sách
-                    else
-                        updateDisplay("ERROR", string.format("Bị giới hạn (429) và không có server dự phòng. Chờ... %d giây", timeLeft))
-                    end
-                    task.wait(2) -- Chờ 2 giây giữa các lần thử
-                end
-                
-                isRateLimited = false
-                updateDisplay("INFO", "Hết thời gian giới hạn. Thử quét lại...")
-            else
-                -- Thay đổi bắt đầu từ đây
-                updateDisplay("ERROR", string.format("Lỗi quét. Thử lại sau %ds...", retryDelay))
-                task.wait(retryDelay)
-                -- Tăng thời gian chờ cho lần thử tiếp theo, nhưng không vượt quá maxDelay
-                retryDelay = math.min(retryDelay * 2, maxDelay) 
-                -- Thay đổi kết thúc ở đây
-            end
-        end
-    until success
-    return response
+            if wasRateLimited then
+                isRateLimited = true
+                updateDisplay("ERROR", "Bị giới hạn (429). Sẽ thử server có sẵn trong 30 giây...")
+                
+                local rateLimitStartTime = tick()
+                while tick() - rateLimitStartTime < 30 do
+                    local timeLeft = math.floor(30 - (tick() - rateLimitStartTime))
+                    if #candidateServers > 0 then
+                        updateDisplay("INFO", string.format("Đang thử server có sẵn... còn %d giây", timeLeft))
+                        tryNextServer() -- Thử vào server tiếp theo trong danh sách
+                    else
+                        updateDisplay("ERROR", string.format("Bị giới hạn (429) và không có server dự phòng. Chờ... %d giây", timeLeft))
+                    end
+                    task.wait(2) -- Chờ 2 giây giữa các lần thử
+                end
+                
+                isRateLimited = false
+                updateDisplay("INFO", "Hết thời gian giới hạn. Thử quét lại...")
+            else
+                -- Logic mới: Tăng thời gian chờ theo cấp số nhân
+                updateDisplay("ERROR", string.format("Lỗi quét. Thử lại sau %ds...", retryDelay))
+                task.wait(retryDelay)
+                retryDelay = math.min(retryDelay * 2, 60) -- Gấp đôi thời gian chờ, tối đa 60 giây
+            end
+        end
+    until success
+    return response
 end
 
 local function executeTeleport(jobId)
@@ -542,4 +535,3 @@ task.spawn(function()
     end
     print("[MainInit] Script đã hoàn tất.")
 end)
-
