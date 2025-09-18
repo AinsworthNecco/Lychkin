@@ -18,7 +18,7 @@ VipServerUrl="roblox://placeId=8737602449"
 CycleInterval=600
 
 # Thoi gian (giay) de tat toan bo Roblox (10800 giay = 3 gio)
-RobloxKillInterval=10800
+RobloxKillInterval=30800
 
 # Thoi gian (giay) cho giua moi lan gui lenh join trong mot chu ky
 OpenDelay=15
