@@ -1,81 +1,85 @@
 local SETTINGS = {
-    -- =================================================================
-    -- CÀI ĐẶT NÉ NGƯỜI CHƠI
-    -- =================================================================
-    ["EnableAvoidPlayers"] = true, -- Bật/tắt tính năng né tài khoản
-    ["AVOID_PLAYERS"] = {
-        "HelloPlayer1st",
-        "Lychkin01", 
-        "Lychkin02",
-        "Lychkin03",
-        "Lychkin04",
-        "Lychkin05",
-        "YattaNeco1",
-        "YattaNeco2",
-        "YattaNeco3",
-        "YattaNeco4",
-        "YattaNeco5"
-    },
+    -- =================================================================
+    -- CÀI ĐẶT NÉ NGƯỜI CHƠI
+    -- =================================================================
+    ["EnableAvoidPlayers"] = true, -- Bật/tắt tính năng né tài khoản
+    ["AVOID_PLAYERS"] = {
+        "HelloPlayer1st",
+        "Lychkin01", 
+        "Lychkin02",
+        "Lychkin03",
+        "Lychkin04",
+        "Lychkin05",
+        "YattaNeco1",
+        "YattaNeco2",
+        "YattaNeco3",
+        "YattaNeco4",
+        "YattaNeco5"
+    },
 
-    -- =================================================================
-    -- CÀI ĐẶT CHỐNG BOT
-    -- =================================================================
-    ["EnableAntiBotScan"] = true,
-    ["BOT_KEYWORDS"] = { "spin", "afk", "restaurant", "jump", "gift", "speed", "develop", "streaming", "live", "game", "#", "dream", "first", "mom", "big" },
-    ["DETECTION_THRESHOLD"] = 3, -- Đặt là 1 để kiểm tra. Thay đổi lại sau khi test xong.
+    -- =================================================================
+    -- CÀI ĐẶT CHỐNG BOT
+    -- =================================================================
+    ["EnableAntiBotScan"] = true,
+    ["BOT_KEYWORDS"] = { "spin", "afk", "restaurant", "jump", "gift", "speed", "develop", "streaming", "live", "game", "#", "dream", "first", "mom", "big" },
+    ["DETECTION_THRESHOLD"] = 3, -- Đặt là 1 để kiểm tra. Thay đổi lại sau khi test xong.
 
-    -- =================================================================
-    -- CÀI ĐẶT SERVER HOP & AFK
-    -- =================================================================
-    ["WaitMinutes"] = 10,
-    ["MaxServerHistorySize"] = 500, -- Xóa lịch sử server sau khi đã lưu X server. Đặt là 0 để tắt.
+    -- =================================================================
+    -- CÀI ĐẶT SERVER HOP & AFK
+    -- =================================================================
+    ["WaitMinutes"] = 10,
+    ["MaxServerHistorySize"] = 500, -- Xóa lịch sử server sau khi đã lưu X server. Đặt là 0 để tắt.
 
-    -- Kiểm tra số người chơi định kỳ
-    ["EnablePlayerCountCheck"] = true, -- Bật/tắt kiểm tra số người chơi mỗi phút.
-    ["MinPlayerThreshold"] = 15,       -- Nếu người chơi trong server ít hơn số này, sẽ tự động chuyển.
+    -- Kiểm tra số người chơi định kỳ
+    ["EnablePlayerCountCheck"] = true, -- Bật/tắt kiểm tra số người chơi mỗi phút.
+    ["MinPlayerThreshold"] = 15,       -- Nếu người chơi trong server ít hơn số này, sẽ tự động chuyển.
 
-    -- Bật/Tắt các tính năng chính
-    ["EnableServerHop"] = true,
-    ["EnableSafePlatform"] = true,
-    ["EnableStaticAfkView"] = true,
-    ["EnableDonateReset"] = true,
-    
-    -- Cài đặt Thông Báo Donate qua Discord
-    ["EnableDiscordWebhook"] = true,
-    ["WebhookURL"] = "https://discord.com/api/webhooks/1397368466947969147/HbncMuT0ETe6_5q_kKGzkdd7guLfiGqvewr3WuBFfHAxKBJo3TA7R6ad2ex31YkBHo75",
-    ["WebhookColor"] = 16738740,
-    ["EnablePingOnDonate"] = true,
-    ["PingAmount"] = 1000,
-    ["PingUserID"] = "",
+    -- Bật/Tắt các tính năng chính
+    ["EnableServerHop"] = true,
+    ["EnableSafePlatform"] = true,
+    ["EnableStaticAfkView"] = true,
+    ["EnableDonateReset"] = true,
+    
+    -- Cài đặt Thông Báo Donate qua Discord
+    ["EnableDiscordWebhook"] = true,
+    ["WebhookURL"] = "https://discord.com/api/webhooks/1397368466947969147/HbncMuT0ETe6_5q_kKGzkdd7guLfiGqvewr3WuBFfHAxKBJo3TA7R6ad2ex31YkBHo75",
+    ["WebhookColor"] = 16738740,
+    ["EnablePingOnDonate"] = true,
+    ["PingAmount"] = 1000,
+    ["PingUserID"] = "",
 
-    -- Cài đặt Tự Động Trả Lời (Auto Reply)
-    ["EnableAutoReply"] = false,
-    ["ReplyRadius"] = 25,
-    ["ReplyCooldown"] = 10,
-    ["ReplyRules"] = {
-        { keywords = { "hi", "hello", "hey", "sup", "yo", "wsg", "howdy", "greetings", "wassup", "heya" }, replies = { "Hello!", "Hi there", "Hey!", "Yo", "What's up?", "Heya", "Sup", "Heyo!", "What's good?", "Well hello there." } },
-        { keywords = { "only","donate", "pls", "give me", "robux pls", "can i have", "spare", "some robux", "can u donate", "plz donate", "can you give", "i need robux" }, replies = { "Sorry, I'm saving up right now.", "I can't donate at the moment, sorry.", "My robux is pending, can't help sorry.", "Sry, saving for something specific.", "Maybe later, I'm trying to reach my own goal.", "Can't right now, good luck though!", "All my robux is tied up, sorry.", "Sorry, my wallet is on a diet.", "I wish I could, but I'm broke lol." } },
-        { keywords = { "bot", "auto", "script", "scripter", "macro", "afk farm", "autoclicker", "you a bot?" }, replies = { "I'm not a bot :)", "lol no, I'm a real player.", "Just vibing, not a bot.", "Beep boop? Nah, just kidding.", "I'm a human, I promise!", "Not a script, just dedicated lol.", "Do I look like a bot to you? :P", "Last time I checked, I still need to sleep. So, not a bot.", "01001110 01101111. (That means 'No' in binary)." } },
-        { keywords = { "scam", "fake", "report", "scammer", "this is a scam", "don't trust", "he's a scammer", "is this fake" }, replies = { "This is not a scam.", "I'm not a scammer.", "It's legit, no worries.", "100% legit, my friend.", "No scams here, just good vibes.", "I'm just here to play the game like you.", "Why would you think it's a scam?", "The only thing I'm scamming is time, by playing this game.", "You've got the wrong person, I'm just here to chill." } },
-        { keywords = { "why are you", "how are you", "spinning", "jumping", "afk" }, replies = { "Just farming for my goal.", "It's part of the grind.", "Doing this for donations." } },
-    },
+    -- Cài đặt Tự Động Trả Lời (Auto Reply)
+    ["EnableAutoReply"] = false,
+    ["ReplyRadius"] = 25,
+    ["ReplyCooldown"] = 10,
+    ["ReplyRules"] = {
+        { keywords = { "hi", "hello", "hey", "sup", "yo", "wsg", "howdy", "greetings", "wassup", "heya" }, replies = { "Hello!", "Hi there", "Hey!", "Yo", "What's up?", "Heya", "Sup", "Heyo!", "What's good?", "Well hello there." } },
+        { keywords = { "only","donate", "pls", "give me", "robux pls", "can i have", "spare", "some robux", "can u donate", "plz donate", "can you give", "i need robux" }, replies = { "Sorry, I'm saving up right now.", "I can't donate at the moment, sorry.", "My robux is pending, can't help sorry.", "Sry, saving for something specific.", "Maybe later, I'm trying to reach my own goal.", "Can't right now, good luck though!", "All my robux is tied up, sorry.", "Sorry, my wallet is on a diet.", "I wish I could, but I'm broke lol." } },
+        { keywords = { "bot", "auto", "script", "scripter", "macro", "afk farm", "autoclicker", "you a bot?" }, replies = { "I'm not a bot :)", "lol no, I'm a real player.", "Just vibing, not a bot.", "Beep boop? Nah, just kidding.", "I'm a human, I promise!", "Not a script, just dedicated lol.", "Do I look like a bot to you? :P", "Last time I checked, I still need to sleep. So, not a bot.", "01001110 01101111. (That means 'No' in binary)." } },
+        { keywords = { "scam", "fake", "report", "scammer", "this is a scam", "don't trust", "he's a scammer", "is this fake" }, replies = { "This is not a scam.", "I'm not a scammer.", "It's legit, no worries.", "100% legit, my friend.", "No scams here, just good vibes.", "I'm just here to play the game like you.", "Why would you think it's a scam?", "The only thing I'm scamming is time, by playing this game.", "You've got the wrong person, I'm just here to chill." } },
+        { keywords = { "why are you", "how are you", "spinning", "jumping", "afk" }, replies = { "Just farming for my goal.", "It's part of the grind.", "Doing this for donations." } },
+    },
 
-    -- Cài đặt hiệu năng
-    ["EnableGraphicsOptimization"] = true,
-    ["EnableCpuOptimization"] = true,
-    ["SetSimulationRadiusToZero"] = true,
-    ["TargetFps"] = 7,
+    -- Cài đặt hiệu năng
+    ["EnableGraphicsOptimization"] = true,
+    ["EnableCpuOptimization"] = true,
+    ["SetSimulationRadiusToZero"] = true,
+    ["TargetFps"] = 7,
 
-    -- Cài đặt khác
-    ["EnableFileHistory"] = true,
-    ["InitialWaitTime"] = 1,
+    -- Cài đặt khác
+    ["EnableFileHistory"] = true,
+    ["InitialWaitTime"] = 1,
 
-    -- Cài đặt giao diện
-    ["EnableCountdownText"] = true,
-    ["EnableCountdownColor"] = true,
-    ["CountdownFixedColorHex"] = "#000000",
+    -- Cài đặt giao diện
+    ["EnableCountdownText"] = true,
+    ["EnableCountdownColor"] = true,
+    ["CountdownFixedColorHex"] = "#000000",
 }
 -- --- KẾT THÚC CÀI ĐẶT ---
+
+-- Nền tảng an toàn (Anti-Cheat Bypass)
+local identifyexecutor = identifyexecutor or function() return 'Unknown' end
+local cloneref = (identifyexecutor() ~= "Synapse Z" and not identifyexecutor():find("Codex") and cloneref) or function(o) return o end
 
 -- Nền tảng an toàn (Anti-Cheat Bypass)
 local identifyexecutor = identifyexecutor or function() return 'Unknown' end
@@ -194,49 +198,54 @@ end
 
 -- Khai báo trước
 local tryNextServer
-local currentRateLimitWait = 5 -- Thời gian chờ ban đầu, sẽ tăng gấp đôi khi bị giới hạn
 
+-- =======================================================================================
+-- HÀM persistentFetch ĐÃ ĐƯỢC CẬP NHẬT VỚI LOGIC EXPONENTIAL BACKOFF
+-- =======================================================================================
 function persistentFetch(url)
-    local success, response = false, nil
-    repeat
-        local pcallSuccess, pcallResponse = pcall(function() return HttpService:JSONDecode(game:HttpGet(url, true)) end)
-        if pcallSuccess and pcallResponse and pcallResponse.data then
-            success, response = true, pcallResponse
-            currentRateLimitWait = 5 -- Reset lại thời gian chờ sau khi thành công
-        else
-            local wasRateLimited = false
-            if pcallSuccess and pcallResponse and pcallResponse.errors and pcallResponse.errors[1] and pcallResponse.errors[1].message and string.find(string.lower(pcallResponse.errors[1].message), "too many requests") then
-                wasRateLimited = true
-            end
+    local success, response = false, nil
+    local retryDelay = 5 -- Thời gian chờ ban đầu (5 giây)
+    local maxDelay = 60  -- Thời gian chờ tối đa (1 phút)
 
-            if wasRateLimited then
-                isRateLimited = true
-                local waitDuration = currentRateLimitWait
-                updateDisplay("ERROR", string.format("Bị giới hạn (429). Sẽ thử lại sau %d giây...", waitDuration))
-                
-                local rateLimitStartTime = tick()
-                while tick() - rateLimitStartTime < waitDuration do
-                    local timeLeft = math.floor(waitDuration - (tick() - rateLimitStartTime))
-                    if #candidateServers > 0 then
-                        updateDisplay("INFO", string.format("Đang thử server có sẵn... còn %d giây", timeLeft))
-                        tryNextServer() -- Thử vào server tiếp theo trong danh sách
-                    else
-                        updateDisplay("ERROR", string.format("Bị giới hạn (429) và không có server dự phòng. Chờ... %d giây", timeLeft))
-                    end
-                    task.wait(2) -- Chờ 2 giây giữa các lần thử
-                end
-                
-                isRateLimited = false
-                -- Gấp đôi thời gian chờ cho lần sau, tối đa 60 giây
-                currentRateLimitWait = math.min(currentRateLimitWait * 2, 60)
-                updateDisplay("INFO", "Hết thời gian giới hạn. Thử quét lại...")
-            else
-                updateDisplay("ERROR", "Lỗi quét. Thử lại sau 5s...")
-                task.wait(5)
-            end
-        end
-    until success
-    return response
+    repeat
+        local pcallSuccess, pcallResponse = pcall(function() return HttpService:JSONDecode(game:HttpGet(url, true)) end)
+        if pcallSuccess and pcallResponse and pcallResponse.data then
+            success, response = true, pcallResponse
+        else
+            local wasRateLimited = false
+            if pcallSuccess and pcallResponse and pcallResponse.errors and pcallResponse.errors[1] and pcallResponse.errors[1].message and string.find(string.lower(pcallResponse.errors[1].message), "too many requests") then
+                wasRateLimited = true
+            end
+
+            if wasRateLimited then
+                isRateLimited = true
+                updateDisplay("ERROR", "Bị giới hạn (429). Sẽ thử server có sẵn trong 30 giây...")
+                
+                local rateLimitStartTime = tick()
+                while tick() - rateLimitStartTime < 30 do
+                    local timeLeft = math.floor(30 - (tick() - rateLimitStartTime))
+                    if #candidateServers > 0 then
+                        updateDisplay("INFO", string.format("Đang thử server có sẵn... còn %d giây", timeLeft))
+                        tryNextServer() -- Thử vào server tiếp theo trong danh sách
+                    else
+                        updateDisplay("ERROR", string.format("Bị giới hạn (429) và không có server dự phòng. Chờ... %d giây", timeLeft))
+                    end
+                    task.wait(2) -- Chờ 2 giây giữa các lần thử
+                end
+                
+                isRateLimited = false
+                updateDisplay("INFO", "Hết thời gian giới hạn. Thử quét lại...")
+            else
+                -- Thay đổi bắt đầu từ đây
+                updateDisplay("ERROR", string.format("Lỗi quét. Thử lại sau %ds...", retryDelay))
+                task.wait(retryDelay)
+                -- Tăng thời gian chờ cho lần thử tiếp theo, nhưng không vượt quá maxDelay
+                retryDelay = math.min(retryDelay * 2, maxDelay) 
+                -- Thay đổi kết thúc ở đây
+            end
+        end
+    until success
+    return response
 end
 
 local function executeTeleport(jobId)
@@ -537,4 +546,3 @@ task.spawn(function()
     end
     print("[MainInit] Script đã hoàn tất.")
 end)
-
