@@ -1,6 +1,6 @@
 2.0 works with other executors havent tested with delta
 2.1 lọc acc tránh cùng server(Delta) muon dung executor khac thi doi phan logic tim server cua 2.0 sang (second best)
-2.2 tất cả phiên bản trước đều bị patch, bản 2.2 là bản hoạt động hiện tại đã test ở codex
+2.2 tất cả phiên bản trước đều bị patch, bản 2.2 là bản hoạt động hiện tại đã test ở codex, dễ bị rate limit nhưng hoạt động
 2.3 thêm lại lọc %
 2.4 giờ đây logic của 2.1 dùng nhưng dùng được cho cả codex (best hiện tại do dùng được cả executor khác nhưng không hiệu quả bằng delta )
-2.5 new logic hop dùng github để lấy server thay vì api
+2.5 nâng cấp từ 2.2 giờ đây sẽ lưu lại server cho tài khoản sau tránh bị rate limit quá nhiều
