@@ -12,7 +12,7 @@
 AccountMap="b:Lychkin01 c:Lychkin02 d:Lychkin03 e:Lychkin04 f:Lychkin05"
 
 # URL RAW cua file Gist chua trang thai tai khoan (username:status)
-GistStatusUrl="https://gist.githubusercontent.com/AinsworthNecco/2582fc470f4594f789b3441605d3a442/raw/"
+GistStatusUrl="https://gist.githubusercontent.com/AinsworthNecco/2582fc470f4594f789b3441605d3a442/raw/cd1d886b675e46d72bfa2d1df5869e4a4246ce92/server_list.txt"
 
 # URL cua VIP Server ban muon tham gia
 VipServerUrl="roblox://placeId=8737602449"
