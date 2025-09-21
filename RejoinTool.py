@@ -24,7 +24,7 @@ LaunchInterval=600
 CheckInterval=1800
 
 # Thoi gian (giay) cho giua moi lan gui lenh 'am start' trong mot chu ky
-OpenDelay=1
+OpenDelay=15
 
 # Ten goi co ban cua Roblox (khong nen thay doi)
 BasePackageName="com.roblox.clien"
