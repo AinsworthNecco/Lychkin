@@ -5,11 +5,12 @@ local SETTINGS = {
     ["EnableAvoidPlayers"] = true, -- Bật/tắt tính năng né tài khoản
     ["AVOID_PLAYERS"] = {
         "HelloPlayer1st",
-        "Lychkin01", 
-        "Lychkin02",
-        "Lychkin03",
-        "Lychkin04",
-        "Lychkin05",
+        "Er1ka_iA",
+        "WolfCodeFusion", 
+        "ArrowStarHaz3",
+        "Sab3r_Aqua2007",
+        "XxJacksonUltraxX14",
+        "XxAlpha_ZAPXX2007",
         "YattaNeco1",
         "YattaNeco2",
         "YattaNeco3",
