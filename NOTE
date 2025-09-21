@@ -1,7 +1,8 @@
-2.0 works with other executors havent tested with delta
-2.1 lọc acc tránh cùng server(Delta) muon dung executor khac thi doi phan logic tim server cua 2.0 sang (second best)
-2.2 tất cả phiên bản trước đều bị patch, bản 2.2 là bản hoạt động hiện tại đã test ở codex, dễ bị rate limit nhưng hoạt động
-2.3 thêm lại lọc %
-2.4 giờ đây logic của 2.1 dùng nhưng dùng được cho cả codex (best hiện tại do dùng được cả executor khác nhưng không hiệu quả bằng delta )
-2.5 dùng quét server từ github ( do github khá chậm nên không hiệu quả )
-2.6 nâng cấp từ 2.2 giờ đây sẽ lưu lại server cho tài khoản sau tránh bị rate limit quá nhiều
+1.0 works well only with delta have no auto claim booth auto text auto spin auto spam need to work with pls donate script
+1.0a have auto claim booth auto text auto spin auto spam
+1.1 works with other executors havent tested with delta
+1.2 lọc acc tránh cùng server(Delta) muon dung executor khac thi doi phan logic tim server cua 2.0 sang
+1.3 tất cả phiên bản trước đều bị patch, bản 2.2 là bản hoạt động hiện tại đã test ở codex
+1.4 giờ đây logic của 1.2 dùng nhưng dùng được cho cả codex (best hiện tại do dùng được cả executor khác nhưng không hiệu quả bằng delta )
+1.5 dùng quét server từ github ( do github khá chậm nên không hiệu quả )
+1.6 nâng cấp từ 1.3 giờ đây sẽ lưu lại server cho tài khoản sau tránh bị rate limit quá nhiều
