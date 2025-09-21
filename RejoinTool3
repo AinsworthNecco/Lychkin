@@ -21,7 +21,7 @@ VipServerUrl="roblox://placeId=8737602449"
 LaunchInterval=600
 
 # Thoi gian (giay) giua moi lan KIEM TRA trang thai tu Gist (1800 giay = 30 phut)
-CheckInterval=60
+CheckInterval=1800
 
 # Thoi gian (giay) cho giua moi lan gui lenh 'am start' trong mot chu ky
 OpenDelay=1
