@@ -1,21 +1,13 @@
 import subprocess
-import time
-from datetime import datetime
+import os
+import sys
 
 # ---------------------------------------------------
 # -- CÀI ĐẶT CHÍNH --
 # ---------------------------------------------------
 
-# Danh sách các hậu tố tài khoản Roblox.
-# Thay đổi danh sách này để phù hợp với các tài khoản của bạn.
-# Ví dụ: ["b", "c", "d", "e", "f"]
-ACCOUNT_SUFFIXES = ["b", "c", "d", "e", "f"]
-
-# URL của VIP Server bạn muốn tham gia.
-VIP_SERVER_URL = "roblox://placeId=8737602449"
-
-# Thời gian (giây) chờ giữa mỗi lần gửi lệnh join.
-OPEN_DELAY_SECONDS = 15
+# Hậu tố của phiên bản Roblox bạn muốn tắt.
+SUFFIX_TO_KILL = "b"
 
 # Tên gói cơ bản của Roblox (không nên thay đổi).
 BASE_PACKAGE_NAME = "com.roblox.clien"
@@ -24,60 +16,54 @@ BASE_PACKAGE_NAME = "com.roblox.clien"
 # -- CÁC HÀM CHỨC NĂNG --
 # ---------------------------------------------------
 
-def launch_roblox_instances():
+def check_root():
+    """Kiểm tra xem script có đang chạy với quyền root hay không."""
+    if os.geteuid() != 0:
+        print("Lỗi: Script này cần quyền root để hoạt động.")
+        print("Vui lòng chạy lại bằng lệnh: su -c \"python your_script_name.py\"")
+        sys.exit(1)
+
+def kill_specific_roblox_instance(suffix):
     """
-    Hàm này lặp qua danh sách các hậu tố tài khoản và gửi lệnh
-    'am start' để tham gia vào VIP server cho mỗi tài khoản.
+    Tìm và dừng một tiến trình Roblox cụ thể dựa trên hậu tố được cung cấp.
     """
-    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    print(f"[{timestamp}] Bắt đầu gửi lệnh tham gia server...")
+    package_to_stop = f"{BASE_PACKAGE_NAME}{suffix}"
+    print(f"Đang tìm và dừng phiên bản Roblox: {package_to_stop}...")
 
-    if not ACCOUNT_SUFFIXES:
-        print("Lỗi: Danh sách 'ACCOUNT_SUFFIXES' đang trống. Vui lòng thêm hậu tố tài khoản.")
-        return
-
-    for suffix in ACCOUNT_SUFFIXES:
-        # Xây dựng tên gói đầy đủ cho từng phiên bản Roblox
-        package_name = f"{BASE_PACKAGE_NAME}{suffix}"
+    try:
+        # Lấy danh sách tất cả các tiến trình đang chạy
+        result = subprocess.run(['ps', '-ef'], capture_output=True, text=True, check=True)
+        processes = result.stdout.strip().split('\n')
         
-        # Xây dựng lệnh shell để khởi chạy Roblox
-        command = [
-            "am", "start",
-            "-a", "android.intent.action.VIEW",
-            "-d", VIP_SERVER_URL,
-            "-p", package_name
-        ]
-
-        print(f"-> Đang gửi lệnh join đến tài khoản '{suffix}' (gói: {package_name})")
+        found = False
+        for line in processes:
+            # Tìm dòng chứa tên gói và không phải là tiến trình grep
+            if package_to_stop in line and 'grep' not in line:
+                parts = line.split()
+                pid = parts[1]
+                print(f"  => Đã tìm thấy! Dừng phiên bản {package_to_stop} (PID: {pid}).")
+                subprocess.run(['kill', '-9', pid], check=True)
+                found = True
+                break # Dừng lại sau khi tìm thấy và xử lý
         
-        try:
-            # Thực thi lệnh. Lệnh này cần quyền root và môi trường Android (như Termux).
-            subprocess.run(command, check=True, capture_output=True, text=True)
-            print(f"   Lệnh gửi thành công cho '{suffix}'.")
-        except FileNotFoundError:
-            print("   Lỗi: Lệnh 'am' không tồn tại. Script này phải được chạy trên Android với Termux.")
-            break # Dừng script nếu môi trường không phù hợp
-        except subprocess.CalledProcessError as e:
-            print(f"   Lỗi khi thực thi lệnh cho '{suffix}': {e.stderr.strip()}")
-        except Exception as e:
-            print(f"   Đã xảy ra một lỗi không mong muốn: {e}")
+        if not found:
+            print(f"  - Không tìm thấy tiến trình nào đang chạy cho {package_to_stop}.")
 
-        # Chờ một khoảng thời gian trước khi khởi chạy phiên bản tiếp theo
-        print(f"   Đang chờ {OPEN_DELAY_SECONDS} giây...")
-        time.sleep(OPEN_DELAY_SECONDS)
+    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        print(f"  Không thể thực thi lệnh. Lỗi: {e}")
+    except Exception as e:
+        print(f"  Đã xảy ra lỗi không mong muốn: {e}")
 
-    print("\nĐã hoàn tất chu kỳ gửi lệnh tham gia.")
+    print("Đã hoàn tất.")
 
 # ---------------------------------------------------
 # -- ĐIỂM KHỞI ĐẦU CỦA SCRIPT --
 # ---------------------------------------------------
 if __name__ == "__main__":
-    # Dòng 'if __name__ == "__main__":' đảm bảo rằng code bên trong nó
-    # chỉ chạy khi bạn thực thi trực tiếp file python này.
+    print("--- SCRIPT KIỂM TRA TẮT PHIÊN BẢN ROBLOX CỤ THỂ ---")
     
-    print("--- KHỞI ĐỘNG SCRIPT KHỞI CHẠY ROBLOX BẰNG PYTHON ---")
-    
-    # Lưu ý: Script cần quyền root để chạy lệnh 'am'.
-    # Bạn có thể cần chạy nó với 'sudo python your_script_name.py' trên các hệ thống phù hợp.
-    
-    launch_roblox_instances()
+    # 1. Kiểm tra quyền root
+    check_root()
+
+    # 2. Gọi hàm để tắt phiên bản đã chỉ định
+    kill_specific_roblox_instance(SUFFIX_TO_KILL)
