@@ -1,1 +1,18 @@
+# ID của game cần quét
+PLACE_ID="8737602449"
 
+# Tỷ lệ người chơi (0-100)
+MIN_PLAYER_PERCENTAGE=60
+MAX_PLAYER_PERCENTAGE=90
+
+# Số server tối đa cần thu thập
+MAX_SERVERS_TO_COLLECT=200
+
+# Thời gian nghỉ giữa các chu kỳ (giây)
+SCAN_INTERVAL_SECONDS=180
+
+# Đường dẫn thư mục lưu file
+OUTPUT_DIR="/storage/emulated/0/Codex/Workspace"
+
+# Tên file kết quả
+OUTPUT_FILE_NAME="neco.txt"
