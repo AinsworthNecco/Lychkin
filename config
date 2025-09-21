@@ -9,8 +9,7 @@ MAX_PLAYER_PERCENTAGE=90
 MAX_SERVERS_TO_COLLECT=200
 
 # Thời gian nghỉ giữa các chu kỳ (giây)
-SCAN_INTERVAL_SECONDS=180
-
+SCAN_INTERVAL_SECONDS=60
 # Đường dẫn thư mục lưu file
 OUTPUT_DIR="/storage/emulated/0/Codex/Workspace"
 
