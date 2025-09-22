@@ -10,6 +10,7 @@ MAX_SERVERS_TO_COLLECT=200
 
 # Thời gian nghỉ giữa các chu kỳ (giây)
 SCAN_INTERVAL_SECONDS=60
+
 # Đường dẫn thư mục lưu file
 OUTPUT_DIR="/storage/emulated/0/Codex/Workspace"
 
@@ -18,6 +19,6 @@ OUTPUT_FILE_NAME="neco.txt"
 
 # proxy
 PROXY_LIST=(
-"103.121.90.122:31791"
-"103.121.90.122:30851"
+    "http://103.121.90.122:31791"
+    "http://103.121.90.122:30851"
 )
