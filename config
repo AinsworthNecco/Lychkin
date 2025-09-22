@@ -15,3 +15,10 @@ OUTPUT_DIR="/storage/emulated/0/Codex/Workspace"
 
 # Tên file kết quả
 OUTPUT_FILE_NAME="neco.txt"
+
+# proxy
+PROXY_LIST=(
+"http://user1:pass1@ip1:port1"
+"http://ip2:port2"
+"http://user3:pass3@ip3:port3"
+)
