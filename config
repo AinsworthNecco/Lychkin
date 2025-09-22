@@ -2,11 +2,11 @@
 PLACE_ID="8737602449"
 
 # Tỷ lệ người chơi (0-100)
-MIN_PLAYER_PERCENTAGE=60
+MIN_PLAYER_PERCENTAGE=70
 MAX_PLAYER_PERCENTAGE=90
 
 # Thời gian nghỉ giữa các chu kỳ (giây)
-SCAN_INTERVAL_SECONDS=180
+SCAN_INTERVAL_SECONDS=20
 
 # Nếu PROXY_LIST có giá trị, script sẽ CHỈ dùng proxy.
 # Nếu trống, script sẽ dùng IP gốc.
