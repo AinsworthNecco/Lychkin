@@ -7,7 +7,7 @@
 # --- CẤU HÌNH CHUNG ---
 
 # Ánh xạ giữa hậu tố package và ID tài khoản Roblox
-AccountMap="b:8825003633 c:8824995724 d:8824993363 e:8825031832 f:8825018935 g:8937252512"
+AccountMap="b:9304509259 c:9304500182 d:9304524640 e:9304476431 f:9304529073"
 
 # Tên package cơ bản của Roblox
 BasePackageName="com.roblox.client"
