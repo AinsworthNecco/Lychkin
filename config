@@ -5,9 +5,6 @@ PLACE_ID="8737602449"
 MIN_PLAYER_PERCENTAGE=60
 MAX_PLAYER_PERCENTAGE=90
 
-# Số server tối đa cần thu thập
-MAX_SERVERS_TO_COLLECT=200
-
 # Thời gian nghỉ giữa các chu kỳ (giây)
 SCAN_INTERVAL_SECONDS=5
 
