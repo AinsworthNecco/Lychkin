@@ -1,148 +1,219 @@
-#!/data/data/com.termux/files/usr/bin/bash
-# Script Dieu Khien Roblox Dua Tren Gist
-# PHIEN BAN 2.1: Sua loi so sanh trang thai do ky tu xuong dong (CRLF).
-# Lien ket phien ban bang Tên người dùng va lay trang thai tu GitHub Gist.
-#---------------------------------------------------
-# -- CAI DAT CHINH --
-#---------------------------------------------------
+#!/usr/bin/env bash
 
-# [QUAN TRONG] Lien ket hau to phien ban voi TEN TAI KHOAN Roblox.
-# Dinh dang: "hau_to_1:username_1 hau_to_2:username_2"
-# VI DU: "b:Player1 c:Player_Two"
-AccountMap="b:WolfCodeFusion c:ArrowStarHaz3 d:Sab3r_Aqua2007 e:XxJacksonUltraxX14 f:XxAlpha_ZAPXX2007"
+# ==============================================================================
+# ROBLOX MASTER SCRIPT v12.0
+#
+# Khởi chạy Scanner và Launcher như hai tiến trình độc lập, chạy song song.
+#
+# - TASK SCANNER: Liên tục tải config, quét server, và lưu kết quả.
+# - TASK LAUNCHER: Liên tục kiểm tra trạng thái các tài khoản và khởi động lại
+#   chúng vào một VIP server cố định.
+# ==============================================================================
 
-# URL RAW cua file Gist chua trang thai tai khoan (username:status)
-GistStatusUrl="https://gist.githubusercontent.com/AinsworthNecco/2582fc470f4594f789b3441605d3a442/raw/cd1d886b675e46d72bfa2d1df5869e4a4246ce92/server_list.txt"
+CONFIG_URL="https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/config"
+REMOTE_CONFIG_FILE="./remote_config.conf"
 
-# URL cua VIP Server ban muon tham gia
-VipServerUrl="roblox://placeId=8737602449"
-
-# Thoi gian (giay) giua moi lan MO tat ca cac phien ban (600 giay = 10 phut)
-LaunchInterval=600
-
-# Thoi gian (giay) giua moi lan KIEM TRA trang thai tu Gist (1800 giay = 30 phut)
-CheckInterval=1800
-
-# Thoi gian (giay) cho giua moi lan gui lenh 'am start' trong mot chu ky
-OpenDelay=15
-
-# Ten goi co ban cua Roblox (khong nen thay doi)
-BasePackageName="com.roblox.clien"
-
-#---------------------------------------------------
-# -- TU DONG KIEM TRA --
-#---------------------------------------------------
-# Kiem tra quyen root
+# --- TỰ ĐỘNG KIỂM TRA ROOT ---
 if [[ $EUID -ne 0 ]]; then
-    echo "Script nay can quyen root. Dang co gang chay lai voi 'su'..."
+    echo "Script này cần quyền root để thực thi 'kill'. Đang chạy lại với 'su'..."
     su -c "bash \"$0\" \"$@\""
     exit 0
 fi
 
-#---------------------------------------------------
-# -- CAC HAM HO TRO --
-#---------------------------------------------------
+# ==============================================================================
+# -- TASK 1: SCANNER (QUÉT SERVER) --
+# Chạy trong một vòng lặp vô tận.
+# ==============================================================================
+function task_scanner() {
+    echo "[SCANNER]: Tiến trình quét đã khởi động."
+    local proxy_index=0
+    local failed_proxy_count=0
+    local -a formatted_proxy_list=()
+    local -a collected_ids=()
 
-# Ham dung mot phien ban cu the dua vao hau to
-function kill_instance_by_suffix() {
-    local suffix="$1"
-    if [[ -z "$suffix" ]]; then return; fi
-    
-    local package_to_stop="${BasePackageName}${suffix}"
-    local pid_to_kill=$(ps -ef | grep "$package_to_stop" | grep -v grep | awk '{print $2}')
-    
-    if [[ -n "$pid_to_kill" ]]; then
-        echo "  => Phat hien trang thai khong hop le. Dang dung phien ban $package_to_stop (PID: $pid_to_kill)."
-        kill -9 "$pid_to_kill"
-    else
-        echo "  => Phien ban $package_to_stop da dung san."
-    fi
+    while true; do
+        # Tải config mới nhất ở mỗi chu kỳ
+        echo "[SCANNER]: Đang tải cấu hình từ xa..."
+        if curl -sL "$CONFIG_URL" -o "$REMOTE_CONFIG_FILE"; then
+            sed -i 's/\r$//' "$REMOTE_CONFIG_FILE"; source "$REMOTE_CONFIG_FILE"
+            if [[ -z "${PLACE_ID:-}" ]]; then
+                 echo "[SCANNER]: Lỗi cấu hình. Thử lại sau 30 giây."; sleep 30; continue
+            fi
+            echo "[SCANNER]: Tải cấu hình thành công. Bắt đầu quét..."
+        else
+            echo "[SCANNER]: Lỗi tải cấu hình. Thử lại sau 30 giây."; sleep 30; continue
+        fi
+        
+        # Xử lý lại danh sách proxy mỗi lần tải config
+        formatted_proxy_list=()
+        if [[ ${#PROXY_LIST[@]} -gt 0 && -n "${PROXY_LIST[0]}" ]]; then
+            for proxy_string in "${PROXY_LIST[@]}"; do
+                IFS=':' read -r -a parts <<< "$proxy_string"; local formatted_proxy=""
+                if [[ ${#parts[@]} -eq 4 ]]; then formatted_proxy="http://${parts[2]}:${parts[3]}@${parts[0]}:${parts[1]}"; fi
+                if [[ -n "$formatted_proxy" ]]; then formatted_proxy_list+=("$formatted_proxy"); fi
+            done
+        fi
+        
+        local num_proxies=${#formatted_proxy_list[@]}
+        local output_file="${OUTPUT_DIR}/${OUTPUT_FILE_NAME}"
+        local min_p=$(awk "BEGIN {print ${MIN_PLAYER_PERCENTAGE}/100}")
+        local max_p=$(awk "BEGIN {print ${MAX_PLAYER_PERCENTAGE}/100}")
+        collected_ids=()
+        mkdir -p "$OUTPUT_DIR"
+        
+        local next_cursor=""
+        while true; do # Vòng lặp quét các trang
+            local api_url="https://games.roblox.com/v1/games/${PLACE_ID}/servers/Public?sortOrder=Desc&limit=100"
+            [[ -n "$next_cursor" && "$next_cursor" != "null" ]] && api_url="${api_url}&cursor=${next_cursor}"
+
+            # Vòng lặp xử lý proxy/kết nối
+            local response_body=""
+            while true; do
+                if (( num_proxies > 0 && failed_proxy_count >= num_proxies )); then
+                    echo -e "\n[SCANNER]: Tất cả proxies đều thất bại. Tạm dừng 5 giây..."
+                    sleep 5; failed_proxy_count=0; proxy_index=0
+                fi
+
+                local curl_cmd=("curl" "--silent" "--max-time" "20" "-w" "\n%{http_code}")
+                local proxy_status="IP Gốc"; if (( num_proxies > 0 )); then
+                    curl_cmd+=("--proxy" "${formatted_proxy_list[$proxy_index]}")
+                    proxy_status="Proxy ${proxy_index}/${num_proxies}"
+                fi
+                curl_cmd+=("$api_url")
+                printf "\r[SCANNER]: Quét trang... | Thu thập: %-5s | Kết nối: %-15s" "${#collected_ids[@]}" "$proxy_status"
+                
+                local response_with_code=$("${curl_cmd[@]}")
+                local http_code=$(echo "$response_with_code" | tail -n1)
+                
+                if [[ "$http_code" == "200" ]]; then
+                    response_body=$(echo "$response_with_code" | sed '$d')
+                    failed_proxy_count=0; break
+                else
+                    if (( num_proxies > 0 )); then
+                        ((failed_proxy_count++)); ((proxy_index = (proxy_index + 1) % num_proxies)); sleep 1
+                    else
+                        echo -e "\n[SCANNER]: IP Gốc thất bại. Tạm dừng 60 giây..."; sleep 60
+                    fi
+                fi
+            done
+            
+            next_cursor=$(echo "$response_body" | grep -o '"nextPageCursor":"[^"]*"' | sed 's/"nextPageCursor":"//; s/"$//')
+            # ... (Phần logic xử lý JSON không thay đổi) ...
+            while IFS= read -r server; do
+                if [[ -z "$server" ]]; then continue; fi
+                local playing=$(echo "$server" | grep -o '"playing":[0-9]*' | sed 's/"playing"://'); local max_players=$(echo "$server" | grep -o '"maxPlayers":[0-9]*' | sed 's/"maxPlayers"://')
+                if [[ -n "$playing" && -n "$max_players" && "$max_players" -gt 0 ]]; then
+                    local p_percent=$(awk "BEGIN {print ${playing}/${max_players}}")
+                    local is_valid=$(awk -v p="$p_percent" -v min="$min_p" -v max="$max_p" 'BEGIN {print (p >= min && p <= max)}')
+                    if [[ "$is_valid" -eq 1 ]]; then
+                        local server_id=$(echo "$server" | grep -o '"id":"[^"]*"' | sed 's/"id":"//; s/"$//'); if [[ -n "$server_id" ]]; then collected_ids+=("$server_id"); fi
+                    fi
+                fi
+            done < <(echo "$response_body" | awk 'match($0, /"data":\[(.*)\]/, a) { print a[1] }' | sed 's/},{/}\n{/g')
+            
+            if [[ -z "$next_cursor" || "$next_cursor" == "null" ]]; then break; fi
+        done
+        
+        echo -e "\n[SCANNER]: Quét xong. Ghi ${#collected_ids[@]} ID vào file."
+        printf "%s\n" "${collected_ids[@]}" > "$output_file"
+        
+        echo "[SCANNER]: Chu kỳ hoàn tất. Nghỉ ${SCANNER_INTERVAL_SECONDS} giây."
+        sleep "$SCANNER_INTERVAL_SECONDS"
+    done
 }
 
-#---------------------------------------------------
-# -- VONG LAP CHINH --
-#---------------------------------------------------
 
-# Vong lap 1: Chi de mo game (chay moi 10 phut)
-function launch_loop() {
+# ==============================================================================
+# -- TASK 2: LAUNCHER (QUẢN LÝ CLIENT) --
+# Chạy trong một vòng lặp vô tận.
+# ==============================================================================
+function task_launcher() {
+    echo "[LAUNCHER]: Tiến trình launcher đã khởi động."
     while true; do
-        echo "================================================="
-        echo "[$(date '+%Y-%-m-%d %H:%M:%S')] KHOI DONG CHU KY MO GAME (Lap lai sau ${LaunchInterval}s)..."
+        # Chỉ source file config cục bộ, không tải lại
+        if [[ -f "$REMOTE_CONFIG_FILE" ]]; then
+            source "$REMOTE_CONFIG_FILE"
+        else
+            echo "[LAUNCHER]: Không tìm thấy file config. Chờ 60 giây..."
+            sleep 60; continue
+        fi
         
+        echo "================================================="
+        echo "[LAUNCHER] [$(date '+%H:%M:%S')] Bắt đầu chu kỳ làm mới..."
+
         read -r -a account_pairs <<< "$AccountMap"
         if [[ ${#account_pairs[@]} -eq 0 ]]; then
-            echo "Loi: 'AccountMap' chua duoc cau hinh. Vui long them 'hau_to:username'."
-        else
-            for pair in "${account_pairs[@]}"; do
-                local suffix="${pair%%:*}"
-                local package_name="${BasePackageName}${suffix}"
-                echo "-> Gui lenh join den phien ban '$suffix' ($package_name)"
-                am start -a android.intent.action.VIEW -d "$VipServerUrl" -p "$package_name"
-                sleep "$OpenDelay"
-            done
+             echo "[LAUNCHER]: Lỗi: 'AccountMap' không được định nghĩa."; sleep 60; continue
         fi
-        
-        echo "Hoan tat chu ky mo game. Dang cho..."
-        sleep "$LaunchInterval"
-    done
-}
 
-# Vong lap 2: Kiem tra Gist va dung phien ban neu can (chay moi 30 phut)
-function check_and_kill_loop() {
-    while true; do
+        for pair in "${account_pairs[@]}"; do
+            local suffix="${pair%%:*}"; local user_id="${pair##*:}"
+            local package_name="${BasePackageName}${suffix}"
+            echo "---"
+            echo "-> [LAUNCHER] Kiểm tra '$suffix' (ID: $user_id)..."
+
+            local presence_api="https://presence.roblox.com/v1/presence/users"
+            local presence_payload="{\"userIds\": [$user_id]}"
+            local presence_data_raw=$(curl --max-time 10 -s -X POST -H "Content-Type: application/json" -d "$presence_payload" "$presence_api")
+            local presence_type=$(echo "$presence_data_raw" | grep -o '"userPresenceType":[0-9]*' | sed 's/"userPresenceType"://')
+
+            if [[ "$presence_type" -ne 2 ]]; then
+                echo "   -> Trạng thái: NOT IN GAME. Khởi động lại..."
+                local pid_to_kill=$(ps -A | grep "$package_name" | grep -v grep | awk '{print $2}')
+                if [[ -n "$pid_to_kill" ]]; then
+                    echo "      => Đang tắt PID: $pid_to_kill"
+                    kill -9 "$pid_to_kill"; sleep 3
+                fi
+            else
+                echo "   -> Trạng thái: IN GAME. Gửi lệnh join để làm mới..."
+            fi
+
+            echo "      => Gửi lệnh join đến: $package_name"
+            am start -a android.intent.action.VIEW -d "$VipServerUrl" -p "$package_name"
+            sleep "$OpenDelay"
+        done
+        
         echo "================================================="
-        echo "[$(date '+%Y-%-m-%d %H:%M:%S')] KHOI DONG CHU KY KIEM TRA GIST (Lap lai sau ${CheckInterval}s)..."
-
-        echo "-> Dang tai du lieu trang thai tu Gist..."
-        local gist_content=$(curl --max-time 15 -s "$GistStatusUrl")
-
-        if [[ -z "$gist_content" ]]; then
-            echo "LOI: Khong the tai du lieu tu Gist. Co the do loi mang hoac URL sai. Bo qua chu ky nay."
-        else
-            echo "-> Tai du lieu Gist thanh cong. Bat dau kiem tra tung tai khoan."
-            read -r -a account_pairs <<< "$AccountMap"
-            for pair in "${account_pairs[@]}"; do
-                local suffix="${pair%%:*}"
-                local username="${pair##*:}"
-                
-                echo "---"
-                echo "-> Kiem tra '$username' (phien ban '$suffix')..."
-                
-                # Tim dong tuong ung voi username trong Gist
-                local user_line=$(echo "$gist_content" | grep "^${username}:")
-                
-                if [[ -z "$user_line" ]]; then
-                    echo "  -> Canh bao: Khong tim thay username '$username' trong file Gist."
-                    continue
-                fi
-                
-                # Lay trang thai (so sau dau ':') va loai bo ky tu \r
-                local status=$(echo "$user_line" | cut -d':' -f2 | tr -d '\r')
-                
-                if [[ "$status" == "0" ]]; then
-                    echo "  -> Trang thai: 0 (In-Game). Bo qua."
-                else
-                    echo "  -> Trang thai: $status (Khong phai In-Game). Tien hanh dung phien ban."
-                    kill_instance_by_suffix "$suffix"
-                fi
-            done
-        fi
-        
-        echo "Hoan tat chu ky kiem tra. Dang cho..."
-        sleep "$CheckInterval"
+        echo "[LAUNCHER]: Chu kỳ hoàn tất. Nghỉ ${LAUNCHER_CYCLE_INTERVAL} giây."
+        sleep "$LAUNCHER_CYCLE_INTERVAL"
     done
 }
 
-
-# --- DIEM KHOI DAU CUA SCRIPT ---
+# ==============================================================================
+# -- ĐIỂM KHỞI ĐẦU SCRIPT --
+# ==============================================================================
 clear
-echo "--- KHOI DONG SCRIPT DIEU KHIEN ROBLOX ---"
-echo "Kich hoat Wake Lock de giu cho thiet bi thuc..."
-termux-wake-lock &
+echo "--- ROBLOX MASTER SCRIPT ---"
 
-# Chay ca hai vong lap dong thoi o che do nen
-launch_loop &
-check_and_kill_loop &
+# Tải config lần đầu để các biến sẵn sàng
+echo "[MASTER]: Tải cấu hình lần đầu..."
+curl -sL "$CONFIG_URL" -o "$REMOTE_CONFIG_FILE"
+if [[ ! -s "$REMOTE_CONFIG_FILE" ]]; then
+    echo "[MASTER]: LỖI NGHIÊM TRỌNG: Không thể tải file config lần đầu. Thoát."
+    exit 1
+fi
+source "$REMOTE_CONFIG_FILE"
 
-# Doi cho cac tac vu nen hoan thanh (se khong bao gio xay ra, giup script chay mai mai)
+# Dừng tất cả các phiên bản cũ trước khi bắt đầu
+echo "[MASTER]: Dọn dẹp các phiên bản Roblox cũ..."
+read -r -a account_pairs <<< "$AccountMap"
+for pair in "${account_pairs[@]}"; do
+    suffix="${pair%%:*}"; package_to_stop="${BasePackageName}${suffix}"
+    pid_to_kill=$(ps -A | grep "$package_to_stop" | grep -v grep | awk '{print $2}')
+    if [[ -n "$pid_to_kill" ]]; then
+        kill -9 "$pid_to_kill"
+    fi
+done
+sleep 5
+
+# Kích hoạt Wake Lock và chạy 2 tác vụ trong nền
+echo "[MASTER]: Kích hoạt Wake Lock."
+termux-wake-lock
+echo "[MASTER]: Khởi chạy các tiến trình SCANNER và LAUNCHER trong nền."
+task_scanner &
+task_launcher &
+
+# Chờ các tiến trình nền (sẽ không bao giờ kết thúc)
+echo "[MASTER]: Script đang chạy. Để dừng lại, hãy dùng lệnh 'killall bash'."
 wait
+
