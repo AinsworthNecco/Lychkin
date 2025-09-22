@@ -27,3 +27,13 @@ OUTPUT_DIR="/storage/emulated/0/Codex/Workspace"
 
 # Tên file kết quả
 OUTPUT_FILE_NAME="neco.txt"
+AccountMap="b:8825003633 c:8824995724 d:8824993363 e:8825031832 f:8825018935 g:8937252512"
+
+# Tên package cơ bản của Roblox (không nên thay đổi)
+BasePackageName="com.roblox.client" # Chú ý: tên đúng là 'client' không phải 'clien'
+
+# Thời gian chờ (giây) giữa mỗi lần gửi lệnh 'am start'
+OpenDelay=15
+# Thời gian (giây) để lặp lại toàn bộ chu trình (Quét -> Dừng -> Khởi động)
+# 900 giây = 15 phút
+SCAN_INTERVAL_SECONDS="900"
