@@ -96,7 +96,7 @@ local CoreGui = cloneref(game:GetService("CoreGui"))
 local rng = Random.new()
 
 -- --- Cấu hình Script (Không nên thay đổi) ---
-local placeId = game.PlaceId; local currentJobId = game.JobId; local PLATFORM_VERTICAL_OFFSET = 0; local SERVER_HISTORY_FILENAME = "server_hop_history.txt"; local SHARED_SERVER_CACHE_FILENAME = "shared_server_cache.txt";
+local placeId = game.PlaceId; local currentJobId = game.JobId; local PLATFORM_VERTICAL_OFFSET = 0; local SERVER_HISTORY_FILENAME = "server_hop_history.txt"; local SHARED_SERVER_CACHE_FILENAME = "shared_server_cache.txt"; local NECO_SERVER_LIST_FILENAME = "neco.txt"
 local SERVER_HOP_GUI_NAME = "ServerHopStatusGUI"; local AFK_PLATFORM_NAME = "MySafeAFKPlatform"; local STATIC_HEAD_ANCHOR_PART_NAME = "AFK_HeadAnchor_StaticCam"; local STATIC_BLACK_SCREEN_PART_NAME = "AFK_BlackScreen_StaticCam"; local NEON_COLORS = { GREEN = Color3.fromRGB(10, 255, 20), YELLOW = Color3.fromRGB(255, 255, 0), BLUE = Color3.fromRGB(0, 150, 255), RED = Color3.fromRGB(255, 20, 20) }
 
 -- --- Biến toàn cục ---
@@ -107,7 +107,9 @@ local countdownShouldReset = false; local currentCountdownThread = nil; local pl
 local serverHistoryCache = {}
 local isRateLimited = false
 local isHoppingFromCache = false 
-local cachedCandidateServers = {} 
+local isHoppingFromNeco = false
+local cachedCandidateServers = {}
+local necoCandidateServers = {}
 
 -- --- Kiểm tra và gán hàm đọc/ghi file ---
 local canAccessFiles = false; local writefile_func, readfile_func; if SETTINGS.EnableFileHistory then pcall(function() if writefile and readfile then canAccessFiles, writefile_func, readfile_func = true, writefile, readfile; print("[FileIO] Quyền file có sẵn.") else print("[FileIO] Quyền file KHÔNG có sẵn.") end end) else print("[FileIO] Lịch sử file bị TẮT.") end
@@ -208,6 +210,23 @@ local function loadServersFromSharedCache()
     return cachedIds
 end
 
+local function loadNecoServers()
+    if not canAccessFiles then return {} end
+
+    local necoIds = {}
+    local success, content = pcall(readfile_func, NECO_SERVER_LIST_FILENAME)
+    if success and content then
+        for line in string.gmatch(content, "[^" .. "\r\n" .. "]+") do
+            local trimmedLine = line:match("^%s*(.-)%s*$")
+            if trimmedLine and #trimmedLine > 0 and not serverHistoryCache[trimmedLine] then
+                table.insert(necoIds, trimmedLine)
+            end
+        end
+        print(string.format("[Neco] Đã tải %d server hợp lệ từ %s.", #necoIds, NECO_SERVER_LIST_FILENAME))
+    end
+    return necoIds
+end
+
 
 local function createSafePlatform() updateDisplay("INFO", "Đang tạo platform..."); if game.Workspace:FindFirstChild(AFK_PLATFORM_NAME) then updateDisplay("INFO", "Platform đã có."); return end; local p=Instance.new("Part");p.Name=AFK_PLATFORM_NAME;p.Anchored=true;p.CanCollide=true;p.Size=Vector3.new(20000,40,20000);p.Color=Color3.fromRGB(50,50,50);p.Transparency=0; local char=LocalPlayer.Character; local hum=char and char:FindFirstChildOfClass("Humanoid"); local hrp=char and char:FindFirstChild("HumanoidRootPart"); if hum and hrp then local hrpP=hrp.Position;local hrpSY=hrp.Size.Y;local hipH=hum.HipHeight;local fCIY=hrpP.Y-(hrpSY/2)-hipH;local pTTY=fCIY-PLATFORM_VERTICAL_OFFSET;local pCY=pTTY-(p.Size.Y/2);p.Position=Vector3.new(hrpP.X,pCY,hrpP.Z); else p.Position=Vector3.new(0,-30-PLATFORM_VERTICAL_OFFSET,0); end; p.Parent=game.Workspace; updateDisplay("SUCCESS", "Platform đã tạo."); end
 local function setupStaticAfkView() updateDisplay("INFO", "Thiết lập view AFK tĩnh..."); local player = LocalPlayer; local character = player.Character or player.CharacterAdded:Wait(); if not character then return end; local head = character:WaitForChild("Head", 10); if not head then return end; local camera = workspace.CurrentCamera; if not camera then return end; local staticHeadAnchor = workspace:FindFirstChild(STATIC_HEAD_ANCHOR_PART_NAME) or Instance.new("Part"); staticHeadAnchor.Name=STATIC_HEAD_ANCHOR_PART_NAME; staticHeadAnchor.Size=Vector3.new(0.1,0.1,0.1); staticHeadAnchor.Transparency=1; staticHeadAnchor.CanCollide=false; staticHeadAnchor.Parent=workspace; staticHeadAnchor.CFrame = CFrame.new(head.Position); staticHeadAnchor.Anchored = true; local blackTarget = workspace:FindFirstChild(STATIC_BLACK_SCREEN_PART_NAME) or Instance.new("Part"); blackTarget.Name=STATIC_BLACK_SCREEN_PART_NAME; blackTarget.Size=Vector3.new(2500,2500,10); blackTarget.Color=Color3.new(0,0,0); blackTarget.CanCollide=false; blackTarget.Parent=workspace; local eastPositionFromAnchor = staticHeadAnchor.Position + Vector3.new(150,0,0); blackTarget.CFrame=CFrame.new(eastPositionFromAnchor); blackTarget.Anchored=true; camera.CameraType=Enum.CameraType.Scriptable; camera.CFrame=CFrame.new(staticHeadAnchor.Position,blackTarget.Position); camera.Focus=blackTarget.CFrame; updateDisplay("SUCCESS", "View AFK tĩnh đã thiết lập.") end
@@ -220,6 +239,7 @@ local nextServerCursor = nil
 local currentRetryDelay = 5
 local tryNextServer
 local tryNextCachedServer
+local tryNextNecoServer
 local searchForServer
 local fetchNextBatch
 
@@ -256,12 +276,24 @@ tryNextCachedServer = function()
         updateDisplay("ERROR", "Đã thử hết server trong cache. Tất cả đều lỗi.")
         updateDisplay("INFO", "Quay lại quét API để lấy server mới...")
         isHoppingFromCache = false 
-        isRateLimited = false     
+        isRateLimited = false      
         task.wait(1)              
         fetchNextBatch()          
     end
 end
 
+tryNextNecoServer = function()
+    if #necoCandidateServers > 0 then
+        local targetServerId = necoCandidateServers[1] -- Luôn thử server đầu tiên trong danh sách
+        updateDisplay("INFO", string.format("Thử server Neco: %s...", targetServerId:sub(1, 12)))
+        executeTeleport(targetServerId)
+    else
+        -- Trường hợp này không nên xảy ra nếu logic đúng, nhưng để dự phòng:
+        isHoppingFromNeco = false
+        updateDisplay("ERROR", "Hết server trong neco.txt để thử.")
+        searchForServer() -- Bắt đầu lại quy trình, sẽ chuyển sang API
+    end
+end
 
 function persistentFetch(url)
     local success, response = false, nil
@@ -379,13 +411,22 @@ tryNextServer = function()
 end
 
 searchForServer = function()
-    updateDisplay("INFO", "Bắt đầu tìm server...")
-    candidateServers = {}
-    nextServerCursor = nil
-    currentRetryDelay = 5
-    isHoppingFromCache = false
     prepareToHop()
-    tryNextServer()
+    isHoppingFromNeco = false
+    isHoppingFromCache = false
+
+    necoCandidateServers = loadNecoServers()
+    if #necoCandidateServers > 0 then
+        isHoppingFromNeco = true
+        updateDisplay("INFO", string.format("Tìm thấy %d server trong neco.txt.\nBắt đầu spam...", #necoCandidateServers))
+        tryNextNecoServer()
+    else
+        updateDisplay("INFO", "neco.txt rỗng hoặc đã vào hết.\nBắt đầu tìm server từ API...")
+        candidateServers = {}
+        nextServerCursor = nil
+        currentRetryDelay = 5
+        tryNextServer() -- This starts the old API-based logic
+    end
 end
 
 TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, errorMessage)
@@ -400,6 +441,21 @@ TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, erro
         reason = errorMessage
     end
     
+    if isHoppingFromNeco then
+        updateDisplay("ERROR", "Neco teleport thất bại: " .. reason)
+        updateDisplay("INFO", "Spam server Neco tiếp theo sau 0.5s...")
+        task.wait(0.5)
+
+        if #necoCandidateServers > 1 then
+            -- Chuyển server lỗi xuống cuối danh sách để thử server khác
+            local failedServer = table.remove(necoCandidateServers, 1)
+            table.insert(necoCandidateServers, failedServer)
+        end
+        -- Nếu chỉ còn 1 server, nó sẽ tiếp tục thử lại server đó.
+        tryNextNecoServer()
+        return -- Dừng thực thi tại đây
+    end
+
     updateDisplay("ERROR", "Dịch chuyển thất bại: " .. reason)
     updateDisplay("INFO", "Tìm server khác sau 0.5 giây...")
     task.wait(0.5)
