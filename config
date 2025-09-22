@@ -1,20 +1,17 @@
-ID của game cần quét
+# ID của game cần quét
 PLACE_ID="8737602449"
 
-Tỷ lệ người chơi (0-100)
+# Tỷ lệ người chơi (0-100)
 MIN_PLAYER_PERCENTAGE=60
 MAX_PLAYER_PERCENTAGE=90
 
-Số server tối đa cần thu thập
+# Số server tối đa cần thu thập
 MAX_SERVERS_TO_COLLECT=200
 
-Thời gian nghỉ giữa các chu kỳ (giây)
+# Thời gian nghỉ giữa các chu kỳ (giây)
 SCAN_INTERVAL_SECONDS=60
 
-(QUAN TRỌNG) Dán danh sách proxy của bạn ở đây.
-Script hỗ trợ 2 định dạng đơn giản:
-- IP:PORT
-- IP:PORT:LOGIN:PASSWORD
+# Script hỗ trợ 2 định dạng đơn giản:
 PROXY_LIST=(
 "142.111.48.253:7030:srimmznx:pbutjh244it9"
 "198.23.239.134:6540:srimmznx:pbutjh244it9"
@@ -28,8 +25,8 @@ PROXY_LIST=(
 "142.147.128.93:6593:srimmznx:pbutjh244it9"
 )
 
-Đường dẫn thư mục lưu file
+# Đường dẫn thư mục lưu file
 OUTPUT_DIR="/storage/emulated/0/Codex/Workspace"
 
-Tên file kết quả
+# Tên file kết quả
 OUTPUT_FILE_NAME="neco.txt"
