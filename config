@@ -9,7 +9,7 @@ MAX_PLAYER_PERCENTAGE=90
 MAX_SERVERS_TO_COLLECT=200
 
 # Thời gian nghỉ giữa các chu kỳ (giây)
-SCAN_INTERVAL_SECONDS=60
+SCAN_INTERVAL_SECONDS=5
 
 # Script hỗ trợ 2 định dạng đơn giản:
 PROXY_LIST=(
