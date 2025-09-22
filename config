@@ -1,36 +1,15 @@
-#!/bin/bash
-
-# ===============================================
-# CẤU HÌNH CHO MASTER SCRIPT (SCANNER & LAUNCHER)
-# ===============================================
-
-# --- CẤU HÌNH CHUNG ---
-
-# Ánh xạ giữa hậu tố package và ID tài khoản Roblox
-AccountMap="b:9304509259 c:9304500182 d:9304524640 e:9304476431 f:9304529073"
-
-# Tên package cơ bản của Roblox
-BasePackageName="com.roblox.client"
-
-# --- CẤU HÌNH SCANNER ---
-
 # ID của game cần quét
 PLACE_ID="8737602449"
 
-# Khoảng người chơi (theo phần trăm) của server muốn tìm
+# Tỷ lệ người chơi (0-100)
 MIN_PLAYER_PERCENTAGE=60
-MAX_PLAYER_PERCENTAGE=80
+MAX_PLAYER_PERCENTAGE=90
 
-# Thời gian nghỉ (giây) giữa mỗi lần quét
-SCANNER_INTERVAL_SECONDS=5
+# Thời gian nghỉ giữa các chu kỳ (giây)
+SCAN_INTERVAL_SECONDS=180
 
-# Đường dẫn thư mục lưu file kết quả quét
-OUTPUT_DIR="/storage/emulated/0/Codex/Workspace"
-
-# Tên file kết quả quét
-OUTPUT_FILE_NAME="neco.txt"
-
-# Danh sách proxy để quét (IP:PORT:USER:PASS)
+# Nếu PROXY_LIST có giá trị, script sẽ CHỈ dùng proxy.
+# Nếu trống, script sẽ dùng IP gốc.
 PROXY_LIST=(
 "142.111.48.253:7030:srimmznx:pbutjh244it9"
 "198.23.239.134:6540:srimmznx:pbutjh244it9"
@@ -44,14 +23,8 @@ PROXY_LIST=(
 "142.147.128.93:6593:srimmznx:pbutjh244it9"
 )
 
-# --- CẤU HÌNH LAUNCHER ---
+# Đường dẫn thư mục lưu file
+OUTPUT_DIR="/storage/emulated/0/Codex/Workspace"
 
-# URL của VIP Server để các tài khoản tham gia
-VipServerUrl="roblox://placeId=8737602449"
-
-# Thời gian (giây) giữa mỗi chu kỳ kiểm tra/làm mới của launcher
-LAUNCHER_CYCLE_INTERVAL=300
-
-# Thời gian chờ (giây) giữa mỗi lần gửi lệnh 'am start'
-OpenDelay=15
-
+# Tên file kết quả
+OUTPUT_FILE_NAME="neco.txt"
