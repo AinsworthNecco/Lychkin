@@ -19,5 +19,5 @@ OUTPUT_FILE_NAME="neco.txt"
 # proxy
 PROXY_LIST=(
 "103.121.90.122:31791"
-"http://ip2:port2"
+"103.121.90.122:30851"
 )
