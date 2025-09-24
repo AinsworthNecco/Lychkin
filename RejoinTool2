@@ -12,13 +12,11 @@ import threading
 from datetime import datetime
 
 # ==============================================================================
-# SCRIPT KẾT HỢP: ROBLOX TASK RUNNER v3.1
+# SCRIPT KẾT HỢP: ROBLOX TASK RUNNER v3.2
 #
 # CẢI TIẾN:
-# - Sửa lỗi 'AttributeError' khi chạy script không có tham số.
-# - Sửa lỗi hiển thị log trong luồng LAUNCH.
-# - Luồng SCAN và LAUNCH giờ đây chỉ tải config 1 lần duy nhất khi khởi động.
-# - Sử dụng 'stu' thay vì 'su' cho các lệnh yêu cầu root.
+# - Viết lại hoàn toàn logic xử lý tham số dòng lệnh để sửa lỗi 'AttributeError'.
+# - Script giờ đây sẽ mặc định chạy chế độ 'parallel' một cách an toàn.
 # ==============================================================================
 
 # ---------------------------------------------------
@@ -355,7 +353,7 @@ def launcher_loop(launch_mode):
 # ==============================================================================
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Roblox Task Runner v3.1 - Công cụ tự động quét và tham gia server thông minh.")
+    parser = argparse.ArgumentParser(description="Roblox Task Runner v3.2 - Công cụ tự động quét và tham gia server thông minh.")
     subparsers = parser.add_subparsers(dest='command', help='Các lệnh có sẵn')
 
     # Lệnh 'parallel'
@@ -369,17 +367,15 @@ if __name__ == "__main__":
     launch_parser = subparsers.add_parser('launch', help='Chỉ chạy tác vụ tham gia game.')
     launch_parser.add_argument('--mode', choices=['scan', 'vip'], default='scan', help="Chọn chế độ tham gia game.")
 
-    args = parser.parse_args()
-    
-    # Xử lý trường hợp không có lệnh nào được cung cấp
-    if args.command is None:
-        command = 'parallel'
-        # Gán giá trị mode mặc định cho trường hợp không có lệnh
-        class Args:
-            mode = 'vip'
-        args = Args()
-    else:
-        command = args.command
+    # --- LOGIC MỚI: Xử lý đối số đầu vào một cách mạnh mẽ hơn ---
+    args_to_parse = sys.argv[1:]
+    valid_commands = ['parallel', 'scan', 'launch']
+    if not args_to_parse or args_to_parse[0] not in valid_commands:
+        args_to_parse.insert(0, 'parallel')
+
+    args = parser.parse_args(args_to_parse)
+    command = args.command
+    # ----------------------------------------------------------------
 
     try:
         if command == 'scan':
