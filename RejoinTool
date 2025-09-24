@@ -8,14 +8,16 @@ import os
 import sys
 import argparse
 import re
+import threading
 from datetime import datetime
 
 # ==============================================================================
-# SCRIPT KẾT HỢP: ROBLOX TASK RUNNER v2.1
+# SCRIPT KẾT HỢP: ROBLOX TASK RUNNER v2.5
 #
 # CẢI TIẾN:
-# - Cập nhật logic đọc cấu hình để hỗ trợ giá trị trên nhiều dòng (multi-line),
-#   giúp danh sách proxy trong file config trở nên gọn gàng hơn.
+# - Luồng `launch` giờ đây CHỈ tải cấu hình một lần duy nhất khi khởi động
+#   và ghi nhớ nó, không cập nhật lại ở mỗi chu kỳ.
+# - Luồng `scan` vẫn cập nhật cấu hình thường xuyên như cũ.
 # ==============================================================================
 
 # ---------------------------------------------------
@@ -23,7 +25,7 @@ from datetime import datetime
 # ---------------------------------------------------
 CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/config"
 
-# --- CÁC GIÁ TRỊ MẶC ĐỊNH (sẽ bị ghi đè bởi file config từ URL) ---
+# --- CÁC GIÁ TRỊ MẶC ĐỊNH ---
 DEFAULT_CONFIG = {
     "ACCOUNT_SUFFIXES": ["b", "c", "d", "e", "f"],
     "PLACE_ID": "8737602449",
@@ -45,49 +47,32 @@ DEFAULT_CONFIG = {
 proxy_index = 0
 failed_proxy_count = 0
 current_proxies = []
+file_lock = threading.Lock() # Lock để bảo vệ việc truy cập file
 
 # ==============================================================================
 # -- CÁC HÀM TIỆN ÍCH --
 # ==============================================================================
 
 def fetch_and_load_config(url):
-    """Tải và phân tích tệp cấu hình từ xa. Hỗ trợ giá trị trên nhiều dòng."""
-    print(f"[*] Đang tải cấu hình từ: {url}")
+    """Tải và phân tích tệp cấu hình từ xa."""
+    print("[CONFIG] Đang tải cấu hình...")
     try:
         response = requests.get(url, timeout=20)
         response.raise_for_status()
         config = DEFAULT_CONFIG.copy()
-
-        # Regex để tìm các cặp KEY="VALUE", hỗ trợ giá trị trên nhiều dòng bên trong dấu ngoặc.
         pattern = re.compile(r'^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(["\'])(.*?)\2', re.DOTALL | re.MULTILINE)
-        
         for key, _, value in pattern.findall(response.text):
-            # Bỏ qua nếu key không tồn tại trong cấu hình mặc định để tránh lỗi
-            if key not in config:
-                continue
-
-            # Xử lý giá trị
+            if key not in config: continue
             value = value.strip()
-            
-            # Chuyển đổi các giá trị sang đúng kiểu dữ liệu
-            if key in ["SCAN_INTERVAL_SECONDS", "LAUNCH_INTERVAL_SECONDS", "LAUNCH_DELAY_SECONDS", "CONNECTION_TIMEOUT"]:
-                config[key] = int(value)
-            elif key in ["MIN_PLAYER_PERCENTAGE", "MAX_PLAYER_PERCENTAGE"]:
-                config[key] = float(value)
-            elif key == "ACCOUNT_SUFFIXES":
-                # Suffixes vẫn là danh sách phân tách bằng dấu phẩy
-                config[key] = [item.strip() for item in value.split(',') if item.strip()]
-            elif key == "PROXY_LIST":
-                # Proxies giờ là danh sách phân tách bằng dòng mới
-                config[key] = [item.strip() for item in value.splitlines() if item.strip()]
-            else:
-                config[key] = value
-
-        print("    ✅ Tải và xử lý cấu hình thành công.")
+            if key in ["SCAN_INTERVAL_SECONDS", "LAUNCH_INTERVAL_SECONDS", "LAUNCH_DELAY_SECONDS", "CONNECTION_TIMEOUT"]: config[key] = int(value)
+            elif key in ["MIN_PLAYER_PERCENTAGE", "MAX_PLAYER_PERCENTAGE"]: config[key] = float(value)
+            elif key == "ACCOUNT_SUFFIXES": config[key] = [item.strip() for item in value.split(',') if item.strip()]
+            elif key == "PROXY_LIST": config[key] = [item.strip() for item in value.splitlines() if item.strip()]
+            else: config[key] = value
+        print("[CONFIG] ✅ Tải cấu hình thành công.")
         return config
     except requests.exceptions.RequestException as e:
-        print(f"    ❌ Lỗi: Không thể tải file cấu hình: {e}")
-        print("    [*] Sử dụng cấu hình mặc định.")
+        print(f"[CONFIG] ❌ Lỗi: Không thể tải file cấu hình: {e}. Dùng cấu hình mặc định.")
         return DEFAULT_CONFIG.copy()
 
 def format_proxies(proxy_list):
@@ -102,31 +87,30 @@ def format_proxies(proxy_list):
         if proxy_url: formatted.append({"http": proxy_url, "https": proxy_url})
     return formatted
 
-def countdown(seconds):
+def countdown(seconds, thread_name="MAIN"):
     """Hiển thị đồng hồ đếm ngược."""
     for i in range(seconds, 0, -1):
-        print(f"Thời gian chờ còn lại: {i} giây   ", end='\r')
+        print(f"[{thread_name}] Thời gian chờ còn lại: {i} giây   ", end='\r')
         sys.stdout.flush()
         time.sleep(1)
-    print("\n")
-    
+    print(f"[{thread_name}] Bắt đầu chu kỳ mới.                                  ")
+
 # ==============================================================================
-# -- CÁC HÀM CHỨC NĂNG CHÍNH (Không thay đổi) --
+# -- CÁC HÀM CHỨC NĂNG CHÍNH --
 # ==============================================================================
 
-def get_api_data(url, config):
+def get_api_data(url, config, thread_name):
     """Hàm "hộp đen" an toàn để kết nối API, tự động xử lý proxy và lỗi."""
     global proxy_index, failed_proxy_count, current_proxies
     num_proxies = len(current_proxies)
     while True:
         if num_proxies > 0 and failed_proxy_count >= num_proxies:
-            print("\n    [!] Tất cả proxies đều thất bại. Tạm dừng 5 giây...")
+            print(f"\n[{thread_name}] [!] Tất cả proxies đều thất bại. Tạm dừng 5 giây...")
             time.sleep(5)
-            failed_proxy_count = 0
-            proxy_index = 0
+            failed_proxy_count = 0; proxy_index = 0
         proxy, proxy_status = (current_proxies[proxy_index], f"Proxy {proxy_index + 1}/{num_proxies}") if num_proxies > 0 else (None, "IP Gốc")
         try:
-            print(f"\r    [*] Kết nối API... | {proxy_status}", end="")
+            print(f"\r[{thread_name}] [*] Kết nối API... | {proxy_status}", end="")
             sys.stdout.flush()
             response = requests.get(url, proxies=proxy, timeout=config["CONNECTION_TIMEOUT"])
             if response.status_code == 200:
@@ -137,32 +121,29 @@ def get_api_data(url, config):
             raise requests.exceptions.HTTPError(error_reason)
         except (requests.exceptions.RequestException, requests.exceptions.HTTPError) as e:
             if num_proxies > 0:
-                print(f"\n    [!] Proxy #{proxy_index + 1} thất bại ({e}). Chuyển proxy...")
+                print(f"\n[{thread_name}] [!] Proxy #{proxy_index + 1} thất bại ({e}). Chuyển proxy...")
                 failed_proxy_count += 1
                 proxy_index = (proxy_index + 1) % num_proxies
                 time.sleep(1)
             else:
-                print(f"\n    [!] IP Gốc thất bại ({e}). Tạm dừng 60 giây...")
+                print(f"\n[{thread_name}] [!] IP Gốc thất bại ({e}). Tạm dừng 60 giây...")
                 time.sleep(60)
 
-def run_scanner(config):
+def run_scanner(config, thread_name="SCAN"):
     """Quét API, lọc server và LƯU KẾT QUẢ VÀO FILE."""
     global current_proxies
-    print("\n[+] Bắt đầu quá trình quét server 'Precision Scan'...")
+    print(f"[{thread_name}] Bắt đầu quá trình quét server...")
     current_proxies = format_proxies(config["PROXY_LIST"])
-    print(f"    [*] Đã xử lý {len(current_proxies)} proxy." if current_proxies else "    [*] Dùng IP gốc.")
     min_ratio, max_ratio = config["MIN_PLAYER_PERCENTAGE"] / 100.0, config["MAX_PLAYER_PERCENTAGE"] / 100.0
-    print(f"    [*] Tiêu chí: {config['MIN_PLAYER_PERCENTAGE']}% - {config['MAX_PLAYER_PERCENTAGE']}% người chơi.")
-    print("-------------------------------------------------")
     collected_ids, next_cursor = [], ""
     while True:
         api_url = f"https://games.roblox.com/v1/games/{config['PLACE_ID']}/servers/Public?sortOrder=Desc&limit=100"
         if next_cursor and next_cursor != "null": api_url += f"&cursor={next_cursor}"
-        response_data = get_api_data(api_url, config)
+        response_data = get_api_data(api_url, config, thread_name)
         if not response_data: continue
         servers, next_cursor = response_data.get("data", []), response_data.get("nextPageCursor")
         if not servers:
-            print("\n    [i] Không tìm thấy server nào trên trang này. Dừng quét.")
+            print(f"\n[{thread_name}] [i] Không tìm thấy server nào trên trang này. Dừng quét.")
             break
         total_ratio = sum((s.get("playing", 0) / s.get("maxPlayers", 1)) for s in servers if s.get("maxPlayers", 0) > 0)
         for server in servers:
@@ -172,120 +153,135 @@ def run_scanner(config):
                     server_id = server.get("id")
                     if server_id and server_id not in collected_ids: collected_ids.append(server_id)
         avg_ratio = (total_ratio / len(servers)) if servers else 0
-        print(f"\r    [+] Đang quét... | Page Fill: {avg_ratio * 100:5.1f}% | Đã thu thập: {len(collected_ids):<5}", end="")
-        sys.stdout.flush()
-        if 0 < avg_ratio < min_ratio:
-            print("\n    [i] Đã đi qua khu vực server mục tiêu. Dừng quét.")
+        print(f"\r[{thread_name}] Đang quét... | Page Fill: {avg_ratio * 100:5.1f}% | Đã thu thập: {len(collected_ids):<5}", end="")
+        if 0 < avg_ratio < min_ratio or not next_cursor or next_cursor == "null":
+            print(f"\n[{thread_name}] [i] Đã đến trang cuối hoặc qua vùng mục tiêu. Dừng quét.")
             break
-        if not next_cursor or next_cursor == "null":
-            print("\n    [i] Đã đến trang cuối cùng. Dừng quét.")
-            break
-    print("\n-------------------------------------------------")
+    
     output_path = config["OUTPUT_FILE_PATH"]
-    with open(output_path, "w") as f:
-        for server_id in collected_ids:
-            f.write(f"{server_id}\n")
-    print(f"✅ Quét hoàn tất. Đã lưu {len(collected_ids)} server ID vào file: '{output_path}'")
+    # Sử dụng lock để ghi file an toàn
+    with file_lock:
+        with open(output_path, "w") as f:
+            for server_id in collected_ids:
+                f.write(f"{server_id}\n")
+    print(f"[{thread_name}] ✅ Quét hoàn tất. Đã lưu {len(collected_ids)} server ID vào '{output_path}'")
+    return True
 
-def launch_roblox_instances(config, launch_mode):
-    """Khởi chạy các instance Roblox dựa trên chế độ đã chọn."""
-    server_ids = []
-    target_url_template = ""
-
+def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
+    """Khởi chạy các instance Roblox."""
+    server_ids, target_url_template = [], ""
     if launch_mode == 'scan':
-        print(f"\n[+] Chế độ: JOIN SERVER TỪ FILE QUÉT '{config['OUTPUT_FILE_PATH']}'")
-        try:
-            with open(config['OUTPUT_FILE_PATH'], 'r') as f:
-                server_ids = [line.strip() for line in f if line.strip()]
-            if not server_ids:
-                print("    [-] File server rỗng hoặc không hợp lệ. Bỏ qua chu kỳ này.")
+        # Sử dụng lock để đọc file an toàn
+        with file_lock:
+            try:
+                with open(config['OUTPUT_FILE_PATH'], 'r') as f:
+                    server_ids = [line.strip() for line in f if line.strip()]
+            except FileNotFoundError:
+                print(f"[{thread_name}] [-] Lỗi: Không tìm thấy file server. Hãy chờ lần quét đầu tiên hoàn tất.")
                 return
-            print(f"    [*] Đã đọc được {len(server_ids)} server ID từ file.")
-        except FileNotFoundError:
-            print(f"    [-] Lỗi: Không tìm thấy file '{config['OUTPUT_FILE_PATH']}'.")
-            print("    [-] Hãy chạy chế độ 'scan' trước để tạo file này. Bỏ qua chu kỳ.")
+        if not server_ids:
+            print(f"[{thread_name}] [-] File server rỗng. Đang chờ kết quả quét mới.")
             return
     elif launch_mode == 'vip':
-        print("\n[+] Chế độ: JOIN SERVER VIP")
-        if not config.get('VIP_SERVER_URL'):
-            print("    [-] Lỗi: VIP_SERVER_URL chưa được cấu hình. Bỏ qua chu kỳ.")
+        if not config.get('VIP_SERVER_URL') or config['VIP_SERVER_URL'] == "":
+            print(f"[{thread_name}] [-] Lỗi: VIP_SERVER_URL chưa được cấu hình. Bỏ qua chu kỳ.")
             return
         target_url_template = config['VIP_SERVER_URL']
-        print(f"    [*] URL mục tiêu: {target_url_template}")
 
-    print(f"\n[+] Bắt đầu gửi lệnh tham gia tới {len(config['ACCOUNT_SUFFIXES'])} tài khoản...")
+    print(f"[{thread_name}] Bắt đầu gửi lệnh tham gia tới {len(config['ACCOUNT_SUFFIXES'])} tài khoản...")
     for i, suffix in enumerate(config["ACCOUNT_SUFFIXES"]):
         package_name = f"{config['BASE_PACKAGE_NAME']}{suffix}"
-        target_url = ""
-        log_msg = ""
+        target_url, log_msg = "", ""
         if launch_mode == 'scan':
             server_id = server_ids[i % len(server_ids)]
             target_url = f"roblox://placeId={config['PLACE_ID']}&gameId={server_id}"
-            log_msg = f"tài khoản '{suffix}' (Server ID: ...{str(server_id)[-12:]})"
+            log_msg = f"'{suffix}' (Server: ...{str(server_id)[-12:]})"
         elif launch_mode == 'vip':
             target_url = target_url_template
-            log_msg = f"tài khoản '{suffix}' (VIP Server)"
-        
+            log_msg = f"'{suffix}' (VIP Server)"
         command = ["am", "start", "-a", "android.intent.action.VIEW", "-d", target_url, "-p", package_name]
-        print(f"    -> Đang gửi lệnh join đến {log_msg}")
+        print(f"[{thread_name}] -> Gửi lệnh đến {log_msg}")
         try:
-            subprocess.run(command, check=True, capture_output=True, text=True)
+            subprocess.run(command, check=False, capture_output=True, text=True)
         except Exception as e:
-            print(f"       Lỗi khi thực thi lệnh cho '{suffix}': {e}")
+            print(f"[{thread_name}] Lỗi khi thực thi lệnh cho '{suffix}': {e}")
         time.sleep(config["LAUNCH_DELAY_SECONDS"])
+
+# ==============================================================================
+# -- CÁC VÒNG LẶP CHO THREAD --
+# ==============================================================================
+
+def scanner_loop():
+    """Vòng lặp vô hạn cho tác vụ quét (luôn cập nhật config)."""
+    while True:
+        config = fetch_and_load_config(CONFIG_URL)
+        run_scanner(config, "SCAN")
+        interval = config["SCAN_INTERVAL_SECONDS"]
+        countdown(interval, "SCAN")
+
+def launcher_loop(launch_mode):
+    """Vòng lặp vô hạn cho tác vụ tham gia game (chỉ tải config 1 lần)."""
+    # Tải cấu hình CHỈ MỘT LẦN khi luồng khởi động
+    print("[LAUNCH] Tải cấu hình lần đầu...")
+    config = fetch_and_load_config(CONFIG_URL)
+    print("[LAUNCH] Cấu hình đã được ghi nhớ và sẽ không được cập nhật lại.")
+    interval = config["LAUNCH_INTERVAL_SECONDS"]
+    
+    while True:
+        # Không tải lại config, sử dụng config đã ghi nhớ
+        launch_roblox_instances(config, launch_mode, "LAUNCH")
+        # Thời gian nghỉ sẽ không thay đổi trừ khi script được khởi động lại
+        countdown(interval, "LAUNCH")
+
 
 # ==============================================================================
 # -- ĐIỂM KHỞI ĐẦU SCRIPT --
 # ==============================================================================
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(
-        description="Roblox Task Runner - Công cụ tự động quét và tham gia server.",
-        formatter_class=argparse.RawTextHelpFormatter
-    )
-    subparsers = parser.add_subparsers(dest='command', required=True, help='Các lệnh có sẵn')
+    parser = argparse.ArgumentParser(description="Roblox Task Runner - Công cụ tự động quét và tham gia server.")
+    subparsers = parser.add_subparsers(dest='command', help='Các lệnh có sẵn')
 
-    # Định nghĩa lệnh 'scan'
+    # Lệnh 'parallel' để chạy song song
+    parallel_parser = subparsers.add_parser('parallel', help='Chạy cả hai tác vụ quét và tham gia song song (mặc định).')
+    
+    # Lệnh 'scan'
     scan_parser = subparsers.add_parser('scan', help='Chỉ chạy tác vụ quét và lưu server ID vào file.')
     
-    # Định nghĩa lệnh 'launch'
+    # Lệnh 'launch'
     launch_parser = subparsers.add_parser('launch', help='Chỉ chạy tác vụ tham gia game.')
-    launch_parser.add_argument(
-        '--mode', 
-        choices=['scan', 'vip'], 
-        default='scan',
-        help="Chọn chế độ tham gia game:\n"
-             "  scan - Đọc server ID từ file do lệnh 'scan' tạo ra (mặc định).\n"
-             "  vip  - Tham gia một VIP server cố định từ cấu hình."
-    )
+    launch_parser.add_argument('--mode', choices=['scan', 'vip'], default='scan', help="Chọn chế độ tham gia game.")
 
     args = parser.parse_args()
+    command = args.command if args.command else 'parallel' # Đặt 'parallel' làm mặc định
 
-    # Chạy tác vụ dựa trên lệnh được cung cấp
     try:
-        if args.command == 'scan':
-            print("--- KHỞI ĐỘNG CHẾ ĐỘ QUÉT SERVER LIÊN TỤC ---")
-            print("Nhấn Ctrl+C để dừng.")
-            while True:
-                config = fetch_and_load_config(CONFIG_URL)
-                run_scanner(config)
-                interval = config["SCAN_INTERVAL_SECONDS"]
-                print(f"\n--- Chu kỳ quét hoàn tất. Chờ {interval} giây... ---")
-                countdown(interval)
+        if command == 'scan':
+            print("--- KHỞI ĐỘNG CHẾ ĐỘ CHỈ QUÉT SERVER ---")
+            scanner_loop()
         
-        elif args.command == 'launch':
-            print("--- KHỞI ĐỘNG CHẾ ĐỘ THAM GIA GAME LIÊN TỤC ---")
-            print(f"Chế độ được chọn: {args.mode.upper()}")
-            print("Nhấn Ctrl+C để dừng.")
-            while True:
-                config = fetch_and_load_config(CONFIG_URL)
-                launch_roblox_instances(config, args.mode)
-                interval = config["LAUNCH_INTERVAL_SECONDS"]
-                print(f"\n--- Chu kỳ tham gia hoàn tất. Chờ {interval} giây... ---")
-                countdown(interval)
+        elif command == 'launch':
+            print(f"--- KHỞI ĐỘNG CHẾ ĐỘ CHỈ THAM GIA GAME (MODE: {args.mode.upper()}) ---")
+            launcher_loop(args.mode)
+        
+        elif command == 'parallel':
+            print("--- KHỞI ĐỘNG CHẾ ĐỘ SONG SONG (SCAN & LAUNCH VIP ĐỘC LẬP) ---")
+            scanner_thread = threading.Thread(target=scanner_loop, daemon=True)
+            # CẬP NHẬT: Luồng tham gia sẽ luôn dùng chế độ 'vip' để hoàn toàn độc lập với luồng quét.
+            launcher_thread = threading.Thread(target=launcher_loop, args=('vip',), daemon=True)
+
+            scanner_thread.start()
+            print("[MAIN] Đã khởi động luồng quét (SCAN).")
+            
+            launcher_thread.start()
+            print("[MAIN] Đã khởi động luồng tham gia VIP (LAUNCH).")
+
+            # Giữ chương trình chính chạy
+            scanner_thread.join()
+            launcher_thread.join()
 
     except KeyboardInterrupt:
-        print("\nĐã nhận lệnh dừng từ người dùng. Tạm biệt!")
+        print("\n[MAIN] Đã nhận lệnh dừng từ người dùng. Tạm biệt!")
     except Exception as e:
-        print(f"\nĐã xảy ra lỗi không mong muốn: {e}")
+        print(f"\n[MAIN] Đã xảy ra lỗi không mong muốn: {e}")
 
