@@ -12,15 +12,13 @@ import threading
 from datetime import datetime
 
 # ==============================================================================
-# SCRIPT KẾT HỢP: ROBLOX TASK RUNNER v3.0
+# SCRIPT KẾT HỢP: ROBLOX TASK RUNNER v3.1
 #
 # CẢI TIẾN:
-# - Thêm chức năng tự động dọn dẹp console ở mỗi chu kỳ.
-# - Cập nhật định dạng ACCOUNT_SUFFIXES thành "hậu_tố:user_id".
-# - Luồng `launch` giờ đây sẽ kiểm tra trạng thái online của tài khoản.
-#   - Nếu "InGame": Bỏ qua.
-#   - Nếu khác "InGame": Tự động kill tiến trình và khởi động lại game.
-# - Yêu cầu quyền root để thực hiện lệnh kill.
+# - Sửa lỗi 'AttributeError' khi chạy script không có tham số.
+# - Sửa lỗi hiển thị log trong luồng LAUNCH.
+# - Luồng SCAN và LAUNCH giờ đây chỉ tải config 1 lần duy nhất khi khởi động.
+# - Sử dụng 'stu' thay vì 'su' cho các lệnh yêu cầu root.
 # ==============================================================================
 
 # ---------------------------------------------------
@@ -289,7 +287,7 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
             print(f"[{thread_name}]   [!] Hãy đảm bảo bạn đã cấp quyền root cho Termux.")
 
         # 2. Chờ 10 giây
-        print("[{thread_name}]   -> Đang chờ 10 giây trước khi khởi động lại...")
+        print(f"[{thread_name}]   -> Đang chờ 10 giây trước khi khởi động lại...")
         time.sleep(10)
 
         # 3. Relaunch
@@ -349,7 +347,7 @@ def launcher_loop(launch_mode):
         # Không tải lại config, sử dụng config đã ghi nhớ
         launch_roblox_instances(config, launch_mode, "LAUNCH")
         # Thời gian nghỉ sẽ không thay đổi trừ khi script được khởi động lại
-        print(f"[{thread_name}] Chu kỳ hoàn tất.")
+        print("[LAUNCH] Chu kỳ hoàn tất.")
         countdown(interval, "LAUNCH")
 
 # ==============================================================================
@@ -357,7 +355,7 @@ def launcher_loop(launch_mode):
 # ==============================================================================
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Roblox Task Runner v3.0 - Công cụ tự động quét và tham gia server thông minh.")
+    parser = argparse.ArgumentParser(description="Roblox Task Runner v3.1 - Công cụ tự động quét và tham gia server thông minh.")
     subparsers = parser.add_subparsers(dest='command', help='Các lệnh có sẵn')
 
     # Lệnh 'parallel'
@@ -372,7 +370,16 @@ if __name__ == "__main__":
     launch_parser.add_argument('--mode', choices=['scan', 'vip'], default='scan', help="Chọn chế độ tham gia game.")
 
     args = parser.parse_args()
-    command = args.command if args.command else 'parallel'
+    
+    # Xử lý trường hợp không có lệnh nào được cung cấp
+    if args.command is None:
+        command = 'parallel'
+        # Gán giá trị mode mặc định cho trường hợp không có lệnh
+        class Args:
+            mode = 'vip'
+        args = Args()
+    else:
+        command = args.command
 
     try:
         if command == 'scan':
@@ -404,5 +411,4 @@ if __name__ == "__main__":
         print("\n[MAIN] Đã nhận lệnh dừng từ người dùng. Tạm biệt!")
     except Exception as e:
         print(f"\n[MAIN] Đã xảy ra lỗi không mong muốn: {e}")
-
 
