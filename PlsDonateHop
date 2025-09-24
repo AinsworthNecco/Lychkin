@@ -749,10 +749,12 @@ local function setupUnifiedDonationListener()
                 updateSpinSpeed()
                 print("🎉 Nhận " .. difference .. " R$ → Spin speed: " .. string.format("%.2f", spinVelocity))
             end
+            --[[ -- BỎ CẬP NHẬT TEXT KHI DONATE
             if SETTINGS.EnableBoothFeatures then
                 task.wait(0.1)
                 updateBoothText()
             end
+            ]]
             if SETTINGS.EnableAutoThank and SETTINGS.ThankYouMessages and #SETTINGS.ThankYouMessages > 0 then
                 task.wait(math.random(1, 2))
                 local message = SETTINGS.ThankYouMessages[math.random(1, #SETTINGS.ThankYouMessages)]
