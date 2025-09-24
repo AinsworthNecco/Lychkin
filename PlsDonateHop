@@ -4,7 +4,7 @@ local SETTINGS = {
     -- =================================================================
     ["EnableAntiBotScan"] = true,
     ["BOT_KEYWORDS"] = { "spin", "afk", "restaurant", "jump", "gift", "speed", "develop", "streaming", "live", "game" },
-    ["DETECTION_THRESHOLD"] = 4,
+    ["DETECTION_THRESHOLD"] = 3,
 
     -- =================================================================
     -- CÀI ĐẶT SERVER HOP & AFK
@@ -82,7 +82,7 @@ local SETTINGS = {
     ["SetSimulationRadiusToZero"] = true,
     ["TargetFps"] = 7,
     ["EnableFileHistory"] = true,
-    ["InitialWaitTime"] = 10,
+    ["InitialWaitTime"] = 1,
     ["EnableCountdownText"] = true,
     ["EnableCountdownColor"] = true,
 }
