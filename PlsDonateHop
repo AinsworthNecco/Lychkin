@@ -102,7 +102,7 @@ local SETTINGS = {
     ["EnableFileHistory"] = true,
     ["InitialWaitTime"] = 1,
     ["EnableCountdownText"] = true,
-    ["EnableCountdownColor"] = true,
+    ["EnableCountdownColor"] = false,
 }
 -- --- KẾT THÚC CÀI ĐẶT ---
 
