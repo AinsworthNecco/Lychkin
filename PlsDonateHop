@@ -77,7 +77,7 @@ local SETTINGS = {
     ["SetSimulationRadiusToZero"] = true,
     ["TargetFps"] = 7,
     ["EnableFileHistory"] = true,
-    ["InitialWaitTime"] = 5,
+    ["InitialWaitTime"] = 1,
     ["EnableCountdownText"] = true,
     ["EnableCountdownColor"] = true,
     ["CountdownFixedColorHex"] = "#000000",
@@ -247,6 +247,9 @@ local function startSpin()
     local spin = Instance.new("BodyAngularVelocity"); spin.Name = "Spin"; spin.MaxTorque = Vector3.new(0, math.huge, 0); spin.AngularVelocity = Vector3.new(0, spinVelocity, 0); spin.P = 1250; spin.Parent = root
 end
 
+-- =================================================================
+-- HÀM CLAIM BOOTH NGUYÊN BẢN TỪ SCRIPT B
+-- =================================================================
 local function claimAndSetupBooth()
     if not SETTINGS.EnableBoothFeatures then updateDisplay("INFO", "Tính năng Booth bị tắt."); return end
     if not Remotes then updateDisplay("ERROR", "Remotes chưa sẵn sàng, không thể claim booth."); return end
@@ -264,8 +267,8 @@ local function claimAndSetupBooth()
     end
     if #unclaimed == 0 then updateDisplay("ERROR", "Không có booth trống."); return end
     local chosen = unclaimed[1]
-    
-    local success = pcall(function() Remotes.Event("ClaimBooth"):InvokeServer(chosen); task.wait(0.5); local b = boothFrames:FindFirstChild("BoothUI" .. chosen); if not b or not string.find(b.Details.Owner.Text, LocalPlayer.DisplayName) then error("Claim không thành công.") end end)
+
+    local success, err = pcall(function() Remotes.Event("ClaimBooth"):InvokeServer(chosen); task.wait(0.5); local b = boothFrames:FindFirstChild("BoothUI" .. chosen); if not b or not string.find(string.lower(b.Details.Owner.Text), string.lower(LocalPlayer.DisplayName)) then error("Claim không thành công hoặc booth đã bị người khác lấy.") end end)
     if not success then updateDisplay("ERROR", "Claim booth #" .. chosen .. " thất bại."); return end
     
     for _, booth in ipairs(interactions:GetChildren()) do
@@ -275,6 +278,7 @@ local function claimAndSetupBooth()
         end
     end
 end
+
 
 -- --- Logic Tìm Server (Từ Script A) ---
 local candidateServers = {}
@@ -514,3 +518,4 @@ task.spawn(function()
     end
     print("[MainInit] Script đã hoàn tất.")
 end)
+
