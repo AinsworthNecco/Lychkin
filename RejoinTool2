@@ -1,101 +1,11 @@
-import requests
-import socket
-from http.server import BaseHTTPRequestHandler, HTTPServer
+import os
 
-# --- THÔNG SỐ CẤU HÌNH ---
+package_name = "com.termux"  # đổi tên package nếu muốn
 
-# 1. CẤU HÌNH PROXY NGOÀI
-# Thay đổi thông tin proxy ngoài của bạn tại đây nếu có
-EXTERNAL_PROXY = {
-   # Ví dụ: "http": "http://user:password@12.34.56.78:8080",
-   "http": None,
-   "https": None,
-}
+pid = os.popen(f"pidof {package_name}").read().strip()
 
-# 2. CẤU HÌNH SERVER TRÊN ĐIỆN THOẠI
-# '0.0.0.0' có nghĩa là lắng nghe trên tất cả các địa chỉ IP có sẵn
-LISTEN_HOST = '0.0.0.0' 
-# Đây là cổng server sẽ chạy. Bạn phải mở cổng này trên router.
-LISTEN_PORT = 8888
-
-# --- KẾT THÚC CẤU HÌNH ---
-
-
-class ProxyHandler(BaseHTTPRequestHandler):
-    """
-    Lớp xử lý request, chuyển tiếp nó qua proxy ngoài.
-    """
-    def do_GET(self): self.proxy_request()
-    def do_POST(self): self.proxy_request()
-    def do_HEAD(self): self.proxy_request()
-    
-    def proxy_request(self):
-        try:
-            target_url = self.path
-            print(f"[*] Yêu cầu nhận được: {self.command} {target_url}")
-
-            content_length = int(self.headers.get('Content-Length', 0))
-            post_data = self.rfile.read(content_length)
-
-            # Chỉ sử dụng proxy ngoài nếu nó được cấu hình
-            proxies_to_use = EXTERNAL_PROXY if EXTERNAL_PROXY.get("http") else None
-
-            resp = requests.request(
-                method=self.command,
-                url=target_url,
-                headers=self.headers,
-                data=post_data,
-                proxies=proxies_to_use,
-                verify=False,
-                allow_redirects=False
-            )
-
-            self.send_response(resp.status_code)
-            for key, value in resp.headers.items():
-                if key.lower() not in ['content-encoding', 'transfer-encoding', 'connection']:
-                    self.send_header(key, value)
-            self.end_headers()
-            self.wfile.write(resp.content)
-
-        except Exception as e:
-            print(f"[!] Lỗi: {e}")
-            self.send_error(500, f"Lỗi server proxy: {e}")
-
-def get_server_addresses():
-    """
-    Hàm này lấy địa chỉ IP nội bộ và công khai của server.
-    """
-    addresses = {"local": "Không thể xác định", "public": "Không thể xác định"}
-    try:
-        s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-        s.connect(("8.8.8.8", 80))
-        addresses["local"] = s.getsockname()[0]
-        s.close()
-    except Exception as e:
-        print(f"[!] Không thể lấy IP nội bộ: {e}")
-
-    try:
-        addresses["public"] = requests.get('https://api.ipify.org', timeout=5).text
-    except Exception as e:
-        print(f"[!] Không thể lấy IP công khai: {e}")
-        
-    return addresses
-
-def run_server():
-    # 1. Lấy và in địa chỉ của server
-    print("--- Lấy thông tin địa chỉ Server trên điện thoại ---")
-    server_ips = get_server_addresses()
-    
-    print(f"  -> IP Nội bộ (Local IP):    {server_ips['local']} (Dùng để mở cổng trên router)")
-    print(f"  -> IP Công khai (Public IP): {server_ips['public']} (Dùng cho Client A)")
-    print(f"  -> Cổng (Port):              {LISTEN_PORT}")
-    print("---------------------------------------------------\n")
-
-    # 2. Khởi động server
-    server_address = (LISTEN_HOST, LISTEN_PORT)
-    httpd = HTTPServer(server_address, ProxyHandler)
-    print(f"[*] Server trung gian đang lắng nghe tại {LISTEN_HOST}:{LISTEN_PORT}...")
-    httpd.serve_forever()
-
-if __name__ == '__main__':
-    run_server()
+if pid:
+    os.system(f"kill -9 {pid}")
+    print(f"Đã kill {package_name} (PID {pid})")
+else:
+    print(f"Không tìm thấy PID cho {package_name}")
