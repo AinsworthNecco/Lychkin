@@ -280,8 +280,8 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
         # 1. Kill tiến trình
         try:
             print(f"[{thread_name}]   -> Gửi lệnh kill đến {package_name}...")
-            # Sử dụng 'su -c' để chạy lệnh với quyền root
-            kill_command = ["su", "-c", f"pkill -9 {package_name}"]
+            # Sử dụng 'stu -c' để chạy lệnh với quyền root
+            kill_command = ["stu", "-c", f"pkill -9 {package_name}"]
             subprocess.run(kill_command, check=False, capture_output=True, text=True)
             print(f"[{thread_name}]   -> Lệnh kill đã được gửi.")
         except Exception as e:
@@ -404,4 +404,5 @@ if __name__ == "__main__":
         print("\n[MAIN] Đã nhận lệnh dừng từ người dùng. Tạm biệt!")
     except Exception as e:
         print(f"\n[MAIN] Đã xảy ra lỗi không mong muốn: {e}")
+
 
