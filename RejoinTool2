@@ -1,11 +1,13 @@
 import os
 
-package_name = "com.roblox.client"  # đổi nếu máy bạn dùng documentsui
-
-pid = os.popen(f"pidof {package_name}").read().strip()
+package = "com.roblox.client"  # đổi package theo ý bạn
+pid = os.popen(f"pidof {package}").read().strip()
 
 if pid:
-    os.system(f"kill -9 {pid}")
-    print(f"Đã kill {package_name} (PID {pid})")
+    result = os.system(f"kill -9 {pid}")
+    if result == 0:
+        print(f"Đã kill {package} (PID {pid})")
+    else:
+        print(f"Không thể kill {package}, cần root")
 else:
-    print(f"Không tìm thấy PID cho {package_name}")
+    print(f"Không tìm thấy PID cho {package}")
