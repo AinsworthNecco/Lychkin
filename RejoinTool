@@ -1,119 +1,291 @@
-#!/data/data/com.termux/files/usr/bin/bash
-# Script Roblox Toan Dien voi 2 chu ky hoat dong doc lap:
-# 1. Chu ky 10 phut: Lien tuc gui lenh khoi dong Roblox.
-# 2. Chu ky 3 gio: Tat toan bo cac phien ban Roblox.
-# (Da loai bo chu ky 4 gio khoi dong lai Termux)
-#---------------------------------------------------
-# -- CAI DAT CHINH --
-#---------------------------------------------------
+#!/data/data/com.termux/files/usr/bin/python
+# -*- coding: utf-8 -*-
 
-# Lien ket hau to phien ban voi ID tai khoan Roblox tuong ung.
-# Dinh dang: "b c d e f g"
-AccountMap="b c d e f"
+import subprocess
+import time
+import requests
+import os
+import sys
+import argparse
+import re
+from datetime import datetime
 
-# URL cua VIP Server ban muon tham gia
-VipServerUrl="roblox://placeId=8737602449"
+# ==============================================================================
+# SCRIPT KẾT HỢP: ROBLOX TASK RUNNER v2.1
+#
+# CẢI TIẾN:
+# - Cập nhật logic đọc cấu hình để hỗ trợ giá trị trên nhiều dòng (multi-line),
+#   giúp danh sách proxy trong file config trở nên gọn gàng hơn.
+# ==============================================================================
 
-# Thoi gian (giay) giua moi lan gui lenh khoi dong (600 giay = 10 phut)
-CycleInterval=600
+# ---------------------------------------------------
+# -- CẤU HÌNH CHÍNH --
+# ---------------------------------------------------
+CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/config"
 
-# Thoi gian (giay) de tat toan bo Roblox (10800 giay = 3 gio)
-RobloxKillInterval=30800
-
-# Thoi gian (giay) cho giua moi lan gui lenh join trong mot chu ky
-OpenDelay=15
-
-# Ten goi co ban cua Roblox (khong nen thay doi)
-BasePackageName="com.roblox.clien"
-
-#---------------------------------------------------
-# -- TU DONG KIEM TRA --
-#---------------------------------------------------
-# Kiem tra quyen root
-if [[ $EUID -ne 0 ]]; then
-    echo "Script nay can quyen root. Dang co gang chay lai voi 'su'..."
-    su -c "bash \"$0\" \"$@\""
-    exit 0
-fi
-
-#---------------------------------------------------
-# -- CAC HAM CHUC NANG --
-#---------------------------------------------------
-
-# Ham tat toan bo cac phien ban Roblox
-function kill_all_roblox_instances() {
-    echo "Dang dung tat ca cac phien ban Roblox dang chay..."
-    read -r -a account_pairs <<< "$AccountMap"
-    if [[ ${#account_pairs[@]} -eq 0 ]]; then return; fi
-
-    for pair in "${account_pairs[@]}"; do
-        suffix="${pair%%:*}"
-        package_to_stop="${BasePackageName}${suffix}"
-        
-        pid_to_kill=$(ps -ef | grep "$package_to_stop" | grep -v grep | awk '{print $2}')
-        if [[ -n "$pid_to_kill" ]]; then
-            echo "  => Dung phien ban $package_to_stop (PID: $pid_to_kill)."
-            kill -9 "$pid_to_kill"
-        fi
-    done
-    echo "Da hoan tat viec dung cac phien ban Roblox."
+# --- CÁC GIÁ TRỊ MẶC ĐỊNH (sẽ bị ghi đè bởi file config từ URL) ---
+DEFAULT_CONFIG = {
+    "ACCOUNT_SUFFIXES": ["b", "c", "d", "e", "f"],
+    "PLACE_ID": "8737602449",
+    "SCAN_INTERVAL_SECONDS": 300,
+    "LAUNCH_INTERVAL_SECONDS": 300,
+    "LAUNCH_DELAY_SECONDS": 10,
+    "MIN_PLAYER_PERCENTAGE": 0,
+    "MAX_PLAYER_PERCENTAGE": 50,
+    "BASE_PACKAGE_NAME": "com.roblox.clien",
+    "PROXY_LIST": [],
+    "CONNECTION_TIMEOUT": 15,
+    "OUTPUT_FILE_PATH": "found_servers.txt",
+    "VIP_SERVER_URL": ""
 }
 
-# Ham chi de gui lenh khoi dong (cho chu ky 10 phut)
-function simple_join_instances() {
-    echo "[$(date '+%Y-%-m-%d %H:%M:%S')] Gui lenh khoi dong (chu ky 10 phut)..."
-    read -r -a account_pairs <<< "$AccountMap"
-    if [[ ${#account_pairs[@]} -eq 0 ]]; then
-        echo "Loi: Vui long dinh nghia tai khoan trong 'AccountMap'."
-        return
-    fi
-    
-    for pair in "${account_pairs[@]}"; do
-        suffix="${pair%%:*}"
-        package_name="${BasePackageName}${suffix}"
-        echo "-> Gui lenh join den '$suffix' ($package_name)"
-        am start -a android.intent.action.VIEW -d "$VipServerUrl" -p "$package_name"
-        sleep "$OpenDelay"
-    done
-}
+# ---------------------------------------------------
+# -- BIẾN TOÀN CỤC --
+# ---------------------------------------------------
+proxy_index = 0
+failed_proxy_count = 0
+current_proxies = []
 
+# ==============================================================================
+# -- CÁC HÀM TIỆN ÍCH --
+# ==============================================================================
 
-# Ham cho VONG LAP QUAN LY ROBLOX (chay o luong chinh)
-function roblox_manager_loop() {
-    # Vong lap vo tan de quan ly cac chu ky 3 gio
-    while true; do
-        echo "--- BAT DAU CHU KY 3 GIO MOI ---"
+def fetch_and_load_config(url):
+    """Tải và phân tích tệp cấu hình từ xa. Hỗ trợ giá trị trên nhiều dòng."""
+    print(f"[*] Đang tải cấu hình từ: {url}")
+    try:
+        response = requests.get(url, timeout=20)
+        response.raise_for_status()
+        config = DEFAULT_CONFIG.copy()
+
+        # Regex để tìm các cặp KEY="VALUE", hỗ trợ giá trị trên nhiều dòng bên trong dấu ngoặc.
+        pattern = re.compile(r'^\s*([A-Za-z_][A-Za-z0-9_]*)\s*=\s*(["\'])(.*?)\2', re.DOTALL | re.MULTILINE)
         
-        # Tinh toan so lan lap 10 phut trong mot chu ky 3 gio
-        local num_cycles=$((RobloxKillInterval / CycleInterval))
+        for key, _, value in pattern.findall(response.text):
+            # Bỏ qua nếu key không tồn tại trong cấu hình mặc định để tránh lỗi
+            if key not in config:
+                continue
 
-        # Vong lap 10 phut: Lien tuc gui lenh join trong 3 gio
-        for (( i=1; i<=num_cycles; i++ )); do
-            clear
-            echo "--- Chu ky 3 gio (Vong lap $i/$num_cycles) ---"
-            simple_join_instances
+            # Xử lý giá trị
+            value = value.strip()
             
-            echo "================================================="
-            echo "Da hoan tat. Dang cho $CycleInterval giay..."
-            sleep "$CycleInterval"
-        done
+            # Chuyển đổi các giá trị sang đúng kiểu dữ liệu
+            if key in ["SCAN_INTERVAL_SECONDS", "LAUNCH_INTERVAL_SECONDS", "LAUNCH_DELAY_SECONDS", "CONNECTION_TIMEOUT"]:
+                config[key] = int(value)
+            elif key in ["MIN_PLAYER_PERCENTAGE", "MAX_PLAYER_PERCENTAGE"]:
+                config[key] = float(value)
+            elif key == "ACCOUNT_SUFFIXES":
+                # Suffixes vẫn là danh sách phân tách bằng dấu phẩy
+                config[key] = [item.strip() for item in value.split(',') if item.strip()]
+            elif key == "PROXY_LIST":
+                # Proxies giờ là danh sách phân tách bằng dòng mới
+                config[key] = [item.strip() for item in value.splitlines() if item.strip()]
+            else:
+                config[key] = value
 
-        # Sau khi hoan tat chu ky 3 gio, dung tat ca cac phien ban Roblox
-        echo "--- DA HOAN TAT CHU KY 3 GIO. DANG DUNG TOAN BO ROBLOX ---"
-        kill_all_roblox_instances
-        sleep 5 # Cho mot chut truoc khi bat dau chu ky 3 gio moi
-    done
-}
+        print("    ✅ Tải và xử lý cấu hình thành công.")
+        return config
+    except requests.exceptions.RequestException as e:
+        print(f"    ❌ Lỗi: Không thể tải file cấu hình: {e}")
+        print("    [*] Sử dụng cấu hình mặc định.")
+        return DEFAULT_CONFIG.copy()
 
-# --- DIEM KHOI DAU CUA SCRIPT ---
-clear
-echo "--- KHOI DONG HE THONG SCRIPT VOI 2 CHU KY ---"
-kill_all_roblox_instances # Don dep truoc khi bat dau
-sleep 5
+def format_proxies(proxy_list):
+    """Chuyển đổi danh sách proxy sang định dạng mà 'requests' sử dụng."""
+    formatted = []
+    if not proxy_list or not proxy_list[0]: return []
+    for proxy_string in proxy_list:
+        parts = proxy_string.split(':')
+        proxy_url = ""
+        if len(parts) == 2: proxy_url = f"http://{parts[0]}:{parts[1]}"
+        elif len(parts) == 4: proxy_url = f"http://{parts[2]}:{parts[3]}@{parts[0]}:{parts[1]}"
+        if proxy_url: formatted.append({"http": proxy_url, "https": proxy_url})
+    return formatted
 
-echo "Kich hoat Wake Lock de giu cho thiet bi thuc..."
-termux-wake-lock &
+def countdown(seconds):
+    """Hiển thị đồng hồ đếm ngược."""
+    for i in range(seconds, 0, -1):
+        print(f"Thời gian chờ còn lại: {i} giây   ", end='\r')
+        sys.stdout.flush()
+        time.sleep(1)
+    print("\n")
+    
+# ==============================================================================
+# -- CÁC HÀM CHỨC NĂNG CHÍNH (Không thay đổi) --
+# ==============================================================================
 
-# Chay vong lap quan ly Roblox (chu ky 10 phut & 3 gio) o che do CHINH
-# Script se chay vo tan o day cho den khi ban tu tat.
-roblox_manager_loop
+def get_api_data(url, config):
+    """Hàm "hộp đen" an toàn để kết nối API, tự động xử lý proxy và lỗi."""
+    global proxy_index, failed_proxy_count, current_proxies
+    num_proxies = len(current_proxies)
+    while True:
+        if num_proxies > 0 and failed_proxy_count >= num_proxies:
+            print("\n    [!] Tất cả proxies đều thất bại. Tạm dừng 5 giây...")
+            time.sleep(5)
+            failed_proxy_count = 0
+            proxy_index = 0
+        proxy, proxy_status = (current_proxies[proxy_index], f"Proxy {proxy_index + 1}/{num_proxies}") if num_proxies > 0 else (None, "IP Gốc")
+        try:
+            print(f"\r    [*] Kết nối API... | {proxy_status}", end="")
+            sys.stdout.flush()
+            response = requests.get(url, proxies=proxy, timeout=config["CONNECTION_TIMEOUT"])
+            if response.status_code == 200:
+                failed_proxy_count = 0
+                return response.json()
+            error_reason = f"Lỗi (Mã: {response.status_code})"
+            if response.status_code == 429: error_reason = "Rate Limit"
+            raise requests.exceptions.HTTPError(error_reason)
+        except (requests.exceptions.RequestException, requests.exceptions.HTTPError) as e:
+            if num_proxies > 0:
+                print(f"\n    [!] Proxy #{proxy_index + 1} thất bại ({e}). Chuyển proxy...")
+                failed_proxy_count += 1
+                proxy_index = (proxy_index + 1) % num_proxies
+                time.sleep(1)
+            else:
+                print(f"\n    [!] IP Gốc thất bại ({e}). Tạm dừng 60 giây...")
+                time.sleep(60)
+
+def run_scanner(config):
+    """Quét API, lọc server và LƯU KẾT QUẢ VÀO FILE."""
+    global current_proxies
+    print("\n[+] Bắt đầu quá trình quét server 'Precision Scan'...")
+    current_proxies = format_proxies(config["PROXY_LIST"])
+    print(f"    [*] Đã xử lý {len(current_proxies)} proxy." if current_proxies else "    [*] Dùng IP gốc.")
+    min_ratio, max_ratio = config["MIN_PLAYER_PERCENTAGE"] / 100.0, config["MAX_PLAYER_PERCENTAGE"] / 100.0
+    print(f"    [*] Tiêu chí: {config['MIN_PLAYER_PERCENTAGE']}% - {config['MAX_PLAYER_PERCENTAGE']}% người chơi.")
+    print("-------------------------------------------------")
+    collected_ids, next_cursor = [], ""
+    while True:
+        api_url = f"https://games.roblox.com/v1/games/{config['PLACE_ID']}/servers/Public?sortOrder=Desc&limit=100"
+        if next_cursor and next_cursor != "null": api_url += f"&cursor={next_cursor}"
+        response_data = get_api_data(api_url, config)
+        if not response_data: continue
+        servers, next_cursor = response_data.get("data", []), response_data.get("nextPageCursor")
+        if not servers:
+            print("\n    [i] Không tìm thấy server nào trên trang này. Dừng quét.")
+            break
+        total_ratio = sum((s.get("playing", 0) / s.get("maxPlayers", 1)) for s in servers if s.get("maxPlayers", 0) > 0)
+        for server in servers:
+            if server.get("maxPlayers", 0) > 0:
+                ratio = server.get("playing", 0) / server.get("maxPlayers")
+                if min_ratio <= ratio <= max_ratio:
+                    server_id = server.get("id")
+                    if server_id and server_id not in collected_ids: collected_ids.append(server_id)
+        avg_ratio = (total_ratio / len(servers)) if servers else 0
+        print(f"\r    [+] Đang quét... | Page Fill: {avg_ratio * 100:5.1f}% | Đã thu thập: {len(collected_ids):<5}", end="")
+        sys.stdout.flush()
+        if 0 < avg_ratio < min_ratio:
+            print("\n    [i] Đã đi qua khu vực server mục tiêu. Dừng quét.")
+            break
+        if not next_cursor or next_cursor == "null":
+            print("\n    [i] Đã đến trang cuối cùng. Dừng quét.")
+            break
+    print("\n-------------------------------------------------")
+    output_path = config["OUTPUT_FILE_PATH"]
+    with open(output_path, "w") as f:
+        for server_id in collected_ids:
+            f.write(f"{server_id}\n")
+    print(f"✅ Quét hoàn tất. Đã lưu {len(collected_ids)} server ID vào file: '{output_path}'")
+
+def launch_roblox_instances(config, launch_mode):
+    """Khởi chạy các instance Roblox dựa trên chế độ đã chọn."""
+    server_ids = []
+    target_url_template = ""
+
+    if launch_mode == 'scan':
+        print(f"\n[+] Chế độ: JOIN SERVER TỪ FILE QUÉT '{config['OUTPUT_FILE_PATH']}'")
+        try:
+            with open(config['OUTPUT_FILE_PATH'], 'r') as f:
+                server_ids = [line.strip() for line in f if line.strip()]
+            if not server_ids:
+                print("    [-] File server rỗng hoặc không hợp lệ. Bỏ qua chu kỳ này.")
+                return
+            print(f"    [*] Đã đọc được {len(server_ids)} server ID từ file.")
+        except FileNotFoundError:
+            print(f"    [-] Lỗi: Không tìm thấy file '{config['OUTPUT_FILE_PATH']}'.")
+            print("    [-] Hãy chạy chế độ 'scan' trước để tạo file này. Bỏ qua chu kỳ.")
+            return
+    elif launch_mode == 'vip':
+        print("\n[+] Chế độ: JOIN SERVER VIP")
+        if not config.get('VIP_SERVER_URL'):
+            print("    [-] Lỗi: VIP_SERVER_URL chưa được cấu hình. Bỏ qua chu kỳ.")
+            return
+        target_url_template = config['VIP_SERVER_URL']
+        print(f"    [*] URL mục tiêu: {target_url_template}")
+
+    print(f"\n[+] Bắt đầu gửi lệnh tham gia tới {len(config['ACCOUNT_SUFFIXES'])} tài khoản...")
+    for i, suffix in enumerate(config["ACCOUNT_SUFFIXES"]):
+        package_name = f"{config['BASE_PACKAGE_NAME']}{suffix}"
+        target_url = ""
+        log_msg = ""
+        if launch_mode == 'scan':
+            server_id = server_ids[i % len(server_ids)]
+            target_url = f"roblox://placeId={config['PLACE_ID']}&gameId={server_id}"
+            log_msg = f"tài khoản '{suffix}' (Server ID: ...{str(server_id)[-12:]})"
+        elif launch_mode == 'vip':
+            target_url = target_url_template
+            log_msg = f"tài khoản '{suffix}' (VIP Server)"
+        
+        command = ["am", "start", "-a", "android.intent.action.VIEW", "-d", target_url, "-p", package_name]
+        print(f"    -> Đang gửi lệnh join đến {log_msg}")
+        try:
+            subprocess.run(command, check=True, capture_output=True, text=True)
+        except Exception as e:
+            print(f"       Lỗi khi thực thi lệnh cho '{suffix}': {e}")
+        time.sleep(config["LAUNCH_DELAY_SECONDS"])
+
+# ==============================================================================
+# -- ĐIỂM KHỞI ĐẦU SCRIPT --
+# ==============================================================================
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(
+        description="Roblox Task Runner - Công cụ tự động quét và tham gia server.",
+        formatter_class=argparse.RawTextHelpFormatter
+    )
+    subparsers = parser.add_subparsers(dest='command', required=True, help='Các lệnh có sẵn')
+
+    # Định nghĩa lệnh 'scan'
+    scan_parser = subparsers.add_parser('scan', help='Chỉ chạy tác vụ quét và lưu server ID vào file.')
+    
+    # Định nghĩa lệnh 'launch'
+    launch_parser = subparsers.add_parser('launch', help='Chỉ chạy tác vụ tham gia game.')
+    launch_parser.add_argument(
+        '--mode', 
+        choices=['scan', 'vip'], 
+        default='scan',
+        help="Chọn chế độ tham gia game:\n"
+             "  scan - Đọc server ID từ file do lệnh 'scan' tạo ra (mặc định).\n"
+             "  vip  - Tham gia một VIP server cố định từ cấu hình."
+    )
+
+    args = parser.parse_args()
+
+    # Chạy tác vụ dựa trên lệnh được cung cấp
+    try:
+        if args.command == 'scan':
+            print("--- KHỞI ĐỘNG CHẾ ĐỘ QUÉT SERVER LIÊN TỤC ---")
+            print("Nhấn Ctrl+C để dừng.")
+            while True:
+                config = fetch_and_load_config(CONFIG_URL)
+                run_scanner(config)
+                interval = config["SCAN_INTERVAL_SECONDS"]
+                print(f"\n--- Chu kỳ quét hoàn tất. Chờ {interval} giây... ---")
+                countdown(interval)
+        
+        elif args.command == 'launch':
+            print("--- KHỞI ĐỘNG CHẾ ĐỘ THAM GIA GAME LIÊN TỤC ---")
+            print(f"Chế độ được chọn: {args.mode.upper()}")
+            print("Nhấn Ctrl+C để dừng.")
+            while True:
+                config = fetch_and_load_config(CONFIG_URL)
+                launch_roblox_instances(config, args.mode)
+                interval = config["LAUNCH_INTERVAL_SECONDS"]
+                print(f"\n--- Chu kỳ tham gia hoàn tất. Chờ {interval} giây... ---")
+                countdown(interval)
+
+    except KeyboardInterrupt:
+        print("\nĐã nhận lệnh dừng từ người dùng. Tạm biệt!")
+    except Exception as e:
+        print(f"\nĐã xảy ra lỗi không mong muốn: {e}")
+
