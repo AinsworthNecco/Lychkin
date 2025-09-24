@@ -30,7 +30,7 @@ local SETTINGS = {
     -- =================================================================
     ["WaitMinutes"] = 10,
     ["MinPlayerPercentage"] = 0.50,
-    ["MaxPlayerPercentage"] = 0.99,
+    ["MaxPlayerPercentage"] = 0.90,
     ["MaxServerHistorySize"] = 500,
     ["EnablePlayerCountCheck"] = true,
     ["MinPlayerThreshold"] = 10,
