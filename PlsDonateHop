@@ -3,7 +3,7 @@ local SETTINGS = {
     -- CÀI ĐẶT CHỐNG BOT
     -- =================================================================
     ["EnableAntiBotScan"] = true,
-    ["BOT_KEYWORDS"] = { "spin", "afk", "restaurant", "jump", "gift", "speed", "develop", "streaming", "live", "game" },
+    ["BOT_KEYWORDS"] = { "spin", "afk", "restaurant", "jump", "gift", "speed", "develop", "streaming", "live", "game", "#", "dream", "first", "mom", "big" },
     ["DETECTION_THRESHOLD"] = 3,
 
     -- =================================================================
