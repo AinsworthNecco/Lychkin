@@ -75,8 +75,8 @@ local SETTINGS = {
     ["EnableAutoSpam"] = true, -- Bật/tắt tự động spam tin nhắn
     ["SpamInterval"] = 60, -- Thời gian (giây) giữa mỗi lần chat
     ["SpamMessages"] = {   -- Danh sách các tin nhắn để spam
-        "Goal: MAX SPIN LEVEL 100:cyclone: - 1 ROBUX = +1 SPEED!",
-        "Goal: MAX SPIN LEVEL 100:cyclone: - 1 ROBUX = +1 SPEED!"
+        "Goal: MAX SPIN LEVEL 100 🌀 - 1 ROBUX = +1 SPEED!",
+        "Goal: MAX SPIN LEVEL 100 🌀 - 1 ROBUX = +1 SPEED!"
     },
 
     -- =================================================================
@@ -248,7 +248,8 @@ local function loadNecoServers()
     if success and content then
         for line in string.gmatch(content, "[^" .. "\r\n" .. "]+") do
             local trimmedLine = line:match("^%s*(.-)%s*$")
-            if trimmedLine and #trimmedLine > 0 and not serverHistoryCache[trimmedLine] then
+            -- [ĐÃ SỬA] Đảm bảo lọc cả server hiện tại và server trong lịch sử
+            if trimmedLine and #trimmedLine > 0 and trimmedLine ~= currentJobId and not serverHistoryCache[trimmedLine] then
                 table.insert(necoIds, trimmedLine)
             end
         end
@@ -368,10 +369,9 @@ tryNextNecoServer = function()
         updateDisplay("INFO", string.format("Thử server Neco: %s...", targetServerId:sub(1, 12)))
         executeTeleport(targetServerId)
     else
-        -- Trường hợp này không nên xảy ra nếu logic đúng, nhưng để dự phòng:
         isHoppingFromNeco = false
         updateDisplay("ERROR", "Hết server trong neco.txt để thử.")
-        searchForServer() -- Bắt đầu lại quy trình, sẽ chuyển sang API
+        searchForServer() 
     end
 end
 
@@ -396,7 +396,8 @@ function persistentFetch(url)
                 
                 local freshCachedServers = {}
                 for _, serverId in ipairs(allCachedServers) do
-                    if not serverHistoryCache[serverId] then
+                    -- [ĐÃ SỬA] Đảm bảo lọc cả server hiện tại và server trong lịch sử
+                    if serverId ~= currentJobId and not serverHistoryCache[serverId] then
                         table.insert(freshCachedServers, serverId)
                     end
                 end
@@ -448,7 +449,8 @@ fetchNextBatch = function()
         local ignoredHistoryCount = 0
         
         for _, server in ipairs(response.data) do
-            if not serverHistoryCache[server.id] then
+            -- [ĐÃ SỬA] Đảm bảo lọc cả server hiện tại và server trong lịch sử
+            if server.id ~= currentJobId and not serverHistoryCache[server.id] then
                 table.insert(candidateServers, server)
                 newCandidatesCount = newCandidatesCount + 1
             else
@@ -749,12 +751,6 @@ local function setupUnifiedDonationListener()
                 updateSpinSpeed()
                 print("🎉 Nhận " .. difference .. " R$ → Spin speed: " .. string.format("%.2f", spinVelocity))
             end
-            --[[ -- BỎ CẬP NHẬT TEXT KHI DONATE
-            if SETTINGS.EnableBoothFeatures then
-                task.wait(0.1)
-                updateBoothText()
-            end
-            ]]
             if SETTINGS.EnableAutoThank and SETTINGS.ThankYouMessages and #SETTINGS.ThankYouMessages > 0 then
                 task.wait(math.random(1, 2))
                 local message = SETTINGS.ThankYouMessages[math.random(1, #SETTINGS.ThankYouMessages)]
