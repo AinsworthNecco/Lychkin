@@ -95,14 +95,14 @@ local SETTINGS = {
     -- =================================================================
     -- CÀI ĐẶT HIỆU NĂNG & KHÁC
     -- =================================================================
-    ["EnableGraphicsOptimization"] = true,
-    ["EnableCpuOptimization"] = true,
+    ["EnableGraphicsOptimization"] = false,
+    ["EnableCpuOptimization"] = false,
     ["SetSimulationRadiusToZero"] = true,
     ["TargetFps"] = 7,
     ["EnableFileHistory"] = true,
     ["InitialWaitTime"] = 1,
     ["EnableCountdownText"] = true,
-    ["EnableCountdownColor"] = false,
+    ["EnableCountdownColor"] = true,
 }
 -- --- KẾT THÚC CÀI ĐẶT ---
 
