@@ -13,12 +13,12 @@ import json
 from datetime import datetime
 
 # ==============================================================================
-# SCRIPT KẾT HỢP: ROBLOX TASK RUNNER v3.9
+# SCRIPT KẾT HỢP: ROBLOX TASK RUNNER v4.0
 #
 # CẢI TIẾN:
-# - Thêm chức năng kiểm tra và yêu cầu quyền root (tsu) ngay khi script
-#   khởi động để đảm bảo có đủ quyền hạn trước khi chạy. Script sẽ thoát
-#   nếu không được cấp quyền.
+# - Thay đổi phương pháp kiểm tra root sang dùng 'whoami' để tăng độ tin cậy
+#   và tránh lỗi 'Unknown id' khi chạy qua pipe.
+# - Sửa lỗi nghiêm trọng ở chế độ 'parallel' ngăn cản các luồng khởi động.
 # ==============================================================================
 
 # ---------------------------------------------------
@@ -58,22 +58,25 @@ def request_root_permissions():
     """Yêu cầu quyền root khi script khởi động và thoát nếu không thành công."""
     print("[MAIN] Đang kiểm tra và yêu cầu quyền root (tsu)...")
     try:
-        # Chạy một lệnh đơn giản để kích hoạt yêu cầu quyền root
+        # Chạy lệnh 'whoami' với tsu để kiểm tra quyền root một cách đáng tin cậy
         result = subprocess.run(
-            ['tsu', '-c', 'echo "OK"'],
+            ['tsu', '-c', 'whoami'],
             shell=False,
             capture_output=True,
             text=True,
             timeout=20  # Cho người dùng 20 giây để chấp nhận yêu cầu
         )
-        # Kiểm tra xem lệnh có chạy thành công không
-        if result.returncode != 0 or "OK" not in result.stdout:
+        
+        # Kiểm tra xem kết quả có phải là 'root' không
+        if result.returncode == 0 and 'root' in result.stdout.strip():
+            print("[MAIN] ✅ Đã có quyền root. Bắt đầu các tác vụ.")
+            return True
+        else:
             print("[MAIN] ❌ Lỗi: Không thể lấy quyền root. Vui lòng cấp quyền cho Termux trong ứng dụng quản lý root của bạn (ví dụ: Magisk).")
+            print(f"[MAIN]    -> stdout: {result.stdout.strip()}")
             print(f"[MAIN]    -> stderr: {result.stderr.strip()}")
             sys.exit(1) # Thoát script nếu không có quyền root
             
-        print("[MAIN] ✅ Đã có quyền root. Bắt đầu các tác vụ.")
-        return True
     except FileNotFoundError:
         print("[MAIN] ❌ Lỗi: Lệnh 'tsu' không được tìm thấy. Vui lòng cài đặt tsu.")
         sys.exit(1)
@@ -427,7 +430,11 @@ if __name__ == "__main__":
         
         elif command == 'parallel':
             print("--- KHỞI ĐỘNG CHẾ ĐỘ SONG SONG (SCAN & LAUNCH VIP ĐỘC LẬP) ---")
-            scanner_thread = threading.Tostart()
+            # SỬA LỖI: Sửa lại phần khởi tạo thread bị lỗi
+            scanner_thread = threading.Thread(target=scanner_loop, daemon=True)
+            launcher_thread = threading.Thread(target=launcher_loop, args=('vip',), daemon=True)
+
+            scanner_thread.start()
             print("[MAIN] Đã khởi động luồng quét (SCAN).")
             
             time.sleep(3) 
