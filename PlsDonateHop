@@ -75,8 +75,8 @@ local SETTINGS = {
     ["EnableAutoSpam"] = true, -- Bật/tắt tự động spam tin nhắn
     ["SpamInterval"] = 60, -- Thời gian (giây) giữa mỗi lần chat
     ["SpamMessages"] = {    -- Danh sách các tin nhắn để spam
-        "Goal: MAX SPIN LEVEL 100:cyclone: - 1 ROBUX = +1 SPEED!",
-        "Goal: MAX SPIN LEVEL 100:cyclone: - 1 ROBUX = +1 SPEED!"
+        "Goal: MAX SPIN LEVEL 100🌀 - 1 ROBUX = +1 SPEED!",
+        "Goal: MAX SPIN LEVEL 100🌀 - 1 ROBUX = +1 SPEED!"
     },
 
     -- =================================================================
@@ -88,7 +88,7 @@ local SETTINGS = {
     ["fontFace"] = "SciFi", -- Font chữ (xem Enum.Font)
     ["boothOffset"] = 3, -- Khoảng cách đứng trước booth
     ["spinEnabled"] = true, -- Bật/tắt xoay
-    ["spinBaseSpeed"] = 0.25, -- Tốc độ xoay cơ bản
+    ["spinBaseSpeed"] = 0.4, -- Tốc độ xoay cơ bản
     ["spinSpeedPerR"] = 0.1, -- Tốc độ cộng thêm cho mỗi Robux được donate
 
     -- =================================================================
