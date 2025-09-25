@@ -13,12 +13,12 @@ import json
 from datetime import datetime
 
 # ==============================================================================
-# SCRIPT KẾT HỢP: ROBLOX TASK RUNNER v3.7
+# SCRIPT KẾT HỢP: ROBLOX TASK RUNNER v3.9
 #
 # CẢI TIẾN:
-# - Cập nhật API endpoint để kiểm tra trạng thái người dùng sang
-#   `.../v1/presence/users` để tăng độ chính xác, dựa trên logic tham khảo.
-# - Thêm log gỡ lỗi (DEBUG) để hiển thị phản hồi thô từ API trạng thái.
+# - Thêm chức năng kiểm tra và yêu cầu quyền root (tsu) ngay khi script
+#   khởi động để đảm bảo có đủ quyền hạn trước khi chạy. Script sẽ thoát
+#   nếu không được cấp quyền.
 # ==============================================================================
 
 # ---------------------------------------------------
@@ -53,6 +53,36 @@ file_lock = threading.Lock() # Lock để bảo vệ việc truy cập file
 # ==============================================================================
 # -- CÁC HÀM TIỆN ÍCH --
 # ==============================================================================
+
+def request_root_permissions():
+    """Yêu cầu quyền root khi script khởi động và thoát nếu không thành công."""
+    print("[MAIN] Đang kiểm tra và yêu cầu quyền root (tsu)...")
+    try:
+        # Chạy một lệnh đơn giản để kích hoạt yêu cầu quyền root
+        result = subprocess.run(
+            ['tsu', '-c', 'echo "OK"'],
+            shell=False,
+            capture_output=True,
+            text=True,
+            timeout=20  # Cho người dùng 20 giây để chấp nhận yêu cầu
+        )
+        # Kiểm tra xem lệnh có chạy thành công không
+        if result.returncode != 0 or "OK" not in result.stdout:
+            print("[MAIN] ❌ Lỗi: Không thể lấy quyền root. Vui lòng cấp quyền cho Termux trong ứng dụng quản lý root của bạn (ví dụ: Magisk).")
+            print(f"[MAIN]    -> stderr: {result.stderr.strip()}")
+            sys.exit(1) # Thoát script nếu không có quyền root
+            
+        print("[MAIN] ✅ Đã có quyền root. Bắt đầu các tác vụ.")
+        return True
+    except FileNotFoundError:
+        print("[MAIN] ❌ Lỗi: Lệnh 'tsu' không được tìm thấy. Vui lòng cài đặt tsu.")
+        sys.exit(1)
+    except subprocess.TimeoutExpired:
+        print("[MAIN] ❌ Lỗi: Hết thời gian chờ yêu cầu quyền root. Vui lòng chạy lại script.")
+        sys.exit(1)
+    except Exception as e:
+        print(f"[MAIN] ❌ Lỗi không mong muốn khi yêu cầu quyền root: {e}")
+        sys.exit(1)
 
 def fetch_and_load_config(url):
     """Tải và phân tích tệp cấu hình từ xa."""
@@ -197,19 +227,16 @@ def check_roblox_presence(accounts, config, thread_name):
     user_ids = [int(acc['id']) for acc in accounts]
     if not user_ids: return {}
 
-    # CẬP NHẬT: Sử dụng endpoint đáng tin cậy hơn từ logic tham khảo
     api_url = "https://presence.roblox.com/v1/presence/users"
     payload = {"userIds": user_ids}
     
     response_data = execute_direct_api_request('POST', api_url, config, thread_name, json_data=payload)
     
-    # Thêm log để gỡ lỗi, hiển thị dữ liệu thô nhận được
     print(f"\n[{thread_name}] [DEBUG] Phản hồi API trạng thái: {json.dumps(response_data, indent=2)}")
     
     status_map = {str(uid): False for uid in user_ids}
     if response_data and 'userPresences' in response_data:
         for presence in response_data['userPresences']:
-            # userPresenceType == 2 có nghĩa là "In Game"
             if presence.get('userPresenceType') == 2:
                 status_map[str(presence.get('userId'))] = True
     else:
@@ -301,19 +328,16 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
             print(f"[{thread_name}] [ACTION] Tài khoản '{suffix}' (ID: {user_id}) không ở trong game. Dừng và khởi động lại.")
             print(f"[{thread_name}] -> Đang dừng ứng dụng: {package_name}")
             
-            # Sử dụng lệnh 'am force-stop' đáng tin cậy hơn
-            stop_command = f'tsu -c "am force-stop {package_name}"'
+            stop_command_list = ['tsu', '-c', f'am force-stop {package_name}']
             try:
-                # Chạy lệnh và ghi lại output để gỡ lỗi
                 result = subprocess.run(
-                    stop_command, 
-                    shell=True, 
+                    stop_command_list, 
+                    shell=False,
                     check=False, 
                     capture_output=True, 
                     text=True,
                     timeout=10
                 )
-                # In output để kiểm tra
                 if result.stdout:
                     print(f"[{thread_name}]    -> Output (stdout): {result.stdout.strip()}")
                 if result.stderr:
@@ -343,6 +367,8 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
             subprocess.run(command, check=False, capture_output=True, text=True)
         except Exception as e:
             print(f"[{thread_name}] Lỗi khi thực thi lệnh cho '{suffix}': {e}")
+        
+        time.sleep(2)
             
 # ==============================================================================
 # -- CÁC VÒNG LẶP CHO THREAD --
@@ -376,6 +402,9 @@ def launcher_loop(launch_mode):
 # ==============================================================================
 
 if __name__ == "__main__":
+    # Yêu cầu quyền root ngay khi bắt đầu
+    request_root_permissions()
+    
     parser = argparse.ArgumentParser(description="Roblox Task Runner - Công cụ tự động quét và tham gia server.")
     subparsers = parser.add_subparsers(dest='command', help='Các lệnh có sẵn')
 
@@ -398,10 +427,7 @@ if __name__ == "__main__":
         
         elif command == 'parallel':
             print("--- KHỞI ĐỘNG CHẾ ĐỘ SONG SONG (SCAN & LAUNCH VIP ĐỘC LẬP) ---")
-            scanner_thread = threading.Thread(target=scanner_loop, daemon=True)
-            launcher_thread = threading.Thread(target=launcher_loop, args=('vip',), daemon=True)
-
-            scanner_thread.start()
+            scanner_thread = threading.Tostart()
             print("[MAIN] Đã khởi động luồng quét (SCAN).")
             
             time.sleep(3) 
