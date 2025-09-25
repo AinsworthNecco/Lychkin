@@ -13,12 +13,12 @@ import json
 from datetime import datetime
 
 # ==============================================================================
-# SCRIPT KẾT HỢP: ROBLOX TASK RUNNER v4.0
+# SCRIPT KẾT HỢP: ROBLOX TASK RUNNER v4.1
 #
 # CẢI TIẾN:
-# - Thay đổi phương pháp kiểm tra root sang dùng 'whoami' để tăng độ tin cậy
-#   và tránh lỗi 'Unknown id' khi chạy qua pipe.
-# - Sửa lỗi nghiêm trọng ở chế độ 'parallel' ngăn cản các luồng khởi động.
+# - Thay đổi phương thức gọi `tsu` sang dùng stdin (input=...) thay vì cờ `-c`.
+#   Đây là một kỹ thuật mạnh mẽ hơn nhằm khắc phục lỗi "Unknown id: PATH=..."
+#   trên một số môi trường ảo hóa.
 # ==============================================================================
 
 # ---------------------------------------------------
@@ -58,16 +58,16 @@ def request_root_permissions():
     """Yêu cầu quyền root khi script khởi động và thoát nếu không thành công."""
     print("[MAIN] Đang kiểm tra và yêu cầu quyền root (tsu)...")
     try:
-        # Chạy lệnh 'whoami' với tsu để kiểm tra quyền root một cách đáng tin cậy
+        # Kỹ thuật mới: Chạy tsu và truyền lệnh vào qua stdin
         result = subprocess.run(
-            ['tsu', '-c', 'whoami'],
+            ['tsu'],
+            input='whoami', # Lệnh cần thực thi
             shell=False,
             capture_output=True,
             text=True,
-            timeout=20  # Cho người dùng 20 giây để chấp nhận yêu cầu
+            timeout=20
         )
         
-        # Kiểm tra xem kết quả có phải là 'root' không
         if result.returncode == 0 and 'root' in result.stdout.strip():
             print("[MAIN] ✅ Đã có quyền root. Bắt đầu các tác vụ.")
             return True
@@ -75,7 +75,7 @@ def request_root_permissions():
             print("[MAIN] ❌ Lỗi: Không thể lấy quyền root. Vui lòng cấp quyền cho Termux trong ứng dụng quản lý root của bạn (ví dụ: Magisk).")
             print(f"[MAIN]    -> stdout: {result.stdout.strip()}")
             print(f"[MAIN]    -> stderr: {result.stderr.strip()}")
-            sys.exit(1) # Thoát script nếu không có quyền root
+            sys.exit(1)
             
     except FileNotFoundError:
         print("[MAIN] ❌ Lỗi: Lệnh 'tsu' không được tìm thấy. Vui lòng cài đặt tsu.")
@@ -331,10 +331,11 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
             print(f"[{thread_name}] [ACTION] Tài khoản '{suffix}' (ID: {user_id}) không ở trong game. Dừng và khởi động lại.")
             print(f"[{thread_name}] -> Đang dừng ứng dụng: {package_name}")
             
-            stop_command_list = ['tsu', '-c', f'am force-stop {package_name}']
             try:
+                # Kỹ thuật mới: Chạy tsu và truyền lệnh vào qua stdin
                 result = subprocess.run(
-                    stop_command_list, 
+                    ['tsu'], 
+                    input=f'am force-stop {package_name}',
                     shell=False,
                     check=False, 
                     capture_output=True, 
@@ -430,7 +431,7 @@ if __name__ == "__main__":
         
         elif command == 'parallel':
             print("--- KHỞI ĐỘNG CHẾ ĐỘ SONG SONG (SCAN & LAUNCH VIP ĐỘC LẬP) ---")
-            # SỬA LỖI: Sửa lại phần khởi tạo thread bị lỗi
+            
             scanner_thread = threading.Thread(target=scanner_loop, daemon=True)
             launcher_thread = threading.Thread(target=launcher_loop, args=('vip',), daemon=True)
 
