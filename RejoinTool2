@@ -12,13 +12,13 @@ import threading
 from datetime import datetime
 
 # ==============================================================================
-# SCRIPT KẾT HỢP: ROBLOX TASK RUNNER v3.3
+# SCRIPT KẾT HỢP: ROBLOX TASK RUNNER v3.4
 #
 # CẢI TIẾN:
-# - Tách biệt việc sử dụng proxy:
-#   - Luồng `scan` VẪN sử dụng proxy để tránh bị giới hạn.
-#   - Luồng `launch` (bao gồm kiểm tra trạng thái) giờ đây KHÔNG sử dụng
-#     proxy để tăng tính ổn định và tránh lỗi kết nối.
+# - Thay đổi logic của luồng Launch:
+#   - Script giờ đây LUÔN gửi lệnh tham gia game cho mọi tài khoản.
+#   - Lệnh `kill` sẽ CHỈ được thực thi nếu tài khoản được phát hiện
+#     không ở trong game.
 # ==============================================================================
 
 # ---------------------------------------------------
@@ -200,7 +200,6 @@ def check_roblox_presence(accounts, config, thread_name):
     api_url = "https://presence.roblox.com/v1/users/presences"
     payload = {"userIds": user_ids}
     
-    # Sử dụng hàm kết nối trực tiếp
     response_data = execute_direct_api_request('POST', api_url, config, thread_name, json_data=payload)
     
     status_map = {str(uid): False for uid in user_ids}
@@ -222,7 +221,6 @@ def run_scanner(config, thread_name="SCAN"):
         api_url = f"https://games.roblox.com/v1/games/{config['PLACE_ID']}/servers/Public?sortOrder=Desc&limit=100"
         if next_cursor and next_cursor != "null": api_url += f"&cursor={next_cursor}"
         
-        # Sử dụng hàm kết nối có proxy
         response_data = execute_api_request_with_proxy('GET', api_url, config, thread_name)
         if not response_data: continue
         
@@ -256,7 +254,7 @@ def run_scanner(config, thread_name="SCAN"):
     return True
 
 def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
-    """Kiểm tra trạng thái, dừng và khởi chạy các instance Roblox."""
+    """Kiểm tra trạng thái, dừng (nếu cần) và khởi chạy các instance Roblox."""
     accounts = config.get("ACCOUNT_SUFFIXES", [])
     if not accounts:
         print(f"[{thread_name}] [-] Lỗi: Không có tài khoản nào được cấu hình. Vui lòng kiểm tra định dạng 'suffix:ID'.")
@@ -287,23 +285,24 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
     for i, account in enumerate(accounts):
         suffix = account['suffix']
         user_id = account['id']
-        
-        if online_statuses.get(user_id, False):
-            print(f"[{thread_name}] [SKIP] Tài khoản '{suffix}' (ID: {user_id}) đã ở trong game. Bỏ qua.")
-            continue
-
-        print(f"[{thread_name}] [ACTION] Tài khoản '{suffix}' (ID: {user_id}) không ở trong game.")
         package_name = f"{config['BASE_PACKAGE_NAME']}{suffix}"
+        
+        is_ingame = online_statuses.get(user_id, False)
 
-        print(f"[{thread_name}] -> Đang dừng ứng dụng: {package_name}")
-        kill_command = f'su -c "PID=$(pidof {package_name}); if [ ! -z \\"$PID\\" ]; then kill -9 $PID; fi"'
-        try:
-            subprocess.run(kill_command, shell=True, check=False, capture_output=True, text=True)
-            print(f"[{thread_name}]    -> Chờ 5 giây trước khi khởi động lại...")
-            time.sleep(5)
-        except Exception as e:
-            print(f"[{thread_name}] [!] Lỗi khi thực thi lệnh kill cho '{suffix}': {e}")
-            
+        if not is_ingame:
+            print(f"[{thread_name}] [ACTION] Tài khoản '{suffix}' (ID: {user_id}) không ở trong game. Dừng và khởi động lại.")
+            print(f"[{thread_name}] -> Đang dừng ứng dụng: {package_name}")
+            kill_command = f'su -c "PID=$(pidof {package_name}); if [ ! -z \\"$PID\\" ]; then kill -9 $PID; fi"'
+            try:
+                subprocess.run(kill_command, shell=True, check=False, capture_output=True, text=True)
+                print(f"[{thread_name}]    -> Chờ 5 giây trước khi khởi động lại...")
+                time.sleep(5)
+            except Exception as e:
+                print(f"[{thread_name}] [!] Lỗi khi thực thi lệnh kill cho '{suffix}': {e}")
+        else:
+            print(f"[{thread_name}] [ACTION] Tài khoản '{suffix}' (ID: {user_id}) đã ở trong game. Gửi lại lệnh tham gia.")
+
+        # Luôn gửi lệnh tham gia
         target_url, log_msg = "", ""
         if launch_mode == 'scan':
             server_id = server_ids[i % len(server_ids)]
