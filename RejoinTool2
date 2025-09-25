@@ -12,13 +12,11 @@ import threading
 from datetime import datetime
 
 # ==============================================================================
-# SCRIPT KẾT HỢP: ROBLOX TASK RUNNER v3.4
+# SCRIPT KẾT HỢP: ROBLOX TASK RUNNER v3.5
 #
 # CẢI TIẾN:
-# - Thay đổi logic của luồng Launch:
-#   - Script giờ đây LUÔN gửi lệnh tham gia game cho mọi tài khoản.
-#   - Lệnh `kill` sẽ CHỈ được thực thi nếu tài khoản được phát hiện
-#     không ở trong game.
+# - Cập nhật lệnh kill để sử dụng `tsu` thay vì `su` cho các môi trường
+#   Termux yêu cầu.
 # ==============================================================================
 
 # ---------------------------------------------------
@@ -292,7 +290,7 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
         if not is_ingame:
             print(f"[{thread_name}] [ACTION] Tài khoản '{suffix}' (ID: {user_id}) không ở trong game. Dừng và khởi động lại.")
             print(f"[{thread_name}] -> Đang dừng ứng dụng: {package_name}")
-            kill_command = f'su -c "PID=$(pidof {package_name}); if [ ! -z \\"$PID\\" ]; then kill -9 $PID; fi"'
+            kill_command = f'tsu -c "PID=$(pidof {package_name}); if [ ! -z \\"$PID\\" ]; then kill -9 $PID; fi"'
             try:
                 subprocess.run(kill_command, shell=True, check=False, capture_output=True, text=True)
                 print(f"[{thread_name}]    -> Chờ 5 giây trước khi khởi động lại...")
