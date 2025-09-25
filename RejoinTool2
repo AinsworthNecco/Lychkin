@@ -12,9 +12,11 @@ import threading
 from datetime import datetime
 
 # ==============================================================================
-# SCRIPT KẾT HỢP: ROBLOX TASK RUNNER v3.1
+# SCRIPT KẾT HỢP: ROBLOX TASK RUNNER v3.2
 #
 # CẢI TIẾN:
+# - Cập nhật CONFIG_URL.
+# - Sửa lỗi SyntaxError.
 # - Luồng `launch` giờ đây sẽ kiểm tra trạng thái online của tài khoản.
 #   - Nếu tài khoản đang trong game, bỏ qua.
 #   - Nếu không trong game, sẽ kill ứng dụng, ĐỢI 5 GIÂY, và khởi động lại.
@@ -290,7 +292,8 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
         if launch_mode == 'scan':
             server_id = server_ids[i % len(server_ids)]
             target_url = f"roblox://placeId={config['PLACE_ID']}&gameId={server_id}"
-            log_msg = f"'{suffix}' (Server: ...{str(server_id)[-12:]})"<br>        elif launch_mode == 'vip':
+            log_msg = f"'{suffix}' (Server: ...{str(server_id)[-12:]})"
+        elif launch_mode == 'vip':
             target_url = target_url_template
             log_msg = f"'{suffix}' (VIP Server)"
         
