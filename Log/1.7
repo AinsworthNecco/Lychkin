@@ -75,8 +75,8 @@ local SETTINGS = {
     ["EnableAutoSpam"] = true, -- Bật/tắt tự động spam tin nhắn
     ["SpamInterval"] = 60, -- Thời gian (giây) giữa mỗi lần chat
     ["SpamMessages"] = {   -- Danh sách các tin nhắn để spam
-        "Goal: MAX SPIN LEVEL 100 🌀 - 1 ROBUX = +1 SPEED!",
-        "Goal: MAX SPIN LEVEL 100 🌀 - 1 ROBUX = +1 SPEED!"
+        "Goal: MAX SPIN LEVEL 100:cyclone: - 1 ROBUX = +1 SPEED!",
+        "Goal: MAX SPIN LEVEL 100:cyclone: - 1 ROBUX = +1 SPEED!"
     },
 
     -- =================================================================
@@ -248,7 +248,6 @@ local function loadNecoServers()
     if success and content then
         for line in string.gmatch(content, "[^" .. "\r\n" .. "]+") do
             local trimmedLine = line:match("^%s*(.-)%s*$")
-            -- [ĐÃ SỬA] Đảm bảo lọc cả server hiện tại và server trong lịch sử
             if trimmedLine and #trimmedLine > 0 and trimmedLine ~= currentJobId and not serverHistoryCache[trimmedLine] then
                 table.insert(necoIds, trimmedLine)
             end
@@ -270,35 +269,26 @@ local function setupFacialCameraAndFreeze()
     local humanoid = char:WaitForChild("Humanoid")
     local root = char:WaitForChild("HumanoidRootPart")
 
-    -- Tắt animation (để cơ thể không cử động lung tung)
     local animate = char:FindFirstChild("Animate")
     if animate then
         animate.Disabled = true
     end
 
-    -- Tắt auto rotate để không xoay theo chuột
     if humanoid then
         humanoid.AutoRotate = false
     end
 
-    -- Camera setup
     local camera = workspace.CurrentCamera
     camera.CameraType = Enum.CameraType.Scriptable
 
-    -- Khoảng cách và chiều cao camera ở phía trước
-    local forwardOffset = 6   -- khoảng cách trước mặt
-    local heightOffset = 2    -- chiều cao so với gốc
+    local forwardOffset = 6
+    local heightOffset = 2
 
     RunService.RenderStepped:Connect(function()
         if root and root.Parent and humanoid and humanoid.Health > 0 then
-            -- Lấy hướng nhìn của nhân vật
             local look = root.CFrame.LookVector
             local targetPos = root.Position + Vector3.new(0, heightOffset, 0)
-
-            -- Đặt camera ở trước mặt (theo hướng nhìn của nhân vật)
             local camPos = targetPos + look * forwardOffset
-
-            -- Camera nhìn thẳng vào mặt nhân vật
             camera.CFrame = CFrame.new(camPos, targetPos)
         end
     end)
@@ -341,7 +331,7 @@ end
 
 local function executeTeleport(jobId)
     updateDisplay("SUCCESS", string.format("Server được chọn!\nĐang vào: %s...", jobId:sub(1, 12)))
-    task.wait(0.3)
+    task.wait(0.5)
     print(string.format("[Teleport] Bắt đầu dịch chuyển đến Job ID: %s", jobId))
     pcall(function()
         TeleportService:TeleportToPlaceInstance(game.PlaceId, jobId, Players.LocalPlayer)
@@ -350,7 +340,7 @@ end
 
 tryNextCachedServer = function()
     if #cachedCandidateServers > 0 then
-        local targetServerId = table.remove(cachedCandidateServers, 1) -- Lấy và xóa server đầu tiên
+        local targetServerId = table.remove(cachedCandidateServers, 1)
         updateDisplay("INFO", string.format("Thử server từ cache: %s... (%d còn lại)", targetServerId:sub(1, 12), #cachedCandidateServers))
         executeTeleport(targetServerId)
     else
@@ -365,7 +355,7 @@ end
 
 tryNextNecoServer = function()
     if #necoCandidateServers > 0 then
-        local targetServerId = necoCandidateServers[1] -- Luôn thử server đầu tiên trong danh sách
+        local targetServerId = necoCandidateServers[1]
         updateDisplay("INFO", string.format("Thử server Neco: %s...", targetServerId:sub(1, 12)))
         executeTeleport(targetServerId)
     else
@@ -396,7 +386,6 @@ function persistentFetch(url)
                 
                 local freshCachedServers = {}
                 for _, serverId in ipairs(allCachedServers) do
-                    -- [ĐÃ SỬA] Đảm bảo lọc cả server hiện tại và server trong lịch sử
                     if serverId ~= currentJobId and not serverHistoryCache[serverId] then
                         table.insert(freshCachedServers, serverId)
                     end
@@ -449,7 +438,6 @@ fetchNextBatch = function()
         local ignoredHistoryCount = 0
         
         for _, server in ipairs(response.data) do
-            -- [ĐÃ SỬA] Đảm bảo lọc cả server hiện tại và server trong lịch sử
             if server.id ~= currentJobId and not serverHistoryCache[server.id] then
                 table.insert(candidateServers, server)
                 newCandidatesCount = newCandidatesCount + 1
@@ -524,8 +512,8 @@ TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, erro
     
     if isHoppingFromNeco then
         updateDisplay("ERROR", "Neco teleport thất bại: " .. reason)
-        updateDisplay("INFO", "Spam server Neco tiếp theo sau 0.3s...")
-        task.wait(0.3)
+        updateDisplay("INFO", "Spam server Neco tiếp theo sau 0.5s...")
+        task.wait(0.5)
 
         if #necoCandidateServers > 1 then
             local failedServer = table.remove(necoCandidateServers, 1)
@@ -536,8 +524,8 @@ TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, erro
     end
 
     updateDisplay("ERROR", "Dịch chuyển thất bại: " .. reason)
-    updateDisplay("INFO", "Tìm server khác sau 0.3 giây...")
-    task.wait(0.3)
+    updateDisplay("INFO", "Tìm server khác sau 0.5 giây...")
+    task.wait(0.5)
 
     if isHoppingFromCache then
         print("[Teleport] Lỗi khi hop từ cache. Thử server cache tiếp theo.")
@@ -766,7 +754,7 @@ end
 -- =================================================================
 -- HÀM QUÉT BOT & NÉ NGƯỜI CHƠI
 -- =================================================================
-local function scanForBots() updateDisplay("INFO", "Bắt đầu quét bot..."); task.wait(0.5); local _boothlocation; local suc, _shuffled = pcall(function() return Workspace:WaitForChild('MapUI', 5) end); if not suc or not _shuffled then local playerGuiMap = LocalPlayer:WaitForChild("PlayerGui"); if playerGuiMap then local mapUiContainer = playerGuiMap:WaitForChild('MapUIContainer', 5); if mapUiContainer then _boothlocation = mapUiContainer:WaitForChild('MapUI', 5) end end else _boothlocation = _shuffled end; if not _boothlocation then updateDisplay("ERROR", "LỖI: Không tìm thấy MapUI để quét bot."); return 0 end; local boothUI = _boothlocation:WaitForChild("BoothUI"); if not boothUI then updateDisplay("ERROR", "LỖI: Không tìm thấy BoothUI bên trong MapUI."); return 0 end; local currentBotCount = 0; for _, uiFrame in ipairs(boothUI:GetChildren()) do local success, err = pcall(function() local ownerName = uiFrame.Details.Owner.Text; if ownerName ~= "unclaimed" then local boothText = string.lower(uiFrame.Sign.TextLabel.Text); for _, keyword in ipairs(SETTINGS.BOT_KEYWORDS) do if string.find(boothText, keyword) then currentBotCount = currentBotCount + 1; local alertMessage = string.format("PHÁT HIỆN BOT #%d\n'%s'", currentBotCount, ownerName); updateDisplay("BOT_DETECTED", alertMessage); task.wait(2.5); break end end end end); if not success then print("[Anti-Bot] Lỗi khi quét gian hàng: " .. tostring(err)) end end; updateDisplay("INFO", "Quét xong. Phát hiện: " .. currentBotCount .. " bot."); task.wait(3); return currentBotCount end
+local function scanForBots() updateDisplay("INFO", "Bắt đầu quét bot..."); task.wait(2); local _boothlocation; local suc, _shuffled = pcall(function() return Workspace:WaitForChild('MapUI', 5) end); if not suc or not _shuffled then local playerGuiMap = LocalPlayer:WaitForChild("PlayerGui"); if playerGuiMap then local mapUiContainer = playerGuiMap:WaitForChild('MapUIContainer', 5); if mapUiContainer then _boothlocation = mapUiContainer:WaitForChild('MapUI', 5) end end else _boothlocation = _shuffled end; if not _boothlocation then updateDisplay("ERROR", "LỖI: Không tìm thấy MapUI để quét bot."); return 0 end; local boothUI = _boothlocation:WaitForChild("BoothUI"); if not boothUI then updateDisplay("ERROR", "LỖI: Không tìm thấy BoothUI bên trong MapUI."); return 0 end; local currentBotCount = 0; for _, uiFrame in ipairs(boothUI:GetChildren()) do local success, err = pcall(function() local ownerName = uiFrame.Details.Owner.Text; if ownerName ~= "unclaimed" then local boothText = string.lower(uiFrame.Sign.TextLabel.Text); for _, keyword in ipairs(SETTINGS.BOT_KEYWORDS) do if string.find(boothText, keyword) then currentBotCount = currentBotCount + 1; local alertMessage = string.format("PHÁT HIỆN BOT #%d\n'%s'", currentBotCount, ownerName); updateDisplay("BOT_DETECTED", alertMessage); task.wait(2.5); break end end end end); if not success then print("[Anti-Bot] Lỗi khi quét gian hàng: " .. tostring(err)) end end; updateDisplay("INFO", "Quét xong. Phát hiện: " .. currentBotCount .. " bot."); task.wait(3); return currentBotCount end
 
 local function checkAvoidPlayersOnce()
     if not SETTINGS.EnableAvoidPlayers or not SETTINGS.AVOID_PLAYERS or #SETTINGS.AVOID_PLAYERS == 0 then
@@ -780,7 +768,7 @@ local function checkAvoidPlayersOnce()
     for _, player in ipairs(playersInServer) do
         if player.Name ~= LocalPlayer.Name and avoidNamesSet[player.Name] then
             updateDisplay("ERROR", string.format("Phát hiện tài khoản '%s'!\nĐang tìm server mới...", player.Name))
-            task.wait(1)
+            task.wait(3)
             searchForServer()
             return true
         end
@@ -817,12 +805,12 @@ task.spawn(function()
     updateDisplay("INFO", string.format("Chờ game tải trong %d giây...", SETTINGS.InitialWaitTime))
     task.wait(SETTINGS.InitialWaitTime)
     
+    -- [ĐÃ SỬA] Chạy song song tác vụ booth và tác vụ quét server
     task.spawn(claimAndSetupBooth)
     task.spawn(setupUnifiedDonationListener)
     
     updateDisplay("INFO", "Bắt đầu luồng quyết định...")
-    task.wait(2)
-
+    
     if SETTINGS.EnableServerHop then
         local botCount = 0
         if SETTINGS.EnableAntiBotScan then botCount = scanForBots() end
@@ -856,4 +844,3 @@ task.spawn(function()
     end
     print("[MainInit] Script đã hoàn tất.")
 end)
-
