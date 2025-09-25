@@ -9,15 +9,16 @@ import sys
 import argparse
 import re
 import threading
+import json
 from datetime import datetime
 
 # ==============================================================================
-# SCRIPT KẾT HỢP: ROBLOX TASK RUNNER v3.6
+# SCRIPT KẾT HỢP: ROBLOX TASK RUNNER v3.7
 #
 # CẢI TIẾN:
-# - Thay đổi lệnh kill từ `pidof` + `kill` thành `am force-stop` để tăng
-#   độ tin cậy khi dừng ứng dụng.
-# - Thêm log chi tiết (stdout/stderr) từ lệnh `tsu` để dễ dàng gỡ lỗi.
+# - Cập nhật API endpoint để kiểm tra trạng thái người dùng sang
+#   `.../v1/presence/users` để tăng độ chính xác, dựa trên logic tham khảo.
+# - Thêm log gỡ lỗi (DEBUG) để hiển thị phản hồi thô từ API trạng thái.
 # ==============================================================================
 
 # ---------------------------------------------------
@@ -196,16 +197,24 @@ def check_roblox_presence(accounts, config, thread_name):
     user_ids = [int(acc['id']) for acc in accounts]
     if not user_ids: return {}
 
-    api_url = "https://presence.roblox.com/v1/users/presences"
+    # CẬP NHẬT: Sử dụng endpoint đáng tin cậy hơn từ logic tham khảo
+    api_url = "https://presence.roblox.com/v1/presence/users"
     payload = {"userIds": user_ids}
     
     response_data = execute_direct_api_request('POST', api_url, config, thread_name, json_data=payload)
     
+    # Thêm log để gỡ lỗi, hiển thị dữ liệu thô nhận được
+    print(f"\n[{thread_name}] [DEBUG] Phản hồi API trạng thái: {json.dumps(response_data, indent=2)}")
+    
     status_map = {str(uid): False for uid in user_ids}
     if response_data and 'userPresences' in response_data:
         for presence in response_data['userPresences']:
+            # userPresenceType == 2 có nghĩa là "In Game"
             if presence.get('userPresenceType') == 2:
                 status_map[str(presence.get('userId'))] = True
+    else:
+        print(f"[{thread_name}] [DEBUG] Không tìm thấy khóa 'userPresences' trong phản hồi API.")
+        
     return status_map
 
 def run_scanner(config, thread_name="SCAN"):
