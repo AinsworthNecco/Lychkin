@@ -63,7 +63,7 @@ local SETTINGS = {
     },
 
         ["EnableAutoThank"] = true, -- Bật/tắt tự động cảm ơn khi được donate
-    ["ThankYouMessages"] = {   -- Danh sách các tin nhắn cảm ơn
+    ["ThankYouMessages"] = {    -- Danh sách các tin nhắn cảm ơn
         "Thanks for the donation!",
         "Tysm!!",
         "Thank you so much!",
@@ -74,7 +74,7 @@ local SETTINGS = {
 
     ["EnableAutoSpam"] = true, -- Bật/tắt tự động spam tin nhắn
     ["SpamInterval"] = 60, -- Thời gian (giây) giữa mỗi lần chat
-    ["SpamMessages"] = {   -- Danh sách các tin nhắn để spam
+    ["SpamMessages"] = {    -- Danh sách các tin nhắn để spam
         "Goal: MAX SPIN LEVEL 100:cyclone: - 1 ROBUX = +1 SPEED!",
         "Goal: MAX SPIN LEVEL 100:cyclone: - 1 ROBUX = +1 SPEED!"
     },
@@ -348,17 +348,27 @@ tryNextCachedServer = function()
         updateDisplay("INFO", "Quay lại quét API để lấy server mới...")
         isHoppingFromCache = false 
         isRateLimited = false      
-        task.wait(1)              
+        task.wait(1)               
         fetchNextBatch()          
     end
 end
 
+-- =================================================================
+-- [NÂNG CẤP] LOGIC CHỌN SERVER NGẪU NHIÊN TỪ NECO.TXT
+-- =================================================================
 tryNextNecoServer = function()
     if #necoCandidateServers > 0 then
-        local targetServerId = necoCandidateServers[1]
-        updateDisplay("INFO", string.format("Thử server Neco: %s...", targetServerId:sub(1, 12)))
+        -- CHỌN NGẪU NHIÊN: Lấy một index ngẫu nhiên từ danh sách server còn lại
+        local randomIndex = rng:NextInteger(1, #necoCandidateServers)
+        local targetServerId = necoCandidateServers[randomIndex]
+
+        -- XÓA SERVER ĐÃ CHỌN: Loại bỏ server khỏi danh sách để không thử lại
+        table.remove(necoCandidateServers, randomIndex)
+        
+        updateDisplay("INFO", string.format("Thử server Neco ngẫu nhiên: %s... (%d còn lại)", targetServerId:sub(1, 12), #necoCandidateServers))
         executeTeleport(targetServerId)
     else
+        -- KHI HẾT SERVER: Quay lại luồng tìm server bình thường
         isHoppingFromNeco = false
         updateDisplay("ERROR", "Hết server trong neco.txt để thử.")
         searchForServer() 
@@ -451,8 +461,8 @@ fetchNextBatch = function()
         if newCandidatesCount > 0 then
              updateDisplay("SUCCESS", "Quét xong! Tìm thấy " .. newCandidatesCount .. " server hợp lệ.")
              for i = #candidateServers, 2, -1 do
-                 local j = rng:NextInteger(1, i)
-                 candidateServers[i], candidateServers[j] = candidateServers[j], candidateServers[i]
+                  local j = rng:NextInteger(1, i)
+                  candidateServers[i], candidateServers[j] = candidateServers[j], candidateServers[i]
              end
              tryNextServer()
         else
@@ -487,7 +497,7 @@ searchForServer = function()
     necoCandidateServers = loadNecoServers()
     if #necoCandidateServers > 0 then
         isHoppingFromNeco = true
-        updateDisplay("INFO", string.format("Tìm thấy %d server trong neco.txt.\nBắt đầu spam...", #necoCandidateServers))
+        updateDisplay("INFO", string.format("Tìm thấy %d server trong neco.txt.\nBắt đầu chọn ngẫu nhiên...", #necoCandidateServers))
         tryNextNecoServer()
     else
         updateDisplay("INFO", "neco.txt rỗng hoặc đã vào hết.\nBắt đầu tìm server từ API...")
@@ -510,17 +520,16 @@ TeleportService.TeleportInitFailed:Connect(function(player, teleportResult, erro
         reason = errorMessage
     end
     
+    -- =================================================================
+    -- [NÂNG CẤP] XỬ LÝ LỖI KHI DỊCH CHUYỂN TỚI SERVER NECO NGẪU NHIÊN
+    -- =================================================================
     if isHoppingFromNeco then
         updateDisplay("ERROR", "Neco teleport thất bại: " .. reason)
-        updateDisplay("INFO", "Spam server Neco tiếp theo sau 0.5s...")
+        -- CHỈ CẦN GỌI LẠI: Hàm tryNextNecoServer sẽ tự động chọn một server ngẫu nhiên khác từ danh sách đã bị rút gọn.
+        updateDisplay("INFO", "Thử server Neco ngẫu nhiên khác sau 0.5s...") 
         task.wait(0.5)
-
-        if #necoCandidateServers > 1 then
-            local failedServer = table.remove(necoCandidateServers, 1)
-            table.insert(necoCandidateServers, failedServer)
-        end
-        tryNextNecoServer()
-        return
+        tryNextNecoServer() 
+        return 
     end
 
     updateDisplay("ERROR", "Dịch chuyển thất bại: " .. reason)
@@ -844,4 +853,3 @@ task.spawn(function()
     end
     print("[MainInit] Script đã hoàn tất.")
 end)
-
