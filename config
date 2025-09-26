@@ -1,41 +1,22 @@
 --- CẤU HÌNH CHUNG ---
 PLACE_ID="8737602449" - ID của game cần quét
-ACCOUNT_SUFFIXES="b,c,d,e,f" - Hậu tố các tài khoản Roblox clone "b,c,d,e,f"
+ACCOUNT_SUFFIXES="b:9304500203,c:9304488321,d:9304499194,e:9304476426,f:9304532570" - Hậu tố các tài khoản Roblox clone "b,c,d,e,f"
 BASE_PACKAGE_NAME="com.roblox.clien" - Tên gói Roblox cơ bản
 
 --- CẤU HÌNH CHO TÁC VỤ "SCAN" ---
 SCAN_INTERVAL_SECONDS="60" - Thời gian nghỉ giữa các chu kỳ quét (giây)
 MIN_PLAYER_PERCENTAGE="70" - Tỷ lệ người chơi tối thiểu (%)
-MAX_PLAYER_PERCENTAGE="85" - Tỷ lệ người chơi tối đa (%)
+MAX_PLAYER_PERCENTAGE="80" - Tỷ lệ người chơi tối đa (%)
 OUTPUT_FILE_PATH="/storage/emulated/0/Codex/Workspace/neco.txt" - Đường dẫn đầy đủ và tên file lưu kết quả quét
 
 --- CẤU HÌNH CHO TÁC VỤ "LAUNCH" ---
-LAUNCH_INTERVAL_SECONDS="600" - Thời gian nghỉ giữa các chu kỳ join game (giây)
+LAUNCH_INTERVAL_SECONDS="300" - Thời gian nghỉ giữa các chu kỳ join game (giây)
 LAUNCH_DELAY_SECONDS="15" - Thời gian chờ giữa mỗi lần join của từng tài khoản
 VIP_SERVER_URL="roblox://placeId=8737602449" - URL VIP server (dùng cho launch --mode vip)
 
 --- CẤU HÌNH MẠNG (Nâng cao) ---
 
 PROXY_LIST="
-142.111.48.253:7030:xmdhihcp:wbxrjsbrtqnx
-198.23.239.134:6540:xmdhihcp:wbxrjsbrtqnx
-45.38.107.97:6014:xmdhihcp:wbxrjsbrtqnx
-107.172.163.27:6543:xmdhihcp:wbxrjsbrtqnx
-64.137.96.74:6641:xmdhihcp:wbxrjsbrtqnx
-154.203.43.247:5536:xmdhihcp:wbxrjsbrtqnx
-84.247.60.125:6095:xmdhihcp:wbxrjsbrtqnx
-216.10.27.159:6837:xmdhihcp:wbxrjsbrtqnx
-142.111.67.146:5611:xmdhihcp:wbxrjsbrtqnx
-142.147.128.93:6593:xmdhihcp:wbxrjsbrtqnx
-142.111.48.253:7030:oqdpuxwj:46ljzntm6es3
-198.23.239.134:6540:oqdpuxwj:46ljzntm6es3
-45.38.107.97:6014:oqdpuxwj:46ljzntm6es3
-107.172.163.27:6543:oqdpuxwj:46ljzntm6es3
-64.137.96.74:6641:oqdpuxwj:46ljzntm6es3
-154.203.43.247:5536:oqdpuxwj:46ljzntm6es3
-84.247.60.125:6095:oqdpuxwj:46ljzntm6es3
-216.10.27.159:6837:oqdpuxwj:46ljzntm6es3
-142.111.67.146:5611:oqdpuxwj:46ljzntm6es3
-142.147.128.93:6593:oqdpuxwj:46ljzntm6es3
+
 "
 CONNECTION_TIMEOUT="15" - Thời gian chờ tối đa cho mỗi kết nối (giây)
