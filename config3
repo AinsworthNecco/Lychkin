@@ -17,6 +17,25 @@ VIP_SERVER_URL="roblox://placeId=8737602449" - URL VIP server (dùng cho launch 
 --- CẤU HÌNH MẠNG (Nâng cao) ---
 
 PROXY_LIST="
-
+142.111.48.253:7030:qcgpfkwi:e5mdsancwx6g
+198.23.239.134:6540:qcgpfkwi:e5mdsancwx6g
+45.38.107.97:6014:qcgpfkwi:e5mdsancwx6g
+107.172.163.27:6543:qcgpfkwi:e5mdsancwx6g
+64.137.96.74:6641:qcgpfkwi:e5mdsancwx6g
+154.203.43.247:5536:qcgpfkwi:e5mdsancwx6g
+84.247.60.125:6095:qcgpfkwi:e5mdsancwx6g
+216.10.27.159:6837:qcgpfkwi:e5mdsancwx6g
+142.111.67.146:5611:qcgpfkwi:e5mdsancwx6g
+142.147.128.93:6593:qcgpfkwi:e5mdsancwx6g
+142.111.48.253:7030:oqdpuxwj:46ljzntm6es3
+198.23.239.134:6540:oqdpuxwj:46ljzntm6es3
+45.38.107.97:6014:oqdpuxwj:46ljzntm6es3
+107.172.163.27:6543:oqdpuxwj:46ljzntm6es3
+64.137.96.74:6641:oqdpuxwj:46ljzntm6es3
+154.203.43.247:5536:oqdpuxwj:46ljzntm6es3
+84.247.60.125:6095:oqdpuxwj:46ljzntm6es3
+216.10.27.159:6837:oqdpuxwj:46ljzntm6es3
+142.111.67.146:5611:oqdpuxwj:46ljzntm6es3
+142.147.128.93:6593:oqdpuxwj:46ljzntm6es3
 "
 CONNECTION_TIMEOUT="15" - Thời gian chờ tối đa cho mỗi kết nối (giây)
