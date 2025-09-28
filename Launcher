@@ -1,114 +1,28 @@
-#!/usr/bin/env bash
+import os
+import time
 
-# ==============================================================================
-# ROBLOX LAUNCHER & SCANNER (BLACKBOX FIX) v10.0
-#
-# Cải tiến:
-# - Tái cấu trúc logic kết nối thành một hàm ("hộp đen") chuyên dụng,
-#   đảm bảo script chỉ xử lý dữ liệu mới và sạch sẽ, giải quyết
-#   triệt để vấn đề quét lặp trang do lỗi proxy.
-# ==============================================================================
-
-# ---------------------------------------------------
-# -- CẤU HÌNH --
-# URL "RAW" ĐẾN FILE config CỦA BẠN TRÊN GITHUB
-# ---------------------------------------------------
-CONFIG_URL="https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/config"
-# ---------------------------------------------------
-
-REMOTE_CONFIG_FILE="./remote_config.conf"
-# Biến toàn cục để theo dõi trạng thái proxy
-declare -i PROXY_INDEX=0
-declare -i FAILED_PROXY_COUNT=0
-declare -a FORMATTED_PROXY_LIST=()
-
-# ==============================================================================
-# -- HÀM KẾT NỐI API AN TOÀN ("HỘP ĐEN") --
-# ==============================================================================
-function get_api_data() {
-    local url="$1"
-    local num_proxies=${#FORMATTED_PROXY_LIST[@]}
-    
-    while true; do # Vòng lặp này sẽ chạy cho đến khi có kết quả hợp lệ
-        if (( num_proxies > 0 && FAILED_PROXY_COUNT >= num_proxies )); then
-            echo -e "\n   [!] Tất cả ${num_proxies} proxies đều thất bại. Tạm dừng 5 giây và thử lại từ đầu..."
-            sleep 5
-            FAILED_PROXY_COUNT=0
-            PROXY_INDEX=0
-        fi
-
-        local curl_cmd=("curl" "--silent" "--max-time" "20" "-w" "\n%{http_code}")
-        local proxy_status="IP Gốc"
-        if (( num_proxies > 0 )); then
-            curl_cmd+=("--proxy" "${FORMATTED_PROXY_LIST[$PROXY_INDEX]}")
-            proxy_status="Proxy ${PROXY_INDEX}/${num_proxies}"
-        fi
-        curl_cmd+=("$url")
-        
-        # In trạng thái TRƯỚC khi thực hiện kết nối
-        printf "\r   [+] Quét trang... | Đã thu thập: %-5s | Kết nối: %-12s" "${#collected_ids[@]}" "$proxy_status"
-
-        local response_with_code=$("${curl_cmd[@]}")
-        local http_code=$(echo "$response_with_code" | tail -n1)
-        local response_body=$(echo "$response_with_code" | sed '$d')
-
-        if [[ "$http_code" == "200" ]]; then
-            FAILED_PROXY_COUNT=0 # Reset bộ đếm lỗi khi thành công
-            echo "$response_body" # Trả về dữ liệu thành công
-            return 0 # Thoát hàm với mã thành công
-        else
-            local error_reason="Lỗi (Mã: ${http_code:-000})"
-            if [[ "$http_code" == "429" ]]; then error_reason="Rate Limit"; fi
-
-            if (( num_proxies > 0 )); then
-                echo -e "\n   [!] Proxy #${PROXY_INDEX} thất bại (${error_reason}). Chuyển proxy tiếp theo..."
-                ((FAILED_PROXY_COUNT++))
-                ((PROXY_INDEX = (PROXY_INDEX + 1) % num_proxies))
-                sleep 1
-            else
-                echo -e "\n   [!] IP Gốc thất bại (${error_reason}). Tạm dừng 60 giây và thử lại..."
-                sleep 60
-            fi
-        fi
-    done
+# cấu hình từng app
+apps = {
+    "com.roblox.client": {"size": "32x32", "dpi": 60},
+    "com.roblox.client.vnggameb": {"size": "32x32", "dpi": 60},
+    "com.roblox.client.vnggamec": {"size": "64x64", "dpi": 80}
 }
 
-# ==============================================================================
-# -- LOGIC QUÉT CHÍNH --
-# ==============================================================================
-function run_scanner() {
-    echo "SCANNER: Bắt đầu thực thi logic 'Precision Scan'..."
+while True:
+    # lấy danh sách tiến trình đang chạy
+    output = os.popen("su -c 'pidof -s $(pm list packages -3 -f | cut -d= -f2)'").read()
 
-    # Reset và xử lý proxy
-    FORMATTED_PROXY_LIST=()
-    PROXY_INDEX=0
-    FAILED_PROXY_COUNT=0
-    if [[ ${#PROXY_LIST[@]} -gt 0 && -n "${PROXY_LIST[0]}" ]]; then
-        echo "SCANNER: Đang xử lý ${#PROXY_LIST[@]} proxy từ config..."
-        for proxy_string in "${PROXY_LIST[@]}"; do
-            IFS=':' read -r -a parts <<< "$proxy_string"; local formatted_proxy=""
-            if [[ ${#parts[@]} -eq 2 ]]; then formatted_proxy="http://${parts[0]}:${parts[1]}";
-            elif [[ ${#parts[@]} -eq 4 ]]; then formatted_proxy="http://${parts[2]}:${parts[3]}@${parts[0]}:${parts[1]}"; fi
-            if [[ -n "$formatted_proxy" ]]; then FORMATTED_PROXY_LIST+=("$formatted_proxy"); fi
-        done
-        echo "   ✅ Đã xử lý ${#FORMATTED_PROXY_LIST[@]} proxy hợp lệ. Script sẽ CHỈ dùng proxy."
-    else
-        echo "SCANNER: Không có proxy trong cấu hình, script sẽ dùng IP gốc."
-    fi
-
-    local OUTPUT_FILE="${OUTPUT_DIR}/${OUTPUT_FILE_NAME}"; local MIN_P=$(awk "BEGIN {print ${MIN_PLAYER_PERCENTAGE}/100}"); local MAX_P=$(awk "BEGIN {print ${MAX_PLAYER_PERCENTAGE}/100}")
-    declare -g -a collected_ids=() # Khai báo mảng toàn cục để hàm con có thể thấy
-
-    if [[ ! -d "/storage/emulated/0" ]]; then termux-setup-storage; sleep 3; fi; mkdir -p "$OUTPUT_DIR"
-    echo "SCANNER: Cấu hình: Tìm server có ${MIN_PLAYER_PERCENTAGE}% - ${MAX_PLAYER_PERCENTAGE}% người chơi."; echo "-------------------------------------------------"
-
-    local next_cursor=""
-    while true; do
-        local api_url="https://games.roblox.com/v1/games/${PLACE_ID}/servers/Public?sortOrder=Desc&limit=100"
-        if [[ -n "$next_cursor" && "$next_cursor" != "null" ]]; then api_url="${api_url}&cursor=${next_cursor}"; fi
-        
-        # Gọi "hộp đen" để lấy dữ liệu. Sẽ không đi tiếp cho đến khi có dữ liệu.
-        local response_body=$(get_api_data "$api_url")
+    for pkg, cfg in apps.items():
+        # check tiến trình app có chạy không
+        pid = os.popen(f"su -c 'pidof {pkg}'").read().strip()
+        if pid:
+            # áp dụng size + dpi
+            size = cfg["size"]
+            dpi = cfg["dpi"]
+            os.system(f"su -c 'wm size {size}'")
+            os.system(f"su -c 'wm density {dpi}'")
+            print(f"[+] Set {pkg}: size={size}, dpi={dpi}")
+    time.sleep(5)        local response_body=$(get_api_data "$api_url")
         
         # Xử lý dữ liệu vừa lấy được
         next_cursor=$(echo "$response_body" | grep -o '"nextPageCursor":"[^"]*"' | sed 's/"nextPageCursor":"//; s/"$//')
