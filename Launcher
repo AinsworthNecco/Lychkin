@@ -8,68 +8,24 @@ apps = {
     "com.roblox.client.vnggamec": {"size": "64x64", "dpi": 80}
 }
 
-while True:
-    # lấy danh sách tiến trình đang chạy
-    output = os.popen("su -c 'pidof -s $(pm list packages -3 -f | cut -d= -f2)'").read()
+default_size = "1080x1920"  # chỉnh lại đúng độ phân giải gốc của máy bạn
+default_dpi = 400           # dpi gốc của máy
 
+while True:
+    applied = False
     for pkg, cfg in apps.items():
-        # check tiến trình app có chạy không
         pid = os.popen(f"su -c 'pidof {pkg}'").read().strip()
         if pid:
-            # áp dụng size + dpi
             size = cfg["size"]
             dpi = cfg["dpi"]
             os.system(f"su -c 'wm size {size}'")
             os.system(f"su -c 'wm density {dpi}'")
             print(f"[+] Set {pkg}: size={size}, dpi={dpi}")
-    time.sleep(5)        local response_body=$(get_api_data "$api_url")
-        
-        # Xử lý dữ liệu vừa lấy được
-        next_cursor=$(echo "$response_body" | grep -o '"nextPageCursor":"[^"]*"' | sed 's/"nextPageCursor":"//; s/"$//')
-        local total_percentage=0; local server_count_on_page=0
-        
-        while IFS= read -r server; do
-            if [[ -z "$server" ]]; then continue; fi
-            local playing=$(echo "$server" | grep -o '"playing":[0-9]*' | sed 's/"playing"://'); local max_players=$(echo "$server" | grep -o '"maxPlayers":[0-9]*' | sed 's/"maxPlayers"://')
-            if [[ -n "$playing" && -n "$max_players" && "$max_players" -gt 0 ]]; then
-                ((server_count_on_page++)); local p_percent=$(awk "BEGIN {print ${playing}/${max_players}}"); total_percentage=$(awk "BEGIN {print ${total_percentage} + ${p_percent}}")
-                local is_valid=$(awk -v p="$p_percent" -v min="$MIN_P" -v max="$MAX_P" 'BEGIN {print (p >= min && p <= max)}')
-                if [[ "$is_valid" -eq 1 ]]; then
-                    local server_id=$(echo "$server" | grep -o '"id":"[^"]*"' | sed 's/"id":"//; s/"$//'); if [[ -n "$server_id" ]]; then collected_ids+=("$server_id"); fi
-                fi
-            fi
-        done < <(echo "$response_body" | awk 'match($0, /"data":\[(.*)\]/, a) { print a[1] }' | sed 's/},{/}\n{/g')
-        
-        local avg_percent=0; if (( server_count_on_page > 0 )); then avg_percent=$(awk "BEGIN {print ${total_percentage}/${server_count_on_page}}"); fi
-        printf "\r   [+] Quét trang... | Page Fill: %5.1f%% | Đã thu thập: %-5s | Kết nối: %-12s" "$(awk "BEGIN{print $avg_percent*100}")" "${#collected_ids[@]}" "Proxy ${PROXY_INDEX}/${#FORMATTED_PROXY_LIST[@]}"
-
-        local should_stop=$(awk -v avg="$avg_percent" -v min="$MIN_P" 'BEGIN {print (avg > 0 && avg < min)}');
-        if [[ "$should_stop" -eq 1 ]]; then echo -e "\n   [i] Đã đi qua khu vực server mục tiêu. Dừng quét."; break; fi
-        if [[ -z "$next_cursor" || "$next_cursor" == "null" ]]; then echo -e "\n   [i] Đã đến trang cuối cùng. Dừng quét."; break; fi
-    done
-    
-    echo ""; echo "-------------------------------------------------"; echo "SCANNER: Tóm tắt và lưu kết quả..."
-    echo "   [+] Đang ghi đè ${#collected_ids[@]} Job ID vào file..."; printf "%s\n" "${collected_ids[@]}" > "$OUTPUT_FILE"
-    echo "   ✅ Đã lưu thành công."; echo "   File output: ${OUTPUT_FILE}"
-}
-
-# ==============================================================================
-# -- VÒNG LẶP CHÍNH CỦA LAUNCHER --
-# ==============================================================================
-while true; do
-    clear; echo "================================================="
-    echo "[$(date '+%Y-%m-%d %H:%M:%S')] LAUNCHER: Bắt đầu chu kỳ mới..."
-    echo "   [+] Đang tải về cấu hình từ: ${CONFIG_URL}"
-    
-    if curl -sL "$CONFIG_URL" -o "$REMOTE_CONFIG_FILE"; then
-        sed -i 's/\r$//' "$REMOTE_CONFIG_FILE"; source "$REMOTE_CONFIG_FILE"
-        if [[ -z "${PLACE_ID:-}" || -z "${SCAN_INTERVAL_SECONDS:-}" || -z "${OUTPUT_DIR:-}" ]]; then
-            echo "   ❌ Lỗi: Cấu hình tải về không hợp lệ."; echo "      Sẽ thử lại sau 60 giây."; sleep 60; continue
-        fi
-        echo "   ✅ Tải và xác thực cấu hình thành công."; run_scanner; echo "================================================="
-        echo "LAUNCHER: Chu kỳ quét đã hoàn tất."; echo "Sẽ tải lại cấu hình và chạy lại sau ${SCAN_INTERVAL_SECONDS} giây."; sleep "$SCAN_INTERVAL_SECONDS"
-    else
-        echo "   ❌ Lỗi: Không thể tải file cấu hình. Sẽ thử lại sau 30 giây."; sleep 30
-    fi
-done
-
+            applied = True
+            break  # chỉ áp dụng cho 1 app đầu tiên tìm thấy
+    if not applied:
+        # reset lại mặc định nếu không app nào chạy
+        os.system(f"su -c 'wm size {default_size}'")
+        os.system(f"su -c 'wm density {default_dpi}'")
+        print("[*] Reset resolution về mặc định")
+    time.sleep(5)
