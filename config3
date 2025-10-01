@@ -39,3 +39,5 @@ PROXY_LIST="
 142.147.128.93:6593:oqdpuxwj:46ljzntm6es3
 "
 CONNECTION_TIMEOUT="15" - Thời gian chờ tối đa cho mỗi kết nối (giây)
+REBOOT_ENABLED="on"
+REBOOT_INTERVAL_MINUTES="3"
