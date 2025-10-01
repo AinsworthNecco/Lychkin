@@ -13,7 +13,7 @@ import json
 from datetime import datetime
 
 # ==============================================================================
-# SCRIPT KẾT HỢP: ROBLOX TASK RUNNER v11.0 (BASH LOGIC)
+# SCRIPT KẾT HỢP: ROBLOX TASK RUNNER v11.1 (BASH LOGIC)
 #
 # CẢI TIẾN LỚN:
 # - Áp dụng logic đã được kiểm chứng từ script bash của người dùng.
@@ -21,6 +21,8 @@ from datetime import datetime
 #   tăng độ chính xác và tương thích.
 # - Thay đổi logic launch: Luôn gửi lệnh tham gia ngay cả khi tài khoản
 #   đã ở trong game để "làm mới" phiên, thay vì bỏ qua.
+# - Cập nhật config tự động: Luồng quét (scanner) sẽ tự tải lại cấu hình
+#   từ GitHub mỗi 3 giờ.
 # ==============================================================================
 
 # ---------------------------------------------------
@@ -132,7 +134,7 @@ def countdown(seconds, thread_name="MAIN"):
         print(f"[{thread_name}] Thời gian chờ còn lại: {i} giây   ", end='\r')
         sys.stdout.flush()
         time.sleep(1)
-    print(f"[{thread_name}] Bắt đầu chu kỳ mới.                                  ")
+    print(f"[{thread_name}] Bắt đầu chu kỳ mới.                                       ")
 
 # ==============================================================================
 # -- CÁC HÀM KẾT NỐI API --
@@ -321,12 +323,23 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
 # ==============================================================================
 
 def scanner_loop():
-    """Vòng lặp vô hạn cho tác vụ quét (chỉ tải config 1 lần)."""
+    """Vòng lặp vô hạn cho tác vụ quét, tự động cập nhật config mỗi 3 giờ."""
     print("[SCAN] Tải cấu hình lần đầu...")
     config = fetch_and_load_config(CONFIG_URL)
     print("[SCAN] Cấu hình đã được ghi nhớ.")
     interval = config.get("SCAN_INTERVAL_SECONDS", 300)
+    last_config_fetch_time = time.time()
+    CONFIG_REFRESH_INTERVAL = 3 * 60 * 60 # 3 tiếng
+
     while True:
+        # Kiểm tra xem đã đến lúc cập nhật config chưa
+        if time.time() - last_config_fetch_time >= CONFIG_REFRESH_INTERVAL:
+            print("[SCAN] [CONFIG] Đã đến lúc cập nhật cấu hình từ GitHub...")
+            config = fetch_and_load_config(CONFIG_URL)
+            interval = config.get("SCAN_INTERVAL_SECONDS", 300) # Cập nhật lại interval
+            last_config_fetch_time = time.time()
+            print("[SCAN] [CONFIG] ✅ Cấu hình đã được làm mới.")
+
         run_scanner(config, "SCAN")
         countdown(interval, "SCAN")
 
@@ -418,4 +431,3 @@ if __name__ == "__main__":
         print("\n[MAIN] Đã nhận lệnh dừng từ người dùng. Tạm biệt!")
     except Exception as e:
         print(f"\n[MAIN] Đã xảy ra lỗi không mong muốn: {e}")
-
