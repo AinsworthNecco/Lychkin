@@ -52,30 +52,10 @@ proxy_index = 0
 failed_proxy_count = 0
 current_proxies = []
 file_lock = threading.Lock()
-print_lock = threading.Lock() # Lock để tránh các luồng ghi đè log hiển thị lên nhau
 
 # ==============================================================================
-# -- CÁC HÀM TIỆN ÍCH & HIỂN THỊ --
+# -- CÁC HÀM TIỆN ÍCH & KIỂM TRA ROOT --
 # ==============================================================================
-
-def print_on_line(line_number, text):
-    """
-    Hàm an toàn (thread-safe) để in văn bản trên một dòng cụ thể của terminal.
-    Sử dụng mã điều khiển ANSI để định vị con trỏ.
-    """
-    with print_lock:
-        # \x1b[{line};1H  -> Di chuyển con trỏ đến dòng {line}, cột 1
-        # \x1b[K         -> Xóa dòng từ vị trí con trỏ đến cuối
-        sys.stdout.write(f"\x1b[{line_number};1H\x1b[K{text}")
-        sys.stdout.flush()
-
-def countdown(seconds, thread_name, line_number):
-    """Hiển thị đồng hồ đếm ngược trên một dòng riêng biệt được chỉ định."""
-    for i in range(seconds, 0, -1):
-        message = f"[{thread_name}] Thời gian chờ còn lại: {i} giây"
-        print_on_line(line_number, message)
-        time.sleep(1)
-    print_on_line(line_number, f"[{thread_name}] Bắt đầu chu kỳ mới...")
 
 def check_root_access():
     """Kiểm tra xem script có quyền root hay không."""
@@ -145,6 +125,14 @@ def format_proxies(proxy_list):
         elif len(parts) == 4: proxy_url = f"http://{parts[2]}:{parts[3]}@{parts[0]}:{parts[1]}"
         if proxy_url: formatted.append({"http": proxy_url, "https": proxy_url})
     return formatted
+
+def countdown(seconds, thread_name="MAIN"):
+    """Hiển thị đồng hồ đếm ngược."""
+    for i in range(seconds, 0, -1):
+        print(f"[{thread_name}] Thời gian chờ còn lại: {i} giây   ", end='\r')
+        sys.stdout.flush()
+        time.sleep(1)
+    print(f"[{thread_name}] Bắt đầu chu kỳ mới.                                  ")
 
 # ==============================================================================
 # -- CÁC HÀM KẾT NỐI API --
@@ -290,6 +278,7 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
         if not is_ingame:
             print(f"[{thread_name}] [ACTION] Tài khoản '{suffix}' (ID: {user_id}) không ở trong game. Buộc dừng...")
             try:
+                # Nâng cấp logic kill theo script bash: ps -ef | grep ... | grep -v grep | awk ...
                 kill_script = f"PID=$(ps -ef | grep {package_name} | grep -v grep | awk '{{print $2}}'); if [ ! -z \"$PID\" ]; then kill -9 $PID; fi"
                 
                 print(f"[{thread_name}] -> Đang buộc dừng ứng dụng: {package_name}")
@@ -299,12 +288,14 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
                 if result.returncode != 0:
                     print(f"[{thread_name}] [!] Cảnh báo: Lệnh buộc dừng có thể đã thất bại. stderr: {result.stderr.strip()}")
                 
-                time.sleep(3)
+                time.sleep(3) # Chờ 3 giây sau khi buộc dừng
             except Exception as e:
                 print(f"[{thread_name}] [!] Lỗi khi thực thi lệnh buộc dừng cho '{suffix}': {e}")
         else:
+            # Thay đổi logic: Không bỏ qua, chỉ thông báo và vẫn tiếp tục gửi lệnh join
             print(f"[{thread_name}] [REFRESH] Tài khoản '{suffix}' (ID: {user_id}) đã ở trong game. Làm mới phiên...")
         
+        # Luồng code sẽ luôn chạy đến đây cho tất cả các tài khoản
         target_url, log_msg = "", ""
         if launch_mode == 'scan':
             if not server_ids: continue
@@ -322,6 +313,7 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
         except Exception as e:
             print(f"[{thread_name}] Lỗi khi thực thi lệnh cho '{suffix}': {e}")
         
+        # Giữ lại độ trễ nhỏ giữa mỗi lần launch
         time.sleep(config.get("LAUNCH_DELAY_SECONDS", 10))
 
 # ==============================================================================
@@ -329,42 +321,48 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
 # ==============================================================================
 
 def scanner_loop():
-    """Vòng lặp vô hạn cho tác vụ quét."""
+    """Vòng lặp vô hạn cho tác vụ quét (chỉ tải config 1 lần)."""
+    print("[SCAN] Tải cấu hình lần đầu...")
     config = fetch_and_load_config(CONFIG_URL)
+    print("[SCAN] Cấu hình đã được ghi nhớ.")
     interval = config.get("SCAN_INTERVAL_SECONDS", 300)
     while True:
         run_scanner(config, "SCAN")
-        countdown(interval, "SCAN", 1) # Hiển thị trên dòng 1
+        countdown(interval, "SCAN")
 
 def launcher_loop(launch_mode):
-    """Vòng lặp vô hạn cho tác vụ tham gia game."""
+    """Vòng lặp vô hạn cho tác vụ tham gia game (chỉ tải config 1 lần)."""
+    print("[LAUNCH] Tải cấu hình lần đầu...")
     config = fetch_and_load_config(CONFIG_URL)
+    print("[LAUNCH] Cấu hình đã được ghi nhớ.")
     interval = config.get("LAUNCH_INTERVAL_SECONDS", 300)
     while True:
         launch_roblox_instances(config, launch_mode, "LAUNCH")
-        countdown(interval, "LAUNCH", 2) # Hiển thị trên dòng 2
+        countdown(interval, "LAUNCH")
 
 def reboot_scheduler_loop():
     """Vòng lặp kiểm tra và thực hiện reboot theo lịch."""
+    print("[REBOOT] Tải cấu hình cho trình lên lịch reboot...")
     config = fetch_and_load_config(CONFIG_URL)
     
     if config.get("REBOOT_ENABLED", "off").lower() != "on":
-        print_on_line(3, "[REBOOT] Tính năng tự động reboot đã bị tắt.")
+        print("[REBOOT] Tính năng tự động reboot đã bị tắt trong cấu hình. Luồng sẽ thoát.")
         return
 
     reboot_minutes_val = config.get("REBOOT_INTERVAL_MINUTES", 1200)
     reboot_seconds = reboot_minutes_val * 60
     
-    print_on_line(3, f"[REBOOT] ✅ Đã bật. Reboot sau {reboot_minutes_val} phút.")
+    print(f"[REBOOT] ✅ Tính năng tự động reboot đã được bật. Thiết bị sẽ khởi động lại sau {reboot_minutes_val} phút.")
     
+    # Dùng hàm countdown để dễ theo dõi thời gian chờ
     for i in range(reboot_seconds, 0, -1):
         hours, remainder = divmod(i, 3600)
         minutes, seconds = divmod(remainder, 60)
-        message = f"[REBOOT] Thời gian chờ còn lại: {hours:02d}:{minutes:02d}:{seconds:02d}"
-        print_on_line(3, message) # Hiển thị trên dòng 3
+        print(f"[REBOOT] Thời gian chờ còn lại: {hours:02d}:{minutes:02d}:{seconds:02d}", end='\r')
+        sys.stdout.flush()
         time.sleep(1)
 
-    print_on_line(4, f"\n[REBOOT] ĐÃ HẾT THỜI GIAN. TIẾN HÀNH REBOOT THIẾT BỊ TRONG 5 GIÂY...")
+    print(f"\n[REBOOT] ĐÃ HẾT THỜI GIAN. TIẾN HÀNH REBOOT THIẾT BỊ TRONG 5 GIÂY...")
     time.sleep(5)
     
     try:
@@ -378,17 +376,14 @@ def reboot_scheduler_loop():
 # ==============================================================================
 
 if __name__ == "__main__":
-    # Chuẩn bị màn hình cho việc hiển thị trạng thái
-    sys.stdout.write("\x1b[2J\x1b[H") # Xóa màn hình và di chuyển con trỏ lên góc trái
-    sys.stdout.flush()
-    # Di chuyển con trỏ xuống dòng 5 để các log chính bắt đầu từ đây
-    sys.stdout.write("\x1b[5;1H")
-
     if not check_root_access():
         sys.exit(1)
 
+    # --- PHẦN THÊM MỚI: KHỞI ĐỘNG LUỒNG REBOOT ---
+    print("[MAIN] Đang khởi động luồng quản lý reboot...")
     reboot_thread = threading.Thread(target=reboot_scheduler_loop, daemon=True)
     reboot_thread.start()
+    # ---------------------------------------------
 
     parser = argparse.ArgumentParser(description="Roblox Task Runner - Công cụ tự động quét và tham gia server.")
     subparsers = parser.add_subparsers(dest='command', help='Các lệnh có sẵn')
@@ -414,15 +409,13 @@ if __name__ == "__main__":
             launcher_thread = threading.Thread(target=launcher_loop, args=('vip',), daemon=True)
             scanner_thread.start()
             print("[MAIN] Đã khởi động luồng quét (SCAN).")
-            time.sleep(1)
+            time.sleep(3) 
             launcher_thread.start()
             print("[MAIN] Đã khởi động luồng tham gia VIP (LAUNCH).")
             scanner_thread.join()
             launcher_thread.join()
     except KeyboardInterrupt:
-        sys.stdout.write("\x1b[5;1H") # Di chuyển con trỏ xuống dưới khu vực trạng thái
         print("\n[MAIN] Đã nhận lệnh dừng từ người dùng. Tạm biệt!")
     except Exception as e:
-        sys.stdout.write("\x1b[5;1H") # Di chuyển con trỏ xuống dưới khu vực trạng thái
         print(f"\n[MAIN] Đã xảy ra lỗi không mong muốn: {e}")
 
