@@ -1,0 +1,9 @@
+import os
+
+def reboot_vphone():
+    print("[*] Đang reboot toàn bộ vphoneOS...")
+    # Lệnh reboot cần quyền root
+    os.system("su -c 'reboot'")
+
+if __name__ == "__main__":
+    reboot_vphone()
