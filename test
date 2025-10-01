@@ -42,7 +42,7 @@ DEFAULT_CONFIG = {
     "OUTPUT_FILE_PATH": "found_servers.txt",
     "VIP_SERVER_URL": "",
     "REBOOT_ENABLED": "off",
-    "REBOOT_INTERVAL_HOURS": 20,
+    "REBOOT_INTERVAL_MINUTES": 1200,
 }
 
 # ---------------------------------------------------
@@ -90,7 +90,7 @@ def fetch_and_load_config(url):
             if key not in config: continue
             value = value.strip()
             
-            if key in ["SCAN_INTERVAL_SECONDS", "LAUNCH_INTERVAL_SECONDS", "CONNECTION_TIMEOUT", "REBOOT_INTERVAL_HOURS"]:
+            if key in ["SCAN_INTERVAL_SECONDS", "LAUNCH_INTERVAL_SECONDS", "CONNECTION_TIMEOUT", "REBOOT_INTERVAL_MINUTES"]:
                 config[key] = int(value)
             elif key in ["MIN_PLAYER_PERCENTAGE", "MAX_PLAYER_PERCENTAGE"]:
                 config[key] = float(value)
@@ -349,10 +349,10 @@ def reboot_scheduler_loop():
         print("[REBOOT] Tính năng tự động reboot đã bị tắt trong cấu hình. Luồng sẽ thoát.")
         return
 
-    reboot_hours = config.get("REBOOT_INTERVAL_HOURS", 20)
-    reboot_seconds = reboot_hours * 3600
+    reboot_minutes_val = config.get("REBOOT_INTERVAL_MINUTES", 1200)
+    reboot_seconds = reboot_minutes_val * 60
     
-    print(f"[REBOOT] ✅ Tính năng tự động reboot đã được bật. Thiết bị sẽ khởi động lại sau {reboot_hours} giờ.")
+    print(f"[REBOOT] ✅ Tính năng tự động reboot đã được bật. Thiết bị sẽ khởi động lại sau {reboot_minutes_val} phút.")
     
     # Dùng hàm countdown để dễ theo dõi thời gian chờ
     for i in range(reboot_seconds, 0, -1):
@@ -418,3 +418,4 @@ if __name__ == "__main__":
         print("\n[MAIN] Đã nhận lệnh dừng từ người dùng. Tạm biệt!")
     except Exception as e:
         print(f"\n[MAIN] Đã xảy ra lỗi không mong muốn: {e}")
+
