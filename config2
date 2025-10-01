@@ -17,26 +17,26 @@ VIP_SERVER_URL="roblox://placeId=8737602449" - URL VIP server (dùng cho launch 
 --- CẤU HÌNH MẠNG (Nâng cao) ---
 
 PROXY_LIST="
-142.111.48.253:7030:xmdhihcp:wbxrjsbrtqnx
-198.23.239.134:6540:xmdhihcp:wbxrjsbrtqnx
-45.38.107.97:6014:xmdhihcp:wbxrjsbrtqnx
-107.172.163.27:6543:xmdhihcp:wbxrjsbrtqnx
-64.137.96.74:6641:xmdhihcp:wbxrjsbrtqnx
-154.203.43.247:5536:xmdhihcp:wbxrjsbrtqnx
-84.247.60.125:6095:xmdhihcp:wbxrjsbrtqnx
-216.10.27.159:6837:xmdhihcp:wbxrjsbrtqnx
-142.111.67.146:5611:xmdhihcp:wbxrjsbrtqnx
-142.147.128.93:6593:xmdhihcp:wbxrjsbrtqnx
-142.111.48.253:7030:oqdpuxwj:46ljzntm6es3
-198.23.239.134:6540:oqdpuxwj:46ljzntm6es3
-45.38.107.97:6014:oqdpuxwj:46ljzntm6es3
-107.172.163.27:6543:oqdpuxwj:46ljzntm6es3
-64.137.96.74:6641:oqdpuxwj:46ljzntm6es3
-154.203.43.247:5536:oqdpuxwj:46ljzntm6es3
-84.247.60.125:6095:oqdpuxwj:46ljzntm6es3
-216.10.27.159:6837:oqdpuxwj:46ljzntm6es3
-142.111.67.146:5611:oqdpuxwj:46ljzntm6es3
-142.147.128.93:6593:oqdpuxwj:46ljzntm6es3
+142.111.48.253:7030:rghyqmao:vvvt5g9ysj3j
+198.23.239.134:6540:rghyqmao:vvvt5g9ysj3j
+45.38.107.97:6014:rghyqmao:vvvt5g9ysj3j
+107.172.163.27:6543:rghyqmao:vvvt5g9ysj3j
+64.137.96.74:6641:rghyqmao:vvvt5g9ysj3j
+154.203.43.247:5536:rghyqmao:vvvt5g9ysj3j
+84.247.60.125:6095:rghyqmao:vvvt5g9ysj3j
+216.10.27.159:6837:rghyqmao:vvvt5g9ysj3j
+142.111.67.146:5611:rghyqmao:vvvt5g9ysj3j
+142.147.128.93:6593:rghyqmao:vvvt5g9ysj3j
+142.111.48.253:7030:zyljmgqe:p3b77z0gesem
+198.23.239.134:6540:zyljmgqe:p3b77z0gesem
+45.38.107.97:6014:zyljmgqe:p3b77z0gesem
+107.172.163.27:6543:zyljmgqe:p3b77z0gesem
+64.137.96.74:6641:zyljmgqe:p3b77z0gesem
+154.203.43.247:5536:zyljmgqe:p3b77z0gesem
+84.247.60.125:6095:zyljmgqe:p3b77z0gesem
+216.10.27.159:6837:zyljmgqe:p3b77z0gesem
+142.111.67.146:5611:zyljmgqe:p3b77z0gesem
+142.147.128.93:6593:zyljmgqe:p3b77z0gesem
 "
 CONNECTION_TIMEOUT="15" - Thời gian chờ tối đa cho mỗi kết nối (giây)
 REBOOT_ENABLED="off"
