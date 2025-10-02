@@ -4,7 +4,7 @@ ACCOUNT_SUFFIXES="b:9304500203,c:9304488321,d:9304499194,e:9304476426,f:93045325
 BASE_PACKAGE_NAME="com.roblox.clien" - Tên gói Roblox cơ bản
 
 --- CẤU HÌNH CHO TÁC VỤ "SCAN" ---
-SCAN_INTERVAL_SECONDS="60" - Thời gian nghỉ giữa các chu kỳ quét (giây)
+SCAN_INTERVAL_SECONDS="180" - Thời gian nghỉ giữa các chu kỳ quét (giây)
 MIN_PLAYER_PERCENTAGE="70" - Tỷ lệ người chơi tối thiểu (%)
 MAX_PLAYER_PERCENTAGE="80" - Tỷ lệ người chơi tối đa (%)
 OUTPUT_FILE_PATH="/storage/emulated/0/Codex/Workspace/neco.txt" - Đường dẫn đầy đủ và tên file lưu kết quả quét
