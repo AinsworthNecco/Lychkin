@@ -6,16 +6,17 @@ local SETTINGS = {
     ["AVOID_PLAYERS"] = {
         "HelloPlayer1st",
         "Er1ka_iA",
-        "WolfCodeFusion", 
-        "ArrowStarHaz3",
-        "Sab3r_Aqua2007",
-        "XxJacksonUltraxX14",
-        "XxAlpha_ZAPXX2007",
-        "Xx_Isab3llaRiftFusio",
-        "Aria_Duck2019",
-        "XxNightRogueLuck",
-        "LuckyCookieAce",
-        "XxZaydenPixelxX27"
+        "KnightHawkVen0m", 
+        "XxAvaToxicBearxX",
+        "Gamer_Stream2017",
+        "HenryEpic48",
+        "OwenNovaPanda",
+        "Chl0e_Pr045",
+        "CraftPulseLucky9",
+        "XxDarkCodeSlimex",
+        "SkyFireF0x",
+        "MAGIC_Raven2010",
+        "Xx_Isab3llaRiftFusio"
     },
 
     -- =================================================================
