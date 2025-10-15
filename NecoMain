@@ -44,7 +44,7 @@ getgenv().NScript = "BananaHubBountyBF"
                 },
             },
             ["Blox Fruit"] = {
-                ["Enable"] = true,
+                ["Enable"] = false,
                 ["Skills"] = {
                     ["Z"] = {["Enable"] = true,["HoldTime"] = 2,["Number"] = 4},
                     ["X"] = {["Enable"] = true,["HoldTime"] = 0.3,["Number"] = 6},
