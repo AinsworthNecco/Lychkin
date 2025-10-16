@@ -17,26 +17,26 @@ VIP_SERVER_URL="roblox://placeId=8737602449" - URL VIP server (dùng cho launch 
 --- CẤU HÌNH MẠNG (Nâng cao) ---
 
 PROXY_LIST="
-142.111.48.253:7030:yshdhmlu:yvkg2bausdvh
-198.23.239.134:6540:yshdhmlu:yvkg2bausdvh
-45.38.107.97:6014:yshdhmlu:yvkg2bausdvh
-107.172.163.27:6543:yshdhmlu:yvkg2bausdvh
-64.137.96.74:6641:yshdhmlu:yvkg2bausdvh
-154.203.43.247:5536:yshdhmlu:yvkg2bausdvh
-84.247.60.125:6095:yshdhmlu:yvkg2bausdvh
-216.10.27.159:6837:yshdhmlu:yvkg2bausdvh
-142.111.67.146:5611:yshdhmlu:yvkg2bausdvh
-142.147.128.93:6593:yshdhmlu:yvkg2bausdvh
-142.111.48.253:7030:jitspmpp:awadp83prpeh
-198.23.239.134:6540:jitspmpp:awadp83prpeh
-45.38.107.97:6014:jitspmpp:awadp83prpeh
-107.172.163.27:6543:jitspmpp:awadp83prpeh
-64.137.96.74:6641:jitspmpp:awadp83prpeh
-154.203.43.247:5536:jitspmpp:awadp83prpeh
-84.247.60.125:6095:jitspmpp:awadp83prpeh
-216.10.27.159:6837:jitspmpp:awadp83prpeh
-142.111.67.146:5611:jitspmpp:awadp83prpeh
-142.147.128.93:6593:jitspmpp:awadp83prpeh
+142.111.48.253:7030:yhgguymx:5jphw88olanm
+31.59.20.176:6754:yhgguymx:5jphw88olanm
+38.170.176.177:5572:yhgguymx:5jphw88olanm
+198.23.239.134:6540:yhgguymx:5jphw88olanm
+45.38.107.97:6014:yhgguymx:5jphw88olanm
+107.172.163.27:6543:yhgguymx:5jphw88olanm
+64.137.96.74:6641:yhgguymx:5jphw88olanm
+216.10.27.159:6837:yhgguymx:5jphw88olanm
+142.111.67.146:5611:yhgguymx:5jphw88olanm
+142.147.128.93:6593:yhgguymx:5jphw88olanm
+142.111.48.253:7030:hehouiqg:5jjv24sjw8xl
+31.59.20.176:6754:hehouiqg:5jjv24sjw8xl
+38.170.176.177:5572:hehouiqg:5jjv24sjw8xl
+198.23.239.134:6540:hehouiqg:5jjv24sjw8xl
+45.38.107.97:6014:hehouiqg:5jjv24sjw8xl
+107.172.163.27:6543:hehouiqg:5jjv24sjw8xl
+64.137.96.74:6641:hehouiqg:5jjv24sjw8xl
+216.10.27.159:6837:hehouiqg:5jjv24sjw8xl
+142.111.67.146:5611:hehouiqg:5jjv24sjw8xl
+142.147.128.93:6593:hehouiqg:5jjv24sjw8xl
 "
 CONNECTION_TIMEOUT="15" - Thời gian chờ tối đa cho mỗi kết nối (giây)
 REBOOT_ENABLED="off"
