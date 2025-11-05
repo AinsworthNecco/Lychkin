@@ -5,18 +5,18 @@ local SETTINGS = {
     ["EnableAvoidPlayers"] = true, -- Bật/tắt tính năng né tài khoản
     ["AVOID_PLAYERS"] = {
         "HelloPlayer1st",
-        "Er1ka_iA",
-        "Pix3lat3dPrimal28",
-        "XxPr0SkyOmegaxX20135",
-        "XxAsherCrystalFusion",
-        "NinjaInf3rno16",
-        "St0rmOmegaMagic",
-        "B3arAc3Magic",
-        "RiftOrbit37",
-        "NightOmega56",
-        "SonicHazePanda_YT",
-        "MysticGalaxyBeast",
-        "DuckRav3nNinja"
+        "Lychkinsama",
+        "Lychkinsama01",
+        "Lychkinsama02",
+        "Lychkinsama03",
+        "Lychkinsama04",
+        "Lychkinsama05",
+        "Er1kaThe",
+        "Er1kaTheI",
+        "Er1kaTheII",
+        "Er1kaTheIII",
+        "Er1kaTheIV",
+        "Er1kaTheV"
     },
 
     -- =================================================================
