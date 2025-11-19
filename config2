@@ -1,0 +1,43 @@
+--- CẤU HÌNH CHUNG ---
+PLACE_ID="8737602449" - ID của game cần quét
+ACCOUNT_SUFFIXES="b:9848576165" - Hậu tố các tài khoản Roblox clone "b,c,d,e,f" ,c:9882527374,d:9882544175,e:9882524410,f:9882586454
+BASE_PACKAGE_NAME="com.roblox.clien" - Tên gói Roblox cơ bản
+
+--- CẤU HÌNH CHO TÁC VỤ "SCAN" ---
+SCAN_INTERVAL_SECONDS="180" - Thời gian nghỉ giữa các chu kỳ quét (giây)
+MIN_PLAYER_PERCENTAGE="70" - Tỷ lệ người chơi tối thiểu (%)
+MAX_PLAYER_PERCENTAGE="80" - Tỷ lệ người chơi tối đa (%)
+OUTPUT_FILE_PATH="/storage/emulated/0/FluxusZ/workspace/neco.txt" - Đường dẫn đầy đủ và tên file lưu kết quả quét
+
+--- CẤU HÌNH CHO TÁC VỤ "LAUNCH" ---
+LAUNCH_INTERVAL_SECONDS="300" - Thời gian nghỉ giữa các chu kỳ join game (giây)
+LAUNCH_DELAY_SECONDS="30" - Thời gian chờ giữa mỗi lần join của từng tài khoản
+VIP_SERVER_URL="roblox://placeId=8737602449" - URL VIP server (dùng cho launch --mode vip)
+
+--- CẤU HÌNH MẠNG (Nâng cao) ---
+
+PROXY_LIST="
+142.111.48.253:7030:ispjmank:ag0avc9n7fzn
+31.59.20.176:6754:ispjmank:ag0avc9n7fzn
+38.170.176.177:5572:ispjmank:ag0avc9n7fzn
+198.23.239.134:6540:ispjmank:ag0avc9n7fzn
+45.38.107.97:6014:ispjmank:ag0avc9n7fzn
+107.172.163.27:6543:ispjmank:ag0avc9n7fzn
+64.137.96.74:6641:ispjmank:ag0avc9n7fzn
+216.10.27.159:6837:ispjmank:ag0avc9n7fzn
+142.111.67.146:5611:ispjmank:ag0avc9n7fzn
+142.147.128.93:6593:ispjmank:ag0avc9n7fzn
+142.111.48.253:7030:vwyrhxgv:gbuja557zku7
+31.59.20.176:6754:vwyrhxgv:gbuja557zku7
+38.170.176.177:5572:vwyrhxgv:gbuja557zku7
+198.23.239.134:6540:vwyrhxgv:gbuja557zku7
+45.38.107.97:6014:vwyrhxgv:gbuja557zku7
+107.172.163.27:6543:vwyrhxgv:gbuja557zku7
+64.137.96.74:6641:vwyrhxgv:gbuja557zku7
+216.10.27.159:6837:vwyrhxgv:gbuja557zku7
+142.111.67.146:5611:vwyrhxgv:gbuja557zku7
+142.147.128.93:6593:vwyrhxgv:gbuja557zku7
+"
+CONNECTION_TIMEOUT="15" - Thời gian chờ tối đa cho mỗi kết nối (giây)
+REBOOT_ENABLED="off"
+REBOOT_INTERVAL_MINUTES="1200"
