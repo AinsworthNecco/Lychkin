@@ -1,6 +1,6 @@
 --- CẤU HÌNH CHUNG ---
 PLACE_ID="8737602449" - ID của game cần quét
-ACCOUNT_SUFFIXES="b:9848576165" - Hậu tố các tài khoản Roblox clone "b,c,d,e,f" ,c:9882527374,d:9882544175,e:9882524410,f:9882586454
+ACCOUNT_SUFFIXES="b:9938136665,c:9938175923,d:9938119262,e:9938572630,f:9938103704" - Hậu tố các tài khoản Roblox clone "b,c,d,e,f" 
 BASE_PACKAGE_NAME="com.roblox.clien" - Tên gói Roblox cơ bản
 
 --- CẤU HÌNH CHO TÁC VỤ "SCAN" ---
