@@ -40,4 +40,4 @@ PROXY_LIST="
 "
 CONNECTION_TIMEOUT="15" - Thời gian chờ tối đa cho mỗi kết nối (giây)
 REBOOT_ENABLED="true"
-REBOOT_INTERVAL_MINUTES="5"
+REBOOT_INTERVAL_MINUTES="1"
