@@ -15,6 +15,9 @@ LAUNCH_DELAY_SECONDS="30" - Thời gian chờ giữa mỗi lần join của từ
 VIP_SERVER_URL="roblox://placeId=8737602449" - URL VIP server (dùng cho launch --mode vip)
 
 --- CẤU HÌNH MẠNG (Nâng cao) ---
+CONNECTION_TIMEOUT="15" - Thời gian chờ tối đa cho mỗi kết nối (giây)
+REBOOT_ENABLED="on"
+REBOOT_INTERVAL_MINUTES="180"
 
 PROXY_LIST="
 142.111.48.253:7030:ispjmank:ag0avc9n7fzn
@@ -38,6 +41,6 @@ PROXY_LIST="
 142.111.67.146:5611:vwyrhxgv:gbuja557zku7
 142.147.128.93:6593:vwyrhxgv:gbuja557zku7
 "
-CONNECTION_TIMEOUT="15" - Thời gian chờ tối đa cho mỗi kết nối (giây)
-REBOOT_ENABLED="on"
-REBOOT_INTERVAL_MINUTES="180"
+--- DISCORD ---
+DISCORD_PREFIX="!"
+DISCORD_BOT_TOKEN="DÁN_TOKEN_CỦA_BẠN_VÀO_ĐÂY"
