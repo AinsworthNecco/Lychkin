@@ -14,7 +14,7 @@ import json
 from datetime import datetime
 
 # ==============================================================================
-# SCRIPT KẾT HỢP: ROBLOX TASK RUNNER v11.0 (BASH LOGIC)
+# SCRIPT KẾT HỢP: Lychkins's Task Runner v1.1
 #
 # CẢI TIẾN LỚN:
 # - Áp dụng logic đã được kiểm chứng từ script bash của người dùng.
