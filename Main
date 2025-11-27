@@ -1,1 +1,12 @@
-loadstring(game:HttpGet("https://gist.githubusercontent.com/AinsworthNecco/2582fc470f4594f789b3441605d3a442/raw/badf9821a88ead41bef2e966606f7802c97be907/PlsDonate"))()
+local url = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/farm" --- url của github chứa đoạn mã này
+local q = syn and syn.queue_on_teleport or queue_on_teleport
+
+if q then
+    q(("loadstring(game:HttpGet('%s'))()"):format(url))
+end
+if getgenv().Script_Ran then return end
+getgenv().Script_Ran = true
+
+-- đợi 2 giây trước khi chạy script
+task.wait(2)
+loadstring(game:HttpGet("https://gist.githubusercontent.com/AinsworthNecco/2582fc470f4594f789b3441605d3a442/raw/badf9821a88ead41bef2e966606f7802c97be907/PlsDonate"))() --- url script cần chạy
