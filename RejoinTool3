@@ -13,7 +13,7 @@ import json
 from datetime import datetime
 
 # ==============================================================================
-# SCRIPT KẾT HỢP: ROBLOX TASK RUNNER v11.0 (BASH LOGIC)
+# SCRIPT KẾT HỢP: Lychkins's Task Runner v1.1
 #
 # CẢI TIẾN LỚN:
 # - Áp dụng logic đã được kiểm chứng từ script bash của người dùng.
@@ -41,6 +41,8 @@ DEFAULT_CONFIG = {
     "CONNECTION_TIMEOUT": 15,
     "OUTPUT_FILE_PATH": "found_servers.txt",
     "VIP_SERVER_URL": "",
+    "REBOOT_ENABLED": "off",
+    "REBOOT_INTERVAL_MINUTES": 1200,
 }
 
 # ---------------------------------------------------
@@ -88,7 +90,7 @@ def fetch_and_load_config(url):
             if key not in config: continue
             value = value.strip()
             
-            if key in ["SCAN_INTERVAL_SECONDS", "LAUNCH_INTERVAL_SECONDS", "CONNECTION_TIMEOUT"]:
+            if key in ["SCAN_INTERVAL_SECONDS", "LAUNCH_INTERVAL_SECONDS", "CONNECTION_TIMEOUT", "REBOOT_INTERVAL_MINUTES"]:
                 config[key] = int(value)
             elif key in ["MIN_PLAYER_PERCENTAGE", "MAX_PLAYER_PERCENTAGE"]:
                 config[key] = float(value)
@@ -338,13 +340,50 @@ def launcher_loop(launch_mode):
         launch_roblox_instances(config, launch_mode, "LAUNCH")
         countdown(interval, "LAUNCH")
 
+def reboot_scheduler_loop():
+    """Vòng lặp kiểm tra và thực hiện reboot theo lịch."""
+    print("[REBOOT] Tải cấu hình cho trình lên lịch reboot...")
+    config = fetch_and_load_config(CONFIG_URL)
+    
+    if config.get("REBOOT_ENABLED", "off").lower() != "on":
+        print("[REBOOT] Tính năng tự động reboot đã bị tắt trong cấu hình. Luồng sẽ thoát.")
+        return
+
+    reboot_minutes_val = config.get("REBOOT_INTERVAL_MINUTES", 1200)
+    reboot_seconds = reboot_minutes_val * 60
+    
+    print(f"[REBOOT] ✅ Tính năng tự động reboot đã được bật. Thiết bị sẽ khởi động lại sau {reboot_minutes_val} phút.")
+    
+    # Dùng hàm countdown để dễ theo dõi thời gian chờ
+    for i in range(reboot_seconds, 0, -1):
+        hours, remainder = divmod(i, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        print(f"[REBOOT] Thời gian chờ còn lại: {hours:02d}:{minutes:02d}:{seconds:02d}", end='\r')
+        sys.stdout.flush()
+        time.sleep(1)
+
+    print(f"\n[REBOOT] ĐÃ HẾT THỜI GIAN. TIẾN HÀNH REBOOT THIẾT BỊ TRONG 5 GIÂY...")
+    time.sleep(5)
+    
+    try:
+        print("[REBOOT] Gửi lệnh reboot...")
+        subprocess.run(["su", "-c", "reboot"], check=True, capture_output=True, text=True)
+    except Exception as e:
+        print(f"[REBOOT] ❌ Lỗi nghiêm trọng khi thực thi lệnh reboot: {e}")
+
 # ==============================================================================
 # -- ĐIỂM KHỞI ĐẦU SCRIPT --
 # ==============================================================================
 
 if __name__ == "__main__":
     if not check_root_access():
-        sys.exit(1) 
+        sys.exit(1)
+
+    # --- PHẦN THÊM MỚI: KHỞI ĐỘNG LUỒNG REBOOT ---
+    print("[MAIN] Đang khởi động luồng quản lý reboot...")
+    reboot_thread = threading.Thread(target=reboot_scheduler_loop, daemon=True)
+    reboot_thread.start()
+    # ---------------------------------------------
 
     parser = argparse.ArgumentParser(description="Roblox Task Runner - Công cụ tự động quét và tham gia server.")
     subparsers = parser.add_subparsers(dest='command', help='Các lệnh có sẵn')
