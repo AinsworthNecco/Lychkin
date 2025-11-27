@@ -1,4 +1,4 @@
-local url = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/farm" --- url của github chứa đoạn mã này
+local url = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/Main" --- url của github chứa đoạn mã này
 local q = syn and syn.queue_on_teleport or queue_on_teleport
 
 if q then
