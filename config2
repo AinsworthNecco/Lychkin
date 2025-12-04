@@ -43,5 +43,5 @@ PROXY_LIST="
 "
 "CPU_DOWNCLOCK_ENABLED": "on",  # Bật/Tắt giảm xung
 "CPU_MAX_FREQ_PERCENT": 70,     # Chỉ chạy tối đa 70% công suất thực của phần cứng
-"RESOLUTION_CHANGE_ENABLED": "on", # Bật/Tắt thay đổi độ phân giải
+"RESOLUTION_CHANGE_ENABLED": "off", # Bật/Tắt thay đổi độ phân giải
 "TARGET_RESOLUTION": "300x300",    # Độ phân giải mục tiêu (RộngxCao)
