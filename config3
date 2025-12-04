@@ -5,7 +5,7 @@ BASE_PACKAGE_NAME="com.roblox.clien" - Tên gói Roblox cơ bản
 
 --- CẤU HÌNH CHO TÁC VỤ "SCAN" ---
 SCAN_INTERVAL_SECONDS="180" - Thời gian nghỉ giữa các chu kỳ quét (giây)
-MIN_PLAYER_PERCENTAGE="80" - Tỷ lệ người chơi tối thiểu (%)
+MIN_PLAYER_PERCENTAGE="75" - Tỷ lệ người chơi tối thiểu (%)
 MAX_PLAYER_PERCENTAGE="90" - Tỷ lệ người chơi tối đa (%)
 OUTPUT_FILE_PATH="/storage/emulated/0/FluxusZ/workspace/neco.txt" - Đường dẫn đầy đủ và tên file lưu kết quả quét
 
