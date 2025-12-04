@@ -21,6 +21,10 @@ import signal
 # - Thay thế bằng cơ chế "Hardware Downclock" (Giảm xung nhịp phần cứng).
 # - Script sẽ khóa xung nhịp tối đa của CPU ở mức % cài đặt (VD: 70%).
 # - Giúp máy mát hơn liên tục (Always Cool) mà không bao giờ dừng script.
+#
+# CẬP NHẬT LOGIC (v1.3 Fixed):
+# - Nếu tài khoản đang Online: BỎ QUA (SKIP), không gửi lệnh launch nữa.
+# - Chỉ launch khi tài khoản thực sự Offline.
 # ==============================================================================
 
 # ---------------------------------------------------
@@ -377,17 +381,18 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
         suffix, user_id, package_name = account['suffix'], account['id'], f"{config['BASE_PACKAGE_NAME']}{account['suffix']}"
         is_ingame = online_statuses.get(user_id, False)
 
-        if not is_ingame:
-            print(f"[{thread_name}] [ACTION] '{suffix}' Offline. Buộc dừng...")
-            try:
-                kill_script = f"PID=$(ps -ef | grep {package_name} | grep -v grep | awk '{{print $2}}'); if [ ! -z \"$PID\" ]; then kill -9 $PID; fi"
-                stop_command = ["su", "-c", kill_script]
-                subprocess.run(stop_command, capture_output=True, text=True, timeout=10)
-                time.sleep(3)
-            except Exception as e:
-                print(f"[{thread_name}] [!] Lỗi stop '{suffix}': {e}")
-        else:
-            print(f"[{thread_name}] [REFRESH] '{suffix}' Online. Làm mới phiên...")
+        if is_ingame:
+            print(f"[{thread_name}] [SKIP] '{suffix}' đang Online. Bỏ qua.")
+            continue
+
+        print(f"[{thread_name}] [ACTION] '{suffix}' Offline. Buộc dừng...")
+        try:
+            kill_script = f"PID=$(ps -ef | grep {package_name} | grep -v grep | awk '{{print $2}}'); if [ ! -z \"$PID\" ]; then kill -9 $PID; fi"
+            stop_command = ["su", "-c", kill_script]
+            subprocess.run(stop_command, capture_output=True, text=True, timeout=10)
+            time.sleep(3)
+        except Exception as e:
+            print(f"[{thread_name}] [!] Lỗi stop '{suffix}': {e}")
         
         target_url, log_msg = "", ""
         if launch_mode == 'scan':
