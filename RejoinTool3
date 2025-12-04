@@ -30,7 +30,7 @@ import signal
 # ---------------------------------------------------
 # -- CẤU HÌNH CHÍNH --
 # ---------------------------------------------------
-CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/config2"
+CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/config3"
 
 # --- CÁC GIÁ TRỊ MẶC ĐỊNH ---
 DEFAULT_CONFIG = {
