@@ -41,7 +41,7 @@ PROXY_LIST="
 142.111.67.146:5611:vwyrhxgv:gbuja557zku7
 142.147.128.93:6593:vwyrhxgv:gbuja557zku7
 "
-"CPU_DOWNCLOCK_ENABLED": "on",  # Bật/Tắt giảm xung
-"CPU_MAX_FREQ_PERCENT": 70,     # Chỉ chạy tối đa 70% công suất thực của phần cứng
-"RESOLUTION_CHANGE_ENABLED": "off", # Bật/Tắt thay đổi độ phân giải
-"TARGET_RESOLUTION": "300x300",    # Độ phân giải mục tiêu (RộngxCao)
+CPU_DOWNCLOCK_ENABLED": "on"  
+CPU_MAX_FREQ_PERCENT": 70    
+RESOLUTION_CHANGE_ENABLED" "off"
+TARGET_RESOLUTION": "300x300"    
