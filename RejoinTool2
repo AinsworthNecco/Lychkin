@@ -14,12 +14,13 @@ import atexit
 import signal
 
 # ==============================================================================
-# SCRIPT KẾT HỢP: Lychkins's Task Runner v1.4 (RESOLUTION + DOWNCLOCK)
+# SCRIPT KẾT HỢP: Lychkins's Task Runner v1.3 (HARDWARE DOWNCLOCK)
 #
-# CẢI TIẾN TỪ v1.3:
-# - Thêm chức năng giảm độ phân giải màn hình (wm size) xuống mức thấp (VD: 360x360).
-# - Giúp giảm tải cực lớn cho GPU khi render game, tăng FPS và giảm nhiệt.
-# - Tự động khôi phục độ phân giải gốc khi tắt script.
+# CẢI TIẾN TỪ v1.2:
+# - Loại bỏ cơ chế "Pause" (ngủ) khi CPU cao vì không cần thiết.
+# - Thay thế bằng cơ chế "Hardware Downclock" (Giảm xung nhịp phần cứng).
+# - Script sẽ khóa xung nhịp tối đa của CPU ở mức % cài đặt (VD: 70%).
+# - Giúp máy mát hơn liên tục (Always Cool) mà không bao giờ dừng script.
 # ==============================================================================
 
 # ---------------------------------------------------
@@ -42,10 +43,9 @@ DEFAULT_CONFIG = {
     "VIP_SERVER_URL": "",
     "REBOOT_ENABLED": "off",
     "REBOOT_INTERVAL_MINUTES": 1200,
+    # --- Cấu hình Giảm xung (Downclock) ---
     "CPU_DOWNCLOCK_ENABLED": "on",  # Bật/Tắt giảm xung
     "CPU_MAX_FREQ_PERCENT": 70,     # Chỉ chạy tối đa 70% công suất thực của phần cứng
-    "RESOLUTION_CHANGE_ENABLED": "on", # Bật/Tắt thay đổi độ phân giải
-    "TARGET_RESOLUTION": "50x50",    # Độ phân giải mục tiêu (RộngxCao)
 }
 
 # ---------------------------------------------------
@@ -134,7 +134,7 @@ def countdown(seconds, thread_name="MAIN"):
     print(f"[{thread_name}] Bắt đầu chu kỳ mới.                                 ")
 
 # ==============================================================================
-# -- HỆ THỐNG TINH CHỈNH PHẦN CỨNG (CPU & MÀN HÌNH) --
+# -- HỆ THỐNG GIẢM XUNG CPU (HARDWARE DOWNCLOCK) --
 # ==============================================================================
 
 def get_cpu_cores():
@@ -169,7 +169,7 @@ def apply_cpu_limit():
         return
 
     percent = config.get("CPU_MAX_FREQ_PERCENT", 70)
-    if percent < 30: percent = 30 # An toàn
+    if percent < 30: percent = 30 # An toàn: không giảm quá thấp tránh lag máy
     if percent > 100: percent = 100
     
     print(f"\n[CPU_TUNER] ❄️ Đang thiết lập giới hạn CPU xuống mức {percent}%...")
@@ -178,69 +178,54 @@ def apply_cpu_limit():
     for core in cores:
         base_path = f"/sys/devices/system/cpu/{core}/cpufreq"
         
+        # 1. Đọc các tần số hỗ trợ
         avail_freqs_str = read_system_file(f"{base_path}/scaling_available_frequencies")
-        if not avail_freqs_str: continue
+        if not avail_freqs_str:
+            continue # Core này không hỗ trợ đọc freq (ảo hóa hoặc driver lạ)
             
-        freqs = sorted([int(x) for x in avail_freqs_str.split()], reverse=True)
+        freqs = sorted([int(x) for x in avail_freqs_str.split()], reverse=True) # Sắp xếp giảm dần
         if not freqs: continue
         
-        max_hardware_freq = freqs[0]
+        max_hardware_freq = freqs[0] # Tần số cao nhất phần cứng hỗ trợ
         
+        # 2. Lưu tần số max hiện tại để khôi phục sau này (nếu chưa lưu)
         if core not in original_freqs:
             curr_max = read_system_file(f"{base_path}/scaling_max_freq")
             if curr_max:
                 original_freqs[core] = curr_max
         
+        # 3. Tính toán tần số mục tiêu
         target_freq = max_hardware_freq * (percent / 100.0)
-        selected_freq = freqs[-1]
+        
+        # 4. Tìm tần số trong danh sách gần nhất với mục tiêu (nhưng nhỏ hơn hoặc bằng)
+        selected_freq = freqs[-1] # Mặc định lấy thấp nhất nếu không tìm thấy
         for f in freqs:
             if f <= target_freq:
                 selected_freq = f
                 break
         
+        # 5. Áp dụng giới hạn
         write_system_file(f"{base_path}/scaling_max_freq", selected_freq)
+        
+        # Hiển thị log (rút gọn đơn vị KHz -> MHz)
         print(f"   -> {core}: Gốc {max_hardware_freq//1000}MHz => Giới hạn {selected_freq//1000}MHz")
 
-    print("[CPU_TUNER] ✅ Đã áp dụng giảm xung.\n")
+    print("[CPU_TUNER] ✅ Đã áp dụng giảm xung. Máy sẽ chạy mát hơn.\n")
 
-def apply_resolution():
-    """Thay đổi độ phân giải màn hình."""
-    config = fetch_and_load_config(CONFIG_URL)
-    if config.get("RESOLUTION_CHANGE_ENABLED", "off").lower() != "on":
-        print("[SCREEN_TUNER] Chức năng giảm độ phân giải đang TẮT.")
-        return
-
-    res = config.get("TARGET_RESOLUTION", "360x360")
-    print(f"[SCREEN_TUNER] 📱 Đang thay đổi độ phân giải sang {res}...")
-    try:
-        # Sử dụng lệnh 'wm size' của Android
-        subprocess.run(["su", "-c", f"wm size {res}"], check=True, capture_output=True, text=True)
-        print(f"[SCREEN_TUNER] ✅ Đã áp dụng độ phân giải {res}. GPU sẽ hoạt động nhẹ hơn.")
-    except Exception as e:
-        print(f"[SCREEN_TUNER] ❌ Lỗi khi đổi độ phân giải: {e}")
-
-def restore_system_defaults():
-    """Khôi phục lại xung nhịp CPU và độ phân giải màn hình."""
+def restore_cpu_limit():
+    """Khôi phục lại xung nhịp ban đầu khi tắt script."""
     global original_freqs
-    
-    print("\n[SYSTEM_RESTORE] 🔄 Đang khôi phục cài đặt gốc của hệ thống...")
-    
-    # 1. Restore CPU
-    if original_freqs:
-        for core, original_val in original_freqs.items():
-            base_path = f"/sys/devices/system/cpu/{core}/cpufreq"
-            write_system_file(f"{base_path}/scaling_max_freq", original_val)
-        print("[SYSTEM_RESTORE] ✅ Đã khôi phục xung nhịp CPU.")
+    if not original_freqs:
+        return
         
-    # 2. Restore Resolution
-    try:
-        subprocess.run(["su", "-c", "wm size reset"], check=True, capture_output=True, text=True)
-        print("[SYSTEM_RESTORE] ✅ Đã khôi phục độ phân giải màn hình.")
-    except Exception as e:
-        print(f"[SYSTEM_RESTORE] ❌ Lỗi khôi phục màn hình: {e}")
+    print("\n[CPU_TUNER] 🔄 Đang khôi phục xung nhịp CPU về mặc định...")
+    for core, original_val in original_freqs.items():
+        base_path = f"/sys/devices/system/cpu/{core}/cpufreq"
+        write_system_file(f"{base_path}/scaling_max_freq", original_val)
+    print("[CPU_TUNER] ✅ Đã khôi phục hiệu năng tối đa.")
 
 # Đăng ký hàm khôi phục khi thoát script
-atexit.register(restore_system_defaults)
+atexit.register(restore_cpu_limit)
 signal.signal(signal.SIGTERM, lambda n, f: sys.exit(0))
 signal.signal(signal.SIGINT, lambda n, f: sys.exit(0))
 
@@ -473,15 +458,15 @@ if __name__ == "__main__":
     if not check_root_access():
         sys.exit(1)
 
-    # 1. ÁP DỤNG HARDWARE TUNING (Downclock CPU + Giảm độ phân giải)
+    # 1. ÁP DỤNG HARDWARE DOWNCLOCK (MỚI)
+    # Hàm này sẽ chạy 1 lần ngay khi mở script
     apply_cpu_limit()
-    apply_resolution()
 
     # 2. Luồng Reboot
     reboot_thread = threading.Thread(target=reboot_scheduler_loop, daemon=True)
     reboot_thread.start()
 
-    parser = argparse.ArgumentParser(description="Roblox Task Runner v1.4 - Hardware Optimized")
+    parser = argparse.ArgumentParser(description="Roblox Task Runner v1.3 - Hardware Downclock")
     subparsers = parser.add_subparsers(dest='command', help='Các lệnh có sẵn')
 
     parallel_parser = subparsers.add_parser('parallel', help='Chạy song song (mặc định).')
@@ -511,7 +496,7 @@ if __name__ == "__main__":
             scanner_thread.join()
             launcher_thread.join()
     except KeyboardInterrupt:
-        # Khi nhấn Ctrl+C, hàm restore_system_defaults sẽ tự chạy
+        # Khi nhấn Ctrl+C, hàm restore_cpu_limit sẽ tự chạy nhờ atexit
         print("\n[MAIN] Đã nhận lệnh dừng. Đang khôi phục cài đặt gốc...")
     except Exception as e:
         print(f"\n[MAIN] Đã xảy ra lỗi không mong muốn: {e}")
