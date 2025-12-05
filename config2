@@ -1,6 +1,6 @@
 --- CẤU HÌNH CHUNG ---
 PLACE_ID="8737602449" - ID của game cần quét
-ACCOUNT_SUFFIXES="b:9937896674,c:9938583348,d:9938584809,e:9937806135" - Hậu tố các tài khoản Roblox clone "b,c,d,e,f"  ,f:9938106287
+ACCOUNT_SUFFIXES="b:9937896674,c:9938583348,d:9938584809,e:9937806135,f:9938106287" - Hậu tố các tài khoản Roblox clone "b,c,d,e,f"  
 BASE_PACKAGE_NAME="com.roblox.clien" - Tên gói Roblox cơ bản
 
 --- CẤU HÌNH CHO TÁC VỤ "SCAN" ---
@@ -11,7 +11,7 @@ OUTPUT_FILE_PATH="/storage/emulated/0/FluxusZ/workspace/neco.txt" - Đường d�
 
 --- CẤU HÌNH CHO TÁC VỤ "LAUNCH" ---
 LAUNCH_INTERVAL_SECONDS="300" - Thời gian nghỉ giữa các chu kỳ join game (giây)
-LAUNCH_DELAY_SECONDS="45" - Thời gian chờ giữa mỗi lần join của từng tài khoản
+LAUNCH_DELAY_SECONDS="30" - Thời gian chờ giữa mỗi lần join của từng tài khoản
 VIP_SERVER_URL="roblox://placeId=8737602449" - URL VIP server (dùng cho launch --mode vip)
 
 --- CẤU HÌNH MẠNG (Nâng cao) ---
