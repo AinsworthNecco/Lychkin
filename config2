@@ -25,7 +25,7 @@ VIP_SERVER_URL="roblox://placeId=8737602449" - URL VIP server (dùng cho launch 
 --- CẤU HÌNH MẠNG (Nâng cao) ---
 CONNECTION_TIMEOUT="15" - Thời gian chờ tối đa cho mỗi kết nối (giây)
 REBOOT_ENABLED="on"
-REBOOT_INTERVAL_MINUTES="180"
+REBOOT_INTERVAL_MINUTES="300"
 
 PROXY_LIST="
 142.111.48.253:7030:ispjmank:ag0avc9n7fzn
