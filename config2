@@ -14,7 +14,7 @@ EXECUTOR_PATH_2="/storage/emulated/0/Fluxus/workspace/neco.txt"
 EXECUTOR_PATH_3="/storage/emulated/0/Codex/Workspace/neco.txt"
 
 --- ONLY DELTA ---
-DELTA_KEY_URL="https://raw.githubusercontent.com/username/repo/main/key.txt"
+DELTA_KEY_URL="https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/key"
 KEY_CHECK_INTERVAL_MINUTES="30"
 
 --- CẤU HÌNH CHO TÁC VỤ "LAUNCH" ---
