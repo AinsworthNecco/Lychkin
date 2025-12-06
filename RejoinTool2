@@ -13,12 +13,12 @@ import json
 from datetime import datetime
 
 # ==============================================================================
-# SCRIPT KẾT HỢP: Lychkins's Task Runner v1.4 (Double Check & Delta Key Manager)
+# SCRIPT KẾT HỢP: Lychkins's Task Runner v1.5 (Sequential Check Update)
 #
 # CẬP NHẬT MỚI:
-# 1. Double Check Offline: Nếu thấy Offline -> Đợi 10s -> Check lại -> Mới Kill.
-# 2. Delta Key Manager: Tự động check license key từ Github (Chỉ cho Delta).
-#    - Nếu Key khác -> Ghi đè -> Reboot.
+# 1. Chuyển cơ chế check Online sang tuần tự (Check từng acc một).
+# 2. Logic Double Check áp dụng riêng cho từng acc ngay trong vòng lặp.
+# 3. Fix lỗi logic quét hàng loạt cũ.
 # ==============================================================================
 
 # ---------------------------------------------------
@@ -273,13 +273,20 @@ def delta_key_monitor_loop():
 # ==============================================================================
 
 def check_roblox_presence(accounts, config, thread_name):
+    """
+    Hàm kiểm tra trạng thái.
+    Nhận vào danh sách accounts, trả về map {uid: status}.
+    """
     user_ids = [int(acc['id']) for acc in accounts]
     if not user_ids: return {}
     api_url = "https://presence.roblox.com/v1/presence/users"
+    # Dùng execute_direct_api_request để có retry logic
     response = execute_direct_api_request('POST', api_url, config, thread_name, {"userIds": user_ids})
+    
     status_map = {str(uid): False for uid in user_ids}
     if response and 'userPresences' in response:
         for p in response['userPresences']:
+            # userPresenceType = 2 nghĩa là đang InGame
             if p.get('userPresenceType') == 2: status_map[str(p.get('userId'))] = True
     return status_map
 
@@ -345,27 +352,8 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
     if not accounts:
         print(f"[{thread_name}] Lỗi: Chưa cấu hình tài khoản.")
         return
-
-    print(f"[{thread_name}] Kiểm tra online (Lần 1)...")
-    online_statuses = check_roblox_presence(accounts, config, thread_name)
     
-    # --- LOGIC DOUBLE CHECK ---
-    # Tìm những tài khoản bị báo Offline
-    offline_candidates = [acc for acc in accounts if not online_statuses.get(acc['id'], False)]
-    
-    if offline_candidates:
-        print(f"[{thread_name}] ⚠️ Phát hiện {len(offline_candidates)} tài khoản Offline. Chờ 10s để kiểm tra lại (Double Check)...")
-        time.sleep(10)
-        
-        print(f"[{thread_name}] Kiểm tra online (Lần 2)...")
-        # Check lại chỉ những người offline
-        recheck_statuses = check_roblox_presence(offline_candidates, config, thread_name)
-        
-        # Cập nhật lại status chính
-        for uid, status in recheck_statuses.items():
-            online_statuses[uid] = status # Nếu True thì cập nhật thành True, False vẫn False
-    # --------------------------
-
+    # Chuẩn bị danh sách Server ID nếu là chế độ Scan
     server_ids = []
     if launch_mode == 'scan':
         with file_lock:
@@ -379,20 +367,38 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
 
     base_pkg = config.get("BASE_PACKAGE_NAME", "com.roblox.clien")
     
+    # --- THỰC HIỆN TUẦN TỰ TỪNG TÀI KHOẢN ---
     for i, acc in enumerate(accounts):
         suffix, uid = acc['suffix'], acc['id']
         pkg_name = f"{base_pkg}{suffix}"
         
-        if not online_statuses.get(uid, False):
-            print(f"[{thread_name}] [CONFIRMED OFFLINE] '{suffix}' (ID: {uid}) -> Kill & Start.")
+        print(f"[{thread_name}] [{suffix}] Đang kiểm tra trạng thái (ID: {uid})...")
+        
+        # 1. Kiểm tra lần 1
+        # Truyền vào list chứa đúng 1 acc để check riêng lẻ
+        status_map = check_roblox_presence([acc], config, thread_name)
+        is_online = status_map.get(uid, False)
+        
+        # 2. Logic Double Check (Nếu Offline)
+        if not is_online:
+            print(f"[{thread_name}] ⚠️ [{suffix}] Báo cáo Offline. Chờ 10s kiểm tra lại...")
+            time.sleep(10)
+            # Kiểm tra lần 2
+            status_map = check_roblox_presence([acc], config, thread_name)
+            is_online = status_map.get(uid, False)
+
+        # 3. Xử lý dựa trên kết quả cuối cùng
+        if not is_online:
+            print(f"[{thread_name}] [CONFIRMED OFFLINE] '{suffix}' -> Kill & Start.")
             try:
                 cmd_kill = f"PID=$(ps -ef | grep {pkg_name} | grep -v grep | awk '{{print $2}}'); if [ ! -z \"$PID\" ]; then kill -9 $PID; fi"
                 subprocess.run(["su", "-c", cmd_kill], capture_output=True, timeout=10)
-                time.sleep(3)
+                time.sleep(3) # Chờ process chết hẳn
             except: pass
         else:
-            print(f"[{thread_name}] [REFRESH] '{suffix}' Online -> Re-join.")
+            print(f"[{thread_name}] [ONLINE] '{suffix}' -> Re-join (Refresh).")
             
+        # 4. Tạo lệnh Start
         target_url = ""
         if launch_mode == 'scan':
             target_url = f"roblox://placeId={config['PLACE_ID']}&gameId={server_ids[i % len(server_ids)]}"
@@ -403,7 +409,11 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
             subprocess.run(["am", "start", "-a", "android.intent.action.VIEW", "-d", target_url, "-p", pkg_name], capture_output=True)
             print(f"[{thread_name}] -> Đã gọi lệnh start cho {pkg_name}")
             
-        time.sleep(config.get("LAUNCH_DELAY_SECONDS", 10))
+        # Nghỉ giữa các lần khởi động acc
+        delay = config.get("LAUNCH_DELAY_SECONDS", 10)
+        if i < len(accounts) - 1: # Chỉ delay nếu không phải acc cuối
+            print(f"[{thread_name}] Đợi {delay}s trước khi qua acc tiếp theo...")
+            time.sleep(delay)
 
 # ==============================================================================
 # -- VÒNG LẶP & MAIN --
