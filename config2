@@ -10,7 +10,7 @@ MAX_PLAYER_PERCENTAGE="90" - Tỷ lệ người chơi tối đa (%)
 OUTPUT_FILE_PATH="/storage/emulated/0/Delta/Workspace/neco.txt" - Đường dẫn đầy đủ và tên file lưu kết quả quét
 
 --- CẤU HÌNH CHO TÁC VỤ "LAUNCH" ---
-LAUNCH_INTERVAL_SECONDS="300" - Thời gian nghỉ giữa các chu kỳ join game (giây)
+LAUNCH_INTERVAL_SECONDS="180" - Thời gian nghỉ giữa các chu kỳ join game (giây)
 LAUNCH_DELAY_SECONDS="30" - Thời gian chờ giữa mỗi lần join của từng tài khoản
 VIP_SERVER_URL="roblox://placeId=8737602449" - URL VIP server (dùng cho launch --mode vip)
 
