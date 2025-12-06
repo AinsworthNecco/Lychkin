@@ -7,7 +7,11 @@ BASE_PACKAGE_NAME="com.roblox.clien" - Tên gói Roblox cơ bản
 SCAN_INTERVAL_SECONDS="180" - Thời gian nghỉ giữa các chu kỳ quét (giây)
 MIN_PLAYER_PERCENTAGE="75" - Tỷ lệ người chơi tối thiểu (%)
 MAX_PLAYER_PERCENTAGE="90" - Tỷ lệ người chơi tối đa (%)
-OUTPUT_FILE_PATH="/storage/emulated/0/Delta/Workspace/neco.txt" - Đường dẫn đầy đủ và tên file lưu kết quả quét
+
+SELECTED_EXECUTOR="1"
+EXECUTOR_PATH_1="/storage/emulated/0/Delta/Workspace/neco.txt"
+EXECUTOR_PATH_2="/storage/emulated/0/Fluxus/workspace/neco.txt"
+EXECUTOR_PATH_3="/storage/emulated/0/Codex/Workspace/neco.txt"
 
 --- CẤU HÌNH CHO TÁC VỤ "LAUNCH" ---
 LAUNCH_INTERVAL_SECONDS="180" - Thời gian nghỉ giữa các chu kỳ join game (giây)
