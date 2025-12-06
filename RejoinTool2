@@ -10,15 +10,16 @@ import argparse
 import re
 import threading
 import json
+import random # Thêm thư viện random cho việc chọn proxy
 from datetime import datetime
 
 # ==============================================================================
-# SCRIPT KẾT HỢP: Lychkins's Task Runner v1.5 (Sequential Check Update)
+# SCRIPT KẾT HỢP: Lychkins's Task Runner v1.8 (Robust Proxy Retry for Status Check)
 #
 # CẬP NHẬT MỚI:
-# 1. Chuyển cơ chế check Online sang tuần tự (Check từng acc một).
-# 2. Logic Double Check áp dụng riêng cho từng acc ngay trong vòng lặp.
-# 3. Fix lỗi logic quét hàng loạt cũ.
+# 1. Cơ chế Proxy Double Check được cải tiến.
+# 2. Hàm check_roblox_presence_single có Retry nội bộ: Tự động xoay vòng proxy
+#    ngẫu nhiên (tối đa 3 lần) nếu kết nối thất bại để đảm bảo lấy được kết quả API.
 # ==============================================================================
 
 # ---------------------------------------------------
@@ -59,7 +60,6 @@ def fetch_and_load_config(url):
     Tải cấu hình từ xa và xử lý logic đường dẫn động.
     """
     global current_executor_id
-    # print("[CONFIG] Đang tải cấu hình từ server...") # Giảm spam log
     try:
         response = requests.get(url, timeout=20)
         response.raise_for_status()
@@ -90,7 +90,7 @@ def fetch_and_load_config(url):
         # --- XỬ LÝ LOGIC EXECUTOR TỰ ĐỘNG ---
         if "SELECTED_EXECUTOR" in config:
             selected_id = config["SELECTED_EXECUTOR"]
-            current_executor_id = selected_id # Cập nhật biến toàn cục
+            current_executor_id = selected_id
             target_path_key = f"EXECUTOR_PATH_{selected_id}"
             
             if target_path_key in config:
@@ -117,6 +117,7 @@ def fetch_and_load_config(url):
         sys.exit(1)
 
 def format_proxies(proxy_list):
+    """Chuyển đổi danh sách proxy string sang định dạng requests."""
     formatted = []
     if not proxy_list: return []
     for proxy_string in proxy_list:
@@ -140,6 +141,7 @@ def countdown(seconds, thread_name="MAIN"):
 # ==============================================================================
 
 def execute_api_request_with_proxy(method, url, config, thread_name, json_data=None):
+    """Thực hiện request với logic xoay vòng (rotation) proxy cho Scanner."""
     global proxy_index, failed_proxy_count, current_proxies
     timeout = config.get("CONNECTION_TIMEOUT", 15)
     num_proxies = len(current_proxies)
@@ -176,24 +178,83 @@ def execute_api_request_with_proxy(method, url, config, thread_name, json_data=N
                 print(f"\n[{thread_name}] [!] IP Gốc lỗi ({e}). Nghỉ 60 giây...")
                 time.sleep(60)
 
-def execute_direct_api_request(method, url, config, thread_name, json_data=None):
-    retries = 3
+def execute_api_request_simple(method, url, config, thread_name, json_data=None, proxy=None):
+    """Thực hiện request đơn giản, dùng proxy chỉ định (KHÔNG có rotation)."""
     timeout = config.get("CONNECTION_TIMEOUT", 15)
-    for attempt in range(retries):
-        try:
-            # print(f"\r[{thread_name}] [*] Kết nối API (Direct)...", end="")
-            # sys.stdout.flush()
-            if method.upper() == 'GET': response = requests.get(url, timeout=timeout)
-            elif method.upper() == 'POST': response = requests.post(url, json=json_data, timeout=timeout)
-            
-            if response.status_code == 200: return response.json()
-            # print(f"\n[{thread_name}] [!] Lỗi {response.status_code}. Retry...", end="")
-        except Exception as e:
-            print(f"\n[{thread_name}] [!] Lỗi kết nối: {e}. Retry...", end="")
+    proxies = proxy if proxy else None
+    
+    try:
+        if method.upper() == 'GET': response = requests.get(url, proxies=proxies, timeout=timeout)
+        elif method.upper() == 'POST': response = requests.post(url, json=json_data, proxies=proxies, timeout=timeout)
+        else: raise ValueError(f"Method lạ: {method}")
         
-        if attempt < retries - 1: time.sleep(5)
-        else:
-            return None
+        if response.status_code == 200: return response.json()
+        
+    except Exception:
+        # Bỏ qua lỗi kết nối proxy/mạng và trả về None
+        pass 
+        
+    return None
+
+def check_roblox_presence_single(account_id, config, thread_name, proxy_list, initial_proxy_index, check_info="Check"):
+    """
+    Kiểm tra trạng thái online của MỘT tài khoản.
+    Tự động retry 3 lần với proxy ngẫu nhiên khác nếu kết nối thất bại,
+    để đảm bảo kết quả API không bị ảnh hưởng bởi proxy chết.
+    """
+    user_ids = [int(account_id)]
+    api_url = "https://presence.roblox.com/v1/presence/users"
+    payload = {"userIds": user_ids}
+    
+    formatted_proxies = proxy_list
+    num_proxies = len(formatted_proxies)
+    
+    max_retries = 3
+    
+    for attempt in range(max_retries):
+        
+        # --- CHỌN PROXY CHO LẦN THỬ NÀY ---
+        idx = -1
+        proxy = None
+        
+        if num_proxies > 0:
+            if attempt == 0:
+                # Lần đầu tiên, dùng proxy được chỉ định từ bên ngoài (L1 hoặc L2)
+                idx = initial_proxy_index
+            else:
+                # Các lần sau, chọn ngẫu nhiên
+                idx = random.randint(0, num_proxies - 1)
+            
+            proxy = formatted_proxies[idx]
+        
+        proxy_info = f"{check_info} (P#{idx + 1})" if idx != -1 else f"{check_info} (IP Gốc)"
+        
+        # Dùng \r để in đè, trừ lần in cuối cùng
+        print(f"[{thread_name}] [{account_id}] Đang thử {proxy_info} (Lần {attempt + 1}/{max_retries})...", end='\r')
+        sys.stdout.flush()
+
+        # Thực hiện request đơn giản
+        response = execute_api_request_simple('POST', api_url, config, thread_name, json_data=payload, proxy=proxy)
+
+        if response is not None:
+            # Thành công kết nối và nhận được response
+            is_online = False
+            if 'userPresences' in response:
+                for p in response['userPresences']:
+                    if p.get('userPresenceType') == 2 and str(p.get('userId')) == str(account_id):
+                        is_online = True
+            
+            status = "ONLINE" if is_online else "OFFLINE"
+            print(f"[{thread_name}] [{account_id}] {proxy_info}: {status}") # In kết quả cuối cùng ra dòng mới
+            return is_online
+        
+        # Nếu response là None, proxy/kết nối thất bại -> Chờ 1s và thử lại
+        time.sleep(1) # Đợi 1 giây trước khi thử lại
+
+    # Thất bại sau max_retries
+    print(f"[{thread_name}] [{account_id}] Thử lại thất bại sau {max_retries} lần.")
+    return False
+
 
 # ==============================================================================
 # -- LOGIC MỚI: DELTA KEY MANAGER --
@@ -246,7 +307,6 @@ def delta_key_monitor_loop():
                         print(f"[{thread_name}] ✅ Key trùng khớp. Không cần cập nhật.")
                     else:
                         print(f"[{thread_name}] ⚠️ PHÁT HIỆN KEY MỚI! Tiến hành cập nhật...")
-                        print(f"[{thread_name}] -> Cũ: {local_key[:10]}... | Mới: {remote_key[:10]}...")
                         
                         # Đảm bảo thư mục tồn tại
                         os.makedirs(os.path.dirname(LOCAL_KEY_PATH), exist_ok=True)
@@ -265,30 +325,11 @@ def delta_key_monitor_loop():
                 print(f"[{thread_name}] Lỗi quá trình check Key: {e}")
 
         # Chờ đến lần check tiếp theo
-        # print(f"[{thread_name}] Ngủ {interval} phút...")
         time.sleep(interval * 60)
 
 # ==============================================================================
 # -- LOGIC CHÍNH: SCAN & LAUNCH --
 # ==============================================================================
-
-def check_roblox_presence(accounts, config, thread_name):
-    """
-    Hàm kiểm tra trạng thái.
-    Nhận vào danh sách accounts, trả về map {uid: status}.
-    """
-    user_ids = [int(acc['id']) for acc in accounts]
-    if not user_ids: return {}
-    api_url = "https://presence.roblox.com/v1/presence/users"
-    # Dùng execute_direct_api_request để có retry logic
-    response = execute_direct_api_request('POST', api_url, config, thread_name, {"userIds": user_ids})
-    
-    status_map = {str(uid): False for uid in user_ids}
-    if response and 'userPresences' in response:
-        for p in response['userPresences']:
-            # userPresenceType = 2 nghĩa là đang InGame
-            if p.get('userPresenceType') == 2: status_map[str(p.get('userId'))] = True
-    return status_map
 
 def run_scanner(config, thread_name="SCAN"):
     global current_proxies
@@ -304,7 +345,8 @@ def run_scanner(config, thread_name="SCAN"):
         api_url = f"https://games.roblox.com/v1/games/{place_id}/servers/Public?sortOrder=Desc&limit=100"
         if next_cursor and next_cursor != "null": api_url += f"&cursor={next_cursor}"
         
-        data = execute_api_request_with_proxy('GET', api_url, config, thread_name)
+        # Dùng hàm rotation cho scanner
+        data = execute_api_request_with_proxy('GET', api_url, config, thread_name) 
         if not data: continue
         
         servers = data.get("data", [])
@@ -353,7 +395,6 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
         print(f"[{thread_name}] Lỗi: Chưa cấu hình tài khoản.")
         return
     
-    # Chuẩn bị danh sách Server ID nếu là chế độ Scan
     server_ids = []
     if launch_mode == 'scan':
         with file_lock:
@@ -367,51 +408,80 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
 
     base_pkg = config.get("BASE_PACKAGE_NAME", "com.roblox.clien")
     
-    # --- THỰC HIỆN TUẦN TỰ TỪNG TÀI KHOẢN ---
+    # Lấy danh sách proxies đã format
+    formatted_proxies = format_proxies(config.get("PROXY_LIST", []))
+    num_proxies = len(formatted_proxies)
+    
     for i, acc in enumerate(accounts):
         suffix, uid = acc['suffix'], acc['id']
         pkg_name = f"{base_pkg}{suffix}"
         
-        print(f"[{thread_name}] [{suffix}] Đang kiểm tra trạng thái (ID: {uid})...")
+        print(f"\n[{thread_name}] ---- BẮT ĐẦU CHECK: {suffix} (ID: {uid}) ----")
         
-        # 1. Kiểm tra lần 1
-        # Truyền vào list chứa đúng 1 acc để check riêng lẻ
-        status_map = check_roblox_presence([acc], config, thread_name)
-        is_online = status_map.get(uid, False)
+        # --- CHỌN PROXY CHO LẦN 1 ---
+        idx_1 = random.randint(0, num_proxies - 1) if num_proxies > 0 else -1
         
-        # 2. Logic Double Check (Nếu Offline)
-        if not is_online:
-            print(f"[{thread_name}] ⚠️ [{suffix}] Báo cáo Offline. Chờ 10s kiểm tra lại...")
-            time.sleep(10)
-            # Kiểm tra lần 2
-            status_map = check_roblox_presence([acc], config, thread_name)
-            is_online = status_map.get(uid, False)
+        # 1. Kiểm tra API lần 1 (Có retry nội bộ)
+        is_online_l1 = check_roblox_presence_single(
+            uid, config, thread_name, formatted_proxies, idx_1, check_info="Check L1"
+        )
+        
+        is_online_final = is_online_l1 # Giả định ban đầu là kết quả L1
 
-        # 3. Xử lý dựa trên kết quả cuối cùng
-        if not is_online:
-            print(f"[{thread_name}] [CONFIRMED OFFLINE] '{suffix}' -> Kill & Start.")
+        # 2. Logic Double Check (Nếu API báo Offline)
+        if not is_online_l1:
+            print(f"[{thread_name}] ⚠️ [{suffix}] API báo Offline (L1). Chờ 10s để Double Check...")
+            time.sleep(10)
+
+            # --- CHỌN PROXY CHO LẦN 2 (Khác Lần 1 nếu có thể) ---
+            idx_2 = -1
+            if num_proxies > 0:
+                if num_proxies > 1:
+                    # Chọn index ngẫu nhiên khác index 1
+                    available_indices = [j for j in range(num_proxies) if j != idx_1]
+                    idx_2 = random.choice(available_indices)
+                else:
+                    # Chỉ có 1 proxy, dùng lại
+                    idx_2 = idx_1
+            
+            # 3. Kiểm tra API lần 2 (Có retry nội bộ)
+            is_online_l2 = check_roblox_presence_single(
+                uid, config, thread_name, formatted_proxies, idx_2, check_info="Check L2"
+            )
+            
+            is_online_final = is_online_l2 # Kết quả L2 là kết quả cuối cùng
+
+        # 4. Quyết định Kill hay Refresh
+        must_kill = not is_online_final
+                
+        if must_kill:
+            print(f"[{thread_name}] [QUYẾT ĐỊNH] '{suffix}' CONFIRMED OFFLINE. Tiến hành Kill & Start.")
             try:
                 cmd_kill = f"PID=$(ps -ef | grep {pkg_name} | grep -v grep | awk '{{print $2}}'); if [ ! -z \"$PID\" ]; then kill -9 $PID; fi"
                 subprocess.run(["su", "-c", cmd_kill], capture_output=True, timeout=10)
                 time.sleep(3) # Chờ process chết hẳn
             except: pass
         else:
-            print(f"[{thread_name}] [ONLINE] '{suffix}' -> Re-join (Refresh).")
-            
-        # 4. Tạo lệnh Start
+            print(f"[{thread_name}] [QUYẾT ĐỊNH] '{suffix}' ONLINE/FRESH. Chỉ thực hiện Refresh.")
+
+        # 5. Tạo lệnh Start (Luôn thực hiện để Join/Refresh)
         target_url = ""
         if launch_mode == 'scan':
-            target_url = f"roblox://placeId={config['PLACE_ID']}&gameId={server_ids[i % len(server_ids)]}"
+            if server_ids:
+                target_url = f"roblox://placeId={config['PLACE_ID']}&gameId={server_ids[i % len(server_ids)]}"
+            else:
+                print(f"[{thread_name}] [-] Không có server hợp lệ để join cho '{suffix}'. Bỏ qua start.")
+                continue
         elif launch_mode == 'vip':
             target_url = config.get('VIP_SERVER_URL', "")
             
         if target_url:
             subprocess.run(["am", "start", "-a", "android.intent.action.VIEW", "-d", target_url, "-p", pkg_name], capture_output=True)
-            print(f"[{thread_name}] -> Đã gọi lệnh start cho {pkg_name}")
+            print(f"[{thread_name}] -> Đã gọi lệnh start/refresh cho {pkg_name}")
             
         # Nghỉ giữa các lần khởi động acc
         delay = config.get("LAUNCH_DELAY_SECONDS", 10)
-        if i < len(accounts) - 1: # Chỉ delay nếu không phải acc cuối
+        if i < len(accounts) - 1:
             print(f"[{thread_name}] Đợi {delay}s trước khi qua acc tiếp theo...")
             time.sleep(delay)
 
@@ -447,10 +517,7 @@ def reboot_loop():
 if __name__ == "__main__":
     if not check_root_access(): sys.exit(1)
     
-    # Luồng 1: Reboot định kỳ
     threading.Thread(target=reboot_loop, daemon=True).start()
-
-    # Luồng 2: Delta Key Manager (Tự check config bên trong để chạy hay ngủ)
     threading.Thread(target=delta_key_monitor_loop, daemon=True).start()
 
     parser = argparse.ArgumentParser()
