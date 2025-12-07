@@ -15,7 +15,7 @@ EXECUTOR_PATH_3="/storage/emulated/0/Codex/Workspace/neco.txt"
 
 --- ONLY DELTA ---
 DELTA_KEY_URL="https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/key"
-KEY_CHECK_INTERVAL_MINUTES="30"
+KEY_CHECK_INTERVAL_MINUTES="15"
 
 --- CẤU HÌNH CHO TÁC VỤ "LAUNCH" ---
 LAUNCH_INTERVAL_SECONDS="300" - Thời gian nghỉ giữa các chu kỳ join game (giây)
