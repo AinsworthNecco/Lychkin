@@ -515,10 +515,9 @@ def reboot_loop():
         except: pass
 
 if __name__ == "__main__":
+    os.system("su -c 'echo lychkin_lock > /sys/power/wake_lock'")
     if not check_root_access(): sys.exit(1)
-    
     threading.Thread(target=reboot_loop, daemon=True).start()
-    threading.Thread(target=delta_key_monitor_loop, daemon=True).start()
 
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest='command')
