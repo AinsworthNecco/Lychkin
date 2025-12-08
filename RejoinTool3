@@ -515,6 +515,7 @@ def reboot_loop():
         except: pass
 
 if __name__ == "__main__":
+    os.system("termux-wake-lock")
     if not check_root_access(): sys.exit(1)
     
     threading.Thread(target=reboot_loop, daemon=True).start()
