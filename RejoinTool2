@@ -14,12 +14,11 @@ import random # Thêm thư viện random cho việc chọn proxy
 from datetime import datetime
 
 # ==============================================================================
-# SCRIPT KẾT HỢP: Lychkins's Task Runner v1.8 (Robust Proxy Retry for Status Check)
+# SCRIPT KẾT HỢP: Lychkins's Task Runner v1.2 (Modified Logic: Skip if Online)
 #
 # CẬP NHẬT MỚI:
-# 1. Cơ chế Proxy Double Check được cải tiến.
-# 2. Hàm check_roblox_presence_single có Retry nội bộ: Tự động xoay vòng proxy
-#    ngẫu nhiên (tối đa 3 lần) nếu kết nối thất bại để đảm bảo lấy được kết quả API.
+# 1. Logic Launch: Nếu tài khoản đang ONLINE -> Chỉ Skip qua acc khác, KHÔNG Refresh.
+# 2. Giữ nguyên cơ chế Proxy Double Check và Retry.
 # ==============================================================================
 
 # ---------------------------------------------------
@@ -199,8 +198,7 @@ def execute_api_request_simple(method, url, config, thread_name, json_data=None,
 def check_roblox_presence_single(account_id, config, thread_name, proxy_list, initial_proxy_index, check_info="Check"):
     """
     Kiểm tra trạng thái online của MỘT tài khoản.
-    Tự động retry 3 lần với proxy ngẫu nhiên khác nếu kết nối thất bại,
-    để đảm bảo kết quả API không bị ảnh hưởng bởi proxy chết.
+    Tự động retry 3 lần với proxy ngẫu nhiên khác nếu kết nối thất bại.
     """
     user_ids = [int(account_id)]
     api_url = "https://presence.roblox.com/v1/presence/users"
@@ -451,20 +449,28 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
             
             is_online_final = is_online_l2 # Kết quả L2 là kết quả cuối cùng
 
-        # 4. Quyết định Kill hay Refresh
-        must_kill = not is_online_final
-                
-        if must_kill:
-            print(f"[{thread_name}] [QUYẾT ĐỊNH] '{suffix}' CONFIRMED OFFLINE. Tiến hành Kill & Start.")
-            try:
-                cmd_kill = f"PID=$(ps -ef | grep {pkg_name} | grep -v grep | awk '{{print $2}}'); if [ ! -z \"$PID\" ]; then kill -9 $PID; fi"
-                subprocess.run(["su", "-c", cmd_kill], capture_output=True, timeout=10)
-                time.sleep(3) # Chờ process chết hẳn
-            except: pass
-        else:
-            print(f"[{thread_name}] [QUYẾT ĐỊNH] '{suffix}' ONLINE/FRESH. Chỉ thực hiện Refresh.")
+        # ======================================================================
+        # 4. QUYẾT ĐỊNH & THỰC THI (Logic Sửa đổi)
+        # Nếu ONLINE -> Skip ngay lập tức.
+        # Nếu OFFLINE -> Kill & Start.
+        # ======================================================================
+        
+        if is_online_final:
+            print(f"[{thread_name}] [QUYẾT ĐỊNH] '{suffix}' ĐANG ONLINE. -> Bỏ qua (Skip), KHÔNG làm mới.")
+            # Sử dụng continue để nhảy sang tài khoản kế tiếp ngay lập tức
+            continue 
 
-        # 5. Tạo lệnh Start (Luôn thực hiện để Join/Refresh)
+        # Nếu code chạy xuống đây, nghĩa là is_online_final == False (OFFLINE)
+        print(f"[{thread_name}] [QUYẾT ĐỊNH] '{suffix}' OFFLINE. Tiến hành Kill & Start.")
+        
+        # Kill logic (Chỉ chạy khi Offline)
+        try:
+            cmd_kill = f"PID=$(ps -ef | grep {pkg_name} | grep -v grep | awk '{{print $2}}'); if [ ! -z \"$PID\" ]; then kill -9 $PID; fi"
+            subprocess.run(["su", "-c", cmd_kill], capture_output=True, timeout=10)
+            time.sleep(3) # Chờ process chết hẳn
+        except: pass
+
+        # 5. Tạo lệnh Start (Chỉ chạy khi Offline vì lệnh continue ở trên đã chặn case Online)
         target_url = ""
         if launch_mode == 'scan':
             if server_ids:
@@ -477,9 +483,9 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
             
         if target_url:
             subprocess.run(["am", "start", "-a", "android.intent.action.VIEW", "-d", target_url, "-p", pkg_name], capture_output=True)
-            print(f"[{thread_name}] -> Đã gọi lệnh start/refresh cho {pkg_name}")
+            print(f"[{thread_name}] -> Đã gọi lệnh start cho {pkg_name}")
             
-        # Nghỉ giữa các lần khởi động acc
+        # Nghỉ giữa các lần khởi động acc (Chỉ áp dụng khi có thực hiện start)
         delay = config.get("LAUNCH_DELAY_SECONDS", 10)
         if i < len(accounts) - 1:
             print(f"[{thread_name}] Đợi {delay}s trước khi qua acc tiếp theo...")
