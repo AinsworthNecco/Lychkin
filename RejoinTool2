@@ -448,7 +448,7 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
         
         if not is_online_l1:
             print(f"[{thread_name}] ⚠️ [{suffix}] Vẫn báo Offline (Sau 3 lần check L1). Chờ 10s check L2...")
-            time.sleep(10)
+            time.sleep(3)
 
             # --- CHỌN PROXY CHO LẦN 2 (Khác Lần 1 nếu có thể) ---
             idx_2 = -1
