@@ -10,18 +10,18 @@ import argparse
 import re
 import threading
 import json
-import random # Thêm thư viện random cho việc chọn proxy
+import random
 from datetime import datetime
 
 # ==============================================================================
-# SCRIPT KẾT HỢP: Lychkins's Task Runner v1.2 (Strict Check Mode)
+# SCRIPT KẾT HỢP: Lychkins's Task Runner v1.3 (Process Check + Strict Mode)
 #
-# CẬP NHẬT MỚI:
-# 1. Logic Launch: Nếu tài khoản đang ONLINE -> Chỉ Skip qua acc khác, KHÔNG Refresh.
-# 2. Logic Check: "Cực kỳ chặt chẽ" (Strict Mode).
-#    - Nếu API báo ONLINE -> Chốt ngay.
-#    - Nếu API báo OFFLINE -> KHÔNG tin ngay, tiếp tục thử các proxy khác (đủ 3 lần).
-#      Chỉ chốt Offline khi cả 3 lần đều không thấy Online.
+# CẬP NHẬT MỚI (v1.3):
+# 1. Logic Process Check:
+#    - Trước khi check API, kiểm tra xem App có đang chạy ngầm (Process exist) không.
+#    - Nếu App TẮT -> Bật ngay lập tức, BỎ QUA check API.
+#    - Nếu App ĐANG CHẠY -> Mới tiến hành check API Online/Offline.
+# 2. Logic Check API (Strict Mode): Giữ nguyên (Check 2 lớp, retry 3 lần).
 # ==============================================================================
 
 # ---------------------------------------------------
@@ -36,7 +36,7 @@ proxy_index = 0
 failed_proxy_count = 0
 current_proxies = []
 file_lock = threading.Lock()
-current_executor_id = None # Biến lưu ID executor hiện tại để check logic Delta
+current_executor_id = None 
 
 # ==============================================================================
 # -- CÁC HÀM TIỆN ÍCH & KIỂM TRA ROOT --
@@ -57,10 +57,24 @@ def check_root_access():
         print(f"[MAIN] ❌ Lỗi kiểm tra root: {e}")
         return False
 
+def check_process_running(pkg_name):
+    """
+    Kiểm tra xem package có đang chạy không bằng lệnh ps.
+    Trả về True nếu tìm thấy process, False nếu không.
+    """
+    try:
+        # grep -v grep để tránh tìm thấy chính câu lệnh grep
+        cmd = f"ps -ef | grep {pkg_name} | grep -v grep"
+        result = subprocess.run(["su", "-c", cmd], capture_output=True, text=True, timeout=5)
+        # Nếu output có nội dung -> Process đang chạy
+        if result.stdout.strip():
+            return True
+        return False
+    except Exception:
+        return False
+
 def fetch_and_load_config(url):
-    """
-    Tải cấu hình từ xa và xử lý logic đường dẫn động.
-    """
+    """Tải cấu hình từ xa và xử lý logic đường dẫn động."""
     global current_executor_id
     try:
         response = requests.get(url, timeout=20)
@@ -136,7 +150,7 @@ def countdown(seconds, thread_name="MAIN"):
         print(f"[{thread_name}] Thời gian chờ còn lại: {i} giây    ", end='\r')
         sys.stdout.flush()
         time.sleep(1)
-    print(f"[{thread_name}] Bắt đầu chu kỳ mới.                                  ")
+    print(f"[{thread_name}] Bắt đầu chu kỳ mới.                                     ")
 
 # ==============================================================================
 # -- CÁC HÀM KẾT NỐI API --
@@ -253,10 +267,8 @@ def check_roblox_presence_single(account_id, config, thread_name, proxy_list, in
                 return True
             else:
                 # Nếu thấy Offline -> Chưa tin ngay!
-                # In ra để user biết là đã check thấy offline nhưng đang nghi ngờ
                 if attempt < max_retries - 1:
                     print(f"[{thread_name}] [{account_id}] {proxy_info}: OFFLINE (Nghi ngờ, thử lại proxy khác)...")
-                    # Không return False ở đây, để vòng lặp chạy tiếp
                 else:
                     # Đây là lần cuối cùng rồi mà vẫn Offline
                     print(f"[{thread_name}] [{account_id}] {proxy_info}: OFFLINE (Chốt sau {max_retries} lần thử)")
@@ -421,8 +433,6 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
             return
 
     base_pkg = config.get("BASE_PACKAGE_NAME", "com.roblox.clien")
-    
-    # Lấy danh sách proxies đã format
     formatted_proxies = format_proxies(config.get("PROXY_LIST", []))
     num_proxies = len(formatted_proxies)
     
@@ -430,81 +440,94 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
         suffix, uid = acc['suffix'], acc['id']
         pkg_name = f"{base_pkg}{suffix}"
         
-        print(f"\n[{thread_name}] ---- BẮT ĐẦU CHECK: {suffix} (ID: {uid}) ----")
+        print(f"\n[{thread_name}] ---- CHECK ACCOUNT: {suffix} (ID: {uid}) ----")
         
-        # --- CHỌN PROXY CHO LẦN 1 ---
-        idx_1 = random.randint(0, num_proxies - 1) if num_proxies > 0 else -1
+        # ======================================================================
+        # 1. KIỂM TRA PROCESS (Có đang chạy ngầm không?)
+        # ======================================================================
+        is_process_active = check_process_running(pkg_name)
+        should_launch = False
         
-        # 1. Kiểm tra API lần 1 (STRICT MODE: Sẽ thử đủ 3 lần nếu thấy Offline)
-        is_online_l1 = check_roblox_presence_single(
-            uid, config, thread_name, formatted_proxies, idx_1, check_info="Check L1"
-        )
-        
-        is_online_final = is_online_l1 # Giả định ban đầu là kết quả L1
-
-        # 2. Logic Double Check (Chỉ chạy khi kết quả L1 vẫn là OFFLINE sau 3 lần thử)
-        # Vì Check L1 đã rất chặt chẽ (retry 3 lần), nên nếu nó báo Offline nghĩa là khá chắc chắn rồi.
-        # Tuy nhiên, để đảm bảo "siêu chặt chẽ" như logic cũ, ta vẫn giữ Double Check L2.
-        
-        if not is_online_l1:
-            print(f"[{thread_name}] ⚠️ [{suffix}] Vẫn báo Offline (Sau 3 lần check L1). Chờ 10s check L2...")
-            time.sleep(3)
-
-            # --- CHỌN PROXY CHO LẦN 2 (Khác Lần 1 nếu có thể) ---
-            idx_2 = -1
-            if num_proxies > 0:
-                if num_proxies > 1:
-                    available_indices = [j for j in range(num_proxies) if j != idx_1]
-                    idx_2 = random.choice(available_indices)
-                else:
-                    idx_2 = idx_1
+        if not is_process_active:
+            print(f"[{thread_name}] ⚠️ PHÁT HIỆN: App '{suffix}' đang TẮT (Không tìm thấy Process).")
+            print(f"[{thread_name}] -> Bỏ qua check API Online. Tiến hành START ngay.")
+            should_launch = True
+            # Không dùng continue ở đây, để code chảy xuống phần Launch bên dưới
+        else:
+            print(f"[{thread_name}] ℹ️ App '{suffix}' đang CHẠY (Process OK). Tiến hành check API Strict...")
             
-            # 3. Kiểm tra API lần 2 (Cũng STRICT MODE: Thử tiếp 3 lần nữa)
-            is_online_l2 = check_roblox_presence_single(
-                uid, config, thread_name, formatted_proxies, idx_2, check_info="Check L2"
+            # ==================================================================
+            # 2. LOGIC CHECK API (Chỉ chạy khi Process đang hoạt động)
+            # ==================================================================
+            
+            # --- CHỌN PROXY CHO LẦN 1 ---
+            idx_1 = random.randint(0, num_proxies - 1) if num_proxies > 0 else -1
+            
+            # Kiểm tra API lần 1
+            is_online_l1 = check_roblox_presence_single(
+                uid, config, thread_name, formatted_proxies, idx_1, check_info="Check L1"
             )
             
-            is_online_final = is_online_l2 # Kết quả L2 là kết quả cuối cùng
+            is_online_final = is_online_l1 
 
-        # ======================================================================
-        # 4. QUYẾT ĐỊNH & THỰC THI
-        # ======================================================================
-        
-        if is_online_final:
-            print(f"[{thread_name}] [QUYẾT ĐỊNH] '{suffix}' ĐANG ONLINE. -> Bỏ qua (Skip), KHÔNG làm mới.")
-            # Sử dụng continue để nhảy sang tài khoản kế tiếp ngay lập tức
-            continue 
+            # Logic Double Check L2 (Nếu L1 báo Offline)
+            if not is_online_l1:
+                print(f"[{thread_name}] ⚠️ [{suffix}] Vẫn báo Offline (Sau 3 lần check L1). Chờ 3s check L2...")
+                time.sleep(3)
 
-        # Nếu code chạy xuống đây, nghĩa là is_online_final == False (OFFLINE)
-        print(f"[{thread_name}] [QUYẾT ĐỊNH] '{suffix}' CONFIRMED OFFLINE. Tiến hành Kill & Start.")
-        
-        # Kill logic (Chỉ chạy khi Offline)
-        try:
-            cmd_kill = f"PID=$(ps -ef | grep {pkg_name} | grep -v grep | awk '{{print $2}}'); if [ ! -z \"$PID\" ]; then kill -9 $PID; fi"
-            subprocess.run(["su", "-c", cmd_kill], capture_output=True, timeout=10)
-            time.sleep(3) # Chờ process chết hẳn
-        except: pass
+                idx_2 = -1
+                if num_proxies > 0:
+                    if num_proxies > 1:
+                        available_indices = [j for j in range(num_proxies) if j != idx_1]
+                        idx_2 = random.choice(available_indices)
+                    else:
+                        idx_2 = idx_1
+                
+                # Kiểm tra API lần 2
+                is_online_l2 = check_roblox_presence_single(
+                    uid, config, thread_name, formatted_proxies, idx_2, check_info="Check L2"
+                )
+                is_online_final = is_online_l2 
 
-        # 5. Tạo lệnh Start (Chỉ chạy khi Offline)
-        target_url = ""
-        if launch_mode == 'scan':
-            if server_ids:
-                target_url = f"roblox://placeId={config['PLACE_ID']}&gameId={server_ids[i % len(server_ids)]}"
+            # Quyết định dựa trên API
+            if is_online_final:
+                print(f"[{thread_name}] [QUYẾT ĐỊNH] '{suffix}' ĐANG ONLINE. -> Skip.")
+                continue # Bỏ qua, qua acc tiếp theo
             else:
-                print(f"[{thread_name}] [-] Không có server hợp lệ để join cho '{suffix}'. Bỏ qua start.")
-                continue
-        elif launch_mode == 'vip':
-            target_url = config.get('VIP_SERVER_URL', "")
+                print(f"[{thread_name}] [QUYẾT ĐỊNH] '{suffix}' CONFIRMED OFFLINE. -> Kill & Restart.")
+                
+                # Kill trước khi start lại (Chỉ kill khi app ĐANG CHẠY mà báo OFFLINE)
+                try:
+                    cmd_kill = f"PID=$(ps -ef | grep {pkg_name} | grep -v grep | awk '{{print $2}}'); if [ ! -z \"$PID\" ]; then kill -9 $PID; fi"
+                    subprocess.run(["su", "-c", cmd_kill], capture_output=True, timeout=10)
+                    time.sleep(3) 
+                except: pass
+                
+                should_launch = True
+
+        # ======================================================================
+        # 3. THỰC THI START (Chạy nếu Process Tắt HOẶC Process Bật nhưng Offline)
+        # ======================================================================
+        if should_launch:
+            target_url = ""
+            if launch_mode == 'scan':
+                if server_ids:
+                    target_url = f"roblox://placeId={config['PLACE_ID']}&gameId={server_ids[i % len(server_ids)]}"
+                else:
+                    print(f"[{thread_name}] [-] Không có server hợp lệ để join cho '{suffix}'. Bỏ qua start.")
+                    continue
+            elif launch_mode == 'vip':
+                target_url = config.get('VIP_SERVER_URL', "")
             
-        if target_url:
-            subprocess.run(["am", "start", "-a", "android.intent.action.VIEW", "-d", target_url, "-p", pkg_name], capture_output=True)
-            print(f"[{thread_name}] -> Đã gọi lệnh start cho {pkg_name}")
+            if target_url:
+                subprocess.run(["am", "start", "-a", "android.intent.action.VIEW", "-d", target_url, "-p", pkg_name], capture_output=True)
+                print(f"[{thread_name}] -> Đã gọi lệnh start cho {pkg_name}")
             
-        # Nghỉ giữa các lần khởi động acc
-        delay = config.get("LAUNCH_DELAY_SECONDS", 10)
-        if i < len(accounts) - 1:
-            print(f"[{thread_name}] Đợi {delay}s trước khi qua acc tiếp theo...")
-            time.sleep(delay)
+            # Nghỉ giữa các lần khởi động acc
+            delay = config.get("LAUNCH_DELAY_SECONDS", 10)
+            if i < len(accounts) - 1:
+                print(f"[{thread_name}] Đợi {delay}s trước khi qua acc tiếp theo...")
+                time.sleep(delay)
 
 # ==============================================================================
 # -- VÒNG LẶP & MAIN --
