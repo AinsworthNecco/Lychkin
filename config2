@@ -18,7 +18,7 @@ DELTA_KEY_URL="https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/hea
 KEY_CHECK_INTERVAL_MINUTES="15"
 
 --- CẤU HÌNH CHO TÁC VỤ "LAUNCH" ---
-LAUNCH_INTERVAL_SECONDS="60" - Thời gian nghỉ giữa các chu kỳ join game (giây)
+LAUNCH_INTERVAL_SECONDS="30" - Thời gian nghỉ giữa các chu kỳ join game (giây)
 LAUNCH_DELAY_SECONDS="15" - Thời gian chờ giữa mỗi lần join của từng tài khoản
 VIP_SERVER_URL="roblox://placeId=8737602449" - URL VIP server (dùng cho launch --mode vip)
 
