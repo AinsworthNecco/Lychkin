@@ -14,14 +14,13 @@ import random
 from datetime import datetime
 
 # ==============================================================================
-# SCRIPT KẾT HỢP: Lychkins's Task Runner v1.3 (Process Check + Strict Mode)
+# SCRIPT: Lychkins's Task Runner v1.6 (Smart Random - No Duplicate)
 #
-# CẬP NHẬT MỚI (v1.3):
-# 1. Logic Process Check:
-#    - Trước khi check API, kiểm tra xem App có đang chạy ngầm (Process exist) không.
-#    - Nếu App TẮT -> Bật ngay lập tức, BỎ QUA check API.
-#    - Nếu App ĐANG CHẠY -> Mới tiến hành check API Online/Offline.
-# 2. Logic Check API (Strict Mode): Giữ nguyên (Check 2 lớp, retry 3 lần).
+# CẬP NHẬT MỚI (v1.6):
+# 1. Smart Random Selection:
+#    - Khắc phục vấn đề random trùng lặp: Khi chọn proxy ngẫu nhiên mới,
+#      hệ thống sẽ đảm bảo Index mới != Index cũ (nếu có nhiều hơn 1 proxy).
+#    - Áp dụng cho cả Scanner (khi đổi IP) và Launcher (khi Retry hoặc Next Check).
 # ==============================================================================
 
 # ---------------------------------------------------
@@ -150,14 +149,14 @@ def countdown(seconds, thread_name="MAIN"):
         print(f"[{thread_name}] Thời gian chờ còn lại: {i} giây    ", end='\r')
         sys.stdout.flush()
         time.sleep(1)
-    print(f"[{thread_name}] Bắt đầu chu kỳ mới.                                     ")
+    print(f"[{thread_name}] Bắt đầu chu kỳ mới.                                      ")
 
 # ==============================================================================
 # -- CÁC HÀM KẾT NỐI API --
 # ==============================================================================
 
 def execute_api_request_with_proxy(method, url, config, thread_name, json_data=None):
-    """Thực hiện request với logic xoay vòng (rotation) proxy cho Scanner."""
+    """Thực hiện request với logic xoay vòng (rotation) proxy ngẫu nhiên (tránh trùng lặp)."""
     global proxy_index, failed_proxy_count, current_proxies
     timeout = config.get("CONNECTION_TIMEOUT", 15)
     num_proxies = len(current_proxies)
@@ -166,7 +165,10 @@ def execute_api_request_with_proxy(method, url, config, thread_name, json_data=N
         if num_proxies > 0 and failed_proxy_count >= num_proxies:
             print(f"\n[{thread_name}] [!] Tất cả proxies lỗi. Nghỉ 5 giây...")
             time.sleep(5)
-            failed_proxy_count = 0; proxy_index = 0
+            failed_proxy_count = 0; 
+            # Reset random index
+            if num_proxies > 0:
+                proxy_index = random.randint(0, num_proxies - 1)
         
         proxy, proxy_status = (current_proxies[proxy_index], f"Proxy {proxy_index + 1}/{num_proxies}") if num_proxies > 0 else (None, "IP Gốc")
         
@@ -186,9 +188,19 @@ def execute_api_request_with_proxy(method, url, config, thread_name, json_data=N
             
         except (requests.exceptions.RequestException, requests.exceptions.HTTPError, ValueError) as e:
             if num_proxies > 0:
-                print(f"\n[{thread_name}] [!] Proxy {proxy_index + 1} lỗi ({e}). Đổi proxy...")
+                print(f"\n[{thread_name}] [!] Proxy {proxy_index + 1} lỗi ({e}). Chọn ngẫu nhiên proxy KHÁC...")
                 failed_proxy_count += 1
-                proxy_index = (proxy_index + 1) % num_proxies
+                
+                # --- LOGIC TRÁNH TRÙNG LẶP CHO SCANNER ---
+                if num_proxies > 1:
+                    new_index = proxy_index
+                    while new_index == proxy_index: # Lặp lại cho đến khi tìm được index khác
+                        new_index = random.randint(0, num_proxies - 1)
+                    proxy_index = new_index
+                else:
+                    # Chỉ có 1 proxy thì đành chịu
+                    pass
+                    
                 time.sleep(1)
             else:
                 print(f"\n[{thread_name}] [!] IP Gốc lỗi ({e}). Nghỉ 60 giây...")
@@ -212,12 +224,11 @@ def execute_api_request_simple(method, url, config, thread_name, json_data=None,
         
     return None
 
-def check_roblox_presence_single(account_id, config, thread_name, proxy_list, initial_proxy_index, check_info="Check"):
+def check_roblox_presence_single(account_id, config, thread_name, proxy_list, initial_proxy_index):
     """
-    Kiểm tra trạng thái online của MỘT tài khoản.
-    CHẾ ĐỘ STRICT: 
-    - Nếu Online -> Trả về True ngay.
-    - Nếu Offline -> KHÔNG tin ngay, tiếp tục thử các proxy khác cho đến hết max_retries.
+    Kiểm tra trạng thái online v1.6 (No Duplicate Random).
+    Logic:
+    - Khi Retry hoặc Next Check, đảm bảo không chọn lại đúng proxy vừa dùng (nếu list > 1).
     """
     user_ids = [int(account_id)]
     api_url = "https://presence.roblox.com/v1/presence/users"
@@ -226,59 +237,94 @@ def check_roblox_presence_single(account_id, config, thread_name, proxy_list, in
     formatted_proxies = proxy_list
     num_proxies = len(formatted_proxies)
     
-    max_retries = 3
+    # Số lần cần xác nhận hợp lệ
+    REQUIRED_VALID_CHECKS = 3
+    valid_checks_count = 0
     
-    for attempt in range(max_retries):
-        
-        # --- CHỌN PROXY CHO LẦN THỬ NÀY ---
-        idx = -1
-        proxy = None
-        
-        if num_proxies > 0:
-            if attempt == 0:
-                # Lần đầu tiên, dùng proxy được chỉ định từ bên ngoài
-                idx = initial_proxy_index
-            else:
-                # Các lần sau, chọn ngẫu nhiên
-                idx = random.randint(0, num_proxies - 1)
-            
-            proxy = formatted_proxies[idx]
-        
-        proxy_info = f"{check_info} (P#{idx + 1})" if idx != -1 else f"{check_info} (IP Gốc)"
-        
-        # In trạng thái đang thử
-        print(f"[{thread_name}] [{account_id}] Đang thử {proxy_info} (Lần {attempt + 1}/{max_retries})...", end='\r')
-        sys.stdout.flush()
+    # Index proxy hiện tại
+    current_idx = initial_proxy_index if initial_proxy_index >= 0 else 0
+    
+    # Biến đếm lỗi liên tiếp
+    consecutive_network_failures = 0
+    MAX_CONSECUTIVE_FAILURES = 50 
 
-        # Thực hiện request đơn giản
-        response = execute_api_request_simple('POST', api_url, config, thread_name, json_data=payload, proxy=proxy)
-
-        if response is not None:
-            # Thành công kết nối và nhận được response
-            is_online = False
-            if 'userPresences' in response:
-                for p in response['userPresences']:
-                    if p.get('userPresenceType') == 2 and str(p.get('userId')) == str(account_id):
-                        is_online = True
+    while valid_checks_count < REQUIRED_VALID_CHECKS:
+        
+        # --- VÒNG LẶP TÌM KẾT NỐI (RETRY LOOP) ---
+        response = None
+        while response is None:
+            # Chọn proxy
+            proxy = None
+            proxy_info = "IP Gốc"
             
-            if is_online:
-                # Nếu thấy Online -> Tuyệt vời, chốt luôn!
-                print(f"[{thread_name}] [{account_id}] {proxy_info}: ONLINE (Đã xác nhận)")
-                return True
-            else:
-                # Nếu thấy Offline -> Chưa tin ngay!
-                if attempt < max_retries - 1:
-                    print(f"[{thread_name}] [{account_id}] {proxy_info}: OFFLINE (Nghi ngờ, thử lại proxy khác)...")
+            if num_proxies > 0:
+                # Đảm bảo index nằm trong giới hạn
+                current_idx = current_idx % num_proxies
+                proxy = formatted_proxies[current_idx]
+                proxy_info = f"Proxy #{current_idx + 1}"
+            
+            # In log đang thử
+            print(f"[{thread_name}] [{account_id}] Check lần {valid_checks_count + 1}/{REQUIRED_VALID_CHECKS} | Đang thử {proxy_info}...", end='\r')
+            sys.stdout.flush()
+
+            # Gọi API
+            response = execute_api_request_simple('POST', api_url, config, thread_name, json_data=payload, proxy=proxy)
+
+            if response is None:
+                # LỖI KẾT NỐI/PROXY
+                consecutive_network_failures += 1
+                print(f"[{thread_name}] [{account_id}] {proxy_info} ❌ Lỗi mạng. Đợi 1s -> Random Proxy KHÁC...         ")
+                time.sleep(1) # Yêu cầu: Đợi 1 giây
+                
+                if num_proxies > 0:
+                    # --- LOGIC TRÁNH TRÙNG LẶP KHI RETRY ---
+                    if num_proxies > 1:
+                        new_idx = current_idx
+                        while new_idx == current_idx:
+                            new_idx = random.randint(0, num_proxies - 1)
+                        current_idx = new_idx
+                    else:
+                        pass # 1 proxy thì chịu
                 else:
-                    # Đây là lần cuối cùng rồi mà vẫn Offline
-                    print(f"[{thread_name}] [{account_id}] {proxy_info}: OFFLINE (Chốt sau {max_retries} lần thử)")
+                    time.sleep(2)
+                
+                # Safety break
+                if consecutive_network_failures > MAX_CONSECUTIVE_FAILURES:
+                    print(f"[{thread_name}] [{account_id}] ❌ QUÁ NHIỀU LỖI KẾT NỐI LIÊN TIẾP. Hủy check.")
                     return False
-        
-        # Nếu response là None (Lỗi mạng) hoặc Offline (ở các lần thử đầu) -> Chờ xíu rồi thử lại
-        time.sleep(1.5) 
+            else:
+                # KẾT NỐI THÀNH CÔNG (HTTP 200)
+                consecutive_network_failures = 0 # Reset đếm lỗi
+                # (Thoát vòng lặp while response is None)
 
-    # Thất bại sau max_retries
-    print(f"[{thread_name}] [{account_id}] Không thể xác định (Lỗi kết nối) sau {max_retries} lần.")
+        # --- XỬ LÝ DỮ LIỆU JSON (Khi đã có response) ---
+        is_online = False
+        if 'userPresences' in response:
+            for p in response['userPresences']:
+                if p.get('userPresenceType') == 2 and str(p.get('userId')) == str(account_id):
+                    is_online = True
+        
+        if is_online:
+            print(f"[{thread_name}] [{account_id}] ✅ {proxy_info}: PHÁT HIỆN ONLINE! (Dừng check)               ")
+            return True
+        else:
+            print(f"[{thread_name}] [{account_id}] ⚠️ {proxy_info}: Báo OFFLINE (Lần hợp lệ {valid_checks_count + 1})")
+            valid_checks_count += 1
+            
+            # Để lần check tiếp theo dùng proxy khác cho khách quan
+            if num_proxies > 0:
+                # --- LOGIC TRÁNH TRÙNG LẶP CHO LẦN CHECK TIẾP THEO ---
+                if num_proxies > 1:
+                    new_idx = current_idx
+                    while new_idx == current_idx:
+                        new_idx = random.randint(0, num_proxies - 1)
+                    current_idx = new_idx
+            
+            # Nghỉ nhẹ 1 xíu giữa các lần check hợp lệ
+            time.sleep(0.5)
+
+    # Nếu chạy hết vòng while mà không return True -> Confirm Offline
+    print(f"[{thread_name}] [{account_id}] 🛑 XÁC NHẬN OFFLINE sau {REQUIRED_VALID_CHECKS} lần check thành công.")
     return False
 
 
@@ -358,10 +404,15 @@ def delta_key_monitor_loop():
 # ==============================================================================
 
 def run_scanner(config, thread_name="SCAN"):
-    global current_proxies
+    global current_proxies, proxy_index
     print(f"[{thread_name}] Đang quét server...")
     
     current_proxies = format_proxies(config.get("PROXY_LIST", []))
+    
+    # KHỞI TẠO PROXY RANDOM CHO SCANNER
+    if len(current_proxies) > 0:
+        proxy_index = random.randint(0, len(current_proxies) - 1)
+        
     min_ratio = config.get("MIN_PLAYER_PERCENTAGE", 0) / 100.0
     max_ratio = config.get("MAX_PLAYER_PERCENTAGE", 100) / 100.0
     place_id = config["PLACE_ID"]
@@ -408,7 +459,8 @@ def run_scanner(config, thread_name="SCAN"):
     with file_lock:
         try:
             with open(output_path, "w") as f:
-                for sid in collected_ids: f.write(f"{sid}\n")
+                with open(output_path, "w") as f:
+                    for sid in collected_ids: f.write(f"{sid}\n")
             print(f"[{thread_name}] ✅ Đã lưu {len(collected_ids)} ID vào: {output_path}")
         except Exception as e:
             print(f"\n[{thread_name}] ❌ Lỗi ghi file: {e}")
@@ -452,51 +504,27 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
             print(f"[{thread_name}] ⚠️ PHÁT HIỆN: App '{suffix}' đang TẮT (Không tìm thấy Process).")
             print(f"[{thread_name}] -> Bỏ qua check API Online. Tiến hành START ngay.")
             should_launch = True
-            # Không dùng continue ở đây, để code chảy xuống phần Launch bên dưới
         else:
-            print(f"[{thread_name}] ℹ️ App '{suffix}' đang CHẠY (Process OK). Tiến hành check API Strict...")
+            print(f"[{thread_name}] ℹ️ App '{suffix}' đang CHẠY (Process OK). Tiến hành check API Strict (v1.6)...")
             
             # ==================================================================
-            # 2. LOGIC CHECK API (Chỉ chạy khi Process đang hoạt động)
+            # 2. LOGIC CHECK API v1.6 (Smart Random)
             # ==================================================================
             
-            # --- CHỌN PROXY CHO LẦN 1 ---
-            idx_1 = random.randint(0, num_proxies - 1) if num_proxies > 0 else -1
+            # Chọn index ngẫu nhiên để bắt đầu
+            start_idx = random.randint(0, num_proxies - 1) if num_proxies > 0 else -1
             
-            # Kiểm tra API lần 1
-            is_online_l1 = check_roblox_presence_single(
-                uid, config, thread_name, formatted_proxies, idx_1, check_info="Check L1"
+            is_online = check_roblox_presence_single(
+                uid, config, thread_name, formatted_proxies, start_idx
             )
             
-            is_online_final = is_online_l1 
-
-            # Logic Double Check L2 (Nếu L1 báo Offline)
-            if not is_online_l1:
-                print(f"[{thread_name}] ⚠️ [{suffix}] Vẫn báo Offline (Sau 3 lần check L1). Chờ 3s check L2...")
-                time.sleep(3)
-
-                idx_2 = -1
-                if num_proxies > 0:
-                    if num_proxies > 1:
-                        available_indices = [j for j in range(num_proxies) if j != idx_1]
-                        idx_2 = random.choice(available_indices)
-                    else:
-                        idx_2 = idx_1
-                
-                # Kiểm tra API lần 2
-                is_online_l2 = check_roblox_presence_single(
-                    uid, config, thread_name, formatted_proxies, idx_2, check_info="Check L2"
-                )
-                is_online_final = is_online_l2 
-
-            # Quyết định dựa trên API
-            if is_online_final:
+            if is_online:
                 print(f"[{thread_name}] [QUYẾT ĐỊNH] '{suffix}' ĐANG ONLINE. -> Skip.")
                 continue # Bỏ qua, qua acc tiếp theo
             else:
                 print(f"[{thread_name}] [QUYẾT ĐỊNH] '{suffix}' CONFIRMED OFFLINE. -> Kill & Restart.")
                 
-                # Kill trước khi start lại (Chỉ kill khi app ĐANG CHẠY mà báo OFFLINE)
+                # Kill trước khi start lại
                 try:
                     cmd_kill = f"PID=$(ps -ef | grep {pkg_name} | grep -v grep | awk '{{print $2}}'); if [ ! -z \"$PID\" ]; then kill -9 $PID; fi"
                     subprocess.run(["su", "-c", cmd_kill], capture_output=True, timeout=10)
