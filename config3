@@ -27,7 +27,6 @@ CONNECTION_TIMEOUT="15" - Thời gian chờ tối đa cho mỗi kết nối (gi�
 REBOOT_ENABLED="on"
 REBOOT_INTERVAL_MINUTES="120"
 
-
 PROXY_LIST="
 142.111.48.253:7030:yhgguymx:5jphw88olanm
 31.59.20.176:6754:yhgguymx:5jphw88olanm
