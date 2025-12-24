@@ -1,59 +1,78 @@
 import subprocess
+import sqlite3
+import os
 import time
 
-# ================= CONFIGURATION =================
-# Dán Cookie .ROBLOSECURITY của bạn vào đây
+# ================= CẤU HÌNH =================
 MY_COOKIE = "_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_CAEaAhADIhwKBGR1aWQSFDEwNTAxOTk1ODgxOTczMjgzNDc1KAM.K_gMy3tCQ0KZxZlwirOxqpIwxATitqRN4aaka_b7n0b0qvn6Af-ZH2oyOoNXj3FoGe2u9_RDiUOD24ipW4SGBuYayFwIt5OzfiFAU8HzzIsVDz1GyfKRnn-X3vijUVqM9DQrNQEAONL4jtCX7cgZfNywQOrYxKqcQRg1eyy45g7lhz7flC7SVnhTMB7U9vcanh9CI4ixsHKvGZYtIKzEsvR5f0rjO9evtqURbortrkXq80pFAeZU2UVhnW4R8U85eO193zk_7pv8JaKcz_NklQhO2xxCmMipRstDe-M_fYhGtFltl4olXVagx7SYoUgX-UqYZgaRmGbmxt9LQC-uZJ_-yJZalxHNQGstudubVpcWQFUbPUUjZrnZSHXo2NL8nZORTNyosZJMShdK553t2eLBZv8ocnoCbpRUktt9z9Hsg8rx7G2SWF3ZpMdQFmDIIFymM5YQugkndXdzwqjtaRUYoMZ8XL8mjqPexp6W-rIMUUpMkhfFif9sgQVWP0UtmVAMcWgehGhMjnLxnWKm2i9NRByzjjfBO6mjqAdC3d2lfCCaa2ICWF5j3gWDBRsCuLKpg7uUYy-Vp_Bp00rNN4sGsSZ8yqA79mpmoHHFifwAycURfjtortETJH9nzYSYGwexcA"
-
-# ID của game bạn muốn vào (Ví dụ: Blox Fruits là 2711202336)
 PLACE_ID = "8737602449" 
-
 PACKAGE_NAME = "com.roblox.clieng"
-DB_PATH = f"/data/data/{PACKAGE_NAME}/app_webview/Default/Cookies"
-# =================================================
 
-def run_shell(command):
-    """Chạy lệnh shell với quyền Root"""
+# Các đường dẫn tạm
+DB_PATH = f"/data/data/{PACKAGE_NAME}/app_webview/Default/Cookies"
+TMP_PATH = "/data/local/tmp/Cookies_tmp" # File tạm để sửa
+# ============================================
+
+def run_root(command):
     return subprocess.run(['su', '-c', command], capture_output=True, text=True)
 
-def inject_and_rejoin():
-    print("🚀 Bắt đầu quy trình Auto Login & Rejoin...")
+def auto_login_python_way():
+    print("🚀 Đang khởi động (Dùng Python SQLite nội bộ)...")
 
     # 1. Tắt Roblox
-    print("🛑 Đang tắt Roblox...")
-    run_shell(f"am force-stop {PACKAGE_NAME}")
-    time.sleep(1)
+    run_root(f"am force-stop {PACKAGE_NAME}")
 
-    # 2. Inject Cookie vào Database SQLite
-    # Lệnh này sẽ xóa cookie cũ và chèn cookie của bạn vào
-    print("💾 Đang nạp Cookie vào hệ thống...")
-    sql_cmd = (
-        f"DELETE FROM cookies WHERE host_key = '.roblox.com' AND name = '.ROBLOSECURITY';"
-        f"INSERT INTO cookies (creation_utc, host_key, name, value, path, expires_utc, is_secure, is_httponly, last_access_utc, has_expires, is_persistent, priority, samesite, source_scheme) "
-        f"VALUES ({int(time.time())}, '.roblox.com', '.ROBLOSECURITY', '{MY_COOKIE}', '/', 253402300799, 1, 1, {int(time.time())}, 1, 1, 1, -1, 2);"
-    )
-    
-    result = run_shell(f"sqlite3 {DB_PATH} \"{sql_cmd}\"")
-    
-    if result.returncode != 0:
-        print(f"❌ Lỗi khi nạp Cookie: {result.stderr}")
+    # 2. Copy file database ra thư mục tạm (nơi Python có thể sửa)
+    print("📂 Đang trích xuất dữ liệu đăng nhập...")
+    res = run_root(f"cp {DB_PATH} {TMP_PATH}")
+    run_root(f"chmod 777 {TMP_PATH}") # Cấp quyền cho file tạm
+
+    if not os.path.exists(TMP_PATH) and res.returncode != 0:
+        # Nếu cp thất bại, có thể do đường dẫn khác, thử đường dẫn dự phòng
+        DB_PATH_ALT = f"/data/data/{PACKAGE_NAME}/app_webview/Cookies"
+        run_root(f"cp {DB_PATH_ALT} {TMP_PATH}")
+        run_root(f"chmod 777 {TMP_PATH}")
+
+    # 3. Dùng thư viện sqlite3 của Python để sửa file tạm
+    try:
+        print("🔧 Đang nạp Cookie bằng Python...")
+        conn = sqlite3.connect(TMP_PATH)
+        cursor = conn.cursor()
+        
+        # Xóa và chèn cookie mới
+        cursor.execute("DELETE FROM cookies WHERE host_key = '.roblox.com' AND name = '.ROBLOSECURITY'")
+        
+        sql = """INSERT INTO cookies 
+                 (creation_utc, host_key, name, value, path, expires_utc, is_secure, is_httponly, last_access_utc, has_expires, is_persistent, priority, samesite, source_scheme) 
+                 VALUES (?, '.roblox.com', '.ROBLOSECURITY', ?, '/', 253402300799, 1, 1, ?, 1, 1, 1, -1, 2)"""
+        
+        now = int(time.time())
+        cursor.execute(sql, (now, MY_COOKIE, now))
+        
+        conn.commit()
+        conn.close()
+        print("✅ Đã sửa file database tạm thời.")
+
+    except Exception as e:
+        print(f"❌ Lỗi khi sửa Database: {e}")
         return
 
-    # 3. Mở game với Place ID (Rejoin)
-    print(f"🎮 Đang Rejoin vào game ID: {PLACE_ID}...")
-    game_url = f"roblox://placeID={PLACE_ID}"
-    
-    # Bước khởi động 1: Splash Screen
-    run_shell(f"am start -n {PACKAGE_NAME}/com.roblox.client.startup.ActivitySplash -d {game_url}")
-    time.sleep(5)
-    
-    # Bước khởi động 2: Vào thẳng Game
-    run_shell(f"am start -n {PACKAGE_NAME}/com.roblox.client.ActivityProtocolLaunch -d {game_url}")
+    # 4. Copy ngược file đã sửa vào lại hệ thống
+    print("📥 Đang ghi đè dữ liệu mới...")
+    run_root(f"cp {TMP_PATH} {DB_PATH}")
+    run_root(f"chmod 660 {DB_PATH}") # Trả lại quyền mặc định
+    run_root(f"chown 10100:10100 {DB_PATH}") # Thường là UID của app, có thể bỏ qua nếu không rõ
 
-    print("✅ Hoàn tất! Roblox đang khởi động và tự đăng nhập...")
+    # 5. Xóa file tạm và Rejoin
+    run_root(f"rm {TMP_PATH}")
+    
+    print(f"🎮 Đang vào game {PLACE_ID}...")
+    url = f"roblox://placeID={PLACE_ID}"
+    run_root(f"am start -n {PACKAGE_NAME}/com.roblox.client.startup.ActivitySplash -d {url}")
+    time.sleep(5)
+    run_root(f"am start -n {PACKAGE_NAME}/com.roblox.client.ActivityProtocolLaunch -d {url}")
+    
+    print("✨ Hoàn tất!")
 
 if __name__ == "__main__":
-    if "WARNING" not in MY_COOKIE:
-        print("❌ Lỗi: Bạn chưa dán đúng định dạng Cookie vào biến MY_COOKIE!")
-    else:
-        inject_and_rejoin()
+    auto_login_python_way()
