@@ -8,7 +8,7 @@ MY_COOKIE = "_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-l
 # ID của game bạn muốn vào (Ví dụ: Blox Fruits là 2711202336)
 PLACE_ID = "2711202336" 
 
-PACKAGE_NAME = "com.roblox.client"
+PACKAGE_NAME = "com.roblox.clieng"
 DB_PATH = f"/data/data/{PACKAGE_NAME}/app_webview/Default/Cookies"
 # =================================================
 
