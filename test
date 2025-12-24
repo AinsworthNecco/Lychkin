@@ -1,50 +1,42 @@
-import subprocess
-import sqlite3
 import os
+import subprocess
 import time
+import sqlite3
 
-# ================= CẤU HÌNH (DỰA TRÊN YÊU CẦUa) =================
+# ================= CẤU HÌNH CỨNG (HARDCODED) =================
+# Dán Cookie của bạn vào đây
 MY_COOKIE = "_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_CAEaAhADIhwKBGR1aWQSFDEwNTAxOTk1ODgxOTczMjgzNDc1KAM.K_gMy3tCQ0KZxZlwirOxqpIwxATitqRN4aaka_b7n0b0qvn6Af-ZH2oyOoNXj3FoGe2u9_RDiUOD24ipW4SGBuYayFwIt5OzfiFAU8HzzIsVDz1GyfKRnn-X3vijUVqM9DQrNQEAONL4jtCX7cgZfNywQOrYxKqcQRg1eyy45g7lhz7flC7SVnhTMB7U9vcanh9CI4ixsHKvGZYtIKzEsvR5f0rjO9evtqURbortrkXq80pFAeZU2UVhnW4R8U85eO193zk_7pv8JaKcz_NklQhO2xxCmMipRstDe-M_fYhGtFltl4olXVagx7SYoUgX-UqYZgaRmGbmxt9LQC-uZJ_-yJZalxHNQGstudubVpcWQFUbPUUjZrnZSHXo2NL8nZORTNyosZJMShdK553t2eLBZv8ocnoCbpRUktt9z9Hsg8rx7G2SWF3ZpMdQFmDIIFymM5YQugkndXdzwqjtaRUYoMZ8XL8mjqPexp6W-rIMUUpMkhfFif9sgQVWP0UtmVAMcWgehGhMjnLxnWKm2i9NRByzjjfBO6mjqAdC3d2lfCCaa2ICWF5j3gWDBRsCuLKpg7uUYy-Vp_Bp00rNN4sGsSZ8yqA79mpmoHHFifwAycURfjtortETJH9nzYSYGwexcA"
-PLACE_ID = "8737602449" 
-PACKAGE_NAME = "com.roblox.clieng" # Tên package bạn đã cung cấp
 
-# Logic đường dẫn từ file improvev2.py
+# Thông tin bạn yêu cầu
+PACKAGE_NAME = "com.roblox.clieng"
+PLACE_ID = "8737602449"
+
+# Đường dẫn database dựa trên logic Android của Rokid Manager
 DB_PATH = f"/data/data/{PACKAGE_NAME}/app_webview/Default/Cookies"
-TMP_PATH = "/data/local/tmp/Cookies_work" # Sử dụng vùng nhớ tạm trung gian
-# =============================================================
+TMP_PATH = "/data/local/tmp/Cookies_temp"
+# ============================================================
 
-def run_root(command):
-    """Thực thi lệnh shell với quyền Root (su) giống improvev2.py"""
-    return subprocess.run(['su', '-c', command], capture_output=True, text=True)
+def run_cmd(command):
+    """Sử dụng subprocess.run giống như trong file improvev2.py"""
+    return subprocess.run(['su', '-c', command], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-def get_package_uid():
-    """Logic lấy UID để fix quyền sở hữu sau khi ghi file"""
-    result = run_root(f"stat -c '%u:%g' /data/data/{PACKAGE_NAME}")
-    return result.stdout.strip() if result.returncode == 0 else "10100:10100"
-
-def clean_and_prepare():
-    print(f"🧹 Đang dọn dẹp tiến trình {PACKAGE_NAME}...")
-    # Logic: Tắt app trước khi chạm vào database
-    run_root(f"am force-stop {PACKAGE_NAME}")
-    # Xóa các file lock/journal để tránh lỗi readonly
-    run_root(f"rm -f {DB_PATH}-wal")
-    run_root(f"rm -f {DB_PATH}-shm")
-    run_root(f"rm -f {TMP_PATH}")
+def inject_cookie_logic():
+    print(f"\033[1;36m[ Rokid Manager ] - Preparing account for {PACKAGE_NAME}...\033[0m")
+    
+    # 1. Tắt Roblox (am force-stop)
+    run_cmd(f"am force-stop {PACKAGE_NAME}")
     time.sleep(1)
 
-def inject_cookie():
-    try:
-        # Bước 1: Copy file gốc ra vùng tạm và cấp quyền ghi cho Python
-        print("📂 Trích xuất database...")
-        run_root(f"cp {DB_PATH} {TMP_PATH}")
-        run_root(f"chmod 777 {TMP_PATH}")
+    # 2. Xử lý Database (Copy ra vùng tạm để tránh lỗi Read-only)
+    subprocess.run(['su', '-c', f'cp {DB_PATH} {TMP_PATH}'], stdout=subprocess.DEVNULL)
+    subprocess.run(['su', '-c', f'chmod 777 {TMP_PATH}'], stdout=subprocess.DEVNULL)
 
-        # Bước 2: Dùng Python SQLite mở file tạm (không bị readonly vì đã chmod 777)
-        print("💾 Đang nạp Cookie vào SQLite...")
+    try:
+        # Dùng SQLite nội bộ của Python (không cần file sqlite3 hệ thống)
         conn = sqlite3.connect(TMP_PATH)
         cursor = conn.cursor()
         
-        # Đồng bộ logic ghi đè cookie
+        # Xóa và nạp Cookie .ROBLOSECURITY
         cursor.execute("DELETE FROM cookies WHERE host_key = '.roblox.com' AND name = '.ROBLOSECURITY'")
         
         now = int(time.time())
@@ -55,44 +47,42 @@ def inject_cookie():
         
         conn.commit()
         conn.close()
+        
+        # 3. Ghi đè ngược lại và Fix quyền (chown)
+        # Lấy UID của app để Roblox có quyền đọc file sau khi ghi
+        uid_res = subprocess.check_output(['su', '-c', f"stat -c '%u:%g' /data/data/{PACKAGE_NAME}"]).decode().strip()
+        
+        run_cmd(f"cp {TMP_PATH} {DB_PATH}")
+        run_cmd(f"chown {uid_res} {DB_PATH}")
+        run_cmd(f"chmod 660 {DB_PATH}")
+        run_cmd(f"rm {TMP_PATH}")
+        
+        print("\033[1;32m[ Rokid Manager ] - Cookie injected successfully!\033[0m")
         return True
     except Exception as e:
-        print(f"❌ Lỗi ghi database: {e}")
+        print(f"\033[1;31m[ Rokid Manager ] - Error injecting cookie: {e}\033[0m")
         return False
 
-def launch_logic_from_file():
-    """
-    Áp dụng chính xác Logic từ hàm launch_roblox trong improvev2.py
-    Dòng 1024 và 1030 trong file bạn gửi
-    """
-    print(f"🎮 Đang Rejoin vào Place ID: {PLACE_ID}...")
+def launch_roblox_logic():
+    """Bê nguyên logic từ hàm launch_roblox dòng 1018 của improvev2.py"""
     server_link = f"roblox://placeID={PLACE_ID}"
     
-    # Bước 1: Khởi chạy ActivitySplash (Dòng 1024)
-    run_root(f"am start -n {PACKAGE_NAME}/com.roblox.client.startup.ActivitySplash -d {server_link}")
-    print("⏳ Chờ Splash Screen (4s)...")
-    time.sleep(4) 
-
-    # Bước 2: Kích hoạt ActivityProtocolLaunch để vào thẳng server (Dòng 1030)
-    run_root(f"am start -n {PACKAGE_NAME}/com.roblox.client.ActivityProtocolLaunch -d {server_link}")
-    print("✅ Đã gửi lệnh tham gia server.")
-
-def main():
-    clean_and_prepare()
+    print(f"\033[1;36m[ Rokid Manager ] - Opening Roblox for {PACKAGE_NAME}...\033[0m")
     
-    if inject_cookie():
-        # Trả file về và set quyền sở hữu đúng UID của app
-        uid = get_package_uid()
-        run_root(f"cp {TMP_PATH} {DB_PATH}")
-        run_root(f"chown {uid} {DB_PATH}")
-        run_root(f"chmod 660 {DB_PATH}")
-        run_root(f"rm {TMP_PATH}")
-        
-        # Thực hiện logic khởi động từ file
-        launch_logic_from_file()
-        print("✨ Hoàn tất quy trình!")
-    else:
-        print("⚠️ Quy trình thất bại, không thể nạp cookie.")
+    # Bước 1: Khởi chạy ActivitySplash (Dòng 1024 trong file)
+    subprocess.run(['su', '-c', f'am start -n {PACKAGE_NAME}/com.roblox.client.startup.ActivitySplash -d {server_link}'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    
+    # Thời gian chờ (num_packages >= 6 ? 8s : 4s) - Ở đây mình để 5s cho ổn định
+    time.sleep(5)
+
+    print(f"\033[1;36m[ Rokid Manager ] - Joining Roblox for {PACKAGE_NAME}...\033[0m")
+    
+    # Bước 2: Khởi chạy ActivityProtocolLaunch (Dòng 1030 trong file)
+    subprocess.run(['su', '-c', f'am start -n {PACKAGE_NAME}/com.roblox.client.ActivityProtocolLaunch -d {server_link}'], stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    
+    time.sleep(20) # Thời gian chờ vào game
+    print("\033[1;32m[ Rokid Manager ] - Process Completed!\033[0m")
 
 if __name__ == "__main__":
-    main()
+    if inject_cookie_logic():
+        launch_roblox_logic()
