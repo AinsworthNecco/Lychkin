@@ -1,80 +1,87 @@
 import subprocess
-import time
+import sqlite3
 import os
+import time
 
-# ================== CẤU HÌNH ==================
-PACKAGE = "com.roblox.clieng"
-COOKIE = "_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_CAEaAhADIhwKBGR1aWQSFDEwNTAxOTk1ODgxOTczMjgzNDc1KAM.K_gMy3tCQ0KZxZlwirOxqpIwxATitqRN4aaka_b7n0b0qvn6Af-ZH2oyOoNXj3FoGe2u9_RDiUOD24ipW4SGBuYayFwIt5OzfiFAU8HzzIsVDz1GyfKRnn-X3vijUVqM9DQrNQEAONL4jtCX7cgZfNywQOrYxKqcQRg1eyy45g7lhz7flC7SVnhTMB7U9vcanh9CI4ixsHKvGZYtIKzEsvR5f0rjO9evtqURbortrkXq80pFAeZU2UVhnW4R8U85eO193zk_7pv8JaKcz_NklQhO2xxCmMipRstDe-M_fYhGtFltl4olXVagx7SYoUgX-UqYZgaRmGbmxt9LQC-uZJ_-yJZalxHNQGstudubVpcWQFUbPUUjZrnZSHXo2NL8nZORTNyosZJMShdK553t2eLBZv8ocnoCbpRUktt9z9Hsg8rx7G2SWF3ZpMdQFmDIIFymM5YQugkndXdzwqjtaRUYoMZ8XL8mjqPexp6W-rIMUUpMkhfFif9sgQVWP0UtmVAMcWgehGhMjnLxnWKm2i9NRByzjjfBO6mjqAdC3d2lfCCaa2ICWF5j3gWDBRsCuLKpg7uUYy-Vp_Bp00rNN4sGsSZ8yqA79mpmoHHFifwAycURfjtortETJH9nzYSYGwexcA"
-PLACE_ID = "8737602449"
+# ================= CẤU HÌNH CỦA BẠN =================
+MY_COOKIE = "_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_CAEaAhADIhwKBGR1aWQSFDEwNTAxOTk1ODgxOTczMjgzNDc1KAM.K_gMy3tCQ0KZxZlwirOxqpIwxATitqRN4aaka_b7n0b0qvn6Af-ZH2oyOoNXj3FoGe2u9_RDiUOD24ipW4SGBuYayFwIt5OzfiFAU8HzzIsVDz1GyfKRnn-X3vijUVqM9DQrNQEAONL4jtCX7cgZfNywQOrYxKqcQRg1eyy45g7lhz7flC7SVnhTMB7U9vcanh9CI4ixsHKvGZYtIKzEsvR5f0rjO9evtqURbortrkXq80pFAeZU2UVhnW4R8U85eO193zk_7pv8JaKcz_NklQhO2xxCmMipRstDe-M_fYhGtFltl4olXVagx7SYoUgX-UqYZgaRmGbmxt9LQC-uZJ_-yJZalxHNQGstudubVpcWQFUbPUUjZrnZSHXo2NL8nZORTNyosZJMShdK553t2eLBZv8ocnoCbpRUktt9z9Hsg8rx7G2SWF3ZpMdQFmDIIFymM5YQugkndXdzwqjtaRUYoMZ8XL8mjqPexp6W-rIMUUpMkhfFif9sgQVWP0UtmVAMcWgehGhMjnLxnWKm2i9NRByzjjfBO6mjqAdC3d2lfCCaa2ICWF5j3gWDBRsCuLKpg7uUYy-Vp_Bp00rNN4sGsSZ8yqA79mpmoHHFifwAycURfjtortETJH9nzYSYGwexcA"
+PLACE_ID = "8737602449" 
+PACKAGE_NAME = "com.roblox.clieng" 
 
-DB_DIR = f"/data/data/{PACKAGE}/app_webview/Default"
-ORIG_DB = f"{DB_DIR}/Cookies"
-TMP_SQL = "/data/local/tmp/cookies_dump.sql"
-NEW_DB = "/data/local/tmp/Cookies"
-# =============================================
+# Đường dẫn hệ thống và file tạm
+REAL_DB_PATH = f"/data/data/{PACKAGE_NAME}/app_webview/Default/Cookies"
+TMP_DB_PATH = "/data/local/tmp/cookies_work.db" # Nơi chúng ta sẽ sửa
+# ====================================================
 
-def su(cmd):
-    return subprocess.run(
-        ["su", "-c", cmd],
-        stdout=subprocess.PIPE,
-        stderr=subprocess.PIPE,
-        text=True
-    )
+def run_su(command):
+    """Chạy lệnh với quyền Root (su) giống file tham khảo"""
+    return subprocess.run(['su', '-c', command], capture_output=True, text=True)
 
-def fatal(msg):
-    print(f"[!] {msg}")
-    exit(1)
+def get_uid():
+    """Lấy UID ứng dụng để fix quyền sau khi paste lại"""
+    res = run_su(f"stat -c '%u:%g' /data/data/{PACKAGE_NAME}")
+    return res.stdout.strip() if res.returncode == 0 else "10100:10100"
 
-def inject_cookie():
-    print("[*] Stopping Roblox")
-    su(f"am force-stop {PACKAGE}")
+def process_login():
+    print(f"\033[1;96m[ Rokid Manager ] - Khởi động quy trình cho {PACKAGE_NAME}...\033[0m")
+
+    # BƯỚC 1: Tắt app để giải phóng file database
+    run_su(f"am force-stop {PACKAGE_NAME}")
     time.sleep(1)
 
-    if su(f"test -f {ORIG_DB}").returncode != 0:
-        fatal("Cookies DB not found. Open Roblox once first.")
+    # BƯỚC 2: COPY FILE RA (Đây là bước bạn yêu cầu)
+    print("📂 Đang copy file database ra vùng tạm...")
+    run_su(f"cp {REAL_DB_PATH} {TMP_DB_PATH}")
+    run_su(f"chmod 777 {TMP_DB_PATH}") # Cấp quyền tối đa để Python sửa được
 
-    print("[*] Dumping original cookie DB")
-    su(f"sqlite3 {ORIG_DB} .dump > {TMP_SQL}")
+    # BƯỚC 3: SỬA FILE TẠI VÙNG TẠM (Dùng thư viện Python SQLite)
+    try:
+        print("🔧 Đang nạp Cookie vào file tạm...")
+        conn = sqlite3.connect(TMP_DB_PATH)
+        cursor = conn.cursor()
+        
+        # Logic xóa và chèn cookie chuẩn của Roblox
+        cursor.execute("DELETE FROM cookies WHERE host_key = '.roblox.com' AND name = '.ROBLOSECURITY'")
+        
+        now = int(time.time())
+        sql = """INSERT INTO cookies 
+                 (creation_utc, host_key, name, value, path, expires_utc, is_secure, is_httponly, last_access_utc, has_expires, is_persistent, priority, samesite, source_scheme) 
+                 VALUES (?, '.roblox.com', '.ROBLOSECURITY', ?, '/', 253402300799, 1, 1, ?, 1, 1, 1, -1, 2)"""
+        cursor.execute(sql, (now, MY_COOKIE, now))
+        
+        conn.commit()
+        conn.close()
+        print("✅ Đã sửa xong file tạm.")
+    except Exception as e:
+        print(f"❌ Lỗi khi sửa file tạm: {e}")
+        return
 
-    print("[*] Creating new writable cookie DB")
-    su(f"rm -f {NEW_DB}")
-    su(f"sqlite3 {NEW_DB} < {TMP_SQL}")
+    # BƯỚC 4: PASTE LẠI VÀO HỆ THỐNG
+    print("📥 Đang paste file đã sửa trở lại hệ thống...")
+    uid = get_uid()
+    run_su(f"cp {TMP_DB_PATH} {REAL_DB_PATH}")
+    
+    # Quan trọng: Trả lại quyền sở hữu cho App (chown) và quyền đọc ghi (chmod)
+    run_su(f"chown {uid} {REAL_DB_PATH}")
+    run_su(f"chmod 660 {REAL_DB_PATH}")
+    
+    # Xóa file nhật ký cũ (wal/shm) để app bắt buộc đọc file mới
+    run_su(f"rm -f {REAL_DB_PATH}-wal")
+    run_su(f"rm -f {REAL_DB_PATH}-shm")
+    run_su(f"rm {TMP_DB_PATH}")
 
-    print("[*] Injecting .ROBLOSECURITY cookie")
-    su(f"""
-    sqlite3 {NEW_DB} "
-    DELETE FROM cookies WHERE name='.ROBLOSECURITY';
-    INSERT INTO cookies
-    (host_key,name,value,path,expires_utc,is_secure,is_httponly)
-    VALUES
-    ('.roblox.com','.ROBLOSECURITY','{COOKIE}','/',253402300799,1,1);
-    "
-    """)
-
-    print("[*] Replacing system cookie DB")
-    su(f"rm -f {ORIG_DB}*")
-    su(f"cp {NEW_DB} {ORIG_DB}")
-
-    uid = su(f"stat -c '%u:%g' /data/data/{PACKAGE}").stdout.strip()
-    su(f"chown {uid} {ORIG_DB}")
-    su(f"chmod 600 {ORIG_DB}")
-    su(f"restorecon {ORIG_DB}")
-
-    print("[✓] Cookie login injected successfully")
-
-def launch_roblox():
-    link = f"roblox://placeID={PLACE_ID}"
-
-    print("[*] Launching Roblox (Splash)")
-    su(f"am start -n {PACKAGE}/com.roblox.client.startup.ActivitySplash -d {link}")
+    # BƯỚC 5: LAUNCH ROBLOX (Bê nguyên logic dòng 1018 từ file improvev2.py)
+    print(f"\033[1;96m[ Rokid Manager ] - Đang Rejoin vào Place ID: {PLACE_ID}...\033[0m")
+    server_link = f"roblox://placeID={PLACE_ID}"
+    
+    # Bước 1: ActivitySplash (Dòng 1024)
+    run_su(f"am start -n {PACKAGE_NAME}/com.roblox.client.startup.ActivitySplash -d {server_link}")
     time.sleep(5)
 
-    print("[*] Joining game")
-    su(f"am start -n {PACKAGE}/com.roblox.client.ActivityProtocolLaunch -d {link}")
-    time.sleep(15)
-
-    print("[✓] Roblox launched & logged in via cookie")
+    # Bước 2: ActivityProtocolLaunch (Dòng 1030)
+    run_su(f"am start -n {PACKAGE_NAME}/com.roblox.client.ActivityProtocolLaunch -d {server_link}")
+    
+    print("\033[1;92m[ Rokid Manager ] - Hoàn tất! Đang vào game...\033[0m")
 
 if __name__ == "__main__":
-    inject_cookie()
-    launch_roblox()
+    process_login()
