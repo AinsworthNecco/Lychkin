@@ -1,12 +1,17 @@
 import subprocess
 import time
+import os
 
-MY_COOKIE = "_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_CAEaAhADIhwKBGR1aWQSFDEwNTAxOTk1ODgxOTczMjgzNDc1KAM.K_gMy3tCQ0KZxZlwirOxqpIwxATitqRN4aaka_b7n0b0qvn6Af-ZH2oyOoNXj3FoGe2u9_RDiUOD24ipW4SGBuYayFwIt5OzfiFAU8HzzIsVDz1GyfKRnn-X3vijUVqM9DQrNQEAONL4jtCX7cgZfNywQOrYxKqcQRg1eyy45g7lhz7flC7SVnhTMB7U9vcanh9CI4ixsHKvGZYtIKzEsvR5f0rjO9evtqURbortrkXq80pFAeZU2UVhnW4R8U85eO193zk_7pv8JaKcz_NklQhO2xxCmMipRstDe-M_fYhGtFltl4olXVagx7SYoUgX-UqYZgaRmGbmxt9LQC-uZJ_-yJZalxHNQGstudubVpcWQFUbPUUjZrnZSHXo2NL8nZORTNyosZJMShdK553t2eLBZv8ocnoCbpRUktt9z9Hsg8rx7G2SWF3ZpMdQFmDIIFymM5YQugkndXdzwqjtaRUYoMZ8XL8mjqPexp6W-rIMUUpMkhfFif9sgQVWP0UtmVAMcWgehGhMjnLxnWKm2i9NRByzjjfBO6mjqAdC3d2lfCCaa2ICWF5j3gWDBRsCuLKpg7uUYy-Vp_Bp00rNN4sGsSZ8yqA79mpmoHHFifwAycURfjtortETJH9nzYSYGwexcA"
-PACKAGE_NAME = "com.roblox.clieng"
+# ================== CẤU HÌNH ==================
+PACKAGE = "com.roblox.clieng"
+COOKIE = "_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_CAEaAhADIhwKBGR1aWQSFDEwNTAxOTk1ODgxOTczMjgzNDc1KAM.K_gMy3tCQ0KZxZlwirOxqpIwxATitqRN4aaka_b7n0b0qvn6Af-ZH2oyOoNXj3FoGe2u9_RDiUOD24ipW4SGBuYayFwIt5OzfiFAU8HzzIsVDz1GyfKRnn-X3vijUVqM9DQrNQEAONL4jtCX7cgZfNywQOrYxKqcQRg1eyy45g7lhz7flC7SVnhTMB7U9vcanh9CI4ixsHKvGZYtIKzEsvR5f0rjO9evtqURbortrkXq80pFAeZU2UVhnW4R8U85eO193zk_7pv8JaKcz_NklQhO2xxCmMipRstDe-M_fYhGtFltl4olXVagx7SYoUgX-UqYZgaRmGbmxt9LQC-uZJ_-yJZalxHNQGstudubVpcWQFUbPUUjZrnZSHXo2NL8nZORTNyosZJMShdK553t2eLBZv8ocnoCbpRUktt9z9Hsg8rx7G2SWF3ZpMdQFmDIIFymM5YQugkndXdzwqjtaRUYoMZ8XL8mjqPexp6W-rIMUUpMkhfFif9sgQVWP0UtmVAMcWgehGhMjnLxnWKm2i9NRByzjjfBO6mjqAdC3d2lfCCaa2ICWF5j3gWDBRsCuLKpg7uUYy-Vp_Bp00rNN4sGsSZ8yqA79mpmoHHFifwAycURfjtortETJH9nzYSYGwexcA"
 PLACE_ID = "8737602449"
 
-DB_PATH = f"/data/data/{PACKAGE_NAME}/app_webview/Default/Cookies"
-TMP_PATH = "/data/local/tmp/cookies_fixed.db"
+DB_DIR = f"/data/data/{PACKAGE}/app_webview/Default"
+ORIG_DB = f"{DB_DIR}/Cookies"
+TMP_SQL = "/data/local/tmp/cookies_dump.sql"
+NEW_DB = "/data/local/tmp/Cookies"
+# =============================================
 
 def su(cmd):
     return subprocess.run(
@@ -16,53 +21,60 @@ def su(cmd):
         text=True
     )
 
+def fatal(msg):
+    print(f"[!] {msg}")
+    exit(1)
+
 def inject_cookie():
-    print("[*] Stopping app...")
-    su(f"am force-stop {PACKAGE_NAME}")
-    su(f"rm -f {DB_PATH}-wal {DB_PATH}-shm")
+    print("[*] Stopping Roblox")
+    su(f"am force-stop {PACKAGE}")
     time.sleep(1)
 
-    print("[*] Copy database...")
-    su(f"cp {DB_PATH} {TMP_PATH}")
-    su(f"chmod 777 {TMP_PATH}")
+    if su(f"test -f {ORIG_DB}").returncode != 0:
+        fatal("Cookies DB not found. Open Roblox once first.")
 
-    print("[*] Inject cookie via root sqlite...")
-    sql = f"""
-    sqlite3 {TMP_PATH} "
-    DELETE FROM cookies
-    WHERE host_key='.roblox.com'
-    AND name='.ROBLOSECURITY';
+    print("[*] Dumping original cookie DB")
+    su(f"sqlite3 {ORIG_DB} .dump > {TMP_SQL}")
 
+    print("[*] Creating new writable cookie DB")
+    su(f"rm -f {NEW_DB}")
+    su(f"sqlite3 {NEW_DB} < {TMP_SQL}")
+
+    print("[*] Injecting .ROBLOSECURITY cookie")
+    su(f"""
+    sqlite3 {NEW_DB} "
+    DELETE FROM cookies WHERE name='.ROBLOSECURITY';
     INSERT INTO cookies
-    (creation_utc, host_key, name, value, path, expires_utc,
-     is_secure, is_httponly, last_access_utc,
-     has_expires, is_persistent, priority, samesite, source_scheme)
+    (host_key,name,value,path,expires_utc,is_secure,is_httponly)
     VALUES
-    (strftime('%s','now'), '.roblox.com', '.ROBLOSECURITY', '{MY_COOKIE}',
-     '/', 253402300799, 1, 1,
-     strftime('%s','now'), 1, 1, 1, -1, 2);
+    ('.roblox.com','.ROBLOSECURITY','{COOKIE}','/',253402300799,1,1);
     "
-    """
-    su(sql)
+    """)
 
-    print("[*] Restore database...")
-    su(f"cp {TMP_PATH} {DB_PATH}")
+    print("[*] Replacing system cookie DB")
+    su(f"rm -f {ORIG_DB}*")
+    su(f"cp {NEW_DB} {ORIG_DB}")
 
-    uid = su(f"stat -c '%u:%g' /data/data/{PACKAGE_NAME}").stdout.strip()
-    su(f"chown {uid} {DB_PATH}")
-    su(f"chmod 660 {DB_PATH}")
-    su(f"restorecon {DB_PATH}")
+    uid = su(f"stat -c '%u:%g' /data/data/{PACKAGE}").stdout.strip()
+    su(f"chown {uid} {ORIG_DB}")
+    su(f"chmod 600 {ORIG_DB}")
+    su(f"restorecon {ORIG_DB}")
 
-    su(f"rm {TMP_PATH}")
+    print("[✓] Cookie login injected successfully")
 
-    print("[✓] Cookie injected successfully")
-
-def launch():
+def launch_roblox():
     link = f"roblox://placeID={PLACE_ID}"
-    su(f"am start -n {PACKAGE_NAME}/com.roblox.client.startup.ActivitySplash -d {link}")
+
+    print("[*] Launching Roblox (Splash)")
+    su(f"am start -n {PACKAGE}/com.roblox.client.startup.ActivitySplash -d {link}")
     time.sleep(5)
-    su(f"am start -n {PACKAGE_NAME}/com.roblox.client.ActivityProtocolLaunch -d {link}")
+
+    print("[*] Joining game")
+    su(f"am start -n {PACKAGE}/com.roblox.client.ActivityProtocolLaunch -d {link}")
+    time.sleep(15)
+
+    print("[✓] Roblox launched & logged in via cookie")
 
 if __name__ == "__main__":
     inject_cookie()
-    launch()
+    launch_roblox()
