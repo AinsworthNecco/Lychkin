@@ -3,66 +3,44 @@ import sqlite3
 import os
 import time
 
-# ================= CẤU HÌNH CỨNG =================
+# ================= CẤU HÌNH (BÊ NGUYÊN THÔNG TIN CỦA BẠN) =================
 MY_COOKIE = "_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_CAEaAhADIhwKBGR1aWQSFDEwNTAxOTk1ODgxOTczMjgzNDc1KAM.K_gMy3tCQ0KZxZlwirOxqpIwxATitqRN4aaka_b7n0b0qvn6Af-ZH2oyOoNXj3FoGe2u9_RDiUOD24ipW4SGBuYayFwIt5OzfiFAU8HzzIsVDz1GyfKRnn-X3vijUVqM9DQrNQEAONL4jtCX7cgZfNywQOrYxKqcQRg1eyy45g7lhz7flC7SVnhTMB7U9vcanh9CI4ixsHKvGZYtIKzEsvR5f0rjO9evtqURbortrkXq80pFAeZU2UVhnW4R8U85eO193zk_7pv8JaKcz_NklQhO2xxCmMipRstDe-M_fYhGtFltl4olXVagx7SYoUgX-UqYZgaRmGbmxt9LQC-uZJ_-yJZalxHNQGstudubVpcWQFUbPUUjZrnZSHXo2NL8nZORTNyosZJMShdK553t2eLBZv8ocnoCbpRUktt9z9Hsg8rx7G2SWF3ZpMdQFmDIIFymM5YQugkndXdzwqjtaRUYoMZ8XL8mjqPexp6W-rIMUUpMkhfFif9sgQVWP0UtmVAMcWgehGhMjnLxnWKm2i9NRByzjjfBO6mjqAdC3d2lfCCaa2ICWF5j3gWDBRsCuLKpg7uUYy-Vp_Bp00rNN4sGsSZ8yqA79mpmoHHFifwAycURfjtortETJH9nzYSYGwexcA"
 PLACE_ID = "8737602449" 
 PACKAGE_NAME = "com.roblox.clieng" 
 
-# File tạm để sửa (đặt ở nơi an toàn hơn)
-TEMP_DB = "/data/local/tmp/work_cookies.db"
-# =================================================
+# Đường dẫn hệ thống và vùng tạm (Dùng /data/local/tmp để an toàn)
+REAL_DB = f"/data/data/{PACKAGE_NAME}/app_webview/Default/Cookies"
+TEMP_DB = "/data/local/tmp/cookies_work.db" 
+# =========================================================================
 
-def run_root(command):
-    """Sử dụng 'su' để thực thi lệnh Root"""
-    return subprocess.run(['su', '-c', command], capture_output=True, text=True)
+def run_tsu(command):
+    """Thực thi lệnh shell với quyền Root thông qua tsu"""
+    return subprocess.run(['tsu', '-c', command], capture_output=True, text=True)
 
-def find_real_db_path():
-    """Logic tìm kiếm file Cookies chính xác (tương tự file tham khảo)"""
-    possible_paths = [
-        f"/data/data/{PACKAGE_NAME}/app_webview/Default/Cookies",
-        f"/data/data/{PACKAGE_NAME}/app_webview/Cookies",
-        f"/data/data/{PACKAGE_NAME}/databases/Cookies"
-    ]
-    for path in possible_paths:
-        check = run_root(f"ls {path}")
-        if check.returncode == 0:
-            return path
-    return None
+def main_process():
+    print(f"\033[1;96m[ Rokid Manager ] - Khởi chạy quy trình cho: {PACKAGE_NAME}\033[0m")
 
-def get_app_uid():
-    res = run_root(f"stat -c '%u:%g' /data/data/{PACKAGE_NAME}")
-    return res.stdout.strip() if res.returncode == 0 else "10100:10100"
-
-def start_injection():
-    print(f"\033[1;96m[ Rokid Manager ] - Đang tìm kiếm dữ liệu cho {PACKAGE_NAME}...\033[0m")
-    
-    # 1. Tìm đường dẫn thực tế
-    real_db = find_real_db_path()
-    if not real_db:
-        print("\033[1;91m❌ Lỗi: Không tìm thấy file Cookies. Hãy mở Roblox và đăng nhập thủ công 1 lần.\033[0m")
-        return
-
-    print(f"📂 Đã tìm thấy: {real_db}")
-
-    # 2. Tắt app và dọn dẹp
-    run_root(f"am force-stop {PACKAGE_NAME}")
-    run_root(f"rm -f {real_db}-wal {real_db}-shm {TEMP_DB}")
+    # BƯỚC 1: Tắt app (logic Rokid Manager)
+    run_tsu(f"am force-stop {PACKAGE_NAME}")
     time.sleep(1)
 
-    # 3. Copy ra và CHMOD 777 (Cực kỳ quan trọng để tránh lỗi unable to open)
-    run_root(f"cp {real_db} {TEMP_DB}")
-    run_root(f"chmod 777 {TEMP_DB}")
+    # BƯỚC 2: COPY FILE RA NGOÀI (Quy trình bạn yêu cầu)
+    print("📂 1. Đang copy database ra vùng tạm bằng tsu...")
+    run_tsu(f"rm -f {TEMP_DB}") # Xóa file cũ nếu có
+    run_tsu(f"cp {REAL_DB} {TEMP_DB}")
     
-    # Kiểm tra xem file đã được copy thành công chưa
-    if not os.path.exists(TEMP_DB) or os.path.getsize(TEMP_DB) == 0:
-        print("\033[1;91m❌ Lỗi: Không thể trích xuất file database ra vùng tạm.\033[0m")
-        return
+    # BƯỚC 3: FIX LỖI READONLY (Cực kỳ quan trọng)
+    # Cấp quyền 777 cho file copy để tiến trình Python có thể MỞ và GHI
+    run_tsu(f"chmod 777 {TEMP_DB}")
 
-    # 4. Sửa file bằng SQLite Python
+    # BƯỚC 4: DÙNG PYTHON SỬA FILE TẠI VÙNG TẠM
+    print("🔧 2. Python đang thực hiện sửa nội dung file tạm...")
     try:
-        print("🔧 Đang ghi đè Cookie...")
+        # Python kết nối tới TEMP_DB (đã chmod 777 nên sẽ KHÔNG bị readonly)
         conn = sqlite3.connect(TEMP_DB)
         cursor = conn.cursor()
+        
+        # Logic xóa và nạp cookie chuẩn của Roblox
         cursor.execute("DELETE FROM cookies WHERE host_key = '.roblox.com' AND name = '.ROBLOSECURITY'")
         
         now = int(time.time())
@@ -70,32 +48,42 @@ def start_injection():
                  (creation_utc, host_key, name, value, path, expires_utc, is_secure, is_httponly, last_access_utc, has_expires, is_persistent, priority, samesite, source_scheme) 
                  VALUES (?, '.roblox.com', '.ROBLOSECURITY', ?, '/', 253402300799, 1, 1, ?, 1, 1, 1, -1, 2)"""
         cursor.execute(sql, (now, MY_COOKIE, now))
+        
         conn.commit()
         conn.close()
-        print("✅ Đã chuẩn bị xong dữ liệu mới.")
+        print("✅ Đã sửa xong dữ liệu trong file tạm.")
     except Exception as e:
-        print(f"❌ Lỗi SQLite: {e}")
+        print(f"❌ Python vẫn không thể ghi file (Lỗi: {e})")
         return
 
-    # 5. Paste ngược lại và FIX QUYỀN (Logic dòng 1100+)
-    uid = get_app_uid()
-    run_root(f"cp {TEMP_DB} {real_db}")
-    run_root(f"chown {uid} {real_db}")
-    run_root(f"chmod 660 {real_db}")
-    run_root(f"rm {TEMP_DB}")
-
-    # 6. Mở Game (Bê nguyên logic launch_roblox dòng 1018)
-    print(f"\033[1;96m[ Rokid Manager ] - Đang khởi động Roblox & Rejoin...\033[0m")
-    link = f"roblox://placeID={PLACE_ID}"
+    # BƯỚC 5: PASTE LẠI VÀO HỆ THỐNG
+    print("📥 3. Đang paste file đã sửa trở lại hệ thống...")
     
-    # Bước 1: ActivitySplash (Dòng 1024)
-    run_root(f"am start -n {PACKAGE_NAME}/com.roblox.client.startup.ActivitySplash -d {link}")
+    # Lấy UID của app để trả lại quyền sở hữu (Logic stat trong improvev2.py)
+    uid_res = run_tsu(f"stat -c '%u:%g' /data/data/{PACKAGE_NAME}")
+    uid = uid_res.stdout.strip() if uid_res.returncode == 0 else "10100:10100"
+
+    run_tsu(f"cp {TEMP_DB} {REAL_DB}")
+    run_tsu(f"chown {uid} {REAL_DB}") # Trả file cho app
+    run_tsu(f"chmod 660 {REAL_DB}")
+    
+    # Xóa file nhật ký để buộc app nạp database mới sạch hoàn toàn
+    run_tsu(f"rm -f {REAL_DB}-wal")
+    run_tsu(f"rm -f {REAL_DB}-shm")
+    run_tsu(f"rm {TEMP_DB}")
+
+    # BƯỚC 6: LAUNCH GAME (BÊ NGUYÊN LOGIC DÒNG 1018-1030 TRONG FILE BẠN GỬI)
+    print(f"\033[1;96m[ Rokid Manager ] - Đang tham gia Game ID: {PLACE_ID}...\033[0m")
+    server_link = f"roblox://placeID={PLACE_ID}"
+    
+    # Bước 1: ActivitySplash (Nạp tài nguyên - Dòng 1024)
+    run_tsu(f"am start -n {PACKAGE_NAME}/com.roblox.client.startup.ActivitySplash -d {server_link}")
     time.sleep(5)
 
-    # Bước 2: ActivityProtocolLaunch (Dòng 1030)
-    run_root(f"am start -n {PACKAGE_NAME}/com.roblox.client.ActivityProtocolLaunch -d {link}")
+    # Bước 2: ActivityProtocolLaunch (Vào thẳng server - Dòng 1030)
+    run_tsu(f"am start -n {PACKAGE_NAME}/com.roblox.client.ActivityProtocolLaunch -d {server_link}")
     
-    print("\033[1;92m✨ Hoàn tất! Tài khoản đã được nạp thành công.\033[0m")
+    print("\033[1;92m[ Rokid Manager ] - Hoàn tất! Chúc bạn farm vui vẻ.\033[0m")
 
 if __name__ == "__main__":
-    start_injection()
+    main_process()
