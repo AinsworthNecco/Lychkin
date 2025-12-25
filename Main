@@ -1,4 +1,3 @@
-
 local url = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/Main"
 local q = syn and syn.queue_on_teleport or queue_on_teleport
 
