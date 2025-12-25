@@ -1,92 +1,125 @@
-import subprocess
-import sqlite3
 import os
+import sqlite3
+import subprocess
 import time
+import sys
+import urllib.request
 
-# ================= CẤU HÌNH CỦA BẠN =================
-MY_COOKIE = "_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_CAEaAhADIhwKBGR1aWQSFDEwNTAxOTk1ODgxOTczMjgzNDc1KAM.K_gMy3tCQ0KZxZlwirOxqpIwxATitqRN4aaka_b7n0b0qvn6Af-ZH2oyOoNXj3FoGe2u9_RDiUOD24ipW4SGBuYayFwIt5OzfiFAU8HzzIsVDz1GyfKRnn-X3vijUVqM9DQrNQEAONL4jtCX7cgZfNywQOrYxKqcQRg1eyy45g7lhz7flC7SVnhTMB7U9vcanh9CI4ixsHKvGZYtIKzEsvR5f0rjO9evtqURbortrkXq80pFAeZU2UVhnW4R8U85eO193zk_7pv8JaKcz_NklQhO2xxCmMipRstDe-M_fYhGtFltl4olXVagx7SYoUgX-UqYZgaRmGbmxt9LQC-uZJ_-yJZalxHNQGstudubVpcWQFUbPUUjZrnZSHXo2NL8nZORTNyosZJMShdK553t2eLBZv8ocnoCbpRUktt9z9Hsg8rx7G2SWF3ZpMdQFmDIIFymM5YQugkndXdzwqjtaRUYoMZ8XL8mjqPexp6W-rIMUUpMkhfFif9sgQVWP0UtmVAMcWgehGhMjnLxnWKm2i9NRByzjjfBO6mjqAdC3d2lfCCaa2ICWF5j3gWDBRsCuLKpg7uUYy-Vp_Bp00rNN4sGsSZ8yqA79mpmoHHFifwAycURfjtortETJH9nzYSYGwexcA"
-PLACE_ID = "8737602449" 
-PACKAGE_NAME = "com.roblox.clieng" 
+# --- Cấu hình ---
+PACKAGE_NAME = "com.roblox.clieng"  # Tên package theo yêu cầu
+PLACE_ID = "8737602449"            # ID Game để join
+# URL chứa cookie của bạn
+COOKIE_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie"
 
-# Đường dẫn database chính xác
 DB_PATH = f"/data/data/{PACKAGE_NAME}/app_webview/Default/Cookies"
-TEMP_DB = "/data/local/tmp/cookies_final.db"
-# ====================================================
 
-def run_tsu(command):
-    """Sử dụng tsu để chạy lệnh Root"""
-    return subprocess.run(['tsu', '-c', command], capture_output=True, text=True)
+def elevate_to_root():
+    """Tự động cấp quyền root qua tsu nếu chưa có"""
+    if os.getuid() != 0:
+        print("\033[1;33m[*] Đang tự động cấp quyền root qua tsu...\033[0m")
+        try:
+            # Thực thi lại chính script này bằng quyền root qua tsu
+            os.execvp("tsu", ["tsu", "-c", f"python3 {os.path.abspath(__file__)}"])
+        except Exception as e:
+            print(f"\033[1;31m[!] Không thể tự cấp quyền root: {e}\033[0m")
+            sys.exit(1)
 
-def get_app_info():
-    """Lấy UID và GID của ứng dụng Roblox"""
-    res = run_tsu(f"stat -c '%u:%g' /data/data/{PACKAGE_NAME}")
-    if res.returncode == 0:
-        return res.stdout.strip()
-    return "10100:10100"
-
-def start_injection():
-    print(f"\033[1;96m[ Rokid Manager ] - Đang xử lý tài khoản cho: {PACKAGE_NAME}\033[0m")
-
-    # BƯỚC 1: Tắt app và XÓA SẠCH file nhật ký (Rất quan trọng)
-    run_tsu(f"am force-stop {PACKAGE_NAME}")
-    # Nếu không xóa 2 file này, Roblox sẽ KHÔNG đọc file Cookies chính ta vừa sửa
-    run_tsu(f"rm -f {DB_PATH}-wal")
-    run_tsu(f"rm -f {DB_PATH}-shm")
-    time.sleep(1)
-
-    # BƯỚC 2: Copy ra vùng tạm để sửa
-    print("📂 Trích xuất database ra vùng tạm...")
-    run_tsu(f"cp {DB_PATH} {TEMP_DB}")
-    run_tsu(f"chmod 777 {TEMP_DB}")
-
-    # BƯỚC 3: Sửa file bằng Python SQLite
+def fetch_cookie_from_url(url):
+    """Tải cookie trực tiếp từ GitHub"""
+    print(f"\033[1;34m[*] Đang lấy cookie từ URL...\033[0m")
     try:
-        conn = sqlite3.connect(TEMP_DB)
+        with urllib.request.urlopen(url) as response:
+            cookie = response.read().decode('utf-8').strip()
+            if cookie:
+                print("\033[1;32m[+] Đã tải cookie thành công!\033[0m")
+                return cookie
+            else:
+                print("\033[1;31m[!] Lỗi: Nội dung cookie trống.\033[0m")
+                return None
+    except Exception as e:
+        print(f"\033[1;31m[!] Lỗi khi kết nối đến GitHub: {e}\033[0m")
+        return None
+
+def run_command(command):
+    """Chạy lệnh shell dưới quyền root"""
+    try:
+        result = subprocess.run(command, shell=True, capture_output=True, text=True)
+        return result.stdout.strip()
+    except Exception as e:
+        return f"Lỗi: {e}"
+
+def inject_cookie(cookie_value):
+    """Chèn cookie vào database SQLite của ứng dụng"""
+    print(f"\033[1;34m[*] Đang chèn cookie vào {PACKAGE_NAME}...\033[0m")
+    
+    try:
+        # Cấp quyền truy cập file database
+        run_command(f"chmod 666 {DB_PATH}")
+        
+        conn = sqlite3.connect(DB_PATH)
         cursor = conn.cursor()
         
-        # Xóa mọi cookie liên quan đến roblox cũ để tránh xung đột
-        cursor.execute("DELETE FROM cookies WHERE host_key LIKE '%roblox.com%'")
+        expiry = int((time.time() + 31536000) * 1000000)
+        now = int(time.time() * 1000000)
+
+        # Xóa cookie cũ để tránh xung đột
+        cursor.execute("DELETE FROM cookies WHERE host_key = '.roblox.com' AND name = '.ROBLOSECURITY'")
         
-        # Chèn cookie mới với các thông số chuẩn Chromium
-        now = int(time.time())
-        sql = """INSERT INTO cookies 
-                 (creation_utc, host_key, name, value, path, expires_utc, is_secure, is_httponly, last_access_utc, has_expires, is_persistent, priority, samesite, source_scheme) 
-                 VALUES (?, '.roblox.com', '.ROBLOSECURITY', ?, '/', 253402300799, 1, 1, ?, 1, 1, 1, -1, 2)"""
-        cursor.execute(sql, (now, MY_COOKIE, now))
+        # Chèn cookie mới vào bảng cookies của WebView
+        query = """
+        INSERT INTO cookies (creation_utc, host_key, name, value, path, expires_utc, is_secure, is_httponly, last_access_utc)
+        VALUES (?, '.roblox.com', '.ROBLOSECURITY', ?, '/', ?, 1, 1, ?)
+        """
+        cursor.execute(query, (now, cookie_value, expiry, now))
         
         conn.commit()
         conn.close()
-        print("✅ Đã sửa file tạm thành công.")
+        
+        # Trả lại quyền file
+        run_command(f"chmod 600 {DB_PATH}")
+        print("\033[1;32m[+] Inject Cookie thành công!\033[0m")
+        return True
     except Exception as e:
-        print(f"❌ Lỗi ghi dữ liệu: {e}")
+        print(f"\033[1;31m[!] Lỗi Database (Kiểm tra xem app đã cài chưa): {e}\033[0m")
+        return False
+
+def launch_roblox():
+    """Khởi động Roblox và tự động vào game"""
+    print(f"\033[1;34m[*] Đang khởi động {PACKAGE_NAME} để join {PLACE_ID}...\033[0m")
+    
+    # Sử dụng intent roblox:// để join game
+    join_url = f"roblox://placeId={PLACE_ID}"
+    cmd = f"am start -a android.intent.action.VIEW -d '{join_url}' -n {PACKAGE_NAME}/com.roblox.client.startup.ActivitySplash"
+    
+    run_command(cmd)
+    print("\033[1;32m[+] Đã gửi lệnh join game!\033[0m")
+
+def main():
+    os.system("clear")
+    print("\033[1;36m======================================")
+    print("    ROBLOX AUTO-FETCH & INJECT        ")
+    print("======================================\033[0m")
+    
+    # 0. Tự động lấy quyền root qua tsu
+    elevate_to_root()
+
+    # 1. Tải cookie mới nhất từ GitHub
+    cookie = fetch_cookie_from_url(COOKIE_URL)
+    if not cookie:
+        print("\033[1;31m[!] Không thể tiếp tục vì không có cookie.\033[0m")
         return
 
-    # BƯỚC 4: Paste lại và FIX quyền sở hữu (Chown)
-    print("📥 Đang ghi đè dữ liệu và thiết lập quyền hạn...")
-    uid_gid = get_app_info()
-    
-    run_tsu(f"cp {TEMP_DB} {DB_PATH}")
-    # Phải trả file về đúng chủ sở hữu là ứng dụng Roblox
-    run_tsu(f"chown {uid_gid} {DB_PATH}")
-    run_tsu(f"chmod 660 {DB_PATH}")
-    
-    # Một lần nữa xóa sạch file nhật ký ở thư mục gốc trước khi mở app
-    run_tsu(f"rm -f {DB_PATH}-wal")
-    run_tsu(f"rm -f {DB_PATH}-shm")
-    run_tsu(f"rm {TEMP_DB}")
+    # 2. Đóng Roblox nếu đang mở
+    print(f"[*] Đang đóng {PACKAGE_NAME}...")
+    run_command(f"am force-stop {PACKAGE_NAME}")
+    time.sleep(1)
 
-    # BƯỚC 5: Mở Game (Bê nguyên logic launch_roblox từ file improvev2.py)
-    print(f"\033[1;96m[ Rokid Manager ] - Đang Rejoin vào Place ID: {PLACE_ID}...\033[0m")
-    link = f"roblox://placeID={PLACE_ID}"
+    # 3. Chèn cookie vào hệ thống
+    if inject_cookie(cookie):
+        # 4. Mở game
+        launch_roblox()
     
-    # Bước khởi động 1 (Dòng 1024 trong file của bạn)
-    run_tsu(f"am start -n {PACKAGE_NAME}/com.roblox.client.startup.ActivitySplash -d {link}")
-    time.sleep(5)
-
-    # Bước khởi động 2 (Dòng 1030 trong file của bạn)
-    run_tsu(f"am start -n {PACKAGE_NAME}/com.roblox.client.ActivityProtocolLaunch -d {link}")
-    
-    print("\033[1;92m✨ Thành công! Nếu cookie còn sống, bạn sẽ được vào game ngay.\033[0m")
+    print("\n\033[1;33mQuy trình hoàn tất.\033[0m")
 
 if __name__ == "__main__":
-    start_injection()
+    main()
