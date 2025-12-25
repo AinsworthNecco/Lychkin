@@ -8,7 +8,7 @@ SCAN_INTERVAL_SECONDS="180" - Thời gian nghỉ giữa các chu kỳ quét (gi�
 MIN_PLAYER_PERCENTAGE="75" - Tỷ lệ người chơi tối thiểu (%)
 MAX_PLAYER_PERCENTAGE="90" - Tỷ lệ người chơi tối đa (%)
 
-SELECTED_EXECUTOR="2"
+SELECTED_EXECUTOR="1"
 EXECUTOR_PATH_1="/storage/emulated/0/Delta/Workspace/neco.txt"
 EXECUTOR_PATH_2="/storage/emulated/0/Delta/Workspace/neco.txt"
 EXECUTOR_PATH_3="/storage/emulated/0/Codex/Workspace/neco.txt"
@@ -24,8 +24,8 @@ VIP_SERVER_URL="roblox://placeId=8737602449" - URL VIP server (dùng cho launch 
 
 --- CẤU HÌNH MẠNG (Nâng cao) ---
 CONNECTION_TIMEOUT="15" - Thời gian chờ tối đa cho mỗi kết nối (giây)
-REBOOT_ENABLED="off"
-REBOOT_INTERVAL_MINUTES="120"
+REBOOT_ENABLED="on"
+REBOOT_INTERVAL_MINUTES="300"
 
 PROXY_LIST="
 142.111.48.253:7030:srimmznx:pbutjh244it9
