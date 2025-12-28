@@ -1,13 +1,1 @@
-local url = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/Main"
-local q = syn and syn.queue_on_teleport or queue_on_teleport
-
-if q then
-    q(("loadstring(game:HttpGet('%s'))()"):format(url))
-end
-
-if getgenv().Script_Ran then return end
-getgenv().Script_Ran = true
-
-wait(1)
-loadstring(game:HttpGet("https://gist.githubusercontent.com/AinsworthNecco/2582fc470f4594f789b3441605d3a442/raw/d7f7ae2b2c350e565887940dbb9eed1010ca5120/PlsDonate"))()
-
+loadstring(game:HttpGet("https://gist.githubusercontent.com/AinsworthNecco/2582fc470f4594f789b3441605d3a442/raw/9ca4c8ea1fa0c145c19e9c01c7c512a144a0003d/PlsDonate"))()
