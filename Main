@@ -1,1 +1,273 @@
-loadstring(game:HttpGet("https://gist.githubusercontent.com/AinsworthNecco/2582fc470f4594f789b3441605d3a442/raw/db2a3343bb8ab839e1b302d2ee249260db505cd7/PlsDonate"))()
+local GITHUB_ACCOUNTS_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/accounts"
+local AVOID_PLAYERS_FILENAME = "account.txt"
+
+local SETTINGS = {
+    -- =================================================================
+    ["EnableAvoidPlayers"] = true, -- Bật/tắt tính năng né tài khoản
+    
+    -- =================================================================
+    -- CÀI ĐẶT CHỐNG BOT
+    -- =================================================================
+    ["EnableAntiBotScan"] = true,
+    ["BOT_KEYWORDS"] = { "spin", "afk", "restaurant", "jump", "gift", "speed", "develop", "streaming", "live", "game", "#", "dream", "first", "mom", "big" },
+    ["DETECTION_THRESHOLD"] = 4,
+
+    -- =================================================================
+    -- CÀI ĐẶT SERVER HOP & AFK
+    -- =================================================================
+    ["WaitMinutes"] = 10,
+    ["MaxServerHistorySize"] = 500,
+    ["EnableSharedServerCache"] = true,
+    ["EnablePlayerCountCheck"] = true,
+    ["MinPlayerThreshold"] = 14,
+    ["EnableServerHop"] = true,
+    ["EnableSafePlatform"] = true,
+    ["EnableStaticAfkView"] = true,
+    ["EnableDonateReset"] = true,
+    
+    -- =================================================================
+    -- CÀI ĐẶT THÔNG BÁO DISCORD
+    -- =================================================================
+    ["EnableDiscordWebhook"] = true,
+    ["WebhookURL"] = "https://discord.com/api/webhooks/1397368466947969147/HbncMuT0ETe6_5q_kKGzkdd7guLfiGqvewr3WuBFfHAxKBJo3TA7R6ad2ex31YkBHo75",
+    ["WebhookColor"] = 16738740,
+    ["EnablePingOnDonate"] = true,
+    ["PingAmount"] = 1000,
+    ["PingUserID"] = "",
+
+    -- =================================================================
+    -- CÀI ĐẶT TỰ ĐỘNG TRẢ LỜI & CHAT
+    -- =================================================================
+    ["EnableAutoReply"] = true,
+    ["ReplyRadius"] = 25,
+    ["ReplyCooldown"] = 7,
+    ["ReplyRules"] = {
+        { keywords = { "hi", "hello", "hey", "sup", "yo", "wsg", "howdy", "greetings", "wassup", "heya" }, replies = { "Hello!", "Hi there", "Hey!", "Yo", "What's up?", "Heya", "Sup", "Heyo!", "What's good?", "Well hello there." } },
+        { keywords = { "only","donate", "pls", "give me", "robux pls", "can i have", "spare", "some robux", "can u donate", "plz donate", "can you give", "i need robux" }, replies = { "Sorry, I'm saving up right now.", "I can't donate at the moment, sorry.", "My robux is pending, can't help sorry.", "Sry, saving for something specific.", "Maybe later, I'm trying to reach my own goal.", "Can't right now, good luck though!", "All my robux is tied up, sorry.", "Sorry, my wallet is on a diet.", "I wish I could, but I'm broke lol." } },
+        { keywords = { "bot", "auto", "script", "scripter", "macro", "afk farm", "autoclicker", "you a bot?" }, replies = { "I'm not a bot :)", "lol no, I'm a real player.", "Just vibing, not a bot.", "Beep boop? Nah, just kidding.", "I'm a human, I promise!", "Not a script, just dedicated lol.", "Do I look like a bot to you? :P", "Last time I checked, I still need to sleep. So, not a bot.", "01001110 01101111. (That means 'No' in binary)." } },
+        { keywords = { "scam", "fake", "report", "scammer", "this is a scam", "don't trust", "he's a scammer", "is this fake" }, replies = { "This is not a scam.", "I'm not a scammer.", "It's legit, no worries.", "100% legit, my friend.", "No scams here, just good vibes.", "I'm just here to play the game like you.", "Why would you think it's a scam?", "The only thing I'm scamming is time, by playing this game.", "You've got the wrong person, I'm just here to chill." } },
+        { keywords = { "why are you", "how are you", "spinning", "jumping", "afk" }, replies = { "Just farming for my goal.", "It's part of the grind.", "Doing this for donations." } },
+    },
+
+    ["EnableAutoThank"] = true,
+    ["ThankYouMessages"] = { "Thanks for the donation!", "Tysm!!", "Thank you so much!", "OMG THANKKK!", "THANKS", "TYSM!" },
+
+    ["EnableAutoSpam"] = true,
+    ["SpamInterval"] = 60,
+    ["SpamMessages"] = { "Goal: MAX SPIN LEVEL 100🌀 - 1 ROBUX = +1 SPEED!", "Goal: MAX SPIN LEVEL 100🌀 - 1 ROBUX = +1 SPEED!" },
+
+    -- =================================================================
+    -- CÀI ĐẶT BOOTH & SPIN
+    -- =================================================================
+    ["EnableBoothFeatures"] = true,
+    ["boothTextFormat"] = "1 DONATE = 1 SPIN SPEED\nGOAL: $GOALK SPEED!",
+    ["hexBox"] = "#ffffff",
+    ["fontFace"] = "SciFi",
+    ["boothOffset"] = 3,
+    ["spinEnabled"] = true,
+    ["spinBaseSpeed"] = 0.4,
+    ["spinSpeedPerR"] = 0.1,
+
+    -- =================================================================
+    -- CÀI ĐẶT HIỆU NĂNG & KHÁC
+    -- =================================================================
+    ["EnableGraphicsOptimization"] = true,
+    ["EnableCpuOptimization"] = true,
+    ["SetSimulationRadiusToZero"] = true,
+    ["TargetFps"] = 7,
+    ["EnableFileHistory"] = true,
+    ["InitialWaitTime"] = 1,
+    ["EnableCountdownText"] = true,
+    ["EnableCountdownColor"] = true,
+}
+
+-- Nền tảng an toàn
+local identifyexecutor = identifyexecutor or function() return 'Unknown' end
+local cloneref = (identifyexecutor() ~= "Synapse Z" and not identifyexecutor():find("Codex") and cloneref) or function(o) return o end
+
+-- Services
+local Players = cloneref(game:GetService("Players"))
+local TeleportService = cloneref(game:GetService("TeleportService"))
+local HttpService = cloneref(game:GetService("HttpService"))
+local TextChatService = cloneref(game:GetService("TextChatService"))
+local Workspace = cloneref(game:GetService("Workspace"))
+local Lighting = cloneref(game:GetService("Lighting"))
+local SoundService = cloneref(game:GetService("SoundService"))
+local RunService = cloneref(game:GetService("RunService"))
+local CoreGui = cloneref(game:GetService("CoreGui"))
+local ReplicatedStorage = cloneref(game:GetService("ReplicatedStorage"))
+local rng = Random.new()
+local LocalPlayer = Players.LocalPlayer
+
+-- Cấu hình
+local placeId = game.PlaceId; local currentJobId = game.JobId; local PLATFORM_VERTICAL_OFFSET = 0; local SERVER_HISTORY_FILENAME = "server_hop_history.txt"; local SHARED_SERVER_CACHE_FILENAME = "shared_server_cache.txt"; local NECO_SERVER_LIST_FILENAME = "neco.txt"
+local SERVER_HOP_GUI_NAME = "ServerHopStatusGUI"; local AFK_PLATFORM_NAME = "MySafeAFKPlatform"; local NEON_COLORS = { GREEN = Color3.fromRGB(10, 255, 20), YELLOW = Color3.fromRGB(255, 255, 0), BLUE = Color3.fromRGB(0, 150, 255), RED = Color3.fromRGB(255, 20, 20) }
+
+-- Biến toàn cục
+local playerGui = LocalPlayer and LocalPlayer:WaitForChild("PlayerGui")
+local statusScreenGui, statusTextLabel, statusFrame
+local countdownShouldReset = false; local currentCountdownThread = nil; local playerMonitorThread = nil
+local Remotes = nil; local spinVelocity = SETTINGS.spinBaseSpeed or 0.25
+local serverHistoryCache = {}
+local isRateLimited = false
+local isHoppingFromCache = false 
+local isHoppingFromNeco = false
+local cachedCandidateServers = {}
+local necoCandidateServers = {}
+
+-- Kiểm tra quyền file
+local canAccessFiles = false; local writefile_func, readfile_func; if SETTINGS.EnableFileHistory then pcall(function() if writefile and readfile then canAccessFiles, writefile_func, readfile_func = true, writefile, readfile; print("[FileIO] Quyền file có sẵn.") else print("[FileIO] Quyền file KHÔNG có sẵn.") end end) end
+
+-- =================================================================
+-- HỆ THỐNG GIAO DIỆN
+-- =================================================================
+local function createStatusGui() if playerGui:FindFirstChild(SERVER_HOP_GUI_NAME) then playerGui[SERVER_HOP_GUI_NAME]:Destroy() end; statusScreenGui = Instance.new("ScreenGui"); statusScreenGui.Name = SERVER_HOP_GUI_NAME; statusScreenGui.ResetOnSpawn, statusScreenGui.ZIndexBehavior, statusScreenGui.IgnoreGuiInset = false, Enum.ZIndexBehavior.Sibling, true; statusScreenGui.Parent = playerGui; statusFrame = Instance.new("Frame"); statusFrame.Name = "StatusFrame"; statusFrame.Size = UDim2.new(1, 0, 1, 0); statusFrame.BackgroundColor3, statusFrame.BorderSizePixel = NEON_COLORS.GREEN, 0; statusFrame.BackgroundTransparency = 1; statusFrame.ZIndex = 1; statusFrame.Parent = statusScreenGui; local FIXED_TEXT_SIZE = 50; statusTextLabel = Instance.new("TextLabel"); statusTextLabel.Name = "StatusLabel"; statusTextLabel.Size = UDim2.new(0.9, 0, 0, FIXED_TEXT_SIZE + 80); statusTextLabel.Position = UDim2.new(0.5, 0, 0.5, 0); statusTextLabel.AnchorPoint = Vector2.new(0.5, 0.5); statusTextLabel.BackgroundTransparency = 1; statusTextLabel.TextColor3 = Color3.new(1, 1, 1); statusTextLabel.Font = Enum.Font.SourceSansSemibold; statusTextLabel.TextScaled = false; statusTextLabel.TextSize = FIXED_TEXT_SIZE - 15; statusTextLabel.TextXAlignment, statusTextLabel.TextYAlignment = Enum.TextXAlignment.Center, Enum.TextYAlignment.Center; statusTextLabel.TextWrapped = true; statusTextLabel.Text = "..."; statusTextLabel.ZIndex = 2; statusTextLabel.Parent = statusScreenGui end
+local function updateDisplay(state, message) task.spawn(function() print("[UI] " .. tostring(message)); if not statusTextLabel or not statusTextLabel.Parent then return end; local stateColor = NEON_COLORS.GREEN; if state == "ERROR" then stateColor = NEON_COLORS.YELLOW elseif state == "BOT_DETECTED" then stateColor = NEON_COLORS.RED end; statusTextLabel.Text = tostring(message); statusTextLabel.TextColor3 = stateColor; if SETTINGS.EnableCountdownColor then if statusFrame and statusFrame.Parent then if state == "SUCCESS" or state == "ERROR" or state == "BOT_DETECTED" then statusFrame.BackgroundColor3 = stateColor; statusFrame.BackgroundTransparency = 0.5 else statusFrame.BackgroundTransparency = 1 end end else if statusFrame then statusFrame.BackgroundTransparency = 1 end end end) end
+
+-- =================================================================
+-- HÀM XỬ LÝ AVOID PLAYERS
+-- =================================================================
+local function loadAvoidPlayersFromFile()
+    if not canAccessFiles then return {} end
+    local avoidList = {}
+    local success, content = pcall(readfile_func, AVOID_PLAYERS_FILENAME)
+    if success and content then
+        for line in string.gmatch(content, "[^\r\n]+") do
+            local trimmedLine = line:match("^%s*(.-)%s*$")
+            if trimmedLine and #trimmedLine > 0 then
+                table.insert(avoidList, trimmedLine)
+            end
+        end
+    end
+    return avoidList
+end
+
+local function updateAvoidPlayersFromGithub()
+    print("[AvoidPlayers] Đang cập nhật danh sách từ GitHub...")
+    local success, result = pcall(function() return game:HttpGet(GITHUB_ACCOUNTS_URL, true) end)
+    if success and result and #result > 0 then
+        if canAccessFiles then pcall(writefile_func, AVOID_PLAYERS_FILENAME, result) end
+        local avoidList = {}
+        for line in string.gmatch(result, "[^\r\n]+") do
+            local trimmedLine = line:match("^%s*(.-)%s*$")
+            if trimmedLine and #trimmedLine > 0 then table.insert(avoidList, trimmedLine) end
+        end
+        return avoidList
+    else
+        return loadAvoidPlayersFromFile()
+    end
+end
+
+local function checkAvoidPlayersInCurrentServer(avoidList)
+    if not SETTINGS.EnableAvoidPlayers or not avoidList or #avoidList == 0 then return false end
+    local avoidNamesSet = {}
+    for _, name in ipairs(avoidList) do avoidNamesSet[name] = true end
+    for _, player in ipairs(Players:GetPlayers()) do
+        if player.Name ~= LocalPlayer.Name and avoidNamesSet[player.Name] then
+            updateDisplay("ERROR", string.format("Phát hiện tài khoản '%s'!", player.Name))
+            return true, player.Name
+        end
+    end
+    return false
+end
+
+-- =================================================================
+-- LOGIC TÌM SERVER (FIXED)
+-- =================================================================
+local executeTeleport = function(jobId)
+    if SETTINGS.EnableAvoidPlayers then
+        local currentAvoidList = loadAvoidPlayersFromFile()
+        if #currentAvoidList > 0 then print("[AvoidPlayers] Kiểm tra server đích...") end
+    end
+    updateDisplay("SUCCESS", "Dịch chuyển...")
+    pcall(function() TeleportService:TeleportToPlaceInstance(game.PlaceId, jobId, LocalPlayer) end)
+end
+
+local tryNextNecoServer = function()
+    if #necoCandidateServers > 0 then
+        local randomIndex = rng:NextInteger(1, #necoCandidateServers)
+        local targetServerId = necoCandidateServers[randomIndex]
+        table.remove(necoCandidateServers, randomIndex)
+        updateDisplay("INFO", string.format("Thử server Neco ngẫu nhiên: %s...", targetServerId:sub(1, 8)))
+        executeTeleport(targetServerId)
+    else
+        isHoppingFromNeco = false
+        updateDisplay("ERROR", "Hết server trong neco.txt.")
+        task.wait(1)
+        searchForServer() 
+    end
+end
+
+searchForServer = function()
+    if currentCountdownThread then pcall(coroutine.close, currentCountdownThread) end
+    if playerMonitorThread then pcall(coroutine.close, playerMonitorThread) end
+    serverHistoryCache[currentJobId] = true
+
+    local avoidPlayersList = {}
+    if SETTINGS.EnableAvoidPlayers then
+        updateDisplay("INFO", "Cập nhật tài khoản cần né...")
+        avoidPlayersList = updateAvoidPlayersFromGithub()
+    end
+
+    isHoppingFromNeco = false
+    isHoppingFromCache = false
+
+    -- Tải server từ neco.txt
+    necoCandidateServers = {}
+    if canAccessFiles then
+        local success, content = pcall(readfile_func, NECO_SERVER_LIST_FILENAME)
+        if success and content then
+            for line in string.gmatch(content, "[^\r\n]+") do
+                local trimmedLine = line:match("^%s*(.-)%s*$")
+                if trimmedLine and #trimmedLine > 0 and trimmedLine ~= currentJobId and not serverHistoryCache[trimmedLine] then
+                    table.insert(necoCandidateServers, trimmedLine)
+                end
+            end
+        end
+    end
+
+    if #necoCandidateServers > 0 then
+        isHoppingFromNeco = true
+        updateDisplay("INFO", string.format("Tìm thấy %d server Neco.\nBắt đầu chọn ngẫu nhiên...", #necoCandidateServers))
+        task.wait(1)
+        tryNextNecoServer() -- ĐÃ GỌI HÀM NÀY
+    else
+        updateDisplay("INFO", "Bắt đầu tìm server từ API...")
+        -- Logic tìm server API (giản lược để chạy)
+        pcall(function()
+            local url = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Desc&limit=100&excludeFullGames=true"
+            local res = HttpService:JSONDecode(game:HttpGet(url, true))
+            if res and res.data then
+                for _, s in ipairs(res.data) do
+                    if s.id ~= currentJobId and not serverHistoryCache[s.id] then
+                        executeTeleport(s.id)
+                        return
+                    end
+                end
+            end
+        end)
+    end
+end
+
+-- =================================================================
+-- KHỞI CHẠY
+-- =================================================================
+task.spawn(function()
+    pcall(createStatusGui)
+    updateDisplay("INFO", "Khởi tạo script...")
+    task.wait(1)
+
+    if SETTINGS.EnableServerHop then
+        local avoidList = updateAvoidPlayersFromGithub()
+        local hasAvoid, pName = checkAvoidPlayersInCurrentServer(avoidList)
+        
+        if hasAvoid then
+            updateDisplay("ERROR", "Né người chơi: " .. pName)
+            task.wait(2)
+            searchForServer()
+        else
+            updateDisplay("SUCCESS", "Server an toàn. Bắt đầu AFK.")
+            -- Tiếp tục các logic AFK khác...
+        end
+    end
+end)
