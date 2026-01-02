@@ -1,1 +1,1 @@
-loadstring(game:HttpGet("https://gist.githubusercontent.com/AinsworthNecco/2582fc470f4594f789b3441605d3a442/raw/9ca4c8ea1fa0c145c19e9c01c7c512a144a0003d/PlsDonate"))()
+loadstring(game:HttpGet("https://gist.githubusercontent.com/AinsworthNecco/2582fc470f4594f789b3441605d3a442/raw/db2a3343bb8ab839e1b302d2ee249260db505cd7/PlsDonate"))()
