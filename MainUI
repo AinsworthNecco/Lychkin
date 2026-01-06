@@ -1,5 +1,5 @@
 -- [[ AUTO RE-EXECUTE ON TELEPORT ]]
-local url = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/NecoMain"
+local url = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/MainUI"
 local q = syn and syn.queue_on_teleport or queue_on_teleport
 if q then q(("loadstring(game:HttpGet('%s'))()"):format(url)) end
 
