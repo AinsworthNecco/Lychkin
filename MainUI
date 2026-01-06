@@ -466,7 +466,7 @@ end
 fetchNextBatch = function()
     updateDisplay("INFO", "Đang quét 100 server tiếp theo...")
     
-    local apiUrl = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Arc&limit=100&excludeFullGames=true"
+    local apiUrl = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Desc&limit=100&excludeFullGames=true"
     if nextServerCursor then
         apiUrl = apiUrl .. "&cursor=" .. nextServerCursor
     end
