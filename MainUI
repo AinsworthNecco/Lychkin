@@ -1,2 +1,475 @@
-getgenv().Config = {["Auto Join Equipper"]={["Macro Equipper"]={["Enable"]=false},["Team Equipper"]={["Enable"]=false}},["Gold Buyer"]={["Enable"]=false},["Dungeon Joiner"]={["Auto Join"]=false},["Stage Joiner"]={["Auto Join"]=false,["Join Highest"]=false,["Nightmare Mode"]=false,["Join Lowest Clear"]=false},["Macros"]={["Auto Equip"]=false,["Macro Retry Limit"]=0,["Play"]=false,["Ignore Macro Timing"]=true,["No Ignore Sell Timing"]=true},["Summer Event"]={["Summer Event Joiner"]={["Auto Join"]=true}},["Webhook"]={["Unit Summoned"]=true,["Trait Rerolled"]=true,["URL"]="https://discord.com/api/webhooks/1251040771952349274/uNLajABQNI711STH8eKvzmcckjz1w_-CsJxYNkobgpSnUTIhIlxM4gaT9A6bAfT9xFdd",["Match Restarted"]=true,["Stage Finished"]=true,["Stat Potential Rerolled"]=true,["Unit Stat Potential"]=true},["Stat Reroller"]={["Stat Potential"]=100,["Teleport Lobby reach Stat Potential"]=false,["Enable"]=false,["Stat"]={["神"]=false,["Z+"]=false,["S"]=false,["Z"]=false},["Type"]={["SPA"]=false,["All"]=false,["Range"]=false,["Damage"]=false}},["Trait Reroller"]={["Enable"]=false},["Odyssey Joiner"]={["Second Team"]=2,["Auto Join"]=false,["First Team"]=1,["Intensity"]=200,["Cash Out Floor"]=5},["Summer Portal Joiner"]={["Buy if out of Portal"]=false,["Tier Cap"]=10,["Auto Join"]=false,["Ignore Modifier"]={["Strong"]=false,["Thrice"]=false,["Regen"]=false,["Fast"]=false,["Revitalize"]=false,["Champions"]=false,["Exploding"]=false,["Dodge"]=false,["Immunity"]=false,["Shielded"]=false,["Quake"]=false,["Drowsy"]=false},["Portal Reward Picker"]={["Enable"]=false,["Ignore Modifier"]={["Strong"]=false,["Thrice"]=false,["Regen"]=false,["Fast"]=false,["Revitalize"]=false,["Champions"]=false,["Exploding"]=false,["Dodge"]=false,["Immunity"]=false,["Shielded"]=false,["Quake"]=false,["Drowsy"]=false}},["Auto Next"]=false},["Claimer"]={["Auto Claim Milestone"]=false,["Auto Claim Quest"]=false,["Auto Claim Collection Milestone"]=false,["Auto Claim Daily Reward"]=false,["Auto Claim Achievement"]=false,["Auto Claim Collection"]=false,["Auto Claim Enemy Index"]=false,["Auto Claim Battle Pass"]=false},["Gameplay"]={["Double Dungeon"]={["Auto Statue"]=false,["Leave Extra Money"]=5000,["Upgrade Amount"]=0},["Saber Event"]={["Servant"]="Berserker",["Auto Select Servant"]=false},["Steel Ball Run"]={["Collect Steel Ball"]=false},["Random Sacrifice Domain"]={["Sell Units on Event"]=false},["Auto Vote Start"]=true,["Auto Skip Wave"]={["Enable"]=true,["Stop Skip Stage Type"]={["Odyssey"]=true,["Challenge"]=true,["Portal"]=true,["Worldline"]=true,["Legend Stage"]=true,["BossEvent"]=true,["Dungeon"]=true,["Infinite"]=true,["Rift"]=true,["Raid"]=true,["Story"]=true},["Stop at Wave"]=0},["Auto Use Ability"]=true,["Elemental Dimensions"]={["Enable"]=false,["Order"]={["Fire"]=1,["Sand"]=3,["Ice"]=2}},["Auto Sell"]={["Auto Sell Farm"]={["Enable"]=false,["Wave"]=1,["Stage Type"]={["Odyssey"]=true,["Challenge"]=true,["Portal"]=true,["Worldline"]=true,["Legend Stage"]=true,["BossEvent"]=true,["Dungeon"]=true,["Infinite"]=true,["Rift"]=true,["Raid"]=true,["Story"]=true}},["Auto Sell Unit"]={["Enable"]=false,["Wave"]=1,["Stage Type"]={["Odyssey"]=true,["Challenge"]=true,["Portal"]=true,["Worldline"]=true,["Legend Stage"]=true,["BossEvent"]=true,["Dungeon"]=true,["Infinite"]=true,["Rift"]=true,["Raid"]=true,["Story"]=true}}},["Ant Island"]={["Auto Plug Ant Tunnel"]=false},["Shibuya Station"]={["Auto Mohato"]=false,["Leave Extra Money"]=5000,["Upgrade Amount"]=0},["Ruined City"]={["Use Mount to Travel"]=true,["Active Tower"]=false,["Unhandcuff"]=false},["The System"]={["Auto Shadow"]={["Enable"]=false,["Order"]={["Steel"]=2,["Belu"]=4,["Healer"]=3,["Bear"]=1}}},["Burn Units"]={["Enable"]=false,["Slots"]={["1"]=false,["3"]=false,["2"]=false,["5"]=false,["4"]=false,["6"]=false},["Stage Type"]={["Odyssey"]=true,["Challenge"]=true,["Portal"]=true,["Worldline"]=true,["Legend Stage"]=true,["BossEvent"]=true,["Dungeon"]=true,["Infinite"]=true,["Rift"]=true,["Raid"]=true,["Story"]=true}},["Edge of Heaven"]={["Auto Join Lfelt Portal"]=false,["Pause instead of Joining"]=false},["Martial Island"]={["Auto Join God Portal"]=false,["Collect Rotara Earring"]=false,["Pause instead of Joining"]=false,["Restart if no Rotara Earring"]=false},["Occult Hunt"]={["Collect Talisman"]=false,["Use All Talisman"]={["Enable"]=false,["Wave"]=1},["Use Talisman on Crab"]=false},["Auto Restart"]={["Enable"]=true,["Wave"]=20,["Stage Type"]={["Odyssey"]=true,["Challenge"]=true,["Portal"]=true,["Worldline"]=true,["Legend Stage"]=true,["BossEvent"]=true,["Dungeon"]=true,["Infinite"]=true,["Rift"]=true,["Raid"]=true,["Story"]=true}}},["Daily Challenge Joiner"]={["Auto Join"]=false},["Misc"]={["Auto Open Gift Boxes"]=false,["Right Click Move"]=false,["Max Camera Zoom"]=40,["Auto Delete Portal"]={["Enable"]=false,["Summer Portal"]=500,["Spring Portal"]=500},["Right Click Teleport"]=false,["Redeem Code"]=false},["Summoner"]={["Teleport Lobby new Banner"]=false,["Unselect if Summoned"]=false,["Normalize Rarity"]={["Legendary"]=false,["Mythic"]=false,["Exclusive"]=false,["Epic"]=false,["Rare"]=false},["Auto Summon Summer"]=false,["Auto Summon Special"]=false,["Auto Summon Spring"]=false,["Delete Rarity"]={["Legendary"]=false,["Mythic"]=false,["Exclusive"]=false,["Epic"]=false,["Rare"]=false}},["Unit Deleter"]={["Enable"]=false,["Rarity"]={["Epic"]=false,["Legendary"]=false,["Rare"]=false}},["Worldline Joiner"]={["Auto Join"]=false},["Regular Challenge Joiner"]={["Auto Join"]=false,["Teleport Lobby new Challenge"]=false},["Auto Play"]={["Auto Upgrade"]={["Upgrade Order"]={["1"]=1,["3"]=3,["2"]=2,["5"]=5,["4"]=4,["6"]=6},["Place and Upgrade"]=false,["Enable"]=true,["Focus on Farm"]=true,["Upgrade Method"]="Hotbar left to right (until Max)",["Upgrade Limit"]={["1"]=0,["3"]=0,["2"]=0,["5"]=0,["4"]=0,["6"]=0}},["Place Limit"]={["1"]=0,["3"]=0,["2"]=0,["5"]=0,["4"]=0,["6"]=0},["Enable"]=true,["Place Order"]={["1"]=1,["3"]=3,["2"]=2,["5"]=5,["4"]=4,["6"]=6},["Place Wave"]={["1"]=0,["3"]=0,["2"]=0,["5"]=0,["4"]=0,["6"]=0}},["Match Finished"]={["Auto Return Lobby"]=false,["Auto Next"]=false,["Replay Amount"]=0,["Return Lobby Failsafe"]=false,["Auto Replay"]=true},["Crafter"]={["Enable"]=false,["Teleport Lobby full Essence"]=false,["Essence Stone"]={["Pink Essence Stone"]=true,["Blue Essence Stone"]=true,["Red Essence Stone"]=true,["Yellow Essence Stone"]=true,["Purple Essence Stone"]=true},["Essence Stone Limit"]={["Pink Essence Stone"]=50,["Blue Essence Stone"]=50,["Red Essence Stone"]=50,["Yellow Essence Stone"]=50,["Purple Essence Stone"]=50}},["Skin Deleter"]={["Enable"]=false},["Legend Stage Joiner"]={["Auto Join"]=false},["Performance Failsafe"]={["Teleport Lobby FPS below"]={["Enable"]=false,["FPS"]=5}},["Auto Join Setting"]={["Joiner Cooldown"]=0,["Joiner Priority"]={["Limitless Odyssey Joiner"]=8,["Spring Portal Joiner"]=9,["Boss Event Joiner"]=5,["Dungeon Joiner"]=4,["Legend Stage Joiner"]=2,["Summer Portal Joiner"]=11,["Stage Joiner"]=1,["Odyssey Joiner"]=7,["Weekly Challenge Joiner"]=15,["Raid Joiner"]=3,["Worldline Joiner"]=6,["Regular Challenge Joiner"]=13,["Boss Bounties Joiner"]=12,["Summer Event Joiner"]=10,["Daily Challenge Joiner"]=14,["Rift Joiner"]=16}},["Raid Joiner"]={["Auto Join"]=false},["Weekly Challenge Joiner"]={["Auto Join"]=false},["Failsafe"]={["Teleport Lobby if Player"]=false,["Disable Auto Teleport AFK Chamber"]=false},["Limitless Odyssey Joiner"]={["Auto Force Skip Wave"]=false,["Auto Join"]=false,["Force Skip Wave"]=1,["Leave Floor"]=1,["Intensity"]=25},["Unit Feeder"]={["Auto Feed"]=false,["Feed Level"]=60},["Secure"]={["Walk Around"]=false,["Random Offset"]=true},["Boss Bounties Joiner"]={["Auto Join"]=false},["Performance"]={["Delete Map"]=true,["Boost FPS"]=true,["Black Screen"]=false,["Delete Entities"]=true},["Modifier"]={["Restart Modifier"]={["Enable"]=false,["Stage Type"]={["Odyssey"]=true,["Challenge"]=true,["Portal"]=true,["Worldline"]=true,["Legend Stage"]=true,["BossEvent"]=true,["Dungeon"]=true,["Infinite"]=true,["Rift"]=true,["Raid"]=true,["Story"]=true},["Modifier"]={["Drowsy"]=false,["Warding off Evil"]=false,["King's Burden"]=false,["Champions"]=false,["No Trait No Problem"]=false,["Immunity"]=false,["Quake"]=false,["Dodge"]=false,["Lifeline"]=false,["Fisticuffs"]=false,["Exterminator"]=false,["Money Surge"]=false}},["Auto Modifier"]={["Enable"]=true,["Prioritize"]={["Range"]=18,["Revitalize"]=6,["Unit Draw"]=32,["Exploding"]=2,["Immunity"]=11,["Damage"]=20,["Lifeline"]=29,["Evolution"]=33,["Regen"]=7,["Press It"]=14,["Nighttime"]=30,["Shielded"]=5,["Cooldown"]=19,["Money Surge"]=26,["Strong"]=3,["Thrice"]=4,["Warding off Evil"]=24,["Quake"]=9,["Fast"]=1,["Dodge"]=10,["Fisticuffs"]=25,["Drowsy"]=8,["Wild Card"]=31,["King's Burden"]=27,["Uncommon Loot"]=22,["Common Loot"]=21,["Exterminator"]=28,["Planning Ahead"]=15,["Champions"]=12,["Harvest"]=17,["Precise Attack"]=13,["Slayer"]=16,["No Trait No Problem"]=23}}},["Boss Event Joiner"]={["Auto Join"]=false,["Nightmare Mode"]=false},["Spring Portal Joiner"]={["Tier Cap"]=10,["Auto Next"]=false,["Ignore Modifier"]={["Strong"]=false,["Thrice"]=false,["Regen"]=false,["Fast"]=false,["Revitalize"]=false,["Champions"]=false,["Exploding"]=false,["Dodge"]=false,["Immunity"]=false,["Shielded"]=false,["Quake"]=false,["Drowsy"]=false},["Teleport Lobby full Iced Box"]=false,["Ignore Act"]={["[Land of the Gods] Act2"]=false,["[Planet Namak] Act3"]=false,["[Edge of Heaven] Act5"]=false,["[Planet Namak] Act5"]=false,["[Edge of Heaven] Act2"]=false,["[Planet Namak] Act1"]=false,["[Edge of Heaven] Act6"]=false,["[Land of the Gods] Act3"]=false,["[Edge of Heaven] Act3"]=false,["[Edge of Heaven] Act4"]=false,["[Planet Namak] Act2"]=false,["[Planet Namak] Act4"]=false,["[Edge of Heaven] Act1"]=false,["[Land of the Gods] Act1"]=false,["[Planet Namak] Act6"]=false},["Auto Join"]=false,["Teleport Lobby full Wooden Chest"]=false,["Buy if out of Portal"]=false,["Portal Reward Picker"]={["Enable"]=false,["Ignore Modifier"]={["Strong"]=false,["Thrice"]=false,["Regen"]=false,["Fast"]=false,["Revitalize"]=false,["Champions"]=false,["Exploding"]=false,["Dodge"]=false,["Immunity"]=false,["Shielded"]=false,["Quake"]=false,["Drowsy"]=false},["Prioritize"]={["Edge of Heaven"]=3,["Planet Namak"]=2,["Land of the Gods"]=1}}},["Rift Joiner"]={["Teleport Lobby Rift spawn"]={["Enable"]=false,["Force teleport"]=false,["Extra Time"]=60},["Hop Server if no Rift Portal"]=false,["Auto Join"]=false,["Join Solo Only"]=false}}
-loadstring(game:HttpGet("https://nousigi.com/loader.lua"))()
+-- [[ AUTO RE-EXECUTE ON TELEPORT ]]
+local url = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/NecoMain"
+local q = syn and syn.queue_on_teleport or queue_on_teleport
+if q then q(("loadstring(game:HttpGet('%s'))()"):format(url)) end
+
+-- [[ PREVENT DOUBLE EXECUTION ]]
+if getgenv().plsdonate_ran then return end
+getgenv().plsdonate_ran = true
+
+local SETTINGS = {
+    -- =================================================================
+    -- CÀI ĐẶT NÉ NGƯỜI CHƠI (TỪ SCRIPT 1)
+    -- =================================================================
+    ["EnableAvoidPlayers"] = true,
+    ["AVOID_PLAYERS"] = {
+        "HelloPlayer1st", "Lychkinsama", "Er1kaThe", "FusionViperBlizzard2",
+        "Xx_AbigailPixelFr0st", "PrismCraz3Dark2022", "Thunder_Vortex67",
+        "WilliamDawnOrbitYT", "FrostNeonBuilder2014", "XX_BaconFlashInf3rno",
+        "Abigail_Duck35", "Jax0n_Danc3r2006", "XxTurboDancerCookiex",
+        "AquaByt3Pho3nix2002", "XxJackHawkHer0xX", "JacksonEpicAce2003",
+        "ToxicGigaMoon29", "FlickQueen2008_YT", "XXHYP3R_FoxxX2017",
+        "Victoria_Cyb3r12", "Zer0N0vaFusi0n", "RiftRider2024_YT",
+        "ViperPulse85", "ZoeSkaterBuilder2021", "Z0eM00n87",
+        "Inf3rnoStarPanda46", "XxJulian_PixelxX54", "SkaterSonic200348",
+        "P0wer_WRAITH85", "XxVictoriaFrostChase", "XxGraceStealthT0xicx",
+        "Shad0wHunt3rByt3", "XxLucas_DARKXX201736", "AquaBane43"
+    },
+
+    -- =================================================================
+    -- CÀI ĐẶT CHỐNG BOT
+    -- =================================================================
+    ["EnableAntiBotScan"] = true,
+    ["BOT_KEYWORDS"] = { "spin", "afk", "restaurant", "jump", "gift", "speed", "develop", "streaming", "live", "game", "#", "dream", "first", "mom", "big" },
+    ["DETECTION_THRESHOLD"] = 4,
+
+    -- =================================================================
+    -- CÀI ĐẶT SERVER HOP & AFK (LOGIC TỪ SCRIPT 2)
+    -- =================================================================
+    ["WaitMinutes"] = 10,
+    ["MaxServerHistorySize"] = 500,
+    ["EnableSharedServerCache"] = true, -- Bật cache dùng chung giữa các acc
+    ["EnablePlayerCountCheck"] = true,
+    ["MinPlayerThreshold"] = 14,
+    ["MinPlayerPercentage"] = 0.50, -- % tối thiểu (Script 2)
+    ["MaxPlayerPercentage"] = 0.98, -- % tối đa (Script 2)
+    ["EnableServerHop"] = true,
+    ["EnableSafePlatform"] = true,
+    ["EnableStaticAfkView"] = true, -- Camera tĩnh (Script 2)
+    ["EnableDonateReset"] = true,
+    ["EnableAutoReconnect"] = true, -- Tự vào lại khi mất mạng
+
+    -- =================================================================
+    -- CÀI ĐẶT DISCORD WEBHOOK
+    -- =================================================================
+    ["EnableDiscordWebhook"] = true,
+    ["WebhookURL"] = "https://discord.com/api/webhooks/1397368466947969147/HbncMuT0ETe6_5q_kKGzkdd7guLfiGqvewr3WuBFfHAxKBJo3TA7R6ad2ex31YkBHo75",
+    ["WebhookColor"] = 16738740,
+    ["EnablePingOnDonate"] = true,
+    ["PingAmount"] = 1000,
+    ["PingUserID"] = "",
+
+    -- =================================================================
+    -- CÀI ĐẶT TỰ ĐỘNG TRẢ LỜI & CHAT (ĐẦY ĐỦ TỪ SCRIPT 1)
+    -- =================================================================
+    ["EnableAutoReply"] = true,
+    ["ReplyRadius"] = 25,
+    ["ReplyCooldown"] = 7,
+    ["ReplyRules"] = {
+        { keywords = { "hi", "hello", "hey", "sup", "yo", "wsg", "howdy", "greetings", "wassup", "heya" }, replies = { "Hello!", "Hi there", "Hey!", "Yo", "What's up?", "Heya", "Sup", "Heyo!", "What's good?", "Well hello there." } },
+        { keywords = { "only","donate", "pls", "give me", "robux pls", "can i have", "spare", "some robux", "can u donate", "plz donate", "can you give", "i need robux" }, replies = { "Sorry, I'm saving up right now.", "I can't donate at the moment, sorry.", "My robux is pending, can't help sorry.", "Sry, saving for something specific.", "Maybe later, I'm trying to reach my own goal.", "Can't right now, good luck though!", "All my robux is tied up, sorry.", "Sorry, my wallet is on a diet.", "I wish I could, but I'm broke lol." } },
+        { keywords = { "bot", "auto", "script", "scripter", "macro", "afk farm", "autoclicker", "you a bot?" }, replies = { "I'm not a bot :)", "lol no, I'm a real player.", "Just vibing, not a bot.", "Beep boop? Nah, just kidding.", "I'm a human, I promise!", "Not a script, just dedicated lol.", "Do I look like a bot to you? :P", "Last time I checked, I still need to sleep. So, not a bot.", "01001110 01101111. (That means 'No' in binary)." } },
+        { keywords = { "scam", "fake", "report", "scammer", "this is a scam", "don't trust", "he's a scammer", "is this fake" }, replies = { "This is not a scam.", "I'm not a scammer.", "It's legit, no worries.", "100% legit, my friend.", "No scams here, just good vibes.", "I'm just here to play the game like you.", "Why would you think it's a scam?", "The only thing I'm scamming is time, by playing this game.", "You've got the wrong person, I'm just here to chill." } },
+        { keywords = { "why are you", "how are you", "spinning", "jumping", "afk" }, replies = { "Just farming for my goal.", "It's part of the grind.", "Doing this for donations." } },
+    },
+    ["EnableAutoThank"] = true,
+    ["ThankYouMessages"] = { "Thanks for the donation!", "Tysm!!", "Thank you so much!", "OMG THANKKK!", "THANKS", "TYSM!" },
+    ["EnableAutoSpam"] = true,
+    ["SpamInterval"] = 60,
+    ["SpamMessages"] = { 
+        "Goal: MAX SPIN LEVEL 100🌀 - 1 ROBUX = +1 SPEED!", 
+        "Goal: MAX SPIN LEVEL 100🌀 - 1 ROBUX = +1 SPEED!" 
+    },
+
+    -- =================================================================
+    -- CÀI ĐẶT BOOTH & SPIN
+    -- =================================================================
+    ["EnableBoothFeatures"] = true,
+    ["boothTextFormat"] = "1 DONATE = 1 SPIN SPEED\nGOAL: $GOALK SPEED!",
+    ["hexBox"] = "#ffffff",
+    ["fontFace"] = "SciFi",
+    ["boothOffset"] = 3,
+    ["spinEnabled"] = true,
+    ["spinBaseSpeed"] = 0.4,
+    ["spinSpeedPerR"] = 0.1,
+
+    -- =================================================================
+    -- CÀI ĐẶT HIỆU NĂNG & KHÁC
+    -- =================================================================
+    ["EnableGraphicsOptimization"] = true,
+    ["EnableCpuOptimization"] = true,
+    ["SetSimulationRadiusToZero"] = true,
+    ["TargetFps"] = 7,
+    ["EnableFileHistory"] = true,
+    ["InitialWaitTime"] = 1,
+    ["EnableCountdownText"] = true,
+    ["EnableCountdownColor"] = true,
+}
+
+-- [[ INITIALIZE SERVICES ]]
+local identifyexecutor = identifyexecutor or function() return 'Unknown' end
+local cloneref = (identifyexecutor() ~= "Synapse Z" and not identifyexecutor():find("Codex") and cloneref) or function(o) return o end
+
+local Players = cloneref(game:GetService("Players"))
+local TeleportService = cloneref(game:GetService("TeleportService"))
+local HttpService = cloneref(game:GetService("HttpService"))
+local TextChatService = cloneref(game:GetService("TextChatService"))
+local Workspace = cloneref(game:GetService("Workspace"))
+local Lighting = cloneref(game:GetService("Lighting"))
+local SoundService = cloneref(game:GetService("SoundService"))
+local RunService = cloneref(game:GetService("RunService"))
+local ReplicatedStorage = cloneref(game:GetService("ReplicatedStorage"))
+local LocalPlayer = Players.LocalPlayer
+
+-- [[ GLOBAL CONFIG ]]
+local placeId = game.PlaceId
+local currentJobId = game.JobId
+local SERVER_HISTORY_FILENAME = "server_hop_history.txt"
+local SHARED_SERVER_CACHE_FILENAME = "shared_server_cache.txt"
+local NECO_SERVER_LIST_FILENAME = "neco.txt"
+local SERVER_HOP_GUI_NAME = "ServerHopStatusGUI"
+local AFK_PLATFORM_NAME = "MySafeAFKPlatform"
+local STATIC_HEAD_ANCHOR_PART_NAME = "AFK_HeadAnchor_StaticCam"
+local STATIC_BLACK_SCREEN_PART_NAME = "AFK_BlackScreen_StaticCam"
+local NEON_COLORS = { GREEN = Color3.fromRGB(10, 255, 20), YELLOW = Color3.fromRGB(255, 255, 0), RED = Color3.fromRGB(255, 20, 20) }
+
+-- [[ GLOBAL VARIABLES ]]
+local playerGui = LocalPlayer:WaitForChild("PlayerGui")
+local infoTextLabel, clockTextLabel, dateTextLabel, statusFrame
+local countdownShouldReset = false
+local currentCountdownThread = nil
+local playerMonitorThread = nil
+local Remotes = nil
+local spinVelocity = SETTINGS.spinBaseSpeed or 0.25
+local serverHistoryCache = {}
+local rng = Random.new()
+
+-- [[ FILE SYSTEM CHECK ]]
+local canAccessFiles = false
+local writefile_func, readfile_func
+if SETTINGS.EnableFileHistory then
+    pcall(function()
+        if writefile and readfile then
+            canAccessFiles, writefile_func, readfile_func = true, writefile, readfile
+        end
+    end)
+end
+
+-- =================================================================
+-- HỆ THỐNG GIAO DIỆN ĐỒNG HỒ (SCRIPT 2 STYLE)
+-- =================================================================
+local function createStatusGui()
+    if playerGui:FindFirstChild(SERVER_HOP_GUI_NAME) then playerGui[SERVER_HOP_GUI_NAME]:Destroy() end
+    local sg = Instance.new("ScreenGui")
+    sg.Name = SERVER_HOP_GUI_NAME
+    sg.ResetOnSpawn, sg.IgnoreGuiInset = false, true
+    sg.Parent = playerGui
+
+    local bg = Instance.new("Frame", sg)
+    bg.Size = UDim2.new(1, 0, 1, 0)
+    bg.BackgroundColor3 = Color3.new(0, 0, 0)
+    bg.BorderSizePixel = 0
+    bg.ZIndex = 1
+
+    statusFrame = Instance.new("Frame", sg)
+    statusFrame.Size = UDim2.new(1, 0, 1, 0)
+    statusFrame.BackgroundTransparency = 1
+    statusFrame.ZIndex = 2
+
+    clockTextLabel = Instance.new("TextLabel", sg)
+    clockTextLabel.Size = UDim2.new(1, 0, 0, 120)
+    clockTextLabel.Position = UDim2.new(0.5, 0, 0.45, 0)
+    clockTextLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+    clockTextLabel.BackgroundTransparency = 1
+    clockTextLabel.TextColor3 = Color3.new(1, 1, 1)
+    clockTextLabel.Font = Enum.Font.SciFi
+    clockTextLabel.TextSize = 110
+    clockTextLabel.ZIndex = 3
+
+    dateTextLabel = Instance.new("TextLabel", sg)
+    dateTextLabel.Size = UDim2.new(1, 0, 0, 50)
+    dateTextLabel.Position = UDim2.new(0.5, 0, 0.56, 0)
+    dateTextLabel.AnchorPoint = Vector2.new(0.5, 0.5)
+    dateTextLabel.BackgroundTransparency = 1
+    dateTextLabel.TextColor3 = Color3.fromRGB(200, 200, 200)
+    dateTextLabel.Font = Enum.Font.SourceSansSemibold
+    dateTextLabel.TextSize = 28
+    dateTextLabel.ZIndex = 3
+
+    infoTextLabel = Instance.new("TextLabel", sg)
+    infoTextLabel.Size = UDim2.new(0.9, 0, 0, 80)
+    infoTextLabel.Position = UDim2.new(0.5, 0, 1, -20)
+    infoTextLabel.AnchorPoint = Vector2.new(0.5, 1)
+    infoTextLabel.BackgroundTransparency = 1
+    infoTextLabel.TextColor3 = Color3.new(1, 1, 1)
+    infoTextLabel.Font = Enum.Font.SourceSans
+    infoTextLabel.TextSize = 24
+    infoTextLabel.TextWrapped = true
+    infoTextLabel.ZIndex = 3
+end
+
+local function updateDisplay(state, message)
+    task.spawn(function()
+        if not infoTextLabel then return end
+        local color = NEON_COLORS.GREEN
+        if state == "ERROR" then color = NEON_COLORS.YELLOW elseif state == "BOT_DETECTED" then color = NEON_COLORS.RED end
+        infoTextLabel.Text = tostring(message)
+        infoTextLabel.TextColor3 = color
+        if statusFrame then
+            statusFrame.BackgroundColor3 = color
+            statusFrame.BackgroundTransparency = (state == "IDLE" and 1 or 0.85)
+        end
+    end)
+end
+
+local vietnameseDays = { ["Sunday"] = "Chủ Nhật", ["Monday"] = "Thứ Hai", ["Tuesday"] = "Thứ Ba", ["Wednesday"] = "Thứ Tư", ["Thursday"] = "Thứ Năm", ["Friday"] = "Thứ Sáu", ["Saturday"] = "Thứ Bảy" }
+local function startClock()
+    task.spawn(function()
+        while task.wait(1) do
+            if clockTextLabel then
+                clockTextLabel.Text = os.date("%H:%M:%S")
+                local dayEn = os.date("%A")
+                local dayVn = vietnameseDays[dayEn] or dayEn
+                dateTextLabel.Text = string.format("%s, ngày %s", dayVn, os.date("%d/%m/%Y"))
+            end
+        end
+    end)
+end
+
+-- =================================================================
+-- HỆ THỐNG FILE (TRÍCH TỪ SCRIPT 1 & 2)
+-- =================================================================
+local function loadServerHistoryOnce()
+    if not canAccessFiles then return end
+    local historySet = {}
+    local success, content = pcall(readfile_func, SERVER_HISTORY_FILENAME)
+    if success and content then
+        for line in string.gmatch(content, "[^" .. "\r\n" .. "]+") do
+            historySet[line:match("^%s*(.-)%s*$")] = true
+        end
+    end
+    local count = 0; for _ in pairs(historySet) do count = count + 1 end
+    if count >= SETTINGS.MaxServerHistorySize then
+        pcall(writefile_func, SERVER_HISTORY_FILENAME, "")
+        historySet = {}
+    end
+    serverHistoryCache = historySet
+end
+
+local function saveHistory(id)
+    if not id or not canAccessFiles then return end
+    serverHistoryCache[id] = true
+    local list = {}
+    for i in pairs(serverHistoryCache) do table.insert(list, i) end
+    pcall(writefile_func, SERVER_HISTORY_FILENAME, table.concat(list, "\n"))
+end
+
+local function loadNecoServers()
+    if not canAccessFiles then return {} end
+    local necoIds = {}
+    local success, content = pcall(readfile_func, NECO_SERVER_LIST_FILENAME)
+    if success and content then
+        for line in string.gmatch(content, "[^" .. "\r\n" .. "]+") do
+            local id = line:match("^%s*(.-)%s*$")
+            if id and id ~= currentJobId and not serverHistoryCache[id] then
+                table.insert(necoIds, id)
+            end
+        end
+    end
+    return necoIds
+end
+
+-- =================================================================
+-- LOGIC TÌM SERVER NÂNG CAO (SCRIPT 2 + NECO FALLBACK)
+-- =================================================================
+function searchForServer()
+    updateDisplay("INFO", "Bắt đầu tìm server mới...")
+    loadServerHistoryOnce()
+    
+    -- Ưu tiên 1: Neco.txt (Nếu có)
+    local necoServers = loadNecoServers()
+    if #necoServers > 0 then
+        local target = necoServers[rng:NextInteger(1, #necoServers)]
+        updateDisplay("SUCCESS", "Chọn server từ neco.txt...")
+        saveHistory(target)
+        saveHistory(currentJobId)
+        task.wait(1)
+        TeleportService:TeleportToPlaceInstance(placeId, target, LocalPlayer)
+        return
+    end
+
+    -- Ưu tiên 2: API Roblox (Logic Script 2)
+    local urlBase = "https://games.roblox.com/v1/games/" .. placeId .. "/servers/Public?sortOrder=Desc&limit=100"
+    local nextCur = nil
+    local chosen = nil
+
+    while not chosen do
+        local targetUrl = urlBase .. (nextCur and "&cursor=" .. nextCur or "")
+        local req = (syn and syn.request) or (http and http.request) or request
+        local s, res = pcall(function() return req({ Url = targetUrl, Method = "GET" }) end)
+        
+        if s and res and res.Body then
+            local data = HttpService:JSONDecode(res.Body)
+            if data and data.data then
+                local candidates = {}
+                for _, srv in ipairs(data.data) do
+                    if srv.id ~= currentJobId and not serverHistoryCache[srv.id] then
+                        local ratio = srv.playing / srv.maxPlayers
+                        if ratio >= SETTINGS.MinPlayerPercentage and ratio <= SETTINGS.MaxPlayerPercentage then
+                            table.insert(candidates, srv)
+                        end
+                    end
+                end
+
+                if #candidates > 0 then
+                    -- Race condition protection: Randomize and check history again
+                    chosen = candidates[math.random(#candidates)]
+                    loadServerHistoryOnce()
+                    if serverHistoryCache[chosen.id] then chosen = nil end
+                end
+                nextCur = data.nextPageCursor
+                if not nextCur and not chosen then break end
+            end
+        end
+        task.wait(0.5)
+    end
+
+    if chosen then
+        updateDisplay("SUCCESS", "Đã tìm thấy server API!")
+        saveHistory(chosen.id)
+        saveHistory(currentJobId)
+        task.wait(1)
+        TeleportService:TeleportToPlaceInstance(placeId, chosen.id, LocalPlayer)
+    else
+        updateDisplay("ERROR", "Không tìm thấy server. Thử lại sau 15s...")
+        task.wait(15)
+        searchForServer()
+    end
+end
+
+-- =================================================================
+-- HỆ THỐNG TỐI ƯU HÓA & TIỆN ÍCH (SCRIPT 1 STYLE)
+-- =================================================================
+local function createSafePlatform()
+    if Workspace:FindFirstChild(AFK_PLATFORM_NAME) then return end
+    local p = Instance.new("Part", Workspace)
+    p.Name = AFK_PLATFORM_NAME
+    p.Anchored = true
+    p.Size = Vector3.new(10000, 20, 10000)
+    p.Position = Vector3.new(0, -100, 0)
+    p.Color = Color3.fromRGB(30, 30, 30)
+    
+    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    char:WaitForChild("HumanoidRootPart").CFrame = CFrame.new(0, -85, 0)
+end
+
+local function setupStaticAfkView()
+    local char = LocalPlayer.Character or LocalPlayer.CharacterAdded:Wait()
+    local head = char:WaitForChild("Head")
+    local cam = Workspace.CurrentCamera
+    cam.CameraType = Enum.CameraType.Scriptable
+    
+    local anchor = Instance.new("Part", Workspace)
+    anchor.Name = STATIC_HEAD_ANCHOR_PART_NAME
+    anchor.Anchored, anchor.Transparency, anchor.CanCollide = true, 1, false
+    anchor.CFrame = head.CFrame
+    
+    local black = Instance.new("Part", Workspace)
+    black.Name = STATIC_BLACK_SCREEN_PART_NAME
+    black.Size = Vector3.new(100, 100, 1)
+    black.Color = Color3.new(0, 0, 0)
+    black.Anchored, black.CanCollide = true, false
+    black.CFrame = anchor.CFrame * CFrame.new(0, 0, -10)
+    
+    cam.CFrame = CFrame.new(anchor.Position, black.Position)
+end
+
+local function optimizeGraphics()
+    pcall(function()
+        Lighting.GlobalShadows = false
+        Lighting.Brightness = 0
+        for _, v in ipairs(Workspace:GetDescendants()) do
+            if v:IsA("BasePart") and v.Name ~= AFK_PLATFORM_NAME then
+                v.Material = Enum.Material.SmoothPlastic
+            elseif v:IsA("Decal") or v:IsA("Texture") then
+                v:Destroy()
+            end
+        end
+    end)
+end
+
+-- =================================================================
+-- BOOTH & TƯƠNG TÁC
+-- =================================================================
+local function findRemotes()
+    if Remotes then return true end
+    for _, v in next, ReplicatedStorage:GetChildren() do
+        if v:IsA("ModuleScript") and v.Name:find("Remote") then
+            local ok = pcall(function() require(v).Event("PromotionBlimpGiftbux"):FireServer() end)
+            if ok then Remotes = require(v); return true end
+        end
+    end
+    return false
+end
+
+local function claimBooth()
+    if not SETTINGS.EnableBoothFeatures or not findRemotes() then return end
+    pcall(function()
+        local boothUI = Workspace:WaitForChild("MapUI"):WaitForChild("BoothUI")
+        for _, b in ipairs(boothUI:GetChildren()) do
+            if b.Details.Owner.Text == "unclaimed" then
+                Remotes.Event("ClaimBooth"):InvokeServer(tonumber(b.Name:match("%d+")))
+                break
+            end
+        end
+    end)
+end
+
+-- =================================================================
+-- KHỞI CHẠY CHÍNH
+-- =================================================================
+task.spawn(function()
+    createStatusGui()
+    startClock()
+    loadServerHistoryOnce()
+    
+    updateDisplay("INFO", "Đang khởi tạo hệ thống...")
+    task.wait(SETTINGS.InitialWaitTime)
+
+    -- Quét né người chơi
+    if SETTINGS.EnableAvoidPlayers then
+        for _, p in ipairs(Players:GetPlayers()) do
+            for _, name in ipairs(SETTINGS.AVOID_PLAYERS) do
+                if p.Name == name then
+                    updateDisplay("ERROR", "Né người chơi: " .. name)
+                    task.wait(2); searchForServer(); return
+                end
+            end
+        end
+    end
+
+    -- Khởi động các tính năng AFK
+    task.spawn(claimBooth)
+    if SETTINGS.EnableSafePlatform then createSafePlatform() end
+    if SETTINGS.EnableStaticAfkView then setupStaticAfkView() end
+    if SETTINGS.EnableGraphicsOptimization then optimizeGraphics() end
+    if SETTINGS.EnableCpuOptimization then pcall(function() setfpscap(SETTINGS.TargetFps) end) end
+
+    -- Luồng đếm ngược Hop Server
+    if SETTINGS.EnableServerHop then
+        task.spawn(function()
+            local waitS = SETTINGS.WaitMinutes * 60
+            for i = waitS, 0, -1 do
+                if countdownShouldReset then 
+                    countdownShouldReset = false
+                    updateDisplay("SUCCESS", "Nhận Donate! Reset đếm ngược.")
+                    task.wait(2)
+                    break 
+                end
+                updateDisplay("IDLE", string.format("Hop sau: %02d:%02d | Players: %d", math.floor(i/60), i%60, #Players:GetPlayers()))
+                task.wait(1)
+            end
+            searchForServer()
+        end)
+    end
+end)
