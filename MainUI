@@ -394,7 +394,21 @@ end
 local function claimAndSetupBooth()
     if not SETTINGS.EnableBoothFeatures or not findRemotes() then return end
     updateDisplay("INFO", "Đang claim booth...")
-    local boothUI = Workspace:WaitForChild("MapUI"):WaitForChild("BoothUI")
+    
+    local _boothlocation;
+    local suc, _shuffled = pcall(function() return Workspace:WaitForChild('MapUI', 5) end);
+    if not suc or not _shuffled then
+        local playerGuiMap = LocalPlayer:WaitForChild("PlayerGui");
+        if playerGuiMap then
+            local mapUiContainer = playerGuiMap:WaitForChild('MapUIContainer', 5);
+            if mapUiContainer then _boothlocation = mapUiContainer:WaitForChild('MapUI', 5) end
+        end
+    else _boothlocation = _shuffled end;
+
+    if not _boothlocation then return end
+    local boothUI = _boothlocation:WaitForChild("BoothUI", 5);
+    if not boothUI then return end
+
     local unclaimed = {}
     for _, frame in ipairs(boothUI:GetChildren()) do
         if frame:FindFirstChild("Details") and frame.Details.Owner.Text == "unclaimed" then
@@ -468,14 +482,40 @@ end
 -- LOGIC KIỂM TRA
 -- =================================================================
 local function scanForBots()
-    updateDisplay("INFO", "Đang quét bot..."); task.wait(1)
-    local boothUI = Workspace:WaitForChild("MapUI"):WaitForChild("BoothUI")
+    updateDisplay("INFO", "Đang quét bot...");
+    
+    local _boothlocation;
+    local suc, _shuffled = pcall(function() return Workspace:WaitForChild('MapUI', 5) end);
+    if not suc or not _shuffled then
+        local playerGuiMap = LocalPlayer:WaitForChild("PlayerGui");
+        if playerGuiMap then
+            local mapUiContainer = playerGuiMap:WaitForChild('MapUIContainer', 5);
+            if mapUiContainer then _boothlocation = mapUiContainer:WaitForChild('MapUI', 5) end
+        end
+    else _boothlocation = _shuffled end;
+
+    if not _boothlocation then
+        updateDisplay("ERROR", "Không tìm thấy MapUI để quét bot.")
+        return 0
+    end
+
+    local boothUI = _boothlocation:WaitForChild("BoothUI", 5);
+    if not boothUI then return 0 end
+
     local count = 0
     for _, frame in ipairs(boothUI:GetChildren()) do
-        if frame.Details.Owner.Text ~= "unclaimed" then
-            local txt = string.lower(frame.Sign.TextLabel.Text)
-            for _, kw in ipairs(SETTINGS.BOT_KEYWORDS) do if string.find(txt, kw) then count = count + 1; break end end
-        end
+        pcall(function()
+            if frame:FindFirstChild("Details") and frame.Details.Owner.Text ~= "unclaimed" then
+                local txt = string.lower(frame.Sign.TextLabel.Text)
+                for _, kw in ipairs(SETTINGS.BOT_KEYWORDS) do 
+                    if string.find(txt, kw) then 
+                        count = count + 1; 
+                        updateDisplay("BOT_DETECTED", "Phát hiện bot: " .. frame.Details.Owner.Text)
+                        break 
+                    end 
+                end
+            end
+        end)
     end
     return count
 end
