@@ -1,3 +1,17 @@
+-- Auto re-execute on teleport
+local url = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/MainUI"
+local q = syn and syn.queue_on_teleport or queue_on_teleport
+
+if q then
+    q(("loadstring(game:HttpGet('%s'))()"):format(url))
+end
+
+-- Ngăn double execute trong cùng 1 server
+if getgenv().plsdonate_ran then return end
+getgenv().plsdonate_ran = true
+
+-- Code chính của bạn bắt đầu từ đây
+print("NecoMain đã chạy thành công trong server này!")
 local SETTINGS = {
     -- =================================================================
     ["EnableAvoidPlayers"] = true, -- Bật/tắt tính năng né tài khoản
