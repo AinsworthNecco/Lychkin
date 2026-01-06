@@ -102,8 +102,8 @@ local SETTINGS = {
     ["TargetFps"] = 7,
     ["EnableFileHistory"] = true,
     ["InitialWaitTime"] = 1,
-    ["EnableCountdownText"] = true,
-    ["EnableCountdownColor"] = true,
+    ["EnableCountdownText"] = false,
+    ["EnableCountdownColor"] = false,
 }
 
 -- [[ INITIALIZE SERVICES ]]
