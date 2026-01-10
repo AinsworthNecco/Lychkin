@@ -2,7 +2,7 @@
 RANDOM_ACCOUNT_COUNT="5"
 PLACE_ID="8737602449" - ID của game cần quét
 ACCOUNT_SUFFIXES="1:10285468880,2:10291476534,3:10285469437,4:10292421786,5:10285464671,6:10292504198,7:10285489981,8:10292478251,9:10285165613,10:10291529118" - Hậu tố các tài khoản Roblox clone "b,c,d,e,f"  
-BASE_PACKAGE_NAME="com.roblox.clien" - Tên gói Roblox cơ bản
+BASE_PACKAGE_NAME="com.roblox.client" - Tên gói Roblox cơ bản
 
 --- CẤU HÌNH CHO TÁC VỤ "SCAN" ---
 SCAN_INTERVAL_SECONDS="180" - Thời gian nghỉ giữa các chu kỳ quét (giây)
