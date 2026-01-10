@@ -69,3 +69,4 @@ PROXY_LIST="
 23.26.71.145:5628:isdxuiph:wdf8rbiwy6mv
 23.27.208.120:5830:isdxuiph:wdf8rbiwy6mv
 "
+POOL_FILE="random_pool.txt"
