@@ -16,7 +16,7 @@ from datetime import datetime
 # ==============================================================================
 # SCRIPT: Lychkins's Task Runner v1.1 
 #
-# CẬP NHẬT MỚI (v1.8):
+# CẬP NHẬT MỚI (v1.1):
 # 1. Cơ chế Treo Ngẫu Nhiên Cố Định (Session Lock):
 #    - Việc chọn tài khoản từ 'random_pool.txt' chỉ diễn ra 1 lần khi khởi động.
 #    - Các tài khoản đã chọn sẽ được lưu vào bộ nhớ và dùng xuyên suốt chu kỳ.
