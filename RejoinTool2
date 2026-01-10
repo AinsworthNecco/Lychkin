@@ -14,21 +14,20 @@ import random
 from datetime import datetime
 
 # ==============================================================================
-# SCRIPT: Lychkins's Task Runner v1.1 
+# SCRIPT: Lychkins's Task Runner v1.8 (Full Features + Session Pool)
 #
-# CẬP NHẬT MỚI (v1.1):
-# 1. Cơ chế Treo Ngẫu Nhiên Cố Định (Session Lock):
-#    - Việc chọn tài khoản từ 'random_pool.txt' chỉ diễn ra 1 lần khi khởi động.
-#    - Các tài khoản đã chọn sẽ được lưu vào bộ nhớ và dùng xuyên suốt chu kỳ.
-#    - Đảm bảo tính tuần hoàn: Các acc đã dùng sẽ không xuất hiện lại trong pool 
-#      cho đến khi toàn bộ danh sách đã được xoay vòng hết.
+# CẬP NHẬT (v1.8):
+# 1. Giữ nguyên: Check Root, Proxy Rotation (Smart Random), Delta Key Monitor, Reboot Loop.
+# 2. Thêm mới: Cơ chế "Treo Ngẫu Nhiên" (Account Pool).
+#    - Đọc POOL_FILE và RANDOM_ACCOUNT_COUNT từ config.
+#    - Chọn N tài khoản ngẫu nhiên khi bắt đầu Launcher và dùng cố định cho phiên đó.
+#    - Xóa các tài khoản đã chọn khỏi pool để xoay vòng toàn bộ danh sách.
 # ==============================================================================
 
 # ---------------------------------------------------
 # -- URL CẤU HÌNH --
 # ---------------------------------------------------
 CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/config2"
-POOL_FILE = "random_pool.txt" 
 
 # ---------------------------------------------------
 # -- BIẾN TOÀN CỤC --
@@ -40,7 +39,7 @@ file_lock = threading.Lock()
 current_executor_id = None 
 
 # ==============================================================================
-# -- CÁC HÀM TIỆN ÍCH & KIỂM TRA ROOT --
+# -- CÁC HÀM TIỆN ÍCH & KIỂM TRA ROOT (GIỮ NGUYÊN) --
 # ==============================================================================
 
 def check_root_access():
@@ -59,7 +58,7 @@ def check_root_access():
         return False
 
 def check_process_running(pkg_name):
-    """Kiểm tra xem package có đang chạy không."""
+    """Kiểm tra process package."""
     try:
         cmd = f"ps -ef | grep {pkg_name} | grep -v grep"
         result = subprocess.run(["su", "-c", cmd], capture_output=True, text=True, timeout=5)
@@ -99,6 +98,7 @@ def fetch_and_load_config(url):
             else:
                 config[key] = value
         
+        # Xử lý logic Executor
         if "SELECTED_EXECUTOR" in config:
             selected_id = config["SELECTED_EXECUTOR"]
             current_executor_id = selected_id
@@ -108,42 +108,48 @@ def fetch_and_load_config(url):
         
         return config
     except Exception as e:
-        print(f"\n[CONFIG] ❌ LỖI: {e}")
+        print(f"\n[CONFIG] ❌ LỖI TẢI CẤU HÌNH: {e}")
         sys.exit(1)
 
-def get_random_account_subset(config):
+# ==============================================================================
+# -- CƠ CHẾ MỚI: QUẢN LÝ POOL TÀI KHOẢN (RANDOM SELECTION) --
+# ==============================================================================
+
+def get_session_account_subset(config):
     """
-    Logic v1.8: Chỉ thực hiện chọn tài khoản 1 lần duy nhất khi gọi.
-    Cập nhật file pool ngay lập tức.
+    Logic v1.8: Chọn tài khoản ngẫu nhiên từ Pool và khóa cho cả phiên chạy.
     """
     all_accounts = config.get("ACCOUNT_SUFFIXES", [])
     if not all_accounts:
+        print("[POOL] ❌ Không tìm thấy danh sách tài khoản trong config.")
         return []
 
+    pool_file = config.get("POOL_FILE", "random_pool.txt")
     n_to_pick = config.get("RANDOM_ACCOUNT_COUNT", 5)
+    
     available_suffixes = []
     
-    # 1. Đọc danh sách hiện có trong file pool
-    if os.path.exists(POOL_FILE):
-        with open(POOL_FILE, "r") as f:
+    # 1. Đọc pool hiện tại
+    if os.path.exists(pool_file):
+        with open(pool_file, "r") as f:
             available_suffixes = [line.strip() for line in f if line.strip()]
 
-    # 2. Nếu file trống hoặc không tồn tại -> Nạp lại toàn bộ tài khoản từ config
+    # 2. Nếu pool trống -> Nạp lại từ đầu
     if not available_suffixes:
-        print(f"[POOL] 🔄 Pool trống. Đang nạp lại {len(all_accounts)} tài khoản vào danh sách ngẫu nhiên...")
+        print(f"[POOL] 🔄 Pool trống. Nạp lại {len(all_accounts)} tài khoản vào {pool_file}...")
         available_suffixes = [acc['suffix'] for acc in all_accounts]
         random.shuffle(available_suffixes)
     
-    # 3. Chọn N tài khoản
+    # 3. Lấy ra N tài khoản
     picked_suffixes = available_suffixes[:n_to_pick]
     remaining_suffixes = available_suffixes[n_to_pick:]
     
-    # 4. Lưu lại danh sách còn lại vào file NGAY LẬP TỨC
-    with open(POOL_FILE, "w") as f:
+    # 4. Lưu lại phần còn lại vào file ngay lập tức
+    with open(pool_file, "w") as f:
         for s in remaining_suffixes:
             f.write(f"{s}\n")
             
-    # 5. Chuyển đổi suffix thành đối tượng account đầy đủ
+    # 5. Khớp suffix với ID tài khoản
     selected_accounts = []
     for suffix in picked_suffixes:
         for acc in all_accounts:
@@ -151,9 +157,12 @@ def get_random_account_subset(config):
                 selected_accounts.append(acc)
                 break
                 
-    print(f"[POOL] 🎰 Đã chọn {len(selected_accounts)} tài khoản cho phiên làm việc này.")
-    print(f"[POOL] 📉 Còn lại {len(remaining_suffixes)} tài khoản trong pool chờ các lần chạy sau.")
+    print(f"[POOL] 🎰 Đã chọn {len(selected_accounts)} tài khoản cho phiên này. (Còn lại: {len(remaining_suffixes)})")
     return selected_accounts
+
+# ==============================================================================
+# -- CÁC HÀM TIỆN ÍCH API & PROXY (GIỮ NGUYÊN LOGIC GỐC) --
+# ==============================================================================
 
 def format_proxies(proxy_list):
     formatted = []
@@ -169,13 +178,35 @@ def countdown(seconds, thread_name="MAIN"):
     for i in range(seconds, 0, -1):
         print(f"[{thread_name}] Chờ: {i}s  ", end='\r')
         time.sleep(1)
-    print(f"[{thread_name}] Bắt đầu chu kỳ kiểm tra mới.             ")
+    print(f"[{thread_name}] Bắt đầu chu kỳ mới.             ")
 
-# ==============================================================================
-# -- CÁC HÀM KẾT NỐI API & CHECK PRESENCE --
-# ==============================================================================
+def execute_api_request_with_proxy(method, url, config, thread_name, json_data=None):
+    global proxy_index, failed_proxy_count, current_proxies
+    num_proxies = len(current_proxies)
+    while True:
+        if num_proxies > 0 and failed_proxy_count >= num_proxies:
+            time.sleep(5); failed_proxy_count = 0
+            if num_proxies > 0: proxy_index = random.randint(0, num_proxies - 1)
+        
+        proxy = current_proxies[proxy_index] if num_proxies > 0 else None
+        try:
+            if method.upper() == 'GET': resp = requests.get(url, proxies=proxy, timeout=config.get("CONNECTION_TIMEOUT", 15))
+            else: resp = requests.post(url, json=json_data, proxies=proxy, timeout=config.get("CONNECTION_TIMEOUT", 15))
+            
+            if resp.status_code == 200:
+                failed_proxy_count = 0
+                return resp.json()
+            raise Exception(f"HTTP {resp.status_code}")
+        except Exception as e:
+            if num_proxies > 1:
+                new_idx = proxy_index
+                while new_idx == proxy_index: new_idx = random.randint(0, num_proxies - 1)
+                proxy_index = new_idx
+                failed_proxy_count += 1
+            time.sleep(1)
 
 def check_roblox_presence_single(account_id, config, thread_name, proxy_list, initial_proxy_index):
+    """Kiểm tra online v1.6 (No Duplicate Random)."""
     api_url = "https://presence.roblox.com/v1/presence/users"
     payload = {"userIds": [int(account_id)]}
     num_proxies = len(proxy_list)
@@ -192,22 +223,94 @@ def check_roblox_presence_single(account_id, config, thread_name, proxy_list, in
                 if is_online: return True
                 valid_checks += 1
             if num_proxies > 1:
-                curr_idx = random.randint(0, num_proxies - 1)
+                new_idx = curr_idx
+                while new_idx == curr_idx: new_idx = random.randint(0, num_proxies - 1)
+                curr_idx = new_idx
         except:
             if num_proxies > 1: curr_idx = random.randint(0, num_proxies - 1)
             time.sleep(1)
     return False
 
 # ==============================================================================
-# -- LOGIC CHÍNH: LAUNCH --
+# -- LOGIC KEY DELTA & REBOOT (GIỮ NGUYÊN) --
 # ==============================================================================
 
-def process_selected_accounts(config, selected_accounts, launch_mode, thread_name="LAUNCH"):
-    """
-    Thực hiện kiểm tra và khởi động cho một danh sách tài khoản CỐ ĐỊNH.
-    """
-    if not selected_accounts:
-        return
+def delta_key_monitor_loop():
+    thread_name = "DELTA-KEY"
+    LOCAL_KEY_PATH = "/storage/emulated/0/Delta/Internals/Cache/license"
+    while True:
+        config = fetch_and_load_config(CONFIG_URL)
+        if str(config.get("SELECTED_EXECUTOR")) == "1":
+            key_url = config.get("DELTA_KEY_URL")
+            if key_url:
+                try:
+                    resp = requests.get(key_url, timeout=15)
+                    if resp.status_code == 200:
+                        remote_key = resp.text.strip()
+                        local_key = ""
+                        if os.path.exists(LOCAL_KEY_PATH):
+                            with open(LOCAL_KEY_PATH, "r") as f: local_key = f.read().strip()
+                        if remote_key != local_key:
+                            print(f"[{thread_name}] ⚠️ CẬP NHẬT KEY MỚI!")
+                            os.makedirs(os.path.dirname(LOCAL_KEY_PATH), exist_ok=True)
+                            with open(LOCAL_KEY_PATH, "w") as f: f.write(remote_key)
+                            time.sleep(5); subprocess.run(["su", "-c", "reboot"])
+                except Exception as e: print(f"[{thread_name}] Lỗi: {e}")
+        time.sleep(config.get("KEY_CHECK_INTERVAL_MINUTES", 30) * 60)
+
+def reboot_loop():
+    config = fetch_and_load_config(CONFIG_URL)
+    if config.get("REBOOT_ENABLED", "off").lower() == "on":
+        mins = config.get("REBOOT_INTERVAL_MINUTES", 1200)
+        print(f"[REBOOT] Hệ thống sẽ khởi động lại sau {mins} phút.")
+        time.sleep(mins * 60)
+        subprocess.run(["su", "-c", "reboot"])
+
+# ==============================================================================
+# -- LOGIC CHÍNH: SCAN & LAUNCH --
+# ==============================================================================
+
+def run_scanner(config, thread_name="SCAN"):
+    global current_proxies, proxy_index
+    current_proxies = format_proxies(config.get("PROXY_LIST", []))
+    if len(current_proxies) > 0: proxy_index = random.randint(0, len(current_proxies) - 1)
+    
+    min_ratio = config.get("MIN_PLAYER_PERCENTAGE", 0) / 100.0
+    max_ratio = config.get("MAX_PLAYER_PERCENTAGE", 100) / 100.0
+    place_id = config["PLACE_ID"]
+    
+    collected_ids, next_cursor = [], ""
+    while True:
+        api_url = f"https://games.roblox.com/v1/games/{place_id}/servers/Public?sortOrder=Desc&limit=100"
+        if next_cursor and next_cursor != "null": api_url += f"&cursor={next_cursor}"
+        data = execute_api_request_with_proxy('GET', api_url, config, thread_name) 
+        if not data: break
+        
+        servers = data.get("data", [])
+        next_cursor = data.get("nextPageCursor")
+        if not servers: break
+            
+        for s in servers:
+            if s.get("maxPlayers", 0) > 0:
+                ratio = s.get("playing", 0) / s.get("maxPlayers")
+                if min_ratio <= ratio <= max_ratio:
+                    sid = s.get("id")
+                    if sid not in collected_ids: collected_ids.append(sid)
+        
+        avg_ratio = sum((s.get("playing", 0) / s.get("maxPlayers", 1)) for s in servers) / len(servers) if servers else 0
+        print(f"\r[{thread_name}] Quét... | Đã tìm: {len(collected_ids):<5}", end="")
+        if avg_ratio < min_ratio or not next_cursor: break
+            
+    with file_lock:
+        try:
+            with open(config["OUTPUT_FILE_PATH"], "w") as f:
+                for sid in collected_ids: f.write(f"{sid}\n")
+        except: pass
+    return True
+
+def launch_session_instances(config, session_accounts, launch_mode, thread_name="LAUNCH"):
+    """Thực thi launch cho danh sách acc đã chọn."""
+    if not session_accounts: return
     
     server_ids = []
     if launch_mode == 'scan':
@@ -216,92 +319,79 @@ def process_selected_accounts(config, selected_accounts, launch_mode, thread_nam
                 with open(config['OUTPUT_FILE_PATH'], 'r') as f:
                     server_ids = [line.strip() for line in f if line.strip()]
             except: pass
-    
+
     base_pkg = config.get("BASE_PACKAGE_NAME", "com.roblox.clien")
     proxies = format_proxies(config.get("PROXY_LIST", []))
     
-    for i, acc in enumerate(selected_accounts):
+    for i, acc in enumerate(session_accounts):
         suffix, uid = acc['suffix'], acc['id']
         pkg_name = f"{base_pkg}{suffix}"
-        
-        print(f"\n[{thread_name}] >> CHECK: {suffix} (ID: {uid})")
+        print(f"\n[{thread_name}] >> {suffix} ({uid})")
         
         is_active = check_process_running(pkg_name)
         should_start = False
         
         if not is_active:
-            print(f"[{thread_name}] '{suffix}' đang tắt. Tiến hành khởi động.")
             should_start = True
         else:
-            # Kiểm tra online thông qua API
             is_online = check_roblox_presence_single(uid, config, thread_name, proxies, random.randint(0, len(proxies)-1) if proxies else -1)
-            if is_online:
-                print(f"[{thread_name}] '{suffix}' vẫn đang treo tốt. Skip.")
-                continue
-            else:
-                print(f"[{thread_name}] '{suffix}' mất kết nối (Offline). Restarting...")
+            if not is_online:
                 subprocess.run(["su", "-c", f"am force-stop {pkg_name}"])
-                time.sleep(2)
-                should_start = True
+                time.sleep(2); should_start = True
         
         if should_start:
-            target_url = ""
+            target_url = config.get('VIP_SERVER_URL', "") if launch_mode == 'vip' else ""
             if launch_mode == 'scan' and server_ids:
                 target_url = f"roblox://placeId={config['PLACE_ID']}&gameId={server_ids[i % len(server_ids)]}"
-            elif launch_mode == 'vip':
-                target_url = config.get('VIP_SERVER_URL', "")
             
             if target_url:
                 subprocess.run(["am", "start", "-a", "android.intent.action.VIEW", "-d", target_url, "-p", pkg_name])
-                print(f"[{thread_name}] ✅ Đã gọi lệnh mở app {suffix}")
-            
             time.sleep(config.get("LAUNCH_DELAY_SECONDS", 10))
 
-def launcher_loop(mode):
-    print(f"[LAUNCH] Khởi động trình treo chế độ: {mode}")
-    
-    # --- LOGIC V1.8: CHỌN ACC 1 LẦN DUY NHẤT KHI BẮT ĐẦU ---
-    # Tải config lần đầu để lấy danh sách acc
-    initial_config = fetch_and_load_config(CONFIG_URL)
-    session_accounts = get_random_account_subset(initial_config)
-    
-    if not session_accounts:
-        print("[LAUNCH] ❌ Lỗi: Không thể chọn tài khoản. Dừng luồng.")
-        return
-
-    while True:
-        # Tải lại config mỗi chu kỳ để cập nhật Proxy hoặc ID Game (nếu có thay đổi online)
-        current_config = fetch_and_load_config(CONFIG_URL)
-        
-        # Luôn sử dụng session_accounts đã được "khóa" từ đầu
-        process_selected_accounts(current_config, session_accounts, mode, "LAUNCH")
-        
-        countdown(current_config.get("LAUNCH_INTERVAL_SECONDS", 300), "LAUNCH")
+# ==============================================================================
+# -- VÒNG LẶP CHÍNH --
+# ==============================================================================
 
 def scanner_loop():
     while True:
         config = fetch_and_load_config(CONFIG_URL)
-        print("[SCAN] Đang cập nhật danh sách server công khai...")
-        # (Logic quét giữ nguyên để đảm bảo luôn có server mới nhất cho launcher)
-        # ... logic scan code ...
+        run_scanner(config, "SCAN")
         countdown(config.get("SCAN_INTERVAL_SECONDS", 300), "SCAN")
+
+def launcher_loop(mode):
+    # CHỌN TÀI KHOẢN 1 LẦN DUY NHẤT KHI BẮT ĐẦU LUỒNG (SESSION LOCK)
+    initial_config = fetch_and_load_config(CONFIG_URL)
+    session_accounts = get_session_account_subset(initial_config)
+    
+    while True:
+        config = fetch_and_load_config(CONFIG_URL)
+        launch_session_instances(config, session_accounts, mode, "LAUNCH")
+        countdown(config.get("LAUNCH_INTERVAL_SECONDS", 300), "LAUNCH")
 
 if __name__ == "__main__":
     os.system("termux-wake-lock")
     if not check_root_access(): sys.exit(1)
     
+    # Khởi động các luồng phụ
+    threading.Thread(target=reboot_loop, daemon=True).start()
+    threading.Thread(target=delta_key_monitor_loop, daemon=True).start()
+
     parser = argparse.ArgumentParser()
-    parser.add_argument('command', nargs='?', default='parallel')
-    parser.add_argument('--mode', choices=['scan', 'vip'], default='scan')
+    subparsers = parser.add_subparsers(dest='command')
+    subparsers.add_parser('parallel')
+    subparsers.add_parser('scan')
+    lp = subparsers.add_parser('launch')
+    lp.add_argument('--mode', choices=['scan', 'vip'], default='scan')
+    
     args = parser.parse_args()
+    cmd = args.command if args.command else 'parallel'
 
     try:
-        if args.command == 'parallel':
-            # Chạy đa luồng: Quét server và Treo acc
-            # Ở đây tôi ví dụ chạy treo VIP như yêu cầu gốc của bạn
-            threading.Thread(target=launcher_loop, args=('vip',), daemon=True).start()
-            while True: time.sleep(1)
-        elif args.command == 'launch':
-            launcher_loop(args.mode)
+        if cmd == 'scan': scanner_loop()
+        elif cmd == 'launch': launcher_loop(args.mode)
+        elif cmd == 'parallel':
+            threading.Thread(target=scanner_loop, daemon=True).start()
+            time.sleep(3)
+            launcher_loop('vip') # Hoặc 'scan' tùy nhu cầu
     except KeyboardInterrupt:
-        print("\n[MAIN] Đã dừng script.")
+        print("\n[MAIN] Dừng.")
