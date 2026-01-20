@@ -2,19 +2,16 @@ local SETTINGS = {
     -- =================================================================
     ["EnableAvoidPlayers"] = true, -- Bật/tắt tính năng né tài khoản
     ["AVOID_PLAYERS"] = {
-        "HelloPlayer1st",
-        "Lychkinsama",
-        "Er1kaThe",
-        "IsaacBacon20",
-        "Zayd3nWolfPanda2016",
-        "JaydenFlickPower2007",
-        "Byt3_Magic2017",
-        "AlexanderChill27",
-        "Arrow_LEGEND43",
-        "BlazeFrostEcho2005",
-        "MasonSlim3Dragon",
-        "Aubr3y_Moon201171YT",
-        "XxBlast_NightxX90"
+    "MasonNeonInferno",
+    "Xx_FlickStealthFlame",
+    "Rid3rRift42",
+    "EthanZero79",
+    "S3bastianJ3llySt3alt",
+    "Zayd3nRock3t2020_YT",
+    "XxSophiaNightEaglexX",
+    "JackDriftHunter2011",
+    "Vort3xFlickPix3l2018",
+    "XxKnightKingBlastxX"
     },
 
     -- =================================================================
