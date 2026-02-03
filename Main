@@ -2,16 +2,16 @@ local SETTINGS = {
     -- =================================================================
     ["EnableAvoidPlayers"] = true, -- Bật/tắt tính năng né tài khoản
     ["AVOID_PLAYERS"] = {
-    "MasonNeonInferno",
-    "Xx_FlickStealthFlame",
-    "Rid3rRift42",
-    "EthanZero79",
-    "S3bastianJ3llySt3alt",
-    "Zayd3nRock3t2020_YT",
-    "XxSophiaNightEaglexX",
-    "JackDriftHunter2011",
-    "Vort3xFlickPix3l2018",
-    "XxKnightKingBlastxX"
+    "ClaraDorisDaria2002",
+    "ErinHerbertElliot",
+    "DerekGary2008",
+    "DOUGLAS_Donna2004",
+    "XuanBecky52",
+    "CalvinDariusHope",
+    "QiangBrandon2023",
+    "HongEsme2010",
+    "DaikiEdgar2004",
+    "Amber_Ella2014"
     },
 
     -- =================================================================
