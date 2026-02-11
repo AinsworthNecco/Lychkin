@@ -23,7 +23,7 @@ from datetime import datetime
 CONSOLE_LOGS = True
 
 # Số luồng cố định sẽ khởi động khi có người dùng lệnh
-MAX_TOTAL_THREADS = 400 
+MAX_TOTAL_THREADS = 200 
 
 # Timeout kiểm tra proxy sống (giây) - Từ script cũ
 CHECK_TIMEOUT = 3
