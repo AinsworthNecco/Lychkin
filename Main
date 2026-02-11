@@ -2,6 +2,9 @@ local SETTINGS = {
     -- =================================================================
     ["EnableAvoidPlayers"] = true, -- Bật/tắt tính năng né tài khoản
     ["AVOID_PLAYERS"] = {
+    "Carri3Br3nda2014",
+    "Howard_Aaron87",
+    "Ang3licaHail3y59",
     "BonnieDianeBrenda",
     "ManabuGarethDanny21",
     "HeidiHerbertBrad",
