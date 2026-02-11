@@ -1,7 +1,12 @@
 # -*- coding: utf-8 -*-
-# Script Bot Discord VMOS Cloud - Phiên bản Hybrid (Code cũ + Shared Pool)
-# Khôi phục logic check Proxy bằng socket và cơ chế request thông minh từ bản cũ.
+# Script Bot Discord cho VMOS Cloud - Phiên bản Smart Proxy Public + TempMail Old
+# Cập nhật: 
+# - Max 1000 luồng.
+# - Tự động quét lại proxy mỗi 2 phút.
+# - Update panel mỗi 5 acc thành công.
+# - Lệnh !stop để dừng.
 
+# === 1. IMPORT THƯ VIỆN ===
 import discord
 from discord.ext import commands
 import requests
@@ -11,39 +16,31 @@ import re
 import random
 import time
 import os
+import traceback
 import sys
 import socket
-from datetime import datetime
 
 # ==============================================================
-# ==>> CẤU HÌNH TÙY CHỈNH <<==
+# ==>> 2. CẤU HÌNH BOT & HẰNG SỐ <<==
 # ==============================================================
 
-# [CÔNG TẮC LOG] True = Bật hiện log chi tiết lỗi/thành công | False = Tắt sạch log worker
-CONSOLE_LOGS = True
-
-# Số luồng cố định sẽ khởi động khi có người dùng lệnh
-MAX_TOTAL_THREADS = 200 
-
-# Timeout kiểm tra proxy sống (giây) - Từ script cũ
-CHECK_TIMEOUT = 3
-
+# --- Tên file cấu hình ---
 TOKEN_FILE_NAME = "token.txt"
+
+# --- URL Thumbnail cho Embed ---
 THUMBNAIL_URL = "https://media.tenor.com/uKqSgjwq-jcAAAAM/hatsune-miku-oshi-no-ko.gif"
 
+# --- Danh sách Emote ---
 EMOTES = {
-    "loading": "⏳",
-    "check": "✅",
-    "error": "❌",
-    "rocket": "🚀",
-    "user": "👤",
-    "time": "⏳",
-    "chart": "📊",
-    "gear": "⚙️",
-    "lightning": "⚡",
-    "group": "👥"
+    "happy": "<:happy:1310994721447088208>",
+    "robux": "<:robux:1310994695177900122>",
+    "loading": "<a:Loading:1365281149043343382>",
+    "bocchi": "<a:BocchiDeer:1365293844819607704>"
 }
+def get_emote(name, fallback=""):
+    return EMOTES.get(name, fallback) if EMOTES.get(name) else fallback
 
+# --- Cấu hình Proxy Fetcher ---
 PROXY_SOURCES = [
     "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt",
     "https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/http.txt",
@@ -52,67 +49,61 @@ PROXY_SOURCES = [
     "https://api.proxyscrape.com/v2/?request=getproxies&protocol=http",
     "https://www.proxy-list.download/api/v1/get?type=http"
 ]
+CHECK_TIMEOUT = 3 
+RAW_PROXIES = [] 
+
+# Quản lý task đang chạy để stop
+active_tasks = {}
 
 # ==============================================================
-# ==== QUẢN LÝ TRẠNG THÁI JOB & WORKER ====
+# ==== 3. HÀM ĐỌC TOKEN TỪ FILE ====
 # ==============================================================
+def load_token_from_file(filename=TOKEN_FILE_NAME):
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    file_path = os.path.join(script_dir, filename)
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            token = f.readline().strip()
+            return token if token else None
+    except: return None
 
-class BuffJob:
-    def __init__(self, user_id, user_name, invite_code, target_amount, ctx, message):
-        self.user_id = user_id
-        self.user_name = user_name
-        self.invite_code = invite_code
-        self.target_amount = target_amount
-        self.current_success = 0
-        self.start_time = time.time()
-        self.is_active = True
-        self.ctx = ctx
-        self.status_message = message 
-        self.lock = asyncio.Lock()
-
-    async def increment(self):
-        async with self.lock:
-            self.current_success += 1
-            if self.current_success >= self.target_amount:
-                self.is_active = False
-            return self.current_success
-
-active_jobs_list = [] 
-active_worker_tasks = []
-RAW_PROXIES = []
+BOT_TOKEN = load_token_from_file()
 
 # ==============================================================
-# ==== KHÔI PHỤC LOGIC CŨ (ROBUST REQUESTS) ====
+# ==== 4. LOGIC TẢI VÀ LẤY PROXY (AUTO ROTATION) ====
 # ==============================================================
-
 def fetch_raw_proxies():
+    """Tải proxy từ nguồn, không check, chỉ lấy raw"""
     global RAW_PROXIES
     proxies = set()
-    print(f"[System] Đang quét Proxy từ nguồn (Code cũ)...")
+    print("[Proxy System] Đang quét lại nguồn proxy...")
     for url in PROXY_SOURCES:
         try:
             r = requests.get(url, timeout=10)
             if r.status_code == 200:
                 for line in r.text.splitlines():
                     line = line.strip()
-                    if ":" in line and " " not in line:
+                    if ":" in line and not " " in line:
                         proxies.add(line)
         except: pass
     
+    # Cập nhật danh sách toàn cục
     if len(proxies) > 0:
         RAW_PROXIES = list(proxies)
-        print(f"[System] Kho Proxy đã cập nhật: {len(RAW_PROXIES)} IPs.")
+        print(f"[Proxy System] Kho Proxy đã cập nhật: {len(RAW_PROXIES)} IPs.")
+    else:
+        print("[Proxy System] Cảnh báo: Không tải được proxy nào trong lần quét này.")
+    
     return len(RAW_PROXIES)
 
-# === KHÔI PHỤC: Hàm check socket từ script cũ ===
 def get_live_proxy_from_pool():
     """Lấy ngẫu nhiên 1 proxy từ kho, check sống mới trả về."""
     if not RAW_PROXIES: return None
-    # Thử tối đa 20 lần để tìm 1 con proxy sống
+    
+    # Thử tối đa 20 lần để tìm 1 con proxy sống (tăng số lần thử vì nguồn rác nhiều)
     for _ in range(20):
         try:
             proxy = random.choice(RAW_PROXIES)
-            if not proxy: continue
             ip, port = proxy.split(":")
             port = int(port)
             sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -124,17 +115,39 @@ def get_live_proxy_from_pool():
             continue
     return None
 
+async def background_proxy_refresher(stop_event):
+    """Tác vụ chạy ngầm: Cứ 2 phút nạp lại proxy 1 lần"""
+    while not stop_event.is_set():
+        await asyncio.sleep(120) # 2 phút
+        if stop_event.is_set(): break
+        await asyncio.to_thread(fetch_raw_proxies)
+
+# ==============================================================
+# ==== 5. CÁC HÀM HỖ TRỢ VMOS & TEMP MAIL ====
+# ==============================================================
+
+class Counter:
+    def __init__(self):
+        self.value = 0
+        self.lock = asyncio.Lock()
+    async def increment(self):
+        async with self.lock:
+            self.value += 1
+            return self.value
+
 def format_proxy(proxy_str):
     if not proxy_str: return None
     return {'http': proxy_str, 'https': proxy_str}
 
 def get_proxy_ip(proxy_str):
     try:
-        if "@" in proxy_str: return proxy_str.split("@")[1].split(":")[0]
-        else: return proxy_str.split("//")[1].split(":")[0]
-    except: return "Unknown"
+        if "@" in proxy_str:
+            return proxy_str.split("@")[1].split(":")[0]
+        else:
+            return proxy_str.split("//")[1].split(":")[0]
+    except:
+        return "Unknown"
 
-# === KHÔI PHỤC: Hàm Request thông minh từ script cũ ===
 def make_vmos_request_smart(url, headers, payload_dict, proxy_str):
     try:
         is_get_request = not payload_dict
@@ -147,14 +160,13 @@ def make_vmos_request_smart(url, headers, payload_dict, proxy_str):
 
         response = request_method(**request_args)
         
-        # Check các lỗi chặn IP phổ biến
         ip_block_msg = "certain foreign ip addresses have been restricted"
         if response.status_code in [403, 407, 429, 502, 503] or ip_block_msg in response.text.lower():
             return None, True 
 
         try:
             if "application/json" in response.headers.get("Content-Type", ""):
-                 response.json() # Check valid json
+                 response.json() 
         except:
              return None, True 
 
@@ -165,8 +177,7 @@ def make_vmos_request_smart(url, headers, payload_dict, proxy_str):
     except Exception as e:
         return None, False
 
-# === CÁC HÀM LOGIC CHÍNH (Restored) ===
-
+# === TEMP MAIL OLD API (Restored & Proxied) ===
 def get_temp_email(proxy=None):
     url="https://api.internal.temp-mail.io/api/v3/email/new"
     ua="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
@@ -180,19 +191,23 @@ def get_temp_email(proxy=None):
     }
     try:
         request_kwargs = {'url': url, 'headers': headers, 'timeout': 15}
-        if proxy: request_kwargs['proxies'] = format_proxy(proxy)
+        if proxy:
+            request_kwargs['proxies'] = format_proxy(proxy)
+            
         response=requests.post(**request_kwargs)
         response.raise_for_status()
         data=response.json()
         return data.get("email")
-    except: return None
+    except Exception as e:
+        return None
 
 async def get_email_messages(temp_email, proxy=None):
     url=f"https://api.internal.temp-mail.io/api/v3/email/{temp_email}/messages"
-    for attempt in range(20): # Loop 20 lần như cũ
+    for attempt in range(20):
         try:
             request_kwargs = {'url': url, 'timeout': 15}
-            if proxy: request_kwargs['proxies'] = format_proxy(proxy)
+            if proxy:
+                request_kwargs['proxies'] = format_proxy(proxy)
 
             response=await asyncio.to_thread(requests.get, **request_kwargs)
             
@@ -208,7 +223,8 @@ async def get_email_messages(temp_email, proxy=None):
                             if verification_code_match:
                                 return verification_code_match.group(1)
             await asyncio.sleep(4)
-        except: await asyncio.sleep(4)
+        except Exception as e:
+            await asyncio.sleep(4)
     return None
 
 def send_to_vmoscloud_smart(email, proxy):
@@ -240,189 +256,200 @@ def login_to_vmoscloud_smart(email, verify_code, channel_code, proxy):
         except: pass
     return False, False
 
-# ==============================================================
-# ==== WORKER ON-DEMAND (LOGIC HYBRID) ====
-# ==============================================================
-
-async def global_worker(worker_id):
-    """
-    Worker này sử dụng logic CHECK PROXY SỐNG của script cũ trước khi làm việc.
-    Đảm bảo tỷ lệ thành công cao hơn.
-    """
+async def attempt_buff_cycle(invite_code, proxy_str):
+    proxy_ip = get_proxy_ip(proxy_str)
     
-    while True:
-        if not active_jobs_list: break
+    email = await asyncio.to_thread(get_temp_email, proxy_str)
+    if not email: 
+        print(f"[{proxy_ip}] ❌ Lỗi: Không lấy được Email (Có thể do Proxy).")
+        return "FAIL_LOGIC", None 
+    
+    await asyncio.sleep(1)
 
-        try:
-            current_job = random.choice(active_jobs_list)
-        except IndexError: break
+    sent_ok, is_proxy_bad = await asyncio.to_thread(send_to_vmoscloud_smart, email, proxy_str)
+    if is_proxy_bad: 
+        print(f"[{proxy_ip}] ⚠️ Lỗi Proxy khi gửi mã.")
+        return "FAIL_PROXY", proxy_str
+    if not sent_ok: 
+        print(f"[{proxy_ip}] ❌ Gửi mã thất bại.")
+        return "FAIL_LOGIC", None
 
-        if not current_job.is_active:
+    print(f"[{proxy_ip}] 📩 Đã gửi mã tới {email}, đang đợi OTP...")
+    await asyncio.sleep(3)
+
+    verify_code = await get_email_messages(email, proxy_str)
+    if not verify_code: 
+        print(f"[{proxy_ip}] ❌ Không nhận được OTP (Time out).")
+        return "FAIL_LOGIC", None
+
+    await asyncio.sleep(1)
+
+    login_ok, is_proxy_bad_login = await asyncio.to_thread(login_to_vmoscloud_smart, email, verify_code, invite_code, proxy_str)
+    if is_proxy_bad_login: 
+        print(f"[{proxy_ip}] ⚠️ Lỗi Proxy khi đăng nhập.")
+        return "FAIL_PROXY", proxy_str
+    
+    if login_ok: 
+        return "SUCCESS", None
+    else: 
+        print(f"[{proxy_ip}] ❌ Đăng nhập thất bại.")
+        return "FAIL_LOGIC", None
+
+
+async def rotating_worker(invite_code, success_counter, target_success, stop_event):
+    while not stop_event.is_set():
+        if success_counter.value >= target_success:
+            break
+        
+        current_proxy = await asyncio.to_thread(get_live_proxy_from_pool)
+        
+        if not current_proxy:
+            await asyncio.sleep(5) # Đợi lâu hơn xíu nếu hết proxy
+            continue
+            
+        status, _ = await attempt_buff_cycle(invite_code, current_proxy)
+        
+        if status == "SUCCESS":
+            val = await success_counter.increment()
+            print(f"[{get_proxy_ip(current_proxy)}] ✅ BUFF THÀNH CÔNG! ({val}/{target_success})")
+            await asyncio.sleep(random.uniform(2, 5))
+            
+        elif status == "FAIL_PROXY":
+            pass
+            
+        elif status == "FAIL_LOGIC":
+            await asyncio.sleep(random.uniform(2, 5))
             continue
 
-        # ==>> KHÁC BIỆT LỚN NHẤT: Dùng hàm get_live_proxy_from_pool có check socket <<==
-        # Lưu ý: Hàm này hơi chậm vì phải check connect, nên ta chạy trong thread
-        proxy = await asyncio.to_thread(get_live_proxy_from_pool)
-        
-        if not proxy:
-            # Không tìm được proxy sống nào, ngủ 5s rồi thử lại
-            await asyncio.sleep(5) 
-            continue
-
-        proxy_ip = get_proxy_ip(proxy)
-
-        # Quy trình cũ (Robust)
-        try:
-            # 1. Get Mail
-            email = await asyncio.to_thread(get_temp_email, proxy)
-            if not email:
-                if CONSOLE_LOGS: print(f"[{proxy_ip}] ❌ Fail: Cannot get email.")
-                continue
-
-            # 2. Send SMS (dùng hàm smart cũ)
-            sent_ok, is_proxy_err = await asyncio.to_thread(send_to_vmoscloud_smart, email, proxy)
-            if is_proxy_err:
-                 if CONSOLE_LOGS: print(f"[{proxy_ip}] ⚠️ Proxy Error at SMS.")
-                 continue
-            if not sent_ok:
-                 if CONSOLE_LOGS: print(f"[{proxy_ip}] ❌ Fail: SMS send failed.")
-                 continue
-            
-            # 3. Wait OTP
-            # if CONSOLE_LOGS: print(f"[{proxy_ip}] 📩 Waiting OTP for {email}...")
-            otp = await get_email_messages(email, proxy)
-            if not otp:
-                if CONSOLE_LOGS: print(f"[{proxy_ip}] ❌ Fail: OTP Timeout.")
-                continue
-            
-            # 4. Login (dùng hàm smart cũ)
-            login_ok, is_proxy_err_login = await asyncio.to_thread(login_to_vmoscloud_smart, email, otp, current_job.invite_code, proxy)
-            
-            if login_ok:
-                val = await current_job.increment()
-                if CONSOLE_LOGS: print(f"[{proxy_ip}] ✅ SUCCESS | {current_job.invite_code} ({val}/{current_job.target_amount})")
-            else:
-                if CONSOLE_LOGS: print(f"[{proxy_ip}] ❌ Fail: Login failed.")
-
-        except Exception as e:
-             # print(e)
-             pass
-        
-        # Nghỉ ngơi giữa các lần chạy thành công để tránh spam quá gắt
-        await asyncio.sleep(random.uniform(2, 5))
-
-async def check_and_start_workers():
-    global active_worker_tasks
-    active_worker_tasks = [t for t in active_worker_tasks if not t.done()]
-    
-    current_workers = len(active_worker_tasks)
-    if active_jobs_list and current_workers < MAX_TOTAL_THREADS:
-        needed = MAX_TOTAL_THREADS - current_workers
-        print(f"[System] 🚀 Kích hoạt {needed} workers (Sử dụng Logic Check Proxy Cũ)...")
-        
-        if not RAW_PROXIES:
-            await asyncio.to_thread(fetch_raw_proxies)
-
-        for i in range(needed):
-            task = asyncio.create_task(global_worker(f"W-{random.randint(1000,9999)}"))
-            active_worker_tasks.append(task)
-
 # ==============================================================
-# ==== BOT & UI PANEL ====
+# ==>> 6. BOT DISCORD SETUP <<==
 # ==============================================================
 
-intents = discord.Intents.default()
-intents.message_content = True
+intents = discord.Intents.default(); intents.message_content = True
 bot = commands.Bot(command_prefix='!', intents=intents)
-
-def load_token():
-    try:
-        with open(TOKEN_FILE_NAME, 'r') as f: return f.read().strip()
-    except: return None
 
 @bot.event
 async def on_ready():
-    print(f"✅ Bot Online: {bot.user.name}")
+    print("-" * 30);print(f'✅ Bot đã đăng nhập: {bot.user.name} (ID: {bot.user.id})');print("-" * 30)
 
-def create_panel_embed(job: BuffJob):
-    elapsed = int(time.time() - job.start_time)
-    percent = int((job.current_success / job.target_amount) * 100) if job.target_amount > 0 else 0
-    filled_blocks = int(percent / 10)
-    bar = "🟦" * filled_blocks + "⬜" * (10 - filled_blocks)
-    total_jobs = len(active_jobs_list)
-    threads_per_user = int(MAX_TOTAL_THREADS / total_jobs) if total_jobs > 0 else 0
+@bot.command(name="buff")
+async def buff(ctx: commands.Context, code: str = None, so_lan_str: str = None):
+    user = ctx.author
+    if code is None or so_lan_str is None: 
+        await ctx.send(f"❌ Cú pháp: `!buff <mã_mời> <số_lần>`")
+        return
+    
+    if user.id in active_tasks:
+        await ctx.send(f"⚠️ Bạn đang có lệnh chạy. Dùng `!stop` để dừng trước.")
+        return
+    
+    try: target_success = int(so_lan_str)
+    except: await ctx.send("❌ Số lần phải là số."); return
 
-    embed = discord.Embed(color=0x00ffcc)
-    embed.add_field(name=f"{EMOTES['rocket']} Kích hoạt: {job.invite_code}", value=f"**Target:** {job.target_amount}", inline=False)
-    col1_val = (f"{EMOTES['user']} **User:** <@{job.user_id}>\n"
-                f"{EMOTES['time']} **Thời gian chạy:** {elapsed}s")
-    embed.add_field(name="Thông tin", value=col1_val, inline=True)
-    col2_val = (f"{EMOTES['lightning']} **{threads_per_user}** Luồng/User\n"
-                f"{EMOTES['group']} **{total_jobs}** Người đang chạy")
-    embed.add_field(name=f"{EMOTES['gear']} Hệ Thống", value=col2_val, inline=True)
-    embed.add_field(name=f"{EMOTES['chart']} Tiến độ", value=f"{bar} **{percent}%** ({job.current_success}/{job.target_amount})", inline=False)
-    embed.set_footer(text="🔄 Panel tự làm mới mỗi 1 phút.")
+    status_msg = await ctx.send(f"{get_emote('loading', '⏳')} **Khởi động...**\n🔄 Đang tải và kiểm tra nguồn Proxy Public...")
+    
+    total_raw = await asyncio.to_thread(fetch_raw_proxies)
+    
+    # Cấu hình luồng: MAX 1000
+    num_threads = min(1000, target_success)
+    if num_threads < 10: num_threads = 10 
+    
+    success_counter = Counter()
+    stop_event = asyncio.Event()
+    active_tasks[user.id] = stop_event # Lưu stop event
+    
+    start_time = time.time()
+    
+    # Chạy task cập nhật proxy ngầm
+    refresh_task = asyncio.create_task(background_proxy_refresher(stop_event))
+
+    bar = "░" * 10 
+    desc = (f"🎯 Target : **{target_success}**\n"
+            f"📦 Kho Proxy: **{total_raw}** (Auto-Refresh 2m)\n"
+            f"🚀 Luồng chạy: **{num_threads}** (Max 1000)\n"
+            f"📊 Tiến độ: `{bar}` **0%** (0/{target_success})\n"
+            f"⏳ Đang chạy... Cập nhật mỗi 5 acc thành công.")
+    
+    embed = discord.Embed(title=f"{get_emote('loading', '⏳')} Đang Buff Siêu Tốc (1000 Luồng)", description=desc, color=discord.Color.blue())
     if THUMBNAIL_URL: embed.set_thumbnail(url=THUMBNAIL_URL)
-    return embed
+    await status_msg.edit(content="", embed=embed)
 
-async def job_monitor(job: BuffJob):
-    while job.is_active:
-        current = job.current_success
-        embed = create_panel_embed(job)
-        try: await job.status_message.edit(embed=embed)
-        except: pass
-        if current >= job.target_amount:
-            job.is_active = False
+    tasks = []
+    for _ in range(num_threads):
+        task = asyncio.create_task(rotating_worker(code, success_counter, target_success, stop_event))
+        tasks.append(task)
+
+    last_reported_success = 0
+    
+    # Loop monitor
+    while True:
+        current_success = success_counter.value
+        
+        # Cập nhật mỗi 5 acc thành công
+        if current_success > last_reported_success and current_success % 5 == 0:
+            last_reported_success = current_success
+            percent = int((current_success / target_success) * 100)
+            filled_length = int(percent / 10) 
+            bar = "▓" * filled_length + "░" * (10 - filled_length)
+            
+            new_desc = (f"🎯 Target : **{target_success}**\n"
+                        f"📦 Kho Proxy: **{len(RAW_PROXIES)}**\n"
+                        f"🚀 Luồng chạy: **{num_threads}**\n"
+                        f"📊 Tiến độ: `{bar}` **{percent}%** ({current_success}/{target_success})\n"
+                        f"⏳ Đang chạy... Cập nhật mỗi 5 acc thành công.")
+            
+            embed.description = new_desc
+            try: await status_msg.edit(embed=embed)
+            except: pass
+
+        if current_success >= target_success or stop_event.is_set():
+            stop_event.set()
             break
-        # Smart Wait 1 phút
-        for _ in range(30): 
-            if not job.is_active or job.current_success >= job.target_amount: break
-            await asyncio.sleep(2)
+            
+        await asyncio.sleep(1)
 
-    if job in active_jobs_list: active_jobs_list.remove(job)
-    embed = create_panel_embed(job)
-    embed.color = discord.Color.green()
-    embed.set_field_at(0, name=f"✅ Hoàn thành: {job.invite_code}", value=f"**Đã buff:** {job.current_success}/{job.target_amount}", inline=False)
-    try: await job.status_message.edit(content=f"✅ <@{job.user_id}> Đã xong đơn hàng!", embed=embed)
-    except: pass
-
-@bot.command()
-async def buff(ctx, code: str = None, amount: str = None):
-    if not code or not amount: return await ctx.send(f"❌ Cú pháp: `!buff <mã_mời> <số_lượng>`")
-    try: target = int(amount)
-    except: return await ctx.send("❌ Số lượng phải là số.")
-
-    for job in active_jobs_list:
-        if job.invite_code == code: return await ctx.send(f"⚠️ Mã `{code}` đang chạy rồi!")
-
-    loading_embed = discord.Embed(description=f"{EMOTES['loading']} **Khởi động Max {MAX_TOTAL_THREADS} luồng (Robust Mode)...**", color=discord.Color.orange())
-    msg = await ctx.send(embed=loading_embed)
-
-    new_job = BuffJob(ctx.author.id, ctx.author.name, code, target, ctx, msg)
-    active_jobs_list.append(new_job)
-    await check_and_start_workers()
-    asyncio.create_task(job_monitor(new_job))
-
-@bot.command()
-async def stop(ctx, code: str = None):
-    stopped = False
-    if not code:
-        for job in list(active_jobs_list):
-            if job.user_id == ctx.author.id:
-                job.is_active = False
-                active_jobs_list.remove(job)
-                await ctx.send(f"🛑 Đã hủy đơn `{job.invite_code}` của bạn.")
-                stopped = True
+    # Dọn dẹp
+    refresh_task.cancel()
+    if user.id in active_tasks: del active_tasks[user.id]
+    
+    await asyncio.gather(*tasks, return_exceptions=True)
+    
+    end_time = time.time()
+    duration = end_time - start_time
+    final_success = success_counter.value
+    
+    if final_success >= target_success:
+        title = "✅ Buff Thành Công!"
+        color = discord.Color.green()
+        result_desc = f"Đã đạt đủ chỉ tiêu **{final_success}/{target_success}** lần."
+        bar = "▓" * 10 
     else:
-        for job in list(active_jobs_list):
-            if job.invite_code == code:
-                job.is_active = False
-                active_jobs_list.remove(job)
-                await ctx.send(f"🛑 Đã hủy đơn `{code}`.")
-                stopped = True
-                break
-    if not stopped and not code: await ctx.send("❌ Bạn không có đơn nào đang chạy.")
+        title = "🛑 Đã Dừng (!stop)"
+        color = discord.Color.orange()
+        result_desc = f"Đã dừng theo lệnh. Kết quả: **{final_success}/{target_success}**."
 
-bot_token = load_token()
-if bot_token: bot.run(bot_token)
-else: print("❌ Lỗi: Chưa có file token.txt")
+    final_embed = discord.Embed(title=title, description=f"{user.mention}, báo cáo kết quả:\n{result_desc}", color=color)
+    if THUMBNAIL_URL: final_embed.set_thumbnail(url=THUMBNAIL_URL)
+    
+    final_embed.add_field(name="Thời gian", value=f"{duration:.1f}s", inline=True)
+    final_embed.add_field(name="Luồng sử dụng", value=f"{num_threads}", inline=True)
+    
+    percent_final = int((final_success / target_success) * 100) if target_success > 0 else 0
+    filled_final = int(percent_final / 10)
+    bar_final = "▓" * filled_final + "░" * (10 - filled_final)
+    final_embed.add_field(name="Tiến độ cuối", value=f"`{bar_final}` **{percent_final}%**", inline=False)
+    
+    await status_msg.edit(embed=final_embed)
+
+@bot.command(name="stop")
+async def stop(ctx):
+    user_id = ctx.author.id
+    if user_id in active_tasks:
+        active_tasks[user_id].set()
+        await ctx.send(f"🛑 {ctx.author.mention} Đã nhận lệnh dừng! Đang đợi các luồng kết thúc...")
+    else:
+        await ctx.send(f"❌ {ctx.author.mention}, bạn không có lệnh buff nào đang chạy.")
+
+if __name__ == "__main__":
+    if not BOT_TOKEN: sys.exit("Thiếu Token.")
+    bot.run(BOT_TOKEN)
