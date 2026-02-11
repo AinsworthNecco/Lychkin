@@ -1,0 +1,455 @@
+# -*- coding: utf-8 -*-
+# Script Bot Discord cho VMOS Cloud - Phiên bản Smart Proxy Public + TempMail Old
+# Cập nhật: 
+# - Max 1000 luồng.
+# - Tự động quét lại proxy mỗi 2 phút.
+# - Update panel mỗi 5 acc thành công.
+# - Lệnh !stop để dừng.
+
+# === 1. IMPORT THƯ VIỆN ===
+import discord
+from discord.ext import commands
+import requests
+import json
+import asyncio
+import re
+import random
+import time
+import os
+import traceback
+import sys
+import socket
+
+# ==============================================================
+# ==>> 2. CẤU HÌNH BOT & HẰNG SỐ <<==
+# ==============================================================
+
+# --- Tên file cấu hình ---
+TOKEN_FILE_NAME = "token.txt"
+
+# --- URL Thumbnail cho Embed ---
+THUMBNAIL_URL = "https://media.tenor.com/uKqSgjwq-jcAAAAM/hatsune-miku-oshi-no-ko.gif"
+
+# --- Danh sách Emote ---
+EMOTES = {
+    "happy": "<:happy:1310994721447088208>",
+    "robux": "<:robux:1310994695177900122>",
+    "loading": "<a:Loading:1365281149043343382>",
+    "bocchi": "<a:BocchiDeer:1365293844819607704>"
+}
+def get_emote(name, fallback=""):
+    return EMOTES.get(name, fallback) if EMOTES.get(name) else fallback
+
+# --- Cấu hình Proxy Fetcher ---
+PROXY_SOURCES = [
+    "https://raw.githubusercontent.com/TheSpeedX/PROXY-List/master/http.txt",
+    "https://raw.githubusercontent.com/monosans/proxy-list/main/proxies/http.txt",
+    "https://raw.githubusercontent.com/ShiftyTR/Proxy-List/master/http.txt",
+    "https://raw.githubusercontent.com/clarketm/proxy-list/master/proxy-list-raw.txt",
+    "https://api.proxyscrape.com/v2/?request=getproxies&protocol=http",
+    "https://www.proxy-list.download/api/v1/get?type=http"
+]
+CHECK_TIMEOUT = 3 
+RAW_PROXIES = [] 
+
+# Quản lý task đang chạy để stop
+active_tasks = {}
+
+# ==============================================================
+# ==== 3. HÀM ĐỌC TOKEN TỪ FILE ====
+# ==============================================================
+def load_token_from_file(filename=TOKEN_FILE_NAME):
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    file_path = os.path.join(script_dir, filename)
+    try:
+        with open(file_path, 'r', encoding='utf-8') as f:
+            token = f.readline().strip()
+            return token if token else None
+    except: return None
+
+BOT_TOKEN = load_token_from_file()
+
+# ==============================================================
+# ==== 4. LOGIC TẢI VÀ LẤY PROXY (AUTO ROTATION) ====
+# ==============================================================
+def fetch_raw_proxies():
+    """Tải proxy từ nguồn, không check, chỉ lấy raw"""
+    global RAW_PROXIES
+    proxies = set()
+    print("[Proxy System] Đang quét lại nguồn proxy...")
+    for url in PROXY_SOURCES:
+        try:
+            r = requests.get(url, timeout=10)
+            if r.status_code == 200:
+                for line in r.text.splitlines():
+                    line = line.strip()
+                    if ":" in line and not " " in line:
+                        proxies.add(line)
+        except: pass
+    
+    # Cập nhật danh sách toàn cục
+    if len(proxies) > 0:
+        RAW_PROXIES = list(proxies)
+        print(f"[Proxy System] Kho Proxy đã cập nhật: {len(RAW_PROXIES)} IPs.")
+    else:
+        print("[Proxy System] Cảnh báo: Không tải được proxy nào trong lần quét này.")
+    
+    return len(RAW_PROXIES)
+
+def get_live_proxy_from_pool():
+    """Lấy ngẫu nhiên 1 proxy từ kho, check sống mới trả về."""
+    if not RAW_PROXIES: return None
+    
+    # Thử tối đa 20 lần để tìm 1 con proxy sống (tăng số lần thử vì nguồn rác nhiều)
+    for _ in range(20):
+        try:
+            proxy = random.choice(RAW_PROXIES)
+            ip, port = proxy.split(":")
+            port = int(port)
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.settimeout(CHECK_TIMEOUT)
+            sock.connect((ip, port))
+            sock.close()
+            return f"http://{proxy}"
+        except:
+            continue
+    return None
+
+async def background_proxy_refresher(stop_event):
+    """Tác vụ chạy ngầm: Cứ 2 phút nạp lại proxy 1 lần"""
+    while not stop_event.is_set():
+        await asyncio.sleep(120) # 2 phút
+        if stop_event.is_set(): break
+        await asyncio.to_thread(fetch_raw_proxies)
+
+# ==============================================================
+# ==== 5. CÁC HÀM HỖ TRỢ VMOS & TEMP MAIL ====
+# ==============================================================
+
+class Counter:
+    def __init__(self):
+        self.value = 0
+        self.lock = asyncio.Lock()
+    async def increment(self):
+        async with self.lock:
+            self.value += 1
+            return self.value
+
+def format_proxy(proxy_str):
+    if not proxy_str: return None
+    return {'http': proxy_str, 'https': proxy_str}
+
+def get_proxy_ip(proxy_str):
+    try:
+        if "@" in proxy_str:
+            return proxy_str.split("@")[1].split(":")[0]
+        else:
+            return proxy_str.split("//")[1].split(":")[0]
+    except:
+        return "Unknown"
+
+def make_vmos_request_smart(url, headers, payload_dict, proxy_str):
+    try:
+        is_get_request = not payload_dict
+        payload_str = json.dumps(payload_dict) if not is_get_request else None
+        request_method = requests.get if is_get_request else requests.post
+        
+        request_args = { 'url': url, 'headers': headers, 'timeout': 20 }
+        if proxy_str: request_args['proxies'] = format_proxy(proxy_str)
+        if payload_str: request_args['data'] = payload_str
+
+        response = request_method(**request_args)
+        
+        ip_block_msg = "certain foreign ip addresses have been restricted"
+        if response.status_code in [403, 407, 429, 502, 503] or ip_block_msg in response.text.lower():
+            return None, True 
+
+        try:
+            if "application/json" in response.headers.get("Content-Type", ""):
+                 response.json() 
+        except:
+             return None, True 
+
+        return response, False 
+
+    except (requests.exceptions.ProxyError, requests.exceptions.ConnectTimeout, requests.exceptions.ConnectionError, requests.exceptions.ReadTimeout):
+        return None, True 
+    except Exception as e:
+        return None, False
+
+# === TEMP MAIL OLD API (Restored & Proxied) ===
+def get_temp_email(proxy=None):
+    url="https://api.internal.temp-mail.io/api/v3/email/new"
+    ua="Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+    headers={
+        "Accept":"application/json, text/plain, */*",
+        "Accept-Language":"en-US,en;q=0.9,vi;q=0.8",
+        "Application-Name":"web",
+        "Application-Version":"2.4.2",
+        "Content-Type":"application/json;charset=UTF-8",
+        "User-Agent":ua
+    }
+    try:
+        request_kwargs = {'url': url, 'headers': headers, 'timeout': 15}
+        if proxy:
+            request_kwargs['proxies'] = format_proxy(proxy)
+            
+        response=requests.post(**request_kwargs)
+        response.raise_for_status()
+        data=response.json()
+        return data.get("email")
+    except Exception as e:
+        return None
+
+async def get_email_messages(temp_email, proxy=None):
+    url=f"https://api.internal.temp-mail.io/api/v3/email/{temp_email}/messages"
+    for attempt in range(20):
+        try:
+            request_kwargs = {'url': url, 'timeout': 15}
+            if proxy:
+                request_kwargs['proxies'] = format_proxy(proxy)
+
+            response=await asyncio.to_thread(requests.get, **request_kwargs)
+            
+            if response.status_code == 200:
+                messages=response.json()
+                if messages:
+                    for msg in reversed(messages):
+                        body_text=msg.get("body_text","")
+                        subject=msg.get("subject","")
+                        full_text = subject + " " + body_text
+                        if full_text:
+                            verification_code_match=re.search(r"\b(\d{6})\b", full_text)
+                            if verification_code_match:
+                                return verification_code_match.group(1)
+            await asyncio.sleep(4)
+        except Exception as e:
+            await asyncio.sleep(4)
+    return None
+
+def send_to_vmoscloud_smart(email, proxy):
+    url="https://api.vsphone.com/vsphone/api/sms/smsSend"
+    headers={"content-type":"application/json","origin":"https://cloud.vmoscloud.com","referer":"https://cloud.vmoscloud.com/","user-agent":"Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36"}
+    payload={"smsType":2,"mobilePhone":email,"captchaVerifyParam": "{\"sceneId\":\"5jvar3wp\",\"certifyId\":\"Sz5A7mJjnc\",\"deviceToken\":\"U0dfV0VCIzM3OTVkMjgyNDJhMTE2MTliYzI1Zjc4NmY4NGU1M2Q0LWgtMTc1MTI0ODM0NzQ5OC1lOTBiNzJmZGZkZDg0YjUzYTdiZjU0YTRiNWQ3MDIzNiNkOGJCS21wMjdYVGc5bUdPVDVUaUN1N3lWeERuRkZXL2dXSmFOYnYrcjMzTmlWUkVFVUVGVVI2OE9IWnM5U2xyYnZXMnF6WXRsVHZwRGtlclNxUFJrcGlPcGRFaXI2TW5wZUpqTnhtNHB5N29kTUlldnllYXRGbWtXUFRUNm9ldFlUOXowcnB3emJYeGdRNTJ1UVNOSFI5NlVqdGV6YnBJSTh6RU1uN2I0OERZckY1SmZxR3RwbXM1aVUyY3RWTXE2UWVjaXhrZjIvZEZqOVcrc3RqS0NDbUFKUURUUTRZcTFObGR2bm80OG1UZEs2c3hBV29lTWpUZHBOZUI2MCtZYnp6WGI3ZVpjS2ZoMCtwRWN0UkFsWC9XV0EzaDRjb1pwT1dVZzZXejI2WkhtMVNTQll1WEtmYXpsQmhyNUMza3pRcy8zM1BlVW4xd2Q2VFk4dEduVUlxVURLclhUU3ZJS2xlSk9aOWRaYzBOZldEQmdBaXZ2NEkxa09pcHkwdmhpUnphc3ZkczAyOGtPbHlDTFlmUkdyaXYvTS9tUXVxTjl4TzN2VXFtTE9OM2ltZWQ1SGxKNHNVM294ZE5lZGJMN2JvcnNxUEV6ZEVIKy9vNWFGUnI3VnBEOURVWHozZUFyeE9zZU13RHRFdzRTaDR3R1hXNS9FWEVNcXpOM0xwbkFDeHhuRlZIemxLeGM4aHB6a2ZxM1U4NGl1K2hMdE11RVBaamNVdHlWbFVXL0tvazBXUkVpcWVsQUZLcTljQmJUcWJPdy9kZXgzanNLWVIvckNPY3MvcDV6N0lpalIvcDBWbnk5TWp1U2U0U2V0b3djdStFUm9GUzFudW90U1ROIzExOSNkOTYzNzA0ZDk1NTdiODhlMjJhYWJlYjNmMzJjZDA3Nw==\",\"data\":\"JRMmbUseGiM6eQ4LaxVYLx32sUc6EyJfYRA4MlBCDPQgclpB/24VVyx4AK1qL+ksP1FoEwpQJ229/9gCqZA8AoswNlp9L0UPC07tEHBWYVhZOy0lQs9LIuVqNH9xGWPVpShRCh8WNi4eeEoyZGY28h+zdokDk9hbE1BJTaLWjK1KpiBUFiVpTEhefg1bRjg71Flk+x9SfSU+cB15wB9UAVNydxoYuBgbK1lQewIicctfr3JTCci1Xv9rtSsoYJUiaS55ZDlBLnh2WRo9XG05JA57Ly8IT2UVqiBuT9dHcdcubW9BgDh+l2Jg4gNoU2WSAgHRZWUwNyB/PdZ9L1tRVHkeLQW1OT1RV3xJb784Z0JAY2ozCawXcgUGR3pfQAlVDKJQ0nw7ttA7/gT35RIEpd7jJ/kNP6314kJXxpC/U3eyV08JQjqMeQ1kv1IaICsVaW1BCg==\"}"}
+    
+    response, is_proxy_err = make_vmos_request_smart(url, headers, payload, proxy)
+    if is_proxy_err: return False, True 
+    if not response: return False, False 
+    try:
+        resp_json = response.json()
+        if resp_json.get("code") == 200 and "success" in resp_json.get("msg", "").lower(): return True, False
+    except: pass
+    return False, False
+
+def login_to_vmoscloud_smart(email, verify_code, channel_code, proxy):
+    url = "https://api.vsphone.com/vsphone/api/user/login"
+    headers = { "Content-Type": "application/json", "origin": "https://cloud.vmoscloud.com", "referer": "https://cloud.vmoscloud.com/", "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/135.0.0.0 Safari/537.36", "accept": "application/json, text/plain, */*", "accept-language": "vi", "appversion": "1008424", "clienttype": "web", "requestsource": "wechat-miniapp", "suppliertype": "0" }
+    payload = { "mobilePhone": email, "loginType": 0, "verifyCode": verify_code, "password": "ba71fb4736613b59be75f9c404b945b1" }
+    if channel_code: payload["channel"] = channel_code; headers["channel"] = channel_code
+
+    response, is_proxy_err = make_vmos_request_smart(url, headers, payload, proxy)
+    if is_proxy_err: return None, True
+    if response:
+        try:
+            data = response.json()
+            if data.get("code") == 200: return True, False
+        except: pass
+    return False, False
+
+async def attempt_buff_cycle(invite_code, proxy_str):
+    proxy_ip = get_proxy_ip(proxy_str)
+    
+    email = await asyncio.to_thread(get_temp_email, proxy_str)
+    if not email: 
+        print(f"[{proxy_ip}] ❌ Lỗi: Không lấy được Email (Có thể do Proxy).")
+        return "FAIL_LOGIC", None 
+    
+    await asyncio.sleep(1)
+
+    sent_ok, is_proxy_bad = await asyncio.to_thread(send_to_vmoscloud_smart, email, proxy_str)
+    if is_proxy_bad: 
+        print(f"[{proxy_ip}] ⚠️ Lỗi Proxy khi gửi mã.")
+        return "FAIL_PROXY", proxy_str
+    if not sent_ok: 
+        print(f"[{proxy_ip}] ❌ Gửi mã thất bại.")
+        return "FAIL_LOGIC", None
+
+    print(f"[{proxy_ip}] 📩 Đã gửi mã tới {email}, đang đợi OTP...")
+    await asyncio.sleep(3)
+
+    verify_code = await get_email_messages(email, proxy_str)
+    if not verify_code: 
+        print(f"[{proxy_ip}] ❌ Không nhận được OTP (Time out).")
+        return "FAIL_LOGIC", None
+
+    await asyncio.sleep(1)
+
+    login_ok, is_proxy_bad_login = await asyncio.to_thread(login_to_vmoscloud_smart, email, verify_code, invite_code, proxy_str)
+    if is_proxy_bad_login: 
+        print(f"[{proxy_ip}] ⚠️ Lỗi Proxy khi đăng nhập.")
+        return "FAIL_PROXY", proxy_str
+    
+    if login_ok: 
+        return "SUCCESS", None
+    else: 
+        print(f"[{proxy_ip}] ❌ Đăng nhập thất bại.")
+        return "FAIL_LOGIC", None
+
+
+async def rotating_worker(invite_code, success_counter, target_success, stop_event):
+    while not stop_event.is_set():
+        if success_counter.value >= target_success:
+            break
+        
+        current_proxy = await asyncio.to_thread(get_live_proxy_from_pool)
+        
+        if not current_proxy:
+            await asyncio.sleep(5) # Đợi lâu hơn xíu nếu hết proxy
+            continue
+            
+        status, _ = await attempt_buff_cycle(invite_code, current_proxy)
+        
+        if status == "SUCCESS":
+            val = await success_counter.increment()
+            print(f"[{get_proxy_ip(current_proxy)}] ✅ BUFF THÀNH CÔNG! ({val}/{target_success})")
+            await asyncio.sleep(random.uniform(2, 5))
+            
+        elif status == "FAIL_PROXY":
+            pass
+            
+        elif status == "FAIL_LOGIC":
+            await asyncio.sleep(random.uniform(2, 5))
+            continue
+
+# ==============================================================
+# ==>> 6. BOT DISCORD SETUP <<==
+# ==============================================================
+
+intents = discord.Intents.default(); intents.message_content = True
+bot = commands.Bot(command_prefix='!', intents=intents)
+
+@bot.event
+async def on_ready():
+    print("-" * 30);print(f'✅ Bot đã đăng nhập: {bot.user.name} (ID: {bot.user.id})');print("-" * 30)
+
+@bot.command(name="buff")
+async def buff(ctx: commands.Context, code: str = None, so_lan_str: str = None):
+    user = ctx.author
+    if code is None or so_lan_str is None: 
+        await ctx.send(f"❌ Cú pháp: `!buff <mã_mời> <số_lần>`")
+        return
+    
+    if user.id in active_tasks:
+        await ctx.send(f"⚠️ Bạn đang có lệnh chạy. Dùng `!stop` để dừng trước.")
+        return
+    
+    try: target_success = int(so_lan_str)
+    except: await ctx.send("❌ Số lần phải là số."); return
+
+    status_msg = await ctx.send(f"{get_emote('loading', '⏳')} **Khởi động...**\n🔄 Đang tải và kiểm tra nguồn Proxy Public...")
+    
+    total_raw = await asyncio.to_thread(fetch_raw_proxies)
+    
+    # Cấu hình luồng: MAX 1000
+    num_threads = min(1000, target_success)
+    if num_threads < 10: num_threads = 10 
+    
+    success_counter = Counter()
+    stop_event = asyncio.Event()
+    active_tasks[user.id] = stop_event # Lưu stop event
+    
+    start_time = time.time()
+    
+    # Chạy task cập nhật proxy ngầm
+    refresh_task = asyncio.create_task(background_proxy_refresher(stop_event))
+
+    bar = "░" * 10 
+    desc = (f"🎯 Target : **{target_success}**\n"
+            f"📦 Kho Proxy: **{total_raw}** (Auto-Refresh 2m)\n"
+            f"🚀 Luồng chạy: **{num_threads}** (Max 1000)\n"
+            f"📊 Tiến độ: `{bar}` **0%** (0/{target_success})\n"
+            f"⏳ Đang chạy... Cập nhật mỗi 5 acc thành công.")
+    
+    embed = discord.Embed(title=f"{get_emote('loading', '⏳')} Đang Buff Siêu Tốc (1000 Luồng)", description=desc, color=discord.Color.blue())
+    if THUMBNAIL_URL: embed.set_thumbnail(url=THUMBNAIL_URL)
+    await status_msg.edit(content="", embed=embed)
+
+    tasks = []
+    for _ in range(num_threads):
+        task = asyncio.create_task(rotating_worker(code, success_counter, target_success, stop_event))
+        tasks.append(task)
+
+    last_reported_success = 0
+    
+    # Loop monitor
+    while True:
+        current_success = success_counter.value
+        
+        # Cập nhật mỗi 5 acc thành công
+        if current_success > last_reported_success and current_success % 5 == 0:
+            last_reported_success = current_success
+            percent = int((current_success / target_success) * 100)
+            filled_length = int(percent / 10) 
+            bar = "▓" * filled_length + "░" * (10 - filled_length)
+            
+            new_desc = (f"🎯 Target : **{target_success}**\n"
+                        f"📦 Kho Proxy: **{len(RAW_PROXIES)}**\n"
+                        f"🚀 Luồng chạy: **{num_threads}**\n"
+                        f"📊 Tiến độ: `{bar}` **{percent}%** ({current_success}/{target_success})\n"
+                        f"⏳ Đang chạy... Cập nhật mỗi 5 acc thành công.")
+            
+            embed.description = new_desc
+            try: await status_msg.edit(embed=embed)
+            except: pass
+
+        if current_success >= target_success or stop_event.is_set():
+            stop_event.set()
+            break
+            
+        await asyncio.sleep(1)
+
+    # Dọn dẹp
+    refresh_task.cancel()
+    if user.id in active_tasks: del active_tasks[user.id]
+    
+    await asyncio.gather(*tasks, return_exceptions=True)
+    
+    end_time = time.time()
+    duration = end_time - start_time
+    final_success = success_counter.value
+    
+    if final_success >= target_success:
+        title = "✅ Buff Thành Công!"
+        color = discord.Color.green()
+        result_desc = f"Đã đạt đủ chỉ tiêu **{final_success}/{target_success}** lần."
+        bar = "▓" * 10 
+    else:
+        title = "🛑 Đã Dừng (!stop)"
+        color = discord.Color.orange()
+        result_desc = f"Đã dừng theo lệnh. Kết quả: **{final_success}/{target_success}**."
+
+    final_embed = discord.Embed(title=title, description=f"{user.mention}, báo cáo kết quả:\n{result_desc}", color=color)
+    if THUMBNAIL_URL: final_embed.set_thumbnail(url=THUMBNAIL_URL)
+    
+    final_embed.add_field(name="Thời gian", value=f"{duration:.1f}s", inline=True)
+    final_embed.add_field(name="Luồng sử dụng", value=f"{num_threads}", inline=True)
+    
+    percent_final = int((final_success / target_success) * 100) if target_success > 0 else 0
+    filled_final = int(percent_final / 10)
+    bar_final = "▓" * filled_final + "░" * (10 - filled_final)
+    final_embed.add_field(name="Tiến độ cuối", value=f"`{bar_final}` **{percent_final}%**", inline=False)
+    
+    await status_msg.edit(embed=final_embed)
+
+@bot.command(name="stop")
+async def stop(ctx):
+    user_id = ctx.author.id
+    if user_id in active_tasks:
+        active_tasks[user_id].set()
+        await ctx.send(f"🛑 {ctx.author.mention} Đã nhận lệnh dừng! Đang đợi các luồng kết thúc...")
+    else:
+        await ctx.send(f"❌ {ctx.author.mention}, bạn không có lệnh buff nào đang chạy.")
+
+if __name__ == "__main__":
+    if not BOT_TOKEN: sys.exit("Thiếu Token.")
+    bot.run(BOT_TOKEN)
