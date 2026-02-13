@@ -11,7 +11,8 @@ from colorama import Fore, Style, init
 init(autoreset=True)
 
 # Cấu hình
-TEMP_DIR = "/sdcard/Download/RobloxInjector_Temp"
+# [FIX] Đổi đường dẫn tạm từ /sdcard về thư mục hiện tại của Termux để tránh lỗi Permission denied
+TEMP_DIR = os.path.join(os.getcwd(), "RobloxInjector_Temp") 
 COOKIE_FILENAME = "Cookies"
 COOKIE_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie"
 TARGET_PACKAGE = "com.roblox.client"
