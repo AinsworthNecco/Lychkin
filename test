@@ -7,7 +7,7 @@ import shutil
 import urllib.request
 from colorama import Fore, Style, init
 
-# Khởi tạo màu sắc1
+# Khởi tạo màu sắc
 init(autoreset=True)
 
 # Cấu hình
@@ -219,8 +219,8 @@ def inject_cookie(package_name, cookie_value):
         shutil.rmtree(TEMP_DIR)
         log("Đã xóa thư mục tạm.", "DEBUG")
     
-    log(f"THÀNH CÔNG! Đang khởi động lại {package_name}...", "INFO")
-    run_root_cmd(f"monkey -p {package_name} -c android.intent.category.LAUNCHER 1")
+    log(f"THÀNH CÔNG! Cookie đã được nạp. Bạn có thể mở game thủ công.", "INFO")
+    # Đã loại bỏ lệnh tự động mở game
 
 def main():
     print(f"{Fore.CYAN}=== ROBLOX AUTO INJECTOR (DEBUG MODE) ==={Style.RESET_ALL}")
