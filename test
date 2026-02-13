@@ -50,13 +50,20 @@ def run_root_cmd(command):
 
 def check_root():
     """Kiểm tra quyền root"""
-    log("Đang kiểm tra quyền Root...", "DEBUG")
-    _, _, code = run_root_cmd("id")
-    if code == 0:
-        log("Quyền Root: OK", "INFO")
+    log("Đang yêu cầu quyền Root... (Hãy nhấn 'Cho phép/Grant' trên màn hình nếu được hỏi)", "WARN")
+    
+    # Kiểm tra xem binary su có tồn tại không trước khi chạy
+    stdout, stderr, code = run_root_cmd("id")
+    
+    # Kiểm tra kỹ: Code phải bằng 0 VÀ user hiện tại phải là root (uid=0)
+    if code == 0 and "uid=0" in stdout:
+        log("Quyền Root: OK (Đã xác nhận uid=0)", "INFO")
         return True
     else:
-        log("Không có quyền Root!", "ERROR")
+        log("KHÔNG CÓ QUYỀN ROOT!", "ERROR")
+        log("Vui lòng đảm bảo thiết bị đã Root (Magisk/KernelSU) và đã cấp quyền cho Termux/Shell.", "ERROR")
+        if stderr:
+            log(f"Lỗi chi tiết: {stderr}", "DEBUG")
         return False
 
 def get_remote_cookie():
