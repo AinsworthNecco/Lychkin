@@ -1,9 +1,9 @@
 # -*- coding: utf-8 -*-
 # Script Bot Discord cho VMOS Cloud (Phiên bản Ultimate - Store Mode + ALL + Fix Freeze + Exclusion Mode + 120 Threads + Ping + Playwright Login)
 # Tương thích: Debian/Termux (Sử dụng System Chromium)
-# Cập nhật:
-# - Sử dụng executable_path="/usr/bin/chromium"
-# - Thêm --no-sandbox để chạy trên môi trường root/container.
+# Cấu hình:
+# - TOKEN: Đọc từ file 'token.txt' trên máy (Bảo mật).
+# - PROXY: Đọc từ URL GitHub (Dễ cập nhật).
 
 import discord
 from discord.ext import commands
@@ -27,8 +27,12 @@ from playwright.async_api import async_playwright
 # ==>> CẤU HÌNH & HẰNG SỐ <<==
 # ==============================================================
 
-# URL CHỨA INFO (Dòng 1: Token, Các dòng sau: Proxies)
-CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/info"
+# File chứa Token (Tạo file này trên Termux: nano token.txt -> dán token -> lưu)
+TOKEN_FILE_NAME = "token.txt"
+
+# URL CHỨA PROXY (Chỉ chứa proxy, mỗi dòng 1 cái, không để token ở đây nữa)
+PROXY_CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/info"
+
 CODE_FILE_NAME = "CODE.txt"
 THUMBNAIL_URL = "https://media.tenor.com/uKqSgjwq-jcAAAAM/hatsune-miku-oshi-no-ko.gif"
 
@@ -58,36 +62,48 @@ VIP_MAP = {
 is_inf_running = False
 
 # ==============================================================
-# ==>> HÀM LOAD CONFIG TỪ GITHUB <<==
+# ==>> HÀM LOAD CONFIG (TOKEN LOCAL & PROXY GITHUB) <<==
 # ==============================================================
 
-def fetch_config_from_github():
-    print(f"🌐 Đang tải cấu hình từ GitHub: {CONFIG_URL} ...")
+def load_local_token():
+    """Đọc token từ file token.txt trên máy"""
     try:
-        resp = requests.get(CONFIG_URL, timeout=15)
+        if not os.path.exists(TOKEN_FILE_NAME):
+            print(f"❌ LỖI: Không tìm thấy file '{TOKEN_FILE_NAME}'!")
+            print(f"👉 Hãy tạo file: gõ 'nano {TOKEN_FILE_NAME}', dán token vào, rồi lưu lại.")
+            return None
+        with open(TOKEN_FILE_NAME, 'r', encoding='utf-8') as f:
+            token = f.read().strip()
+            if not token:
+                print(f"❌ LỖI: File '{TOKEN_FILE_NAME}' rỗng!")
+                return None
+            return token
+    except Exception as e:
+        print(f"❌ Lỗi đọc token: {e}")
+        return None
+
+def fetch_proxies_from_github():
+    """Tải danh sách Proxy từ GitHub"""
+    print(f"🌐 Đang tải danh sách Proxy từ: {PROXY_CONFIG_URL} ...")
+    try:
+        resp = requests.get(PROXY_CONFIG_URL, timeout=15)
         if resp.status_code != 200:
-            print(f"❌ Lỗi tải config: HTTP {resp.status_code}")
-            return None, []
+            print(f"❌ Lỗi tải Proxy: HTTP {resp.status_code}")
+            return []
         
         text = resp.text.strip()
-        # Tách dòng và lọc dòng trống
+        # Lấy tất cả các dòng không trống làm proxy
         lines = [line.strip() for line in text.split('\n') if line.strip()]
         
         if not lines:
-            print("❌ File config trên GitHub rỗng!")
-            return None, []
+            print("⚠️ Cảnh báo: Link GitHub không chứa proxy nào!")
+            return []
             
-        # Dòng 1 là Token
-        token = lines[0]
-        # Các dòng còn lại là Proxy
-        proxies = lines[1:]
-        
-        print(f"✅ Đã tải Token: {token[:10]}******")
-        print(f"✅ Đã tải {len(proxies)} proxies từ GitHub.")
-        return token, proxies
+        print(f"✅ Đã tải thành công {len(lines)} proxies từ GitHub.")
+        return lines
     except Exception as e:
-        print(f"❌ Exception khi tải config GitHub: {e}")
-        return None, []
+        print(f"❌ Exception khi tải Proxy GitHub: {e}")
+        return []
 
 # ==============================================================
 # ==>> LỚP QUẢN LÝ CODE STORAGE (LƯU TRỮ & TRÍCH XUẤT) <<==
@@ -270,7 +286,7 @@ async def open_browser_and_login(email, password):
         browser = await p.chromium.launch(
             # Đường dẫn đến Chromium đã cài bằng apt
             executable_path="/usr/bin/chromium", 
-            headless=True, # Vẫn giữ false theo yêu cầu (Cần X11/VNC để hiển thị)
+            headless=False, # Vẫn giữ false theo yêu cầu (Cần X11/VNC để hiển thị)
             args=[
                 "--guest",
                 "--no-sandbox", # BẮT BUỘC TRÊN TERMUX/ROOT
@@ -890,13 +906,17 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
 if __name__ == "__main__":
     # Tự động tải config và chạy
     print("🚀 Đang khởi động Bot...")
-    token, proxies_list = fetch_config_from_github()
+    token_local = load_local_token()
+    proxies_list = fetch_proxies_from_github()
     
-    if not token:
-        print("❌ KHÔNG THỂ KHỞI ĐỘNG: Thiếu Token hoặc lỗi kết nối GitHub.")
+    if not token_local:
+        print("❌ KHÔNG THỂ KHỞI ĐỘNG: Thiếu Token trong file 'token.txt'.")
     else:
         # Cập nhật proxy manager với danh sách vừa tải
+        if not proxies_list:
+            print("⚠️ CẢNH BÁO: Không lấy được proxy nào từ GitHub. Bot có thể chạy lỗi nếu cần proxy.")
+            
         proxy_manager = ProxyManager(proxies_list)
         
-        print("🚀 Bot Pro Ultimate + Playwright + GitHub Config đang chạy...")
-        bot.run(token)
+        print(f"🚀 Bot Pro Ultimate + Playwright đang chạy (Token: {token_local[:5]}***)...")
+        bot.run(token_local)
