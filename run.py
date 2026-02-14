@@ -270,7 +270,7 @@ async def open_browser_and_login(email, password):
         browser = await p.chromium.launch(
             # Đường dẫn đến Chromium đã cài bằng apt
             executable_path="/usr/bin/chromium", 
-            headless=False, # Vẫn giữ false theo yêu cầu (Cần X11/VNC để hiển thị)
+            headless=True, # Vẫn giữ false theo yêu cầu (Cần X11/VNC để hiển thị)
             args=[
                 "--guest",
                 "--no-sandbox", # BẮT BUỘC TRÊN TERMUX/ROOT
