@@ -4,7 +4,7 @@
 # Cập nhật:
 # - Giữ nguyên toàn bộ logic gốc, không viết tắt, không tối ưu hóa làm mất code.
 # - Token: Local (token.txt).
-# - Proxy: GitHub.
+# - Proxy: GitHub.1
 
 import discord
 from discord.ext import commands
