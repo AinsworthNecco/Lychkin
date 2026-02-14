@@ -4,7 +4,7 @@
 # - Tích hợp Playwright: Tự động mở Chrome, đăng nhập và treo nick.
 # - LOAD CONFIG TỪ GITHUB: Tải Token và Proxy từ URL online.
 # - Fast Skip: Bỏ qua ngay lập tức nếu lỗi gửi mã.
-# - Thông báo tổng code trong kho.
+# - Thông báo tổng code trong kho.1
 
 import discord
 from discord.ext import commands
