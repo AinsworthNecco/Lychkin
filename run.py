@@ -1,9 +1,8 @@
 # -*- coding: utf-8 -*-
-# Script Bot Discord cho VMOS Cloud (Phiên bản Ultimate - Store Mode + ALL + Fix Freeze + Exclusion Mode + 50 Threads + Ping + Playwright Login)
+# Script Bot Discord cho VMOS Cloud (Phiên bản Ultimate - Store Mode + ALL + Fix Freeze + Exclusion Mode + 120 Threads + Ping + Playwright Login)
 # Tương thích: Debian/Termux (Sử dụng System Chromium)
 # Cập nhật:
-# - Giảm luồng xuống 50 để tránh crash trên Termux.
-# - Giữ nguyên toàn bộ logic gốc.
+# - Giữ nguyên toàn bộ logic gốc, không viết tắt, không tối ưu hóa làm mất code.
 # - Token: Local (token.txt).
 # - Proxy: GitHub.
 
@@ -647,7 +646,7 @@ async def on_command_error(ctx, error):
 async def on_ready():
     print(f"Logged in as {bot.user}")
 
-@bot.command(name="use1")
+@bot.command(name="use")
 async def use_code(ctx):
     data = code_storage.load_data()
     embed = discord.Embed(title="📦 KHO CODE DỰ TRỮ", color=discord.Color.gold())
@@ -695,7 +694,7 @@ async def use_code(ctx):
     except asyncio.TimeoutError:
         await panel_msg.edit(content="⌛ Hết thời gian chờ lệnh `!use`.", embed=None)
 
-@bot.command(name="genstop1")
+@bot.command(name="genstop")
 async def genstop(ctx):
     global is_inf_running
     if is_inf_running:
@@ -704,7 +703,7 @@ async def genstop(ctx):
     else:
         await ctx.send("⚠️ Không có tiến trình vô cực nào đang chạy.")
 
-@bot.command(name="genbuff1")
+@bot.command(name="genbuff")
 async def genbuff(ctx, arg1: str = None, arg2: str = None):
     global is_inf_running
     
@@ -820,8 +819,7 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
             await msg.edit(embed=embed_run)
 
             total_proxies = proxy_manager.get_count()
-            # Giảm xuống 50 theo yêu cầu để tránh crash trên Termux
-            concurrency = min(total_proxies, 50)
+            concurrency = min(total_proxies, 120)
             semaphore = asyncio.Semaphore(concurrency)
             
             current_assets_num = 0
