@@ -3,7 +3,7 @@
 # Tương thích: Debian/Termux (Sử dụng System Chromium)
 # Cập nhật:
 # - Sử dụng executable_path="/usr/bin/chromium"
-# - Thêm --no-sandbox để chạy trên môi trường root/container.a
+# - Thêm --no-sandbox để chạy trên môi trường root/container.
 
 import discord
 from discord.ext import commands
