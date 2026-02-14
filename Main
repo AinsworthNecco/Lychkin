@@ -1,18 +1,7 @@
 local SETTINGS = {
     -- =================================================================
     ["EnableAvoidPlayers"] = true, -- Bật/tắt tính năng né tài khoản
-    ["AVOID_PLAYERS"] = {
-    "Carri3Br3nda2014",
-    "Howard_Aaron87",
-    "Ang3licaHail3y59",
-    "BonnieDianeBrenda",
-    "ManabuGarethDanny21",
-    "HeidiHerbertBrad",
-    "JieGenevieve2021",
-    "ChristinaHeatherChel",
-    "AliceEdmundElisa2012",
-    "ElisaClaraBennett"
-    },
+    ["AVOID_PLAYERS"] = {}, -- Để trống, sẽ tự động load từ GitHub
 
     -- =================================================================
     -- CÀI ĐẶT CHỐNG BOT
@@ -47,7 +36,7 @@ local SETTINGS = {
     -- =================================================================
     -- CÀI ĐẶT TỰ ĐỘNG TRẢ LỜI & CHAT
     -- =================================================================
-    ["EnableAutoReply"] = true,
+    ["EnableAutoReply"] = false,
     ["ReplyRadius"] = 25,
     ["ReplyCooldown"] = 7,
     ["ReplyRules"] = {
@@ -58,7 +47,7 @@ local SETTINGS = {
         { keywords = { "why are you", "how are you", "spinning", "jumping", "afk" }, replies = { "Just farming for my goal.", "It's part of the grind.", "Doing this for donations." } },
     },
 
-        ["EnableAutoThank"] = true, -- Bật/tắt tự động cảm ơn khi được donate
+        ["EnableAutoThank"] = false, -- Bật/tắt tự động cảm ơn khi được donate
     ["ThankYouMessages"] = {    -- Danh sách các tin nhắn cảm ơn
         "Thanks for the donation!",
         "Tysm!!",
@@ -68,7 +57,7 @@ local SETTINGS = {
         "TYSM!"
     },
 
-    ["EnableAutoSpam"] = true, -- Bật/tắt tự động spam tin nhắn
+    ["EnableAutoSpam"] = false, -- Bật/tắt tự động spam tin nhắn
     ["SpamInterval"] = 60, -- Thời gian (giây) giữa mỗi lần chat
     ["SpamMessages"] = {    -- Danh sách các tin nhắn để spam
         "Goal: MAX SPIN LEVEL 100🌀 - 1 ROBUX = +1 SPEED!",
@@ -343,9 +332,9 @@ tryNextCachedServer = function()
         updateDisplay("ERROR", "Đã thử hết server trong cache. Tất cả đều lỗi.")
         updateDisplay("INFO", "Quay lại quét API để lấy server mới...")
         isHoppingFromCache = false 
-        isRateLimited = false      
-        task.wait(1)               
-        fetchNextBatch()          
+        isRateLimited = false       
+        task.wait(1)                
+        fetchNextBatch()           
     end
 end
 
@@ -457,8 +446,8 @@ fetchNextBatch = function()
         if newCandidatesCount > 0 then
              updateDisplay("SUCCESS", "Quét xong! Tìm thấy " .. newCandidatesCount .. " server hợp lệ.")
              for i = #candidateServers, 2, -1 do
-                  local j = rng:NextInteger(1, i)
-                  candidateServers[i], candidateServers[j] = candidateServers[j], candidateServers[i]
+                 local j = rng:NextInteger(1, i)
+                 candidateServers[i], candidateServers[j] = candidateServers[j], candidateServers[i]
              end
              tryNextServer()
         else
@@ -762,6 +751,24 @@ end
 local function scanForBots() updateDisplay("INFO", "Bắt đầu quét bot..."); task.wait(2); local _boothlocation; local suc, _shuffled = pcall(function() return Workspace:WaitForChild('MapUI', 5) end); if not suc or not _shuffled then local playerGuiMap = LocalPlayer:WaitForChild("PlayerGui"); if playerGuiMap then local mapUiContainer = playerGuiMap:WaitForChild('MapUIContainer', 5); if mapUiContainer then _boothlocation = mapUiContainer:WaitForChild('MapUI', 5) end end else _boothlocation = _shuffled end; if not _boothlocation then updateDisplay("ERROR", "LỖI: Không tìm thấy MapUI để quét bot."); return 0 end; local boothUI = _boothlocation:WaitForChild("BoothUI"); if not boothUI then updateDisplay("ERROR", "LỖI: Không tìm thấy BoothUI bên trong MapUI."); return 0 end; local currentBotCount = 0; for _, uiFrame in ipairs(boothUI:GetChildren()) do local success, err = pcall(function() local ownerName = uiFrame.Details.Owner.Text; if ownerName ~= "unclaimed" then local boothText = string.lower(uiFrame.Sign.TextLabel.Text); for _, keyword in ipairs(SETTINGS.BOT_KEYWORDS) do if string.find(boothText, keyword) then currentBotCount = currentBotCount + 1; local alertMessage = string.format("PHÁT HIỆN BOT #%d\n'%s'", currentBotCount, ownerName); updateDisplay("BOT_DETECTED", alertMessage); task.wait(2.5); break end end end end); if not success then print("[Anti-Bot] Lỗi khi quét gian hàng: " .. tostring(err)) end end; updateDisplay("INFO", "Quét xong. Phát hiện: " .. currentBotCount .. " bot."); task.wait(3); return currentBotCount end
 
 local function checkAvoidPlayersOnce()
+    -- --- TỰ ĐỘNG LOAD TỪ GITHUB ---
+    if SETTINGS.EnableAvoidPlayers then
+        local url = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/accounts"
+        local success, result = pcall(function() return game:HttpGet(url) end)
+        if success then
+            SETTINGS.AVOID_PLAYERS = {} -- Reset danh sách
+            for line in result:gmatch("[^\r\n]+") do
+                local cleanName = line:match("^%s*(.-)%s*$") -- Xóa khoảng trắng thừa
+                if cleanName and cleanName ~= "" then
+                    table.insert(SETTINGS.AVOID_PLAYERS, cleanName)
+                end
+            end
+            print("[Avoid] Đã tải " .. #SETTINGS.AVOID_PLAYERS .. " tài khoản từ GitHub.")
+        else
+            print("[Avoid] Lỗi tải danh sách từ GitHub: " .. tostring(result))
+        end
+    end
+
     if not SETTINGS.EnableAvoidPlayers or not SETTINGS.AVOID_PLAYERS or #SETTINGS.AVOID_PLAYERS == 0 then
         return false
     end
