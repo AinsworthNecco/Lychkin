@@ -17,12 +17,13 @@ import urllib.request
 from datetime import datetime
 
 # ==============================================================================
-# SCRIPT: Lychkins's Task Runner v1.9 (Optimized Cookie & Local Config)
+# SCRIPT: Lychkins's Task Runner v1.10 (Smart Path Injector)
 #
-# CẬP NHẬT MỚI (v1.9):
-# - Cookie Khớp -> SKIP HOÀN TOÀN (Không check ID, không gọi API).
-# - Chỉ gọi API lấy ID khi thực sự Inject mới (Cookie lệch/thiếu).
-# - ID tài khoản được nạp 100% từ file config.txt nội bộ.
+# CẬP NHẬT MỚI (v1.10):
+# - Tích hợp logic Injector mới: Tự động tìm đường dẫn file Cookie (Smart Detect).
+# - Khắc phục lỗi "Không copy được file gốc" bằng cách quét đa vị trí.
+# - Xử lý quyền (Permission) chuẩn xác hơn dựa trên thư mục cha.
+# - Giữ logic tối ưu: Khớp -> Skip, Mới -> Lấy ID & Lưu Config.
 # ==============================================================================
 
 # ---------------------------------------------------
@@ -43,7 +44,7 @@ current_executor_id = None
 # Biến cho Injector
 TEMP_DIR = os.path.join(os.getcwd(), "RobloxInjector_Temp") 
 COOKIE_FILENAME = "Cookies"
-LOCAL_CONFIG_FILE = ""
+LOCAL_CONFIG_FILE = "config.txt"
 
 # ==============================================================================
 # -- CÁC HÀM TIỆN ÍCH CƠ BẢN --
@@ -94,10 +95,6 @@ def load_local_ids_from_file():
     return local_map
 
 def fetch_and_load_config(url):
-    """
-    Tải cấu hình từ xa (GitHub) lấy Suffix, 
-    nhưng ID thì LẤY TỪ FILE LOCAL (config.txt).
-    """
     global current_executor_id
     try:
         response = requests.get(url, timeout=20)
@@ -113,16 +110,12 @@ def fetch_and_load_config(url):
             elif key in ["MIN_PLAYER_PERCENTAGE", "MAX_PLAYER_PERCENTAGE"]:
                 config[key] = float(value)
             elif key == "ACCOUNT_SUFFIXES":
-                # Tách chuỗi Suffix từ GitHub (ví dụ: "a b c" hoặc "a,b,c")
                 raw_suffixes = re.split(r'[,\s]+', value)
                 accounts = []
                 for s in raw_suffixes:
                     s = s.strip()
                     if s:
-                        # Nếu lỡ GitHub có dạng cũ "suffix:ID", chỉ lấy phần Suffix
-                        if ':' in s:
-                             s = s.split(':')[0]
-                        # Khởi tạo ID là None (sẽ nạp từ local sau)
+                        if ':' in s: s = s.split(':')[0]
                         accounts.append({'suffix': s, 'id': None})
                 config[key] = accounts
             elif key == "PROXY_LIST":
@@ -130,7 +123,7 @@ def fetch_and_load_config(url):
             else:
                 config[key] = value
         
-        # --- QUAN TRỌNG: MERGE ID TỪ LOCAL CONFIG.TXT ---
+        # Merge ID từ local config
         local_ids = load_local_ids_from_file()
         if "ACCOUNT_SUFFIXES" in config:
             for acc in config["ACCOUNT_SUFFIXES"]:
@@ -138,7 +131,7 @@ def fetch_and_load_config(url):
                 if suf in local_ids:
                     acc['id'] = local_ids[suf]
                 else:
-                    acc['id'] = "0" # Nếu chưa có ID trong local -> 0
+                    acc['id'] = "0"
         
         if "SELECTED_EXECUTOR" in config:
             selected_id = config["SELECTED_EXECUTOR"]
@@ -183,7 +176,7 @@ def countdown(seconds, thread_name="MAIN"):
     print(f"[{thread_name}] ...                       ")
 
 # ==============================================================================
-# -- CÁC HÀM INJECTOR LOGIC --
+# -- CÁC HÀM INJECTOR LOGIC (SMART PATH DETECT) --
 # ==============================================================================
 
 def run_root_cmd_injector(command):
@@ -219,16 +212,36 @@ def get_remote_cookies_list():
         print(f"[COOKIE] Lỗi tải Cookie: {e}")
         return []
 
-def get_local_cookie_injector(package_name):
-    target_path = f"/data/data/{package_name}/app_webview/Cookies"
-    temp_check_path = os.path.join(TEMP_DIR, "Cookies_Check")
+def find_real_cookie_path(package_name):
+    """[NEW] Tìm đường dẫn thực sự của file Cookies."""
+    base_path = f"/data/data/{package_name}/app_webview"
     
-    check_cmd = f"[ -f {target_path} ] && echo 'YES' || echo 'NO'"
-    out, _, _ = run_root_cmd_injector(check_cmd)
-    if "NO" in out:
+    # Danh sách các vị trí có thể
+    possible_paths = [
+        f"{base_path}/Default/Cookies",
+        f"{base_path}/Cookies"
+    ]
+    
+    # print(f"[COOKIE] Đang quét path cho {package_name}...", end=" ")
+    for path in possible_paths:
+        check_cmd = f"[ -f '{path}' ] && echo 'YES' || echo 'NO'"
+        out, _, _ = run_root_cmd_injector(check_cmd)
+        if "YES" in out:
+            # print(f"-> Found: {path}")
+            return path
+            
+    # print("-> Not found.")
+    return None
+
+def get_local_cookie_injector(package_name):
+    """Đọc cookie local dùng Smart Path."""
+    target_path = find_real_cookie_path(package_name)
+    if not target_path:
         return None
 
+    temp_check_path = os.path.join(TEMP_DIR, "Cookies_Check")
     if not os.path.exists(TEMP_DIR): os.makedirs(TEMP_DIR)
+
     run_root_cmd_injector(f"cp {target_path} {temp_check_path}")
     run_root_cmd_injector(f"chmod 777 {temp_check_path}")
 
@@ -246,8 +259,11 @@ def get_local_cookie_injector(package_name):
     return local_cookie_value
 
 def prepare_db_injector(cookie_value):
+    """Chuẩn bị file DB sqlite (Logic mới)."""
     db_path = os.path.join(TEMP_DIR, COOKIE_FILENAME)
-    if not os.path.exists(db_path): return False
+    if not os.path.exists(db_path): 
+        print(f"[COOKIE] File DB tạm không tồn tại.")
+        return False
 
     try:
         conn = sqlite3.connect(db_path)
@@ -288,11 +304,17 @@ def prepare_db_injector(cookie_value):
         return False
 
 def inject_cookie_process(package_name, cookie_value):
-    target_path = f"/data/data/{package_name}/app_webview/Default/Cookies"
-    
+    """Quy trình Inject Cookie (Smart Path)."""
     check_pkg, _, _ = run_root_cmd_injector(f"pm path {package_name}")
     if not check_pkg:
         print(f"[COOKIE] Gói {package_name} chưa cài đặt -> Bỏ qua.")
+        return False
+
+    # 1. Tìm đường dẫn file cookie
+    target_path = find_real_cookie_path(package_name)
+    if not target_path:
+        print(f"[COOKIE] ⚠️ Không tìm thấy file Cookies của {package_name}.")
+        print(f"[COOKIE] -> Hãy mở app lên ít nhất 1 lần để tạo file.")
         return False
 
     run_root_cmd_injector(f"am force-stop {package_name}")
@@ -301,23 +323,29 @@ def inject_cookie_process(package_name, cookie_value):
     if os.path.exists(TEMP_DIR): shutil.rmtree(TEMP_DIR)
     os.makedirs(TEMP_DIR)
 
+    # 2. Copy ra
     cmd_cp_out = f"cp {target_path} {TEMP_DIR}/{COOKIE_FILENAME}"
-    _, _, code = run_root_cmd_injector(cmd_cp_out)
+    _, err, code = run_root_cmd_injector(cmd_cp_out)
     if code != 0:
-        print(f"[COOKIE] Không copy được file gốc (có thể chưa chạy lần đầu) -> Bỏ qua.")
+        print(f"[COOKIE] Lỗi copy file gốc: {err}")
         return False
 
     run_root_cmd_injector(f"chmod 777 {TEMP_DIR}/{COOKIE_FILENAME}")
 
+    # 3. Sửa DB
     if not prepare_db_injector(cookie_value):
         print(f"[COOKIE] Lỗi xử lý DB.")
         return False
 
+    # 4. Copy vào
     cmd_cp_in = f"cp {TEMP_DIR}/{COOKIE_FILENAME} {target_path}"
     run_root_cmd_injector(cmd_cp_in)
 
-    owner_raw, _, _ = run_root_cmd_injector(f"stat -c '%U:%G' /data/data/{package_name}/app_webview")
+    # 5. Fix quyền (Dựa trên thư mục cha)
+    parent_dir = os.path.dirname(target_path)
+    owner_raw, _, _ = run_root_cmd_injector(f"stat -c '%U:%G' {parent_dir}")
     owner = owner_raw.strip()
+    
     if owner:
         run_root_cmd_injector(f"chown {owner} {target_path}")
         run_root_cmd_injector(f"chmod 600 {target_path}")
@@ -372,12 +400,8 @@ def update_local_config_file(suffix, user_id):
         print(f"[CONFIG] Lỗi ghi file: {e}")
 
 def run_cookie_check_sequence(config):
-    """
-    Quy trình kiểm tra Cookie.
-    Nếu Khớp -> SKIP HOÀN TOÀN.
-    Nếu Lệch/Thiếu -> Inject -> Lấy ID -> Update Local Config.
-    """
-    print("\n[COOKIE] === KIỂM TRA COOKIE (TỐI ƯU) ===")
+    """Quy trình kiểm tra Cookie."""
+    print("\n[COOKIE] === KIỂM TRA COOKIE (SMART PATH) ===")
     
     remote_cookies = get_remote_cookies_list()
     if not remote_cookies:
@@ -401,18 +425,15 @@ def run_cookie_check_sequence(config):
         local_cookie = get_local_cookie_injector(pkg_name)
 
         if local_cookie == assigned_cookie:
-            # 1. Nếu khớp, IN RA OK VÀ BỎ QUA LUÔN
             print("OK (Khớp) -> Skip.")
         else:
-            # 2. Nếu khác biệt, mới chạy logic nạp
             if local_cookie is None:
-                print("MISSING (Chưa có).")
+                print("MISSING (Chưa có/Không tìm thấy file).")
             else:
                 print("MISMATCH (Khác biệt).")
             
             success = inject_cookie_process(pkg_name, assigned_cookie)
             
-            # Chỉ lấy ID và update config khi vừa nạp cookie mới
             if success:
                 print(f"[INFO] Đang lấy ID mới cho '{suffix}'...")
                 uid = get_roblox_user_id(assigned_cookie)
@@ -483,7 +504,7 @@ def execute_api_request_simple(method, url, config, thread_name, json_data=None,
     return None
 
 def check_roblox_presence_single(account_id, config, thread_name, proxy_list, initial_proxy_index):
-    # ID này được lấy từ config.txt local (đã merge trong fetch_and_load_config)
+    # ID này được lấy từ config.txt local
     if not account_id or str(account_id) == "0":
         print(f"[{thread_name}] ⚠️ Không có User ID (hoặc ID=0) trong config.txt -> Bỏ qua check.")
         return False
@@ -766,7 +787,7 @@ if __name__ == "__main__":
     os.system("termux-wake-lock")
     if not check_root_access(): sys.exit(1)
     
-    print("[MAIN] Tải cấu hình & Kiểm tra Cookie (v1.9 Optimized)...")
+    print("[MAIN] Tải cấu hình & Kiểm tra Cookie (v1.10 Smart Inject)...")
     initial_config = fetch_and_load_config(CONFIG_URL)
     run_cookie_check_sequence(initial_config)
     
