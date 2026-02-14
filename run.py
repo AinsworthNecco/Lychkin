@@ -592,7 +592,7 @@ bot = commands.Bot(command_prefix='!', intents=intents)
 async def on_ready():
     print(f"Logged in as {bot.user}")
 
-@bot.command(name="use")
+@bot.command(name="use1")
 async def use_code(ctx):
     data = code_storage.load_data()
     embed = discord.Embed(title="📦 KHO CODE DỰ TRỮ", color=discord.Color.gold())
@@ -636,7 +636,7 @@ async def use_code(ctx):
     except asyncio.TimeoutError:
         await panel_msg.edit(content="⌛ Hết thời gian chờ lệnh `!use`.", embed=None)
 
-@bot.command(name="genstop")
+@bot.command(name="genstop1")
 async def genstop(ctx):
     global is_inf_running
     if is_inf_running:
@@ -645,7 +645,7 @@ async def genstop(ctx):
     else:
         await ctx.send("⚠️ Không có tiến trình vô cực nào đang chạy.")
 
-@bot.command(name="genbuff")
+@bot.command(name="genbuff1")
 async def genbuff(ctx, arg1: str = None, arg2: str = None):
     global is_inf_running
     
