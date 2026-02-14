@@ -15,7 +15,7 @@ init(autoreset=True)
 TEMP_DIR = os.path.join(os.getcwd(), "RobloxInjector_Temp") 
 COOKIE_FILENAME = "Cookies"
 COOKIE_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie"
-TARGET_PACKAGE = "com.roblox.client"
+TARGET_PACKAGE = "com.roblox.client2"
 
 def log(msg, type="INFO"):
     if type == "INFO":
