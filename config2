@@ -1,7 +1,7 @@
 --- CẤU HÌNH CHUNG ---
 PLACE_ID="8737602449" - ID của game cần quét
-ACCOUNT_SUFFIXES="5"
-BASE_PACKAGE_NAME="com.roblox.client" - Tên gói Roblox cơ bản
+ACCOUNT_SUFFIXES="2 3 4 5 6"
+BASE_PACKAGE_NAME="com.roblox.clien" - Tên gói Roblox cơ bản
 
 --- CẤU HÌNH CHO TÁC VỤ "SCAN" ---
 SCAN_INTERVAL_SECONDS="180" - Thời gian nghỉ giữa các chu kỳ quét (giây)
