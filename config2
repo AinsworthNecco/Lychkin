@@ -1,7 +1,6 @@
 --- CẤU HÌNH CHUNG ---
-RANDOM_ACCOUNT_COUNT="5"
 PLACE_ID="8737602449" - ID của game cần quét
-ACCOUNT_SUFFIXES="2 3 4 5 6"
+ACCOUNT_SUFFIXES="2"
 BASE_PACKAGE_NAME="com.roblox.client" - Tên gói Roblox cơ bản
 
 --- CẤU HÌNH CHO TÁC VỤ "SCAN" ---
