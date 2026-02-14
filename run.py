@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
 # Script Bot Discord cho VMOS Cloud (Phiên bản Ultimate - Store Mode + ALL + Fix Freeze + Exclusion Mode + 120 Threads + Ping + Playwright Login)
-# Tính năng cập nhật:
-# - Tích hợp Playwright: Tự động mở Chrome, đăng nhập và treo nick.
-# - LOAD CONFIG TỪ GITHUB: Tải Token và Proxy từ URL online.
-# - Fast Skip: Bỏ qua ngay lập tức nếu lỗi gửi mã.
-# - Thông báo tổng code trong kho.1
+# Tương thích: Debian/Termux (Sử dụng System Chromium)
+# Cập nhật:
+# - Sử dụng executable_path="/usr/bin/chromium"
+# - Thêm --no-sandbox để chạy trên môi trường root/container.a
 
 import discord
 from discord.ext import commands
@@ -255,25 +254,28 @@ class ProxyManager:
 proxy_manager = ProxyManager([])
 
 # ==============================================================
-# ==>> HÀM HỖ TRỢ BROWSER (PLAYWRIGHT) <<==
+# ==>> HÀM HỖ TRỢ BROWSER (PLAYWRIGHT CHO TERMUX) <<==
 # ==============================================================
 
 async def open_browser_and_login(email, password):
     """
-    Mở trình duyệt, đăng nhập và TRẢ VỀ đối tượng browser để giữ nó mở.
+    Mở trình duyệt Chromium hệ thống (apt install chromium), 
+    đăng nhập và TRẢ VỀ đối tượng browser để giữ nó mở.
     """
-    print(f"[BROWSER] 🌐 Đang khởi động Chrome Guest Mode cho: {email}")
+    print(f"[BROWSER] 🌐 Đang khởi động System Chromium cho: {email}")
     try:
         p = await async_playwright().start()
-        # Chỉnh sửa: Cửa sổ nhỏ và ở góc phải dưới (ước lượng cho màn 1920x1080)
-        # --window-position=x,y. 
-        # x=1500, y=500 sẽ đẩy về góc phải dưới màn hình.
-        # --window-size=400,600 tạo cửa sổ dọc nhỏ.
+        
+        # CẤU HÌNH QUAN TRỌNG CHO TERMUX/DEBIAN
         browser = await p.chromium.launch(
-            channel="chrome",
-            headless=False,
+            # Đường dẫn đến Chromium đã cài bằng apt
+            executable_path="/usr/bin/chromium", 
+            headless=False, # Vẫn giữ false theo yêu cầu (Cần X11/VNC để hiển thị)
             args=[
                 "--guest",
+                "--no-sandbox", # BẮT BUỘC TRÊN TERMUX/ROOT
+                "--disable-gpu", # Thường cần thiết trên ARM
+                "--disable-dev-shm-usage", # Tránh lỗi bộ nhớ share
                 "--window-size=400,600",
                 "--window-position=1500,500"
             ]
@@ -296,6 +298,7 @@ async def open_browser_and_login(email, password):
         return p, browser, page
     except Exception as e:
         print(f"[BROWSER] ❌ Lỗi khởi động trình duyệt: {e}")
+        print("LƯU Ý: Nếu dùng Termux không có giao diện (X11), hãy đảm bảo đã setup display hoặc chuyển headless=True trong code.")
         # Nếu lỗi thì cố gắng dọn dẹp luôn
         return None, None, None
 
