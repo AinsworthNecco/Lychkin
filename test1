@@ -11,11 +11,13 @@ from colorama import Fore, Style, init
 init(autoreset=True)
 
 # Cấu hình
-# [FIX] Đổi đường dẫn tạm từ /sdcard về thư mục hiện tại của Termux để tránh lỗi Permission denied
 TEMP_DIR = os.path.join(os.getcwd(), "RobloxInjector_Temp") 
 COOKIE_FILENAME = "Cookies"
 COOKIE_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie"
-TARGET_PACKAGE = "com.roblox.client2"
+
+# [USER CONFIG] Hãy đổi tên package ở đây nếu dùng bản clone (ví dụ: com.roblox.client2)
+# Hoặc script sẽ tự động quét nếu bạn để trống
+TARGET_PACKAGE = "com.roblox.client2" 
 
 def log(msg, type="INFO"):
     if type == "INFO":
@@ -39,73 +41,47 @@ def run_root_cmd(command):
         code = result.returncode
 
         if code != 0:
-            log(f"Command Failed (Code {code}): {stderr}", "ERROR")
-        elif stdout:
-            # Chỉ in 100 ký tự đầu của output để tránh spam nếu quá dài
-            log(f"Output: {stdout[:100]}...", "DEBUG")
-            
+            # log(f"Command Failed (Code {code}): {stderr}", "DEBUG") # Giảm xuống Debug để đỡ rối khi check path
+            pass
         return stdout, stderr, code
     except Exception as e:
         log(f"Exception executing command: {e}", "ERROR")
         return None, str(e), -1
 
 def check_root():
-    """Kiểm tra quyền root"""
-    log("Đang yêu cầu quyền Root... (Hãy nhấn 'Cho phép/Grant' trên màn hình nếu được hỏi)", "WARN")
-    
-    # Kiểm tra xem binary su có tồn tại không trước khi chạy
+    log("Đang yêu cầu quyền Root...", "WARN")
     stdout, stderr, code = run_root_cmd("id")
-    
-    # Kiểm tra kỹ: Code phải bằng 0 VÀ user hiện tại phải là root (uid=0)
     if code == 0 and "uid=0" in stdout:
-        log("Quyền Root: OK (Đã xác nhận uid=0)", "INFO")
+        log("Quyền Root: OK", "INFO")
         return True
     else:
         log("KHÔNG CÓ QUYỀN ROOT!", "ERROR")
-        log("Vui lòng đảm bảo thiết bị đã Root (Magisk/KernelSU) và đã cấp quyền cho Termux/Shell.", "ERROR")
-        if stderr:
-            log(f"Lỗi chi tiết: {stderr}", "DEBUG")
         return False
 
 def get_remote_cookie():
-    """Lấy cookie từ URL Github"""
-    log(f"Đang kết nối tới: {COOKIE_URL}", "INFO")
+    log(f"Đang kết nối tới Github...", "INFO")
     try:
-        req = urllib.request.Request(
-            COOKIE_URL, 
-            headers={'User-Agent': 'Mozilla/5.0'}
-        )
+        req = urllib.request.Request(COOKIE_URL, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req) as response:
             if response.status != 200:
                 log(f"Lỗi HTTP: {response.status}", "ERROR")
                 return None
-            
             data = response.read().decode('utf-8').strip()
-            log(f"Đã tải dữ liệu ({len(data)} bytes).", "DEBUG")
-            
             if "_|WARNING:-DO-NOT-SHARE" in data:
                 start_index = data.find("_|WARNING:-DO-NOT-SHARE")
                 cookie = data[start_index:].strip()
-                final_cookie = cookie.splitlines()[0]
-                log(f"Đã trích xuất Cookie thành công (Độ dài: {len(final_cookie)})", "INFO")
-                return final_cookie
-            else:
-                log("Dữ liệu tải về không chứa định dạng Cookie Roblox hợp lệ.", "ERROR")
-                log(f"Dữ liệu mẫu: {data[:50]}...", "DEBUG")
-                return None
+                return cookie.splitlines()[0]
+            return None
     except Exception as e:
-        log(f"Lỗi ngoại lệ khi tải cookie: {e}", "ERROR")
+        log(f"Lỗi tải cookie: {e}", "ERROR")
         return None
 
 def kill_app(package_name):
-    log(f"Đang buộc dừng ứng dụng: {package_name}", "DEBUG")
     run_root_cmd(f"am force-stop {package_name}")
     time.sleep(1)
 
 def prepare_db(cookie_value):
     db_path = os.path.join(TEMP_DIR, COOKIE_FILENAME)
-    log(f"Đang xử lý Database tại: {db_path}", "DEBUG")
-    
     if not os.path.exists(db_path):
         log(f"File không tồn tại: {db_path}", "ERROR")
         return False
@@ -113,25 +89,20 @@ def prepare_db(cookie_value):
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-
-        # Kiểm tra bảng cookies
+        
+        # Check bảng
         cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='cookies';")
         if not cursor.fetchone():
-            log("Cấu trúc Database không hợp lệ (thiếu bảng 'cookies').", "ERROR")
-            conn.close()
+            log("DB lỗi (thiếu bảng cookies).", "ERROR")
             return False
 
         host_key = ".roblox.com"
         name = ".ROBLOSECURITY"
         
-        # Xóa cookie cũ
-        log("Xóa Cookie cũ trong DB...", "DEBUG")
         cursor.execute("DELETE FROM cookies WHERE host_key = ? AND name = ?", (host_key, name))
         
-        # Chèn cookie mới
-        log("Chèn Cookie mới vào DB...", "DEBUG")
         now = int(time.time() * 1000000)
-        expires = 99999999999999999 # Không bao giờ hết hạn
+        expires = 99999999999999999
         
         query_full = """
         INSERT INTO cookies (creation_utc, host_key, name, value, path, expires_utc, is_secure, is_httponly, last_access_utc, has_expires, is_persistent, priority, samesite, source_scheme)
@@ -144,97 +115,114 @@ def prepare_db(cookie_value):
         
         try:
             cursor.execute(query_full, (now, host_key, name, cookie_value, "/", expires, 1, 1, now, 1, 1, 1, 0, 1))
-            log("Sử dụng Schema đầy đủ (14 cột).", "DEBUG")
-        except sqlite3.OperationalError as e:
-            log(f"Schema đầy đủ thất bại ({e}), thử Schema rút gọn...", "WARN")
+        except sqlite3.OperationalError:
             cursor.execute(query_fallback, (now, host_key, name, cookie_value, "/", expires, 1, 1, now))
-            log("Sử dụng Schema rút gọn (9 cột).", "DEBUG")
 
         conn.commit()
         conn.close()
-        log("Thao tác SQLite hoàn tất.", "INFO")
         return True
-
     except Exception as e:
-        log(f"Lỗi SQLite Critical: {e}", "ERROR")
+        log(f"Lỗi SQLite: {e}", "ERROR")
         return False
 
-def inject_cookie(package_name, cookie_value):
-    target_path = f"/data/data/{package_name}/app_webview/Default/Cookies"
+# [NEW] Hàm tìm đường dẫn thực sự của file Cookies
+def find_real_cookie_path(package_name):
+    base_path = f"/data/data/{package_name}/app_webview"
     
-    # Kiểm tra package
-    log(f"Kiểm tra gói cài đặt: {package_name}", "DEBUG")
+    # Danh sách các vị trí có thể chứa file Cookies
+    possible_paths = [
+        f"{base_path}/Default/Cookies",  # Android/WebView mới
+        f"{base_path}/Cookies"           # Android cũ hoặc bản Clone
+    ]
+    
+    log(f"Đang quét tìm file Cookies cho {package_name}...", "DEBUG")
+    
+    for path in possible_paths:
+        # Dùng lệnh test -f của linux để kiểm tra file tồn tại với quyền root
+        _, _, code = run_root_cmd(f"[ -f '{path}' ]")
+        if code == 0:
+            log(f"Đã tìm thấy file Cookies tại: {path}", "INFO")
+            return path
+            
+    log("Không tìm thấy file Cookies ở bất kỳ đâu!", "ERROR")
+    return None
+
+def inject_cookie(package_name, cookie_value):
+    # Kiểm tra gói cài đặt
     check_pkg, _, _ = run_root_cmd(f"pm path {package_name}")
     if not check_pkg:
-        log(f"Gói {package_name} chưa được cài đặt trên thiết bị!", "ERROR")
+        log(f"Gói {package_name} chưa cài đặt!", "ERROR")
         return
 
-    log("=== BẮT ĐẦU QUY TRÌNH TIÊM COOKIE ===", "INFO")
-    
+    # [FIX] Tự động tìm đường dẫn đúng
+    target_path = find_real_cookie_path(package_name)
+    if not target_path:
+        log("Hãy mở game lên, đăng nhập một nick rác để game tạo file Cookies rồi thử lại.", "WARN")
+        return
+
+    log("=== BẮT ĐẦU QUY TRÌNH TIÊM ===", "INFO")
     kill_app(package_name)
     
-    # Tạo thư mục tạm
     if os.path.exists(TEMP_DIR):
         shutil.rmtree(TEMP_DIR)
     os.makedirs(TEMP_DIR)
-    log(f"Đã tạo thư mục tạm: {TEMP_DIR}", "DEBUG")
     
-    # Copy DB ra ngoài
-    log(f"Copy từ: {target_path}", "DEBUG")
+    # Copy DB ra
     cmd_cp_out = f"cp {target_path} {TEMP_DIR}/{COOKIE_FILENAME}"
     _, err, code = run_root_cmd(cmd_cp_out)
     
     if code != 0:
-        log(f"Lỗi copy file gốc ra (Code {code}): {err}", "ERROR")
-        log(f"Gợi ý: Hãy mở game {package_name} lên, đăng nhập một nick rác rồi thử lại để game tạo file Cookies.", "WARN")
+        log(f"Lỗi copy: {err}", "ERROR")
         return
 
-    # Cấp quyền đọc ghi cho file tạm
     run_root_cmd(f"chmod 777 {TEMP_DIR}/{COOKIE_FILENAME}")
     
-    # Sửa DB
     if not prepare_db(cookie_value):
-        log("Dừng quy trình do lỗi xử lý Database.", "ERROR")
         return
 
-    # Copy DB vào lại
-    log(f"Ghi đè file vào: {target_path}", "DEBUG")
+    # Copy DB vào
     cmd_cp_in = f"cp {TEMP_DIR}/{COOKIE_FILENAME} {target_path}"
     run_root_cmd(cmd_cp_in)
     
-    # Fix quyền
-    log("Đang khôi phục quyền sở hữu file (chown/chmod)...", "DEBUG")
-    owner_raw, _, _ = run_root_cmd(f"stat -c '%U:%G' /data/data/{package_name}/app_webview")
+    # Fix quyền (Lấy owner của thư mục cha chứa file cookies)
+    parent_dir = os.path.dirname(target_path)
+    owner_raw, _, _ = run_root_cmd(f"stat -c '%U:%G' {parent_dir}")
     owner = owner_raw.strip()
     
     if owner:
-        log(f"Owner phát hiện: {owner}", "DEBUG")
         run_root_cmd(f"chown {owner} {target_path}")
         run_root_cmd(f"chmod 600 {target_path}")
-    else:
-        log("Không thể lấy thông tin Owner của thư mục app_webview!", "WARN")
     
-    # Dọn dẹp
     if os.path.exists(TEMP_DIR):
         shutil.rmtree(TEMP_DIR)
-        log("Đã xóa thư mục tạm.", "DEBUG")
     
-    log(f"THÀNH CÔNG! Cookie đã được nạp. Bạn có thể mở game thủ công.", "INFO")
-    # Đã loại bỏ lệnh tự động mở game
+    log(f"THÀNH CÔNG! Đã nạp cookie vào {target_path}", "INFO")
 
 def main():
-    print(f"{Fore.CYAN}=== ROBLOX AUTO INJECTOR (DEBUG MODE) ==={Style.RESET_ALL}")
+    print(f"{Fore.CYAN}=== ROBLOX AUTO INJECTOR (SMART PATH DETECT) ==={Style.RESET_ALL}")
     
     if not check_root():
         sys.exit(1)
         
-    cookie = get_remote_cookie()
+    # Cho phép người dùng nhập tên package khi chạy, hoặc dùng mặc định
+    # Nếu chạy curl | python thì nó sẽ dùng mặc định, nhưng ta có thể check args
+    target = TARGET_PACKAGE
     
+    # Kiểm tra xem người dùng có muốn override target không (để hỗ trợ client2)
+    # Logic đơn giản: Check xem com.roblox.client có tồn tại không, nếu không thử client2
+    check_main, _, _ = run_root_cmd(f"pm path {target}")
+    if not check_main:
+        log(f"{target} không thấy, thử tìm com.roblox.client2...", "WARN")
+        target = "com.roblox.client2"
+    
+    log(f"Mục tiêu: {target}", "INFO")
+
+    cookie = get_remote_cookie()
     if not cookie:
-        log("Không lấy được Cookie hợp lệ. Hủy bỏ.", "ERROR")
+        log("Lỗi lấy cookie.", "ERROR")
         sys.exit(1)
         
-    inject_cookie(TARGET_PACKAGE, cookie)
+    inject_cookie(target, cookie)
 
 if __name__ == "__main__":
     main()
