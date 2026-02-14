@@ -11,22 +11,25 @@ import re
 import threading
 import json
 import random
+import sqlite3
+import shutil
+import urllib.request
 from datetime import datetime
 
 # ==============================================================================
-# SCRIPT: Lychkins's Task Runner v1.6 (Smart Random - No Duplicate)
+# SCRIPT: Lychkins's Task Runner v1.9 (Optimized Cookie & Local Config)
 #
-# CẬP NHẬT MỚI (v1.6):
-# 1. Smart Random Selection:
-#    - Khắc phục vấn đề random trùng lặp: Khi chọn proxy ngẫu nhiên mới,
-#      hệ thống sẽ đảm bảo Index mới != Index cũ (nếu có nhiều hơn 1 proxy).
-#    - Áp dụng cho cả Scanner (khi đổi IP) và Launcher (khi Retry hoặc Next Check).
+# CẬP NHẬT MỚI (v1.9):
+# - Cookie Khớp -> SKIP HOÀN TOÀN (Không check ID, không gọi API).
+# - Chỉ gọi API lấy ID khi thực sự Inject mới (Cookie lệch/thiếu).
+# - ID tài khoản được nạp 100% từ file config.txt nội bộ.
 # ==============================================================================
 
 # ---------------------------------------------------
 # -- URL CẤU HÌNH --
 # ---------------------------------------------------
 CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/config2"
+COOKIE_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie"
 
 # ---------------------------------------------------
 # -- BIẾN TOÀN CỤC --
@@ -37,8 +40,13 @@ current_proxies = []
 file_lock = threading.Lock()
 current_executor_id = None 
 
+# Biến cho Injector
+TEMP_DIR = os.path.join(os.getcwd(), "RobloxInjector_Temp") 
+COOKIE_FILENAME = "Cookies"
+LOCAL_CONFIG_FILE = ""
+
 # ==============================================================================
-# -- CÁC HÀM TIỆN ÍCH & KIỂM TRA ROOT --
+# -- CÁC HÀM TIỆN ÍCH CƠ BẢN --
 # ==============================================================================
 
 def check_root_access():
@@ -47,33 +55,49 @@ def check_root_access():
     try:
         process = subprocess.run(["su", "-c", "whoami"], capture_output=True, text=True, timeout=10)
         if process.stdout.strip() == "root":
-            print("[MAIN] ✅ Quyền root đã được cấp.")
+            print("[MAIN] -> Quyền root: OK.")
             return True
         else:
-            print(f"[MAIN] ❌ Lỗi: Không có quyền root (kết quả: {process.stdout.strip()}).")
+            print(f"[MAIN] -> Lỗi: Không có quyền root (kết quả: {process.stdout.strip()}).")
             return False
     except Exception as e:
-        print(f"[MAIN] ❌ Lỗi kiểm tra root: {e}")
+        print(f"[MAIN] -> Lỗi kiểm tra root: {e}")
         return False
 
 def check_process_running(pkg_name):
-    """
-    Kiểm tra xem package có đang chạy không bằng lệnh ps.
-    Trả về True nếu tìm thấy process, False nếu không.
-    """
+    """Kiểm tra process đang chạy."""
     try:
-        # grep -v grep để tránh tìm thấy chính câu lệnh grep
         cmd = f"ps -ef | grep {pkg_name} | grep -v grep"
         result = subprocess.run(["su", "-c", cmd], capture_output=True, text=True, timeout=5)
-        # Nếu output có nội dung -> Process đang chạy
         if result.stdout.strip():
             return True
         return False
     except Exception:
         return False
 
+def load_local_ids_from_file():
+    """Đọc file config.txt local để lấy map Suffix:ID."""
+    local_map = {}
+    if os.path.exists(LOCAL_CONFIG_FILE):
+        try:
+            with open(LOCAL_CONFIG_FILE, "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if ":" in line:
+                        parts = line.split(":", 1)
+                        suf = parts[0].strip()
+                        uid = parts[1].strip()
+                        if uid.isdigit():
+                            local_map[suf] = uid
+        except Exception as e:
+            print(f"[CONFIG] Lỗi đọc file local: {e}")
+    return local_map
+
 def fetch_and_load_config(url):
-    """Tải cấu hình từ xa và xử lý logic đường dẫn động."""
+    """
+    Tải cấu hình từ xa (GitHub) lấy Suffix, 
+    nhưng ID thì LẤY TỪ FILE LOCAL (config.txt).
+    """
     global current_executor_id
     try:
         response = requests.get(url, timeout=20)
@@ -89,50 +113,57 @@ def fetch_and_load_config(url):
             elif key in ["MIN_PLAYER_PERCENTAGE", "MAX_PLAYER_PERCENTAGE"]:
                 config[key] = float(value)
             elif key == "ACCOUNT_SUFFIXES":
+                # Tách chuỗi Suffix từ GitHub (ví dụ: "a b c" hoặc "a,b,c")
+                raw_suffixes = re.split(r'[,\s]+', value)
                 accounts = []
-                for item in value.split(','):
-                    item = item.strip()
-                    if ':' in item:
-                        parts = item.split(':', 1)
-                        if len(parts) == 2 and parts[0].strip() and parts[1].strip().isdigit():
-                            accounts.append({'suffix': parts[0].strip(), 'id': parts[1].strip()})
+                for s in raw_suffixes:
+                    s = s.strip()
+                    if s:
+                        # Nếu lỡ GitHub có dạng cũ "suffix:ID", chỉ lấy phần Suffix
+                        if ':' in s:
+                             s = s.split(':')[0]
+                        # Khởi tạo ID là None (sẽ nạp từ local sau)
+                        accounts.append({'suffix': s, 'id': None})
                 config[key] = accounts
             elif key == "PROXY_LIST":
                 config[key] = [item.strip() for item in value.splitlines() if item.strip()]
             else:
                 config[key] = value
         
-        # --- XỬ LÝ LOGIC EXECUTOR TỰ ĐỘNG ---
+        # --- QUAN TRỌNG: MERGE ID TỪ LOCAL CONFIG.TXT ---
+        local_ids = load_local_ids_from_file()
+        if "ACCOUNT_SUFFIXES" in config:
+            for acc in config["ACCOUNT_SUFFIXES"]:
+                suf = acc['suffix']
+                if suf in local_ids:
+                    acc['id'] = local_ids[suf]
+                else:
+                    acc['id'] = "0" # Nếu chưa có ID trong local -> 0
+        
         if "SELECTED_EXECUTOR" in config:
             selected_id = config["SELECTED_EXECUTOR"]
             current_executor_id = selected_id
             target_path_key = f"EXECUTOR_PATH_{selected_id}"
-            
             if target_path_key in config:
                 config["OUTPUT_FILE_PATH"] = config[target_path_key]
             else:
-                print(f"[CONFIG] ⚠️ Lỗi: Đã chọn Executor {selected_id} nhưng không tìm thấy '{target_path_key}'.")
+                print(f"[CONFIG] Lỗi: Executor {selected_id} thiếu '{target_path_key}'.")
                 sys.exit(1)
         
         if "OUTPUT_FILE_PATH" not in config:
-            print("[CONFIG] ❌ Lỗi: Thiếu OUTPUT_FILE_PATH.")
+            print("[CONFIG] Lỗi: Thiếu OUTPUT_FILE_PATH.")
             sys.exit(1)
-
         if "PLACE_ID" not in config:
-            print("[CONFIG] ❌ Lỗi: Thiếu PLACE_ID.")
+            print("[CONFIG] Lỗi: Thiếu PLACE_ID.")
             sys.exit(1)
 
         return config
 
-    except requests.exceptions.RequestException as e:
-        print(f"\n[CONFIG] ❌ LỖI MẠNG: {e}")
-        sys.exit(1)
     except Exception as e:
-        print(f"\n[CONFIG] ❌ LỖI XỬ LÝ: {e}")
+        print(f"\n[CONFIG] Lỗi tải cấu hình: {e}")
         sys.exit(1)
 
 def format_proxies(proxy_list):
-    """Chuyển đổi danh sách proxy string sang định dạng requests."""
     formatted = []
     if not proxy_list: return []
     for proxy_string in proxy_list:
@@ -146,38 +177,279 @@ def format_proxies(proxy_list):
 
 def countdown(seconds, thread_name="MAIN"):
     for i in range(seconds, 0, -1):
-        print(f"[{thread_name}] Thời gian chờ còn lại: {i} giây    ", end='\r')
+        print(f"[{thread_name}] Chờ: {i}s    ", end='\r')
         sys.stdout.flush()
         time.sleep(1)
-    print(f"[{thread_name}] Bắt đầu chu kỳ mới.                                      ")
+    print(f"[{thread_name}] ...                       ")
 
 # ==============================================================================
-# -- CÁC HÀM KẾT NỐI API --
+# -- CÁC HÀM INJECTOR LOGIC --
+# ==============================================================================
+
+def run_root_cmd_injector(command):
+    try:
+        full_cmd = f"su -c '{command}'"
+        result = subprocess.run(full_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        return result.stdout.strip(), result.stderr.strip(), result.returncode
+    except Exception as e:
+        print(f"[SYSTEM] Lỗi lệnh: {e}")
+        return None, str(e), -1
+
+def get_remote_cookies_list():
+    """Tải danh sách Cookie từ GitHub."""
+    print(f"[COOKIE] Đang tải danh sách Cookie từ GitHub...")
+    try:
+        req = urllib.request.Request(COOKIE_URL, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req) as response:
+            if response.status != 200:
+                print(f"[COOKIE] Lỗi HTTP: {response.status}")
+                return []
+            
+            data = response.read().decode('utf-8').strip()
+            lines = data.splitlines()
+            valid_cookies = []
+            for line in lines:
+                line = line.strip()
+                if "_|WARNING:-DO-NOT-SHARE" in line:
+                    valid_cookies.append(line)
+            
+            print(f"[COOKIE] Tìm thấy {len(valid_cookies)} cookie hợp lệ.")
+            return valid_cookies
+    except Exception as e:
+        print(f"[COOKIE] Lỗi tải Cookie: {e}")
+        return []
+
+def get_local_cookie_injector(package_name):
+    target_path = f"/data/data/{package_name}/app_webview/Default/Cookies"
+    temp_check_path = os.path.join(TEMP_DIR, "Cookies_Check")
+    
+    check_cmd = f"[ -f {target_path} ] && echo 'YES' || echo 'NO'"
+    out, _, _ = run_root_cmd_injector(check_cmd)
+    if "NO" in out:
+        return None
+
+    if not os.path.exists(TEMP_DIR): os.makedirs(TEMP_DIR)
+    run_root_cmd_injector(f"cp {target_path} {temp_check_path}")
+    run_root_cmd_injector(f"chmod 777 {temp_check_path}")
+
+    local_cookie_value = None
+    try:
+        conn = sqlite3.connect(temp_check_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM cookies WHERE name = '.ROBLOSECURITY'")
+        result = cursor.fetchone()
+        if result: local_cookie_value = result[0]
+        conn.close()
+    except Exception: pass
+    
+    if os.path.exists(temp_check_path): os.remove(temp_check_path)
+    return local_cookie_value
+
+def prepare_db_injector(cookie_value):
+    db_path = os.path.join(TEMP_DIR, COOKIE_FILENAME)
+    if not os.path.exists(db_path): return False
+
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='cookies';")
+        if not cursor.fetchone():
+            conn.close()
+            return False
+
+        host_key = ".roblox.com"
+        name = ".ROBLOSECURITY"
+        
+        cursor.execute("DELETE FROM cookies WHERE host_key = ? AND name = ?", (host_key, name))
+        
+        now = int(time.time() * 1000000)
+        expires = 99999999999999999
+        
+        query_full = """
+        INSERT INTO cookies (creation_utc, host_key, name, value, path, expires_utc, is_secure, is_httponly, last_access_utc, has_expires, is_persistent, priority, samesite, source_scheme)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        query_fallback = """
+        INSERT INTO cookies (creation_utc, host_key, name, value, path, expires_utc, is_secure, is_httponly, last_access_utc)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        
+        try:
+            cursor.execute(query_full, (now, host_key, name, cookie_value, "/", expires, 1, 1, now, 1, 1, 1, 0, 1))
+        except sqlite3.OperationalError:
+            cursor.execute(query_fallback, (now, host_key, name, cookie_value, "/", expires, 1, 1, now))
+
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"[COOKIE] Lỗi SQLite: {e}")
+        return False
+
+def inject_cookie_process(package_name, cookie_value):
+    target_path = f"/data/data/{package_name}/app_webview/Default/Cookies"
+    
+    check_pkg, _, _ = run_root_cmd_injector(f"pm path {package_name}")
+    if not check_pkg:
+        print(f"[COOKIE] Gói {package_name} chưa cài đặt -> Bỏ qua.")
+        return False
+
+    run_root_cmd_injector(f"am force-stop {package_name}")
+    time.sleep(1)
+
+    if os.path.exists(TEMP_DIR): shutil.rmtree(TEMP_DIR)
+    os.makedirs(TEMP_DIR)
+
+    cmd_cp_out = f"cp {target_path} {TEMP_DIR}/{COOKIE_FILENAME}"
+    _, _, code = run_root_cmd_injector(cmd_cp_out)
+    if code != 0:
+        print(f"[COOKIE] Không copy được file gốc (có thể chưa chạy lần đầu) -> Bỏ qua.")
+        return False
+
+    run_root_cmd_injector(f"chmod 777 {TEMP_DIR}/{COOKIE_FILENAME}")
+
+    if not prepare_db_injector(cookie_value):
+        print(f"[COOKIE] Lỗi xử lý DB.")
+        return False
+
+    cmd_cp_in = f"cp {TEMP_DIR}/{COOKIE_FILENAME} {target_path}"
+    run_root_cmd_injector(cmd_cp_in)
+
+    owner_raw, _, _ = run_root_cmd_injector(f"stat -c '%U:%G' /data/data/{package_name}/app_webview")
+    owner = owner_raw.strip()
+    if owner:
+        run_root_cmd_injector(f"chown {owner} {target_path}")
+        run_root_cmd_injector(f"chmod 600 {target_path}")
+    
+    if os.path.exists(TEMP_DIR): shutil.rmtree(TEMP_DIR)
+    print(f"[COOKIE] -> Đã nạp Cookie mới cho: {package_name}")
+    return True
+
+# --- HÀM LẤY ID VÀ LƯU CONFIG ---
+
+def get_roblox_user_id(cookie):
+    """Gọi API Roblox để lấy ID của cookie."""
+    try:
+        url = "https://users.roblox.com/v1/users/authenticated"
+        cookies = {'.ROBLOSECURITY': cookie}
+        response = requests.get(url, cookies=cookies, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            return str(data.get('id'))
+    except Exception:
+        pass
+    return None
+
+def update_local_config_file(suffix, user_id):
+    """Cập nhật file config.txt với định dạng suffix:id."""
+    lines = []
+    if os.path.exists(LOCAL_CONFIG_FILE):
+        try:
+            with open(LOCAL_CONFIG_FILE, "r") as f:
+                lines = f.readlines()
+        except: pass
+    
+    new_entry = f"{suffix}:{user_id}\n"
+    updated = False
+    new_content = []
+    
+    for line in lines:
+        if line.strip().startswith(f"{suffix}:"):
+            new_content.append(new_entry)
+            updated = True
+        elif line.strip():
+            new_content.append(line)
+            
+    if not updated:
+        new_content.append(new_entry)
+        
+    try:
+        with open(LOCAL_CONFIG_FILE, "w") as f:
+            f.writelines(new_content)
+        print(f"[CONFIG] Đã lưu vào {LOCAL_CONFIG_FILE}: {suffix}:{user_id}")
+    except Exception as e:
+        print(f"[CONFIG] Lỗi ghi file: {e}")
+
+def run_cookie_check_sequence(config):
+    """
+    Quy trình kiểm tra Cookie.
+    Nếu Khớp -> SKIP HOÀN TOÀN.
+    Nếu Lệch/Thiếu -> Inject -> Lấy ID -> Update Local Config.
+    """
+    print("\n[COOKIE] === KIỂM TRA COOKIE (TỐI ƯU) ===")
+    
+    remote_cookies = get_remote_cookies_list()
+    if not remote_cookies:
+        print("[COOKIE] Không lấy được danh sách Cookie -> Dừng kiểm tra.")
+        return
+
+    base_pkg = config.get("BASE_PACKAGE_NAME", "com.roblox.clien")
+    accounts = config.get("ACCOUNT_SUFFIXES", []) 
+
+    for i, acc in enumerate(accounts):
+        suffix = acc['suffix']
+        pkg_name = f"{base_pkg}{suffix}"
+        
+        if i < len(remote_cookies):
+            assigned_cookie = remote_cookies[i]
+        else:
+            print(f"[COOKIE] ⚠️ Không đủ Cookie cho '{suffix}' (Acc #{i+1}). Bỏ qua.")
+            continue
+
+        print(f"[COOKIE] Acc '{suffix}' -> ", end="")
+        local_cookie = get_local_cookie_injector(pkg_name)
+
+        if local_cookie == assigned_cookie:
+            # 1. Nếu khớp, IN RA OK VÀ BỎ QUA LUÔN
+            print("OK (Khớp) -> Skip.")
+        else:
+            # 2. Nếu khác biệt, mới chạy logic nạp
+            if local_cookie is None:
+                print("MISSING (Chưa có).")
+            else:
+                print("MISMATCH (Khác biệt).")
+            
+            success = inject_cookie_process(pkg_name, assigned_cookie)
+            
+            # Chỉ lấy ID và update config khi vừa nạp cookie mới
+            if success:
+                print(f"[INFO] Đang lấy ID mới cho '{suffix}'...")
+                uid = get_roblox_user_id(assigned_cookie)
+                if uid:
+                    print(f"[INFO] ID tìm thấy: {uid}")
+                    update_local_config_file(suffix, uid)
+                    acc['id'] = uid 
+                else:
+                    print(f"[INFO] Không lấy được ID từ API.")
+    
+    print("[COOKIE] === HOÀN TẤT ===\n")
+
+# ==============================================================================
+# -- CÁC HÀM KẾT NỐI API (SCANNER/LAUNCHER) --
 # ==============================================================================
 
 def execute_api_request_with_proxy(method, url, config, thread_name, json_data=None):
-    """Thực hiện request với logic xoay vòng (rotation) proxy ngẫu nhiên (tránh trùng lặp)."""
     global proxy_index, failed_proxy_count, current_proxies
     timeout = config.get("CONNECTION_TIMEOUT", 15)
     num_proxies = len(current_proxies)
     
     while True:
         if num_proxies > 0 and failed_proxy_count >= num_proxies:
-            print(f"\n[{thread_name}] [!] Tất cả proxies lỗi. Nghỉ 5 giây...")
+            print(f"\n[{thread_name}] Tất cả proxies lỗi. Nghỉ 5 giây...")
             time.sleep(5)
             failed_proxy_count = 0; 
-            # Reset random index
             if num_proxies > 0:
                 proxy_index = random.randint(0, num_proxies - 1)
         
         proxy, proxy_status = (current_proxies[proxy_index], f"Proxy {proxy_index + 1}/{num_proxies}") if num_proxies > 0 else (None, "IP Gốc")
         
         try:
-            print(f"\r[{thread_name}] [*] Kết nối API... | {proxy_status}", end="")
+            print(f"\r[{thread_name}] Kết nối API... | {proxy_status}", end="")
             sys.stdout.flush()
             if method.upper() == 'GET': response = requests.get(url, proxies=proxy, timeout=timeout)
             elif method.upper() == 'POST': response = requests.post(url, json=json_data, proxies=proxy, timeout=timeout)
-            else: raise ValueError(f"Method lạ: {method}")
+            else: raise ValueError(f"Method: {method}")
             
             if response.status_code == 200:
                 failed_proxy_count = 0
@@ -188,48 +460,34 @@ def execute_api_request_with_proxy(method, url, config, thread_name, json_data=N
             
         except (requests.exceptions.RequestException, requests.exceptions.HTTPError, ValueError) as e:
             if num_proxies > 0:
-                print(f"\n[{thread_name}] [!] Proxy {proxy_index + 1} lỗi ({e}). Chọn ngẫu nhiên proxy KHÁC...")
+                print(f"\n[{thread_name}] Proxy {proxy_index + 1} lỗi ({e}). Đổi proxy...")
                 failed_proxy_count += 1
-                
-                # --- LOGIC TRÁNH TRÙNG LẶP CHO SCANNER ---
                 if num_proxies > 1:
                     new_index = proxy_index
-                    while new_index == proxy_index: # Lặp lại cho đến khi tìm được index khác
+                    while new_index == proxy_index:
                         new_index = random.randint(0, num_proxies - 1)
                     proxy_index = new_index
-                else:
-                    # Chỉ có 1 proxy thì đành chịu
-                    pass
-                    
                 time.sleep(1)
             else:
-                print(f"\n[{thread_name}] [!] IP Gốc lỗi ({e}). Nghỉ 60 giây...")
+                print(f"\n[{thread_name}] IP Gốc lỗi ({e}). Nghỉ 60 giây...")
                 time.sleep(60)
 
 def execute_api_request_simple(method, url, config, thread_name, json_data=None, proxy=None):
-    """Thực hiện request đơn giản, dùng proxy chỉ định (KHÔNG có rotation)."""
     timeout = config.get("CONNECTION_TIMEOUT", 15)
     proxies = proxy if proxy else None
-    
     try:
         if method.upper() == 'GET': response = requests.get(url, proxies=proxies, timeout=timeout)
         elif method.upper() == 'POST': response = requests.post(url, json=json_data, proxies=proxies, timeout=timeout)
-        else: raise ValueError(f"Method lạ: {method}")
-        
         if response.status_code == 200: return response.json()
-        
-    except Exception:
-        # Bỏ qua lỗi kết nối proxy/mạng và trả về None
-        pass 
-        
+    except Exception: pass 
     return None
 
 def check_roblox_presence_single(account_id, config, thread_name, proxy_list, initial_proxy_index):
-    """
-    Kiểm tra trạng thái online v1.6 (No Duplicate Random).
-    Logic:
-    - Khi Retry hoặc Next Check, đảm bảo không chọn lại đúng proxy vừa dùng (nếu list > 1).
-    """
+    # ID này được lấy từ config.txt local (đã merge trong fetch_and_load_config)
+    if not account_id or str(account_id) == "0":
+        print(f"[{thread_name}] ⚠️ Không có User ID (hoặc ID=0) trong config.txt -> Bỏ qua check.")
+        return False
+
     user_ids = [int(account_id)]
     api_url = "https://presence.roblox.com/v1/presence/users"
     payload = {"userIds": user_ids}
@@ -237,67 +495,44 @@ def check_roblox_presence_single(account_id, config, thread_name, proxy_list, in
     formatted_proxies = proxy_list
     num_proxies = len(formatted_proxies)
     
-    # Số lần cần xác nhận hợp lệ
     REQUIRED_VALID_CHECKS = 3
     valid_checks_count = 0
-    
-    # Index proxy hiện tại
     current_idx = initial_proxy_index if initial_proxy_index >= 0 else 0
-    
-    # Biến đếm lỗi liên tiếp
     consecutive_network_failures = 0
     MAX_CONSECUTIVE_FAILURES = 50 
 
     while valid_checks_count < REQUIRED_VALID_CHECKS:
-        
-        # --- VÒNG LẶP TÌM KẾT NỐI (RETRY LOOP) ---
         response = None
         while response is None:
-            # Chọn proxy
             proxy = None
             proxy_info = "IP Gốc"
-            
             if num_proxies > 0:
-                # Đảm bảo index nằm trong giới hạn
                 current_idx = current_idx % num_proxies
                 proxy = formatted_proxies[current_idx]
                 proxy_info = f"Proxy #{current_idx + 1}"
             
-            # In log đang thử
-            print(f"[{thread_name}] [{account_id}] Check lần {valid_checks_count + 1}/{REQUIRED_VALID_CHECKS} | Đang thử {proxy_info}...", end='\r')
+            print(f"[{thread_name}] [{account_id}] Check {valid_checks_count + 1}/{REQUIRED_VALID_CHECKS} | {proxy_info}...", end='\r')
             sys.stdout.flush()
 
-            # Gọi API
             response = execute_api_request_simple('POST', api_url, config, thread_name, json_data=payload, proxy=proxy)
 
             if response is None:
-                # LỖI KẾT NỐI/PROXY
                 consecutive_network_failures += 1
-                print(f"[{thread_name}] [{account_id}] {proxy_info} ❌ Lỗi mạng. Đợi 1s -> Random Proxy KHÁC...         ")
-                time.sleep(1) # Yêu cầu: Đợi 1 giây
+                print(f"[{thread_name}] [{account_id}] {proxy_info} Lỗi mạng -> Retry...          ")
+                time.sleep(1)
+                if num_proxies > 1:
+                    new_idx = current_idx
+                    while new_idx == current_idx:
+                        new_idx = random.randint(0, num_proxies - 1)
+                    current_idx = new_idx
+                else: time.sleep(2)
                 
-                if num_proxies > 0:
-                    # --- LOGIC TRÁNH TRÙNG LẶP KHI RETRY ---
-                    if num_proxies > 1:
-                        new_idx = current_idx
-                        while new_idx == current_idx:
-                            new_idx = random.randint(0, num_proxies - 1)
-                        current_idx = new_idx
-                    else:
-                        pass # 1 proxy thì chịu
-                else:
-                    time.sleep(2)
-                
-                # Safety break
                 if consecutive_network_failures > MAX_CONSECUTIVE_FAILURES:
-                    print(f"[{thread_name}] [{account_id}] ❌ QUÁ NHIỀU LỖI KẾT NỐI LIÊN TIẾP. Hủy check.")
+                    print(f"[{thread_name}] [{account_id}] QUÁ NHIỀU LỖI. Hủy check.")
                     return False
             else:
-                # KẾT NỐI THÀNH CÔNG (HTTP 200)
-                consecutive_network_failures = 0 # Reset đếm lỗi
-                # (Thoát vòng lặp while response is None)
+                consecutive_network_failures = 0
 
-        # --- XỬ LÝ DỮ LIỆU JSON (Khi đã có response) ---
         is_online = False
         if 'userPresences' in response:
             for p in response['userPresences']:
@@ -305,68 +540,44 @@ def check_roblox_presence_single(account_id, config, thread_name, proxy_list, in
                     is_online = True
         
         if is_online:
-            print(f"[{thread_name}] [{account_id}] ✅ {proxy_info}: PHÁT HIỆN ONLINE! (Dừng check)               ")
+            print(f"[{thread_name}] [{account_id}] {proxy_info}: ONLINE! (Dừng check)                ")
             return True
         else:
-            print(f"[{thread_name}] [{account_id}] ⚠️ {proxy_info}: Báo OFFLINE (Lần hợp lệ {valid_checks_count + 1})")
+            print(f"[{thread_name}] [{account_id}] {proxy_info}: OFFLINE (OK {valid_checks_count + 1})")
             valid_checks_count += 1
-            
-            # Để lần check tiếp theo dùng proxy khác cho khách quan
-            if num_proxies > 0:
-                # --- LOGIC TRÁNH TRÙNG LẶP CHO LẦN CHECK TIẾP THEO ---
-                if num_proxies > 1:
-                    new_idx = current_idx
-                    while new_idx == current_idx:
-                        new_idx = random.randint(0, num_proxies - 1)
-                    current_idx = new_idx
-            
-            # Nghỉ nhẹ 1 xíu giữa các lần check hợp lệ
+            if num_proxies > 1:
+                new_idx = current_idx
+                while new_idx == current_idx:
+                    new_idx = random.randint(0, num_proxies - 1)
+                current_idx = new_idx
             time.sleep(0.5)
 
-    # Nếu chạy hết vòng while mà không return True -> Confirm Offline
-    print(f"[{thread_name}] [{account_id}] 🛑 XÁC NHẬN OFFLINE sau {REQUIRED_VALID_CHECKS} lần check thành công.")
+    print(f"[{thread_name}] [{account_id}] XÁC NHẬN OFFLINE.")
     return False
 
-
 # ==============================================================================
-# -- LOGIC MỚI: DELTA KEY MANAGER --
+# -- DELTA KEY MANAGER --
 # ==============================================================================
 
 def delta_key_monitor_loop():
-    """
-    Luồng kiểm tra và cập nhật Key Delta.
-    Chỉ chạy nếu Executor = 1.
-    """
     thread_name = "DELTA-KEY"
-    print(f"[{thread_name}] Đang khởi động trình quản lý Key cho Delta...")
-    
-    # Đường dẫn file license của Delta (Cố định)
+    print(f"[{thread_name}] Start Delta Key Monitor...")
     LOCAL_KEY_PATH = "/storage/emulated/0/Delta/Internals/Cache/license"
 
     while True:
-        # Tải config mới nhất để lấy URL và Interval
         config = fetch_and_load_config(CONFIG_URL)
-        
-        # Kiểm tra xem có phải đang dùng Delta không (SELECTED_EXECUTOR="1")
         if str(config.get("SELECTED_EXECUTOR")) != "1":
-            print(f"[{thread_name}] Không phải chế độ Delta. Luồng sẽ ngủ đông dài hạn.")
             time.sleep(3600)
             continue
 
         key_url = config.get("DELTA_KEY_URL")
         interval = config.get("KEY_CHECK_INTERVAL_MINUTES", 30)
 
-        if not key_url:
-            print(f"[{thread_name}] ⚠️ Cảnh báo: Chưa cấu hình DELTA_KEY_URL trong config online.")
-        else:
+        if key_url:
             try:
-                # 1. Lấy Key từ Github
-                print(f"[{thread_name}] Đang kiểm tra Key mới từ GitHub...")
                 response = requests.get(key_url, timeout=15)
                 if response.status_code == 200:
                     remote_key = response.text.strip()
-                    
-                    # 2. Đọc Key hiện tại trong máy
                     local_key = ""
                     if os.path.exists(LOCAL_KEY_PATH):
                         try:
@@ -374,29 +585,18 @@ def delta_key_monitor_loop():
                                 local_key = f.read().strip()
                         except: pass
                     
-                    # 3. So sánh
-                    if remote_key == local_key:
-                        print(f"[{thread_name}] ✅ Key trùng khớp. Không cần cập nhật.")
-                    else:
-                        print(f"[{thread_name}] ⚠️ PHÁT HIỆN KEY MỚI! Tiến hành cập nhật...")
-                        
-                        # Đảm bảo thư mục tồn tại
+                    if remote_key != local_key:
+                        print(f"[{thread_name}] PHÁT HIỆN KEY MỚI! Cập nhật...")
                         os.makedirs(os.path.dirname(LOCAL_KEY_PATH), exist_ok=True)
-                        
-                        # Ghi đè file
                         with open(LOCAL_KEY_PATH, "w") as f:
                             f.write(remote_key)
                         
-                        print(f"[{thread_name}] ✅ Đã ghi key mới thành công.")
-                        print(f"[{thread_name}] 🛑 REBOOT HỆ THỐNG TRONG 5 GIÂY ĐỂ ÁP DỤNG...")
+                        print(f"[{thread_name}] Đã cập nhật Key. REBOOT sau 5s...")
                         time.sleep(5)
                         subprocess.run(["su", "-c", "reboot"])
-                else:
-                    print(f"[{thread_name}] Lỗi tải Key: HTTP {response.status_code}")
             except Exception as e:
-                print(f"[{thread_name}] Lỗi quá trình check Key: {e}")
+                print(f"[{thread_name}] Lỗi check Key: {e}")
 
-        # Chờ đến lần check tiếp theo
         time.sleep(interval * 60)
 
 # ==============================================================================
@@ -405,11 +605,9 @@ def delta_key_monitor_loop():
 
 def run_scanner(config, thread_name="SCAN"):
     global current_proxies, proxy_index
-    print(f"[{thread_name}] Đang quét server...")
+    print(f"[{thread_name}] Quét server...")
     
     current_proxies = format_proxies(config.get("PROXY_LIST", []))
-    
-    # KHỞI TẠO PROXY RANDOM CHO SCANNER
     if len(current_proxies) > 0:
         proxy_index = random.randint(0, len(current_proxies) - 1)
         
@@ -422,7 +620,6 @@ def run_scanner(config, thread_name="SCAN"):
         api_url = f"https://games.roblox.com/v1/games/{place_id}/servers/Public?sortOrder=Desc&limit=100"
         if next_cursor and next_cursor != "null": api_url += f"&cursor={next_cursor}"
         
-        # Dùng hàm rotation cho scanner
         data = execute_api_request_with_proxy('GET', api_url, config, thread_name) 
         if not data: continue
         
@@ -430,7 +627,7 @@ def run_scanner(config, thread_name="SCAN"):
         next_cursor = data.get("nextPageCursor")
         
         if not servers:
-            print(f"\n[{thread_name}] [i] Hết danh sách server.")
+            print(f"\n[{thread_name}] Hết server.")
             break
             
         total_ratio = sum((s.get("playing", 0) / s.get("maxPlayers", 1)) for s in servers if s.get("maxPlayers", 0) > 0)
@@ -443,14 +640,13 @@ def run_scanner(config, thread_name="SCAN"):
                     if sid and sid not in collected_ids: collected_ids.append(sid)
         
         avg_ratio = (total_ratio / len(servers)) if servers else 0
-        print(f"\r[{thread_name}] Quét... | Tỉ lệ trang: {avg_ratio * 100:5.1f}% | Đã tìm: {len(collected_ids):<5}", end="")
+        print(f"\r[{thread_name}] Scan... | Tỉ lệ: {avg_ratio * 100:5.1f}% | Tìm thấy: {len(collected_ids):<5}", end="")
         
         if 0 < avg_ratio < min_ratio or not next_cursor or next_cursor == "null":
-            print(f"\n[{thread_name}] [i] Đạt giới hạn dưới hoặc hết trang.")
+            print(f"\n[{thread_name}] Dừng quét.")
             break
             
     output_path = config["OUTPUT_FILE_PATH"]
-    
     output_dir = os.path.dirname(output_path)
     if output_dir and not os.path.exists(output_dir):
         try: os.makedirs(output_dir)
@@ -461,9 +657,9 @@ def run_scanner(config, thread_name="SCAN"):
             with open(output_path, "w") as f:
                 with open(output_path, "w") as f:
                     for sid in collected_ids: f.write(f"{sid}\n")
-            print(f"[{thread_name}] ✅ Đã lưu {len(collected_ids)} ID vào: {output_path}")
+            print(f"[{thread_name}] Đã lưu {len(collected_ids)} ID vào {output_path}")
         except Exception as e:
-            print(f"\n[{thread_name}] ❌ Lỗi ghi file: {e}")
+            print(f"\n[{thread_name}] Lỗi ghi file: {e}")
             
     return True
 
@@ -481,7 +677,7 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
                     server_ids = [line.strip() for line in f if line.strip()]
             except: pass
         if not server_ids:
-            print(f"[{thread_name}] Chưa có server để join. Chờ quét...")
+            print(f"[{thread_name}] Chờ server quét được...")
             return
 
     base_pkg = config.get("BASE_PACKAGE_NAME", "com.roblox.clien")
@@ -494,67 +690,47 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
         
         print(f"\n[{thread_name}] ---- CHECK ACCOUNT: {suffix} (ID: {uid}) ----")
         
-        # ======================================================================
-        # 1. KIỂM TRA PROCESS (Có đang chạy ngầm không?)
-        # ======================================================================
         is_process_active = check_process_running(pkg_name)
         should_launch = False
         
         if not is_process_active:
-            print(f"[{thread_name}] ⚠️ PHÁT HIỆN: App '{suffix}' đang TẮT (Không tìm thấy Process).")
-            print(f"[{thread_name}] -> Bỏ qua check API Online. Tiến hành START ngay.")
+            print(f"[{thread_name}] App '{suffix}' đang TẮT -> START.")
             should_launch = True
         else:
-            print(f"[{thread_name}] ℹ️ App '{suffix}' đang CHẠY (Process OK). Tiến hành check API Strict (v1.6)...")
-            
-            # ==================================================================
-            # 2. LOGIC CHECK API v1.6 (Smart Random)
-            # ==================================================================
-            
-            # Chọn index ngẫu nhiên để bắt đầu
+            print(f"[{thread_name}] App '{suffix}' đang CHẠY -> Check API...")
             start_idx = random.randint(0, num_proxies - 1) if num_proxies > 0 else -1
-            
-            is_online = check_roblox_presence_single(
-                uid, config, thread_name, formatted_proxies, start_idx
-            )
+            is_online = check_roblox_presence_single(uid, config, thread_name, formatted_proxies, start_idx)
             
             if is_online:
-                print(f"[{thread_name}] [QUYẾT ĐỊNH] '{suffix}' ĐANG ONLINE. -> Skip.")
-                continue # Bỏ qua, qua acc tiếp theo
+                print(f"[{thread_name}] '{suffix}' ONLINE -> Skip.")
+                continue 
             else:
-                print(f"[{thread_name}] [QUYẾT ĐỊNH] '{suffix}' CONFIRMED OFFLINE. -> Kill & Restart.")
-                
-                # Kill trước khi start lại
+                print(f"[{thread_name}] '{suffix}' OFFLINE -> Kill & Restart.")
                 try:
                     cmd_kill = f"PID=$(ps -ef | grep {pkg_name} | grep -v grep | awk '{{print $2}}'); if [ ! -z \"$PID\" ]; then kill -9 $PID; fi"
                     subprocess.run(["su", "-c", cmd_kill], capture_output=True, timeout=10)
                     time.sleep(3) 
                 except: pass
-                
                 should_launch = True
 
-        # ======================================================================
-        # 3. THỰC THI START (Chạy nếu Process Tắt HOẶC Process Bật nhưng Offline)
-        # ======================================================================
         if should_launch:
             target_url = ""
             if launch_mode == 'scan':
                 if server_ids:
                     target_url = f"roblox://placeId={config['PLACE_ID']}&gameId={server_ids[i % len(server_ids)]}"
                 else:
-                    print(f"[{thread_name}] [-] Không có server hợp lệ để join cho '{suffix}'. Bỏ qua start.")
+                    print(f"[{thread_name}] Hết server ID. Bỏ qua.")
                     continue
             elif launch_mode == 'vip':
                 target_url = config.get('VIP_SERVER_URL', "")
             
             if target_url:
                 subprocess.run(["am", "start", "-a", "android.intent.action.VIEW", "-d", target_url, "-p", pkg_name], capture_output=True)
-                print(f"[{thread_name}] -> Đã gọi lệnh start cho {pkg_name}")
+                print(f"[{thread_name}] Đã start: {pkg_name}")
             
-            # Nghỉ giữa các lần khởi động acc
             delay = config.get("LAUNCH_DELAY_SECONDS", 10)
             if i < len(accounts) - 1:
-                print(f"[{thread_name}] Đợi {delay}s trước khi qua acc tiếp theo...")
+                print(f"[{thread_name}] Đợi {delay}s...")
                 time.sleep(delay)
 
 # ==============================================================================
@@ -562,21 +738,21 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
 # ==============================================================================
 
 def scanner_loop():
-    print("[SCAN] Bắt đầu...")
+    print("[SCAN] Bắt đầu.")
     config = fetch_and_load_config(CONFIG_URL)
     while True:
         run_scanner(config, "SCAN")
         countdown(config.get("SCAN_INTERVAL_SECONDS", 300), "SCAN")
 
 def launcher_loop(mode):
-    print(f"[LAUNCH] Bắt đầu chế độ {mode}...")
+    print(f"[LAUNCH] Bắt đầu chế độ {mode}.")
     config = fetch_and_load_config(CONFIG_URL)
     while True:
         launch_roblox_instances(config, mode, "LAUNCH")
         countdown(config.get("LAUNCH_INTERVAL_SECONDS", 300), "LAUNCH")
 
 def reboot_loop():
-    print("[REBOOT] Kiểm tra lịch...")
+    print("[REBOOT] Kiểm tra lịch.")
     config = fetch_and_load_config(CONFIG_URL)
     if config.get("REBOOT_ENABLED", "off").lower() == "on":
         mins = config.get("REBOOT_INTERVAL_MINUTES", 1200)
@@ -589,6 +765,13 @@ def reboot_loop():
 if __name__ == "__main__":
     os.system("termux-wake-lock")
     if not check_root_access(): sys.exit(1)
+    
+    print("[MAIN] Tải cấu hình & Kiểm tra Cookie (v1.9 Optimized)...")
+    initial_config = fetch_and_load_config(CONFIG_URL)
+    run_cookie_check_sequence(initial_config)
+    
+    # Reload lại để đảm bảo ID mới (nếu có update) được nạp vào
+    final_config = fetch_and_load_config(CONFIG_URL)
     
     threading.Thread(target=reboot_loop, daemon=True).start()
     threading.Thread(target=delta_key_monitor_loop, daemon=True).start()
