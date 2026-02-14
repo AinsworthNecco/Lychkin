@@ -1,10 +1,11 @@
 # -*- coding: utf-8 -*-
-# Script Bot Discord cho VMOS Cloud (Phiên bản Ultimate - Store Mode + ALL + Fix Freeze + Exclusion Mode + 120 Threads + Ping + Playwright Login)
+# Script Bot Discord cho VMOS Cloud (Phiên bản Ultimate - Store Mode + ALL + Fix Freeze + Exclusion Mode + 50 Threads + Ping + Playwright Login)
 # Tương thích: Debian/Termux (Sử dụng System Chromium)
 # Cập nhật:
-# - Giữ nguyên toàn bộ logic gốc, không viết tắt, không tối ưu hóa làm mất code.
+# - Giảm luồng xuống 50 để tránh crash trên Termux.
+# - Giữ nguyên toàn bộ logic gốc.
 # - Token: Local (token.txt).
-# - Proxy: GitHub.1
+# - Proxy: GitHub.
 
 import discord
 from discord.ext import commands
@@ -819,7 +820,8 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
             await msg.edit(embed=embed_run)
 
             total_proxies = proxy_manager.get_count()
-            concurrency = min(total_proxies, 120)
+            # Giảm xuống 50 theo yêu cầu để tránh crash trên Termux
+            concurrency = min(total_proxies, 50)
             semaphore = asyncio.Semaphore(concurrency)
             
             current_assets_num = 0
