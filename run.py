@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-# Script Bot Discord cho VMOS Cloud (Phiên bản Ultimate - Store Mode + ALL + Fix Freeze + Exclusion Mode + 120 Threads + Ping + Playwright Login)
+# Script Bot Discord cho VMOS Cloud (Phiên bản Ultimate - Store Mode + ALL + Fix Freeze + Exclusion Mode +  Threads + Ping + Playwright Login)
 # Tương thích: Debian/Termux (Sử dụng System Chromium)
 # Cập nhật:
 # - Giữ nguyên toàn bộ logic gốc, không viết tắt, không tối ưu hóa làm mất code.
@@ -38,8 +38,8 @@ THUMBNAIL_URL = "https://media.tenor.com/uKqSgjwq-jcAAAAM/hatsune-miku-oshi-no-k
 
 # Danh sách User-Agent để Random hóa Headers
 USER_AGENTS_LIST = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0",
@@ -819,7 +819,7 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
             await msg.edit(embed=embed_run)
 
             total_proxies = proxy_manager.get_count()
-            concurrency = min(total_proxies, 120)
+            concurrency = min(total_proxies, 40)
             semaphore = asyncio.Semaphore(concurrency)
             
             current_assets_num = 0
