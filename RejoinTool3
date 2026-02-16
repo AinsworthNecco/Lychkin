@@ -29,7 +29,7 @@ from datetime import datetime
 # ---------------------------------------------------
 # -- URL CẤU HÌNH --
 # ---------------------------------------------------
-CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/config2"
+CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/BACKUPMAIN"
 COOKIE_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie1"
 
 # ---------------------------------------------------
