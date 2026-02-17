@@ -1,10 +1,12 @@
 # -*- coding: utf-8 -*-
-# Script Bot Discord cho VMOS Cloud (Phiên bản Ultimate - Store Mode + ALL + Fix Freeze + Exclusion Mode +  Threads + Ping + Playwright Login)
-# Tương thích: Debian/Termux (Sử dụng System Chromium)
-# Cập nhật:
-# - Giữ nguyên toàn bộ logic gốc, không viết tắt, không tối ưu hóa làm mất code.
-# - Token: Local (token.txt).
-# - Proxy: GitHub.
+# Script Bot Discord cho VMOS Cloud (Phiên bản Ultimate - Full Uncut)
+# Tính năng tích hợp:
+# 1. Playwright: Tự động mở Chrome (System), đăng nhập và treo nick.
+# 2. Mail API: MAIL.TM (Sửa lỗi logic đọc code: Quét cả body/html).
+# 3. Quản lý Config: Token đọc từ file local, Proxy tải từ GitHub.
+# 4. Anti-Rate Limit: Cơ chế cập nhật tin nhắn Discord chậm (10s/lần).
+# 5. Logging: Xuất log chi tiết.
+# 6. Luồng: Giới hạn 50 luồng.
 
 import discord
 from discord.ext import commands
@@ -18,7 +20,13 @@ import os
 import traceback
 import sys
 import uuid
+import string
+import urllib.parse
+import urllib3
 from collections import defaultdict
+
+# Tắt cảnh báo insecure request
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # THƯ VIỆN MỚI CHO TRÌNH DUYỆT
 from playwright.async_api import async_playwright
@@ -27,19 +35,17 @@ from playwright.async_api import async_playwright
 # ==>> CẤU HÌNH & HẰNG SỐ <<==
 # ==============================================================
 
-# File chứa Token (Tạo file này trên Termux: nano token.txt -> dán token -> lưu)
 TOKEN_FILE_NAME = "token.txt"
-
-# URL CHỨA PROXY (Chỉ chứa proxy, mỗi dòng 1 cái)
 PROXY_CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/info"
-
 CODE_FILE_NAME = "CODE.txt"
 THUMBNAIL_URL = "https://media.tenor.com/uKqSgjwq-jcAAAAM/hatsune-miku-oshi-no-ko.gif"
 
-# Danh sách User-Agent để Random hóa Headers
+MAIL_TM_BASE = "https://api.mail.tm"
+
+# Danh sách User-Agent (Dùng cho VMOS)
 USER_AGENTS_LIST = [
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0",
@@ -49,7 +55,9 @@ USER_AGENTS_LIST = [
 def get_random_ua():
     return random.choice(USER_AGENTS_LIST)
 
-# Cấu hình gói VIP
+def random_string(n=10):
+    return ''.join(random.choice(string.ascii_lowercase) for _ in range(n))
+
 VIP_MAP = {
     "vip": {"target": 5, "exchange_id": 999},
     "kvip": {"target": 10, "exchange_id": 1000},
@@ -58,48 +66,44 @@ VIP_MAP = {
     "mvip": {"target": 40, "exchange_id": 1003}
 }
 
-# Biến toàn cục để kiểm soát chế độ vô cực
 is_inf_running = False
 
 # ==============================================================
-# ==>> HÀM LOAD CONFIG (TOKEN LOCAL & PROXY GITHUB) <<==
+# ==>> HÀM LOAD CONFIG <<==
 # ==============================================================
 
 def load_local_token():
-    """Đọc token từ file token.txt trên máy"""
+    print("📂 Đang đọc file token.txt...")
     try:
         if not os.path.exists(TOKEN_FILE_NAME):
             print(f"❌ LỖI: Không tìm thấy file '{TOKEN_FILE_NAME}'!")
-            print(f"👉 Hãy tạo file: gõ 'nano {TOKEN_FILE_NAME}', dán token vào, rồi lưu lại.")
             return None
-            
+        
         with open(TOKEN_FILE_NAME, 'r', encoding='utf-8') as f:
             token = f.read().strip()
-            if not token:
-                print(f"❌ LỖI: File '{TOKEN_FILE_NAME}' rỗng!")
-                return None
-            return token
+            
+        if not token:
+            print(f"❌ LỖI: File '{TOKEN_FILE_NAME}' rỗng!")
+            return None
+            
+        print("✅ Đã đọc Token thành công.")
+        return token
     except Exception as e:
         print(f"❌ Lỗi đọc token: {e}")
         return None
 
 def fetch_proxies_from_github():
-    """Tải danh sách Proxy từ GitHub"""
-    print(f"🌐 Đang tải danh sách Proxy từ: {PROXY_CONFIG_URL} ...")
+    print(f"🌐 Đang kết nối GitHub để lấy Proxy: {PROXY_CONFIG_URL} ...")
     try:
         resp = requests.get(PROXY_CONFIG_URL, timeout=15)
+        
         if resp.status_code != 200:
             print(f"❌ Lỗi tải Proxy: HTTP {resp.status_code}")
             return []
-        
+            
         text = resp.text.strip()
-        # Lấy tất cả các dòng không trống làm proxy
         lines = [line.strip() for line in text.split('\n') if line.strip()]
         
-        if not lines:
-            print("⚠️ Cảnh báo: Link GitHub không chứa proxy nào!")
-            return []
-            
         print(f"✅ Đã tải thành công {len(lines)} proxies từ GitHub.")
         return lines
     except Exception as e:
@@ -115,21 +119,20 @@ class CodeStorageManager:
         self.filename = filename
 
     def load_data(self):
-        """Đọc file CODE.txt và trả về dict {VIP_TYPE: [code1, code2...]}"""
         data = defaultdict(list)
-        current_section = None
-        
         if not os.path.exists(self.filename):
             try:
                 with open(self.filename, 'w', encoding='utf-8') as f:
                     f.write("")
-            except: pass
+            except:
+                pass
             return data
-
+            
         try:
             with open(self.filename, 'r', encoding='utf-8') as f:
                 lines = f.readlines()
-            
+                
+            current_section = None
             for line in lines:
                 line = line.strip()
                 if not line:
@@ -147,13 +150,11 @@ class CodeStorageManager:
                 
                 if current_section:
                     data[current_section].append(line)
-        except Exception as e:
-            print(f"[STORAGE] Lỗi đọc file code: {e}")
-            
+        except:
+            pass
         return data
 
     def save_data(self, data):
-        """Ghi đè lại file CODE.txt với dữ liệu mới nhất"""
         try:
             with open(self.filename, 'w', encoding='utf-8') as f:
                 sorted_keys = sorted(data.keys())
@@ -167,20 +168,19 @@ class CodeStorageManager:
                         f.write(f"{code}\n")
                     f.write("\n")
             return True
-        except Exception as e:
-            print(f"[STORAGE] Lỗi ghi file code: {e}")
+        except:
             return False
 
     def add_codes(self, new_codes_dict):
-        """Thêm code mới vào kho (Append mode)"""
+        print("💾 Đang lưu Code vào file...")
         data = self.load_data()
         summary = {}
         
         for vip, codes in new_codes_dict.items():
             if not codes:
                 continue
-            vip_upper = vip.upper()
             
+            vip_upper = vip.upper()
             if vip_upper not in data:
                 data[vip_upper] = []
             
@@ -194,12 +194,12 @@ class CodeStorageManager:
                     added_count += 1
             
             summary[vip_upper] = added_count
-        
+            
         self.save_data(data)
+        print(f"✅ Đã lưu xong: {summary}")
         return summary
 
     def pop_codes(self, vip_type, amount):
-        """Lấy code ra khỏi kho và xóa chúng"""
         data = self.load_data()
         vip_upper = vip_type.upper()
         
@@ -219,7 +219,7 @@ class CodeStorageManager:
 code_storage = CodeStorageManager(CODE_FILE_NAME)
 
 # ==============================================================
-# ==>> LỚP QUẢN LÝ PROXY (CORE - HỖ TRỢ TOÀN BỘ ĐỊNH DẠNG) <<==
+# ==>> LỚP QUẢN LÝ PROXY <<==
 # ==============================================================
 
 class ProxyManager:
@@ -234,19 +234,19 @@ class ProxyManager:
         if not line or line.startswith('#'):
             return None
         line = re.sub(r'^https?://', '', line)
-
         try:
+            # IP:Port
+            if ':' in line and '@' not in line:
+                return f"{line}"
+            # User:Pass@IP:Port
             if '@' in line:
-                return f"http://{line}"
+                return f"{line}"
+            # IP:Port:User:Pass
             parts = line.split(':')
-            if len(parts) == 2:
-                host, port = parts
-                return f"http://{host}:{port}"
-            if len(parts) == 4:
-                host, port, user, pwd = parts
-                return f"http://{user}:{pwd}@{host}:{port}"
-            return f"http://{line}"
-        except Exception:
+            if len(parts) >= 4:
+                return f"{parts[2]}:{parts[3]}@{parts[0]}:{parts[1]}"
+            return f"{line}"
+        except:
             return None
 
     def load_proxies_from_list(self, raw_lines):
@@ -254,7 +254,7 @@ class ProxyManager:
             p = self.parse_proxy(line)
             if p:
                 self.proxies.append(p)
-        print(f"[PROXY] Đã xử lý {len(self.proxies)} proxy hợp lệ.")
+        print(f"[PROXY] Tổng số proxy đã nạp: {len(self.proxies)}")
 
     def get_live_proxy(self):
         available = [p for p in self.proxies if p not in self.bad_proxies]
@@ -267,8 +267,8 @@ class ProxyManager:
             self.bad_proxies.add(proxy)
 
     def reset_bad_proxies(self):
+        print(f"[PROXY] ♻️ Reset {len(self.bad_proxies)} proxy lỗi.")
         self.bad_proxies.clear()
-        print(f"[PROXY] Đã RESET danh sách proxy lỗi.")
 
     def get_count(self):
         return len(self.proxies)
@@ -276,62 +276,40 @@ class ProxyManager:
     def get_live_count(self):
         return len(self.proxies) - len(self.bad_proxies)
 
-# Khởi tạo tạm, sẽ load data thật ở main
 proxy_manager = ProxyManager([])
 
 # ==============================================================
-# ==>> HÀM HỖ TRỢ BROWSER (PLAYWRIGHT CHO TERMUX) <<==
+# ==>> BROWSER <<==
 # ==============================================================
 
 async def open_browser_and_login(email, password):
-    """
-    Mở trình duyệt Chromium hệ thống (apt install chromium), 
-    đăng nhập và TRẢ VỀ đối tượng browser để giữ nó mở.
-    """
-    print(f"[BROWSER] 🌐 Đang khởi động System Chromium cho: {email}")
+    print(f"[BROWSER] 🌐 Mở Chromium...")
     try:
         p = await async_playwright().start()
         
-        # CẤU HÌNH QUAN TRỌNG CHO TERMUX/DEBIAN
-        # Sử dụng executable_path="/usr/bin/chromium"
         browser = await p.chromium.launch(
             executable_path="/usr/bin/chromium", 
-            headless=True, # Vẫn giữ false theo yêu cầu (Cần X11/VNC để hiển thị)
-            args=[
-                "--guest",
-                "--no-sandbox", # BẮT BUỘC TRÊN TERMUX/ROOT
-                "--disable-gpu", # Thường cần thiết trên ARM
-                "--disable-dev-shm-usage", # Tránh lỗi bộ nhớ share
-                "--window-size=400,600",
-                "--window-position=1500,500"
-            ]
+            headless=True,
+            args=["--guest", "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage", "--window-size=400,600", "--window-position=1500,500"]
         )
         context = await browser.new_context()
         page = await context.new_page()
-
-        print(f"[BROWSER] 🔗 Đang truy cập trang sự kiện...")
+        print(f"[BROWSER] 🔗 Truy cập VMOS...")
         await page.goto("https://cloud.vsphone.com/event/202602", timeout=60000)
-
-        # Logic điền form như yêu cầu
+        print(f"[BROWSER] ✍️ Login...")
         await page.wait_for_selector('input[placeholder="Please enter your email address"]', timeout=30000)
         await page.fill('input[placeholder="Please enter your email address"]', email)
         await page.fill('input[placeholder="Please enter your login password"]', password)
-        
         await page.click('button:has-text("Sign in")')
-        print(f"[BROWSER] ✅ Đã click Sign in. Đang treo trình duyệt...")
-        
-        # Trả về p, browser để sau này có thể close()
+        print(f"[BROWSER] ✅ Treo trình duyệt.")
         return p, browser, page
     except Exception as e:
-        print(f"[BROWSER] ❌ Lỗi khởi động trình duyệt: {e}")
-        print("LƯU Ý: Nếu dùng Termux không có giao diện (X11), hãy đảm bảo đã setup display hoặc chuyển headless=True trong code.")
-        # Nếu lỗi thì cố gắng dọn dẹp luôn
+        print(f"[BROWSER] ❌ Lỗi: {e}")
         return None, None, None
 
 async def close_browser_session(p, browser):
-    """Đóng trình duyệt sau khi buff xong"""
     if browser:
-        print(f"[BROWSER] 🛑 Đang đóng trình duyệt...")
+        print(f"[BROWSER] 🛑 Đóng trình duyệt.")
         try:
             await browser.close()
         except: pass
@@ -341,14 +319,22 @@ async def close_browser_session(p, browser):
         except: pass
 
 # ==============================================================
-# ==>> HÀM API VMOS (NHƯ CŨ) <<==
+# ==>> API VMOS <<==
 # ==============================================================
 
 def safe_request(method, url, proxy, **kwargs):
-    proxies_dict = {"http": proxy, "https": proxy} if proxy else None
+    # Proxy cho VMOS vẫn giữ nguyên logic cũ vì nó chạy ổn
+    proxies_dict = None
+    if proxy:
+        p_clean = proxy.replace("http://", "").replace("https://", "")
+        proxies_dict = {
+            "http": f"http://{p_clean}",
+            "https": f"http://{p_clean}"
+        }
+
     if 'timeout' not in kwargs:
         kwargs['timeout'] = 20
-        
+    
     try:
         if method.lower() == 'get':
             resp = requests.get(url, proxies=proxies_dict, **kwargs)
@@ -359,25 +345,126 @@ def safe_request(method, url, proxy, **kwargs):
             raise requests.exceptions.ConnectionError("IP Restricted by VMOS")
         return resp
     except Exception as e:
-        # Không in lỗi chi tiết ở đây để tránh spam console, để logic ngoài xử lý
         raise e
 
+# ==============================================================
+# ==>> MAIL.TM LOGIC (DIRECT IP - READ FULL BODY) <<==
+# ==============================================================
+
 def get_temp_email(proxy):
-    # Sử dụng UA ngẫu nhiên cho Temp Mail cũng tốt
-    ua = get_random_ua()
-    url = "https://api.internal.temp-mail.io/api/v3/email/new"
-    headers = {"User-Agent": ua, "Content-Type": "application/json"}
-    payload = {"min_name_length": 10, "max_name_length": 10}
+    """
+    Tạo email từ Mail.tm (Không proxy, tránh 407).
+    """
+    # QUAN TRỌNG: Không dùng proxy cho Mail.tm
+    proxies_dict = None 
+
     try:
-        resp = safe_request("POST", url, proxy, headers=headers, json=payload, timeout=15)
-        if resp and resp.status_code == 200:
-            return resp.json().get("email")
-    except:
+        # 1. Lấy Domain
+        r = requests.get(f"{MAIL_TM_BASE}/domains", proxies=None, timeout=20)
+        
+        if r.status_code != 200:
+            print(f"   [MAIL-TM] ❌ Lỗi Domain: {r.status_code}")
+            return None, None
+            
+        domains_data = r.json()
+        if "hydra:member" not in domains_data or not domains_data["hydra:member"]:
+             print(f"   [MAIL-TM] ❌ Không lấy được domain member.")
+             return None, None
+
+        domain = domains_data["hydra:member"][0]["domain"]
+        
+        # Tạo thông tin ngẫu nhiên
+        email = f"{random_string()}@{domain}"
+        password = "Password123!"
+        
+        # 2. Tạo Account
+        acc_payload = {
+            "address": email,
+            "password": password
+        }
+        r_acc = requests.post(f"{MAIL_TM_BASE}/accounts", json=acc_payload, proxies=None, timeout=20)
+        
+        if r_acc.status_code not in [200, 201]:
+            print(f"   [MAIL-TM] ❌ Lỗi tạo Acc: {r_acc.status_code} {r_acc.text}")
+            return None, None
+            
+        # 3. Lấy Token
+        r_token = requests.post(f"{MAIL_TM_BASE}/token", json=acc_payload, proxies=None, timeout=20)
+        
+        if r_token.status_code == 200:
+            token = r_token.json().get("token")
+            return email, token
+        else:
+            print(f"   [MAIL-TM] ❌ Lỗi Token: {r_token.status_code}")
+            
+    except Exception as e:
+        print(f"   [MAIL-TM] 🔥 Exception: {e}")
         pass
+        
+    return None, None
+
+def get_code_from_email(mail_token, email, proxy):
+    """
+    Đọc mail từ Mail.tm.
+    QUAN TRỌNG: Quét cả 'intro', 'subject' và 'html' (bodyHtmlContent).
+    Mail của VSPhone thường để code trong <div> của body HTML.
+    """
+    if not mail_token:
+        return None
+    
+    # Không dùng proxy
+    proxies_dict = None
+    headers = {
+        "Authorization": f"Bearer {mail_token}"
+    }
+    
+    for _ in range(10):
+        try:
+            r = requests.get(f"{MAIL_TM_BASE}/messages", headers=headers, proxies=None, timeout=20)
+            
+            if r.status_code == 200:
+                data = r.json()
+                # Kiểm tra danh sách tin nhắn
+                messages = data.get("hydra:member", [])
+                
+                if messages:
+                    # Lấy tin nhắn mới nhất
+                    msg = messages[0]
+                    
+                    # 1. Thu thập toàn bộ nội dung text có thể chứa code
+                    # (Subject, Intro, và quan trọng nhất là body HTML/Text nếu API trả về full list)
+                    # Mail.tm list endpoint đôi khi chỉ trả về intro. Nếu cần chi tiết phải gọi endpoint /messages/{id}
+                    
+                    msg_id = msg.get("id")
+                    
+                    # Gọi chi tiết tin nhắn để lấy full body (HTML)
+                    r_detail = requests.get(f"{MAIL_TM_BASE}/messages/{msg_id}", headers=headers, proxies=None, timeout=20)
+                    if r_detail.status_code == 200:
+                        detail = r_detail.json()
+                        
+                        # Gộp tất cả các trường có khả năng chứa text
+                        full_content = ""
+                        full_content += str(detail.get("subject", "")) + " "
+                        full_content += str(detail.get("intro", "")) + " "
+                        full_content += str(detail.get("text", "")) + " " # body text
+                        full_content += str(detail.get("html", "")) + " " # body html
+                        # Có API trả về field 'bodyHtmlContent' thay vì html, cứ gộp hết cho chắc
+                        full_content += str(detail.get("bodyHtmlContent", "")) 
+                        
+                        # Regex tìm 6 số liên tiếp
+                        match = re.search(r"\b(\d{6})\b", full_content)
+                        if match:
+                            return match.group(1)
+        except:
+            pass
+        time.sleep(3)
     return None
 
+# ==============================================================
+# ==>> VMOS ACTIONS <<==
+# ==============================================================
+
 def send_code_vmos(email, proxy, user_agent=None):
-    # RANDOM HEADERS Ở ĐÂY
     ua = user_agent if user_agent else get_random_ua()
     
     url = "https://api.vsphone.com/vsphone/api/sms/smsSend"
@@ -385,240 +472,124 @@ def send_code_vmos(email, proxy, user_agent=None):
         "content-type": "application/json", 
         "origin": "https://cloud.vmoscloud.com",
         "referer": "https://cloud.vmoscloud.com/", 
-        "user-agent": ua # Random UA
+        "user-agent": ua
     }
     payload = {
-        "smsType": 2, "mobilePhone": email,
+        "smsType": 2, 
+        "mobilePhone": email, 
         "captchaVerifyParam": "{\"sceneId\":\"5jvar3wp\",\"certifyId\":\"Sz5A7mJjnc\",\"deviceToken\":\"U0dfV0VCIzM3OTVkMjgyNDJhMTE2MTliYzI1Zjc4NmY4NGU1M2Q0LWgtMTc1MTI0ODM0NzQ5OC1lOTBiNzJmZGZkZDg0YjUzYTdiZjU0YTRiNWQ3MDIzNiNkOGJCS21wMjdYVGc5bUdPVDVUaUN1N3lWeERuRkZXL2dXSmFOYnYrcjMzTmlWUkVFVUVGVVI2OE9IWnM5U2xyYnZXMnF6WXRsVHZwRGtlclNxUFJrcGlPcGRFaXI2TW5wZUpqTnhtNHB5N29kTUlldnllYXRGbWtXUFRUNm9ldFlUOXowcnB3emJYeGdRNTJ1UVNOSFI5NlVqdGV6YnBJSTh6RU1uN2I0OERZckY1SmZxR3RwbXM1aVUyY3RWTXE2UWVjaXhrZjIvZEZqOVcrc3RqS0NDbUFKUURUUTRZcTFObGR2bm80OG1UZEs2c3hBV29lTWpUZHBOZUI2MCtZYnp6WGI3ZVpjS2ZoMCtwRWN0UkFsWC9XV0EzaDRjb1pwT1dVZzZXejI2WkhtMVNTQll1WEtmYXpsQmhyNUMza3pRcy8zM1BlVW4xd2Q2VFk4dEduVUlxVURLclhUU3ZJS2xlSk9aOWRaYzBOZldEQmdBaXZ2NEkxa09pcHkwdmhpUnphc3ZkczAyOGtPbHlDTFlmUkdyaXYvTS9tUXVxTjl4TzN2VXFtTE9OM2ltZWQ1SGxKNHNVM294ZE5lZGJMN2JvcnNxUEV6ZEVIKy9vNWFGUnI3VnBEOURVWHozZUFyeE9zZU13RHRFdzRTaDR3R1hXNS9FWEVNcXpOM0xwbkFDeHhuRlZIemxLeGM4aHB6a2ZxM1U4NGl1K2hMdE11RVBaamNVdHlWbFVXL0tvazBXUkVpcWVsQUZLcTljQmJUcWJPdy9kZXgzanNLWVIvckNPY3MvcDV6N0lpalIvcDBWbnk5TWp1U2U0U2V0b3djdStFUm9GUzFudW90U1ROIzExOSNkOTYzNzA0ZDk1NTdiODhlMjJhYWJlYjNmMzJjZDA3Nw==\",\"data\":\"JRMmbUseGiM6eQ4LaxVYLx32sUc6EyJfYRA4MlBCDPQgclpB/24VVyx4AK1qL+ksP1FoEwpQJ229/9gCqZA8AoswNlp9L0UPC07tEHBWYVhZOy0lQs9LIuVqNH9xGWPVpShRCh8WNi4eeEoyZGY28h+zdokDk9hbE1BJTaLWjK1KpiBUFiVpTEhefg1bRjg71Flk+x9SfSU+cB15wB9UAVNydxoYuBgbK1lQewIicctfr3JTCci1Xv9rtSsoYJUiaS55ZDlBLnh2WRo9XG05JA57Ly8IT2UVqiBuT9dHcdcubW9BgDh+l2Jg4gNoU2WSAgHRZWUwNyB/PdZ9L1tRVHkeLQW1OT1RV3xJb784Z0JAY2ozCawXcgUGR3pfQAlVDKJQ0nw7ttA7/gT35RIEpd7jJ/kNP6314kJXxpC/U3eyV08JQjqMeQ1kv1IaICsVaW1BCg==\"}"
     }
-    # Giảm timeout xuống 10s để skip nhanh nếu lỗi
+    
     resp = safe_request("POST", url, proxy, headers=headers, json=payload, timeout=10)
+    
     if resp and resp.status_code == 200:
         data = resp.json()
         return data.get("code") == 200 and "success" in data.get("msg", "").lower()
     return False
 
-def get_code_from_email(email, proxy):
-    ua = get_random_ua()
-    url = f"https://api.internal.temp-mail.io/api/v3/email/{email}/messages"
-    for _ in range(5):
-        try:
-            resp = safe_request("GET", url, proxy, headers={"User-Agent": ua}, timeout=10)
-            if resp and resp.status_code == 200:
-                messages = resp.json()
-                if messages:
-                    for msg in messages:
-                        text = msg.get("body_text", "")
-                        match = re.search(r"\b(\d{6})\b", text)
-                        if match:
-                            return match.group(1)
-        except: pass
-        time.sleep(3)
-    return None
-
 def login_vmos(email, code, proxy, invite_code=None, user_agent=None):
     ua = user_agent if user_agent else get_random_ua()
-    
     url = "https://api.vsphone.com/vsphone/api/user/login"
     headers = {
-        "Content-Type": "application/json", "origin": "https://cloud.vmoscloud.com",
+        "Content-Type": "application/json", 
+        "origin": "https://cloud.vmoscloud.com", 
         "referer": "https://cloud.vmoscloud.com/", 
-        "User-Agent": ua,
-        "appversion": "1008424", "clienttype": "web"
+        "User-Agent": ua, 
+        "appversion": "1008424", 
+        "clienttype": "web"
     }
     if invite_code:
         headers["channel"] = invite_code
     
     payload = {
-        "mobilePhone": email, "loginType": 0, "verifyCode": code,
+        "mobilePhone": email, 
+        "loginType": 0, 
+        "verifyCode": code, 
         "password": "ba71fb4736613b59be75f9c404b945b1"
     }
     if invite_code:
         payload["channel"] = invite_code
 
     resp = safe_request("POST", url, proxy, headers=headers, json=payload)
+    
     if resp and resp.status_code == 200:
         data = resp.json()
         if data.get("code") == 200:
-            token = data.get("data", {}).get("token")
-            if not token:
-                token = resp.headers.get("token") or resp.headers.get("Token")
+            token = data.get("data", {}).get("token") or resp.headers.get("token") or resp.headers.get("Token")
             
             if token:
                 user_info_url = "https://api.vsphone.com/vsphone/api/user/getUserInfo"
                 h2 = headers.copy()
                 h2["token"] = token
                 
-                uid = None
                 r2 = safe_request("GET", user_info_url, proxy, headers=h2)
-                if r2 and r2.status_code == 200 and r2.json().get("code") == 200:
+                
+                if r2 and r2.status_code == 200:
                     uid = r2.json().get("data", {}).get("userId")
-                else:
-                    r2 = safe_request("POST", user_info_url, proxy, headers=h2, json={})
-                    if r2 and r2.status_code == 200 and r2.json().get("code") == 200:
-                        uid = r2.json().get("data", {}).get("userId")
-                
-                return {"token": token, "userId": str(uid) if uid else None}
-    return None
-
-def trigger_agent_activation(token, userid, proxy, headers):
-    save_agent_url = "https://api.vsphone.com/vsphone/api/agentUser/saveAgentUser"
-    payload = {"name": "VSPhone"}
-    try:
-        safe_request("POST", save_agent_url, proxy, headers=headers, json=payload)
-    except Exception: pass
-    time.sleep(1)
-
-def check_buff_status(token, userid, proxy):
-    ua = get_random_ua()
-    url = "https://api.vsphone.com/vsphone/api/vcActiveAssets/info"
-    headers = {
-        "token": token, "userid": str(userid), "Content-Type": "application/json",
-        "origin": "https://cloud.vmoscloud.com", "referer": "https://cloud.vmoscloud.com/",
-        "User-Agent": ua, "appversion": "1008424", "clienttype": "web"
-    }
-    for _ in range(2):
-        try:
-            resp = safe_request("POST", url, proxy, headers=headers, json={})
-            if not resp or resp.status_code != 200 or resp.json().get("code") != 200:
-                resp = safe_request("GET", url, proxy, headers=headers)
-                
-            if resp and resp.status_code == 200:
-                data = resp.json()
-                if data.get("code") == 200:
-                    d_obj = data.get("data") or {}
-                    return d_obj.get("assetsNum", 0)
-        except Exception: pass
-        time.sleep(1)
-    return 0
-
-def exchange_target_gem(token, userid, proxy, target_id):
-    ua = get_random_ua()
-    url = "https://api.vsphone.com/vsphone/api/vcActiveExchangeGood/gemExchange"
-    headers = {
-        "token": token, "userid": str(userid), "Content-Type": "application/json",
-        "origin": "https://cloud.vsphone.com", "referer": "https://cloud.vsphone.com/",
-        "User-Agent": ua, "appversion": "2003004", "clienttype": "web",
-        "requestsource": "wechat-miniapp", "suppliertype": "0"
-    }
-    
-    payload = {"id": target_id}
-    print(f"\n[EXCHANGE] 🎁 Mua gói ID {target_id}...")
-    
-    for attempt in range(5): 
-        try:
-            resp = safe_request("POST", url, proxy, headers=headers, json=payload)
-            if resp and resp.status_code == 200:
-                data = resp.json()
-                if data.get("code") == 200:
-                    return True
-        except Exception: pass
-        time.sleep(2)
-    return False
-
-def fetch_codes_as_dict(token, userid, proxy):
-    ua = get_random_ua()
-    url = "https://api.vsphone.com/vsphone/api/vcActiveAssetsExchangeLog/list"
-    headers = {
-        "accept": "application/json, text/plain, */*", "appversion": "2003004",
-        "clienttype": "web", "content-type": "application/json",
-        "origin": "https://cloud.vsphone.com", "referer": "https://cloud.vsphone.com/",
-        "requestsource": "wechat-miniapp", "suppliertype": "0",
-        "token": token, "userid": str(userid), "user-agent": ua
-    }
-    
-    try:
-        resp = safe_request("GET", url, proxy, headers=headers)
-        if not resp or resp.status_code != 200: return None
-        data = resp.json()
-        if data.get("code") != 200: return None
-        items = data.get("data", [])
-        if not items: return None
-
-        grouped = defaultdict(list)
-        for item in items:
-            if not item.get("isActivation", True): 
-                vip_type = item.get("configName", "UNKNOWN")
-                code = item.get("awardCount", "")
-                if code: grouped[vip_type].append(code)
-        return grouped
-    except Exception: return None
-
-def get_invite_code_vmos(token, userid, proxy):
-    ua = get_random_ua()
-    agent_info_url = "https://api.vsphone.com/vsphone/api/agentUser/agentUserInfo"
-    headers = {
-        "token": token, "userid": str(userid), "Content-Type": "application/json",
-        "origin": "https://cloud.vmoscloud.com", "referer": "https://cloud.vmoscloud.com/",
-        "User-Agent": ua, "appversion": "1008424", "clienttype": "web"
-    }
-    
-    trigger_agent_activation(token, userid, proxy, headers)
-
-    for attempt in range(3):
-        try:
-            resp = safe_request("POST", agent_info_url, proxy, headers=headers, json={})
-            if not resp or resp.status_code != 200 or resp.json().get("code") != 200:
-                resp = safe_request("GET", agent_info_url, proxy, headers=headers)
-            
-            if resp and resp.status_code == 200:
-                data = resp.json()
-                if data.get("code") == 200:
-                    channel_code = data.get("data", {}).get("channelCode", "")
-                    if channel_code: return channel_code
-                    else: break 
-                elif data.get("code") == 500:
-                    time.sleep(3)
-                    continue
-                else: break
-        except Exception: break
+                    return {"token": token, "userId": str(uid)}
     return None
 
 async def task_worker(invite_code, update_callback=None):
-    worker_id = f"W-{random.randint(100,999)}" 
+    worker_id = f"W-{random.randint(1000,9999)}" 
     while True:
         proxy = proxy_manager.get_live_proxy()
-        if not proxy: return None
-
-        # Tạo UA ngẫu nhiên cho session này
+        if not proxy:
+            print(f"[{worker_id}] ❌ Hết Proxy sống!")
+            return None
+        
         current_ua = get_random_ua()
-
         try:
             proxy_short = proxy.split('@')[-1]
             if update_callback:
                 await update_callback(f"🔄 Đang thử proxy: {proxy_short}...")
             
-            # REVERT LẠI asyncio.to_thread CHO ỔN ĐỊNH
-            email = await asyncio.to_thread(get_temp_email, proxy)
+            # LOG STEP 1: Lấy Mail (Mail.tm) - DIRECT IP
+            print(f"[{worker_id}] 🌐 [NO-PROXY] Get Email (Mail.tm)...")
+            
+            # Unpack tuple: email string, jwt token
+            email_data = await asyncio.to_thread(get_temp_email, proxy)
+            # Kiểm tra xem có dữ liệu trả về không
+            email, mail_token = email_data if email_data else (None, None)
+            
             if not email:
+                # Log đã in ở get_temp_email
                 continue 
 
             if update_callback:
                 await update_callback(f"📩 Đang gửi mã OTP về {email}...")
             
-            # Gửi mã VMOS với UA ngẫu nhiên
+            # LOG STEP 2: Gửi OTP (Dùng Proxy)
+            print(f"[{worker_id}] 📤 [PROXY] Gửi OTP tới {email}...")
             sent = await asyncio.to_thread(send_code_vmos, email, proxy, current_ua)
             
-            # Logic SKIP FAST: Nếu không gửi được (do rate limit, IP chặn...), skip ngay
             if not sent:
+                print(f"[{worker_id}] ❌ [SEND-FAIL] Lỗi gửi mã.")
                 proxy_manager.mark_bad(proxy)
-                continue # Lập tức vòng lại while True để lấy proxy khác
+                continue
             
             if update_callback:
-                await update_callback(f"⏳ Đang chờ mã OTP từ {email}...")
-            code = await asyncio.to_thread(get_code_from_email, email, proxy)
+                await update_callback(f"⏳ Đang chờ mã OTP...")
+            
+            # LOG STEP 3: Lấy Code (Dùng Token, Direct IP, CHECK BODY)
+            print(f"[{worker_id}] ⏳ [NO-PROXY] Check inbox (Full Body)...")
+            code = await asyncio.to_thread(get_code_from_email, mail_token, email, proxy)
+            
             if not code:
+                print(f"[{worker_id}] ❌ [TIMEOUT] Không thấy code (Đã quét cả Body HTML).")
                 continue
 
             if update_callback:
                 await update_callback(f"🔑 Đang đăng nhập...")
             
-            # Login với cùng UA đã gửi mã (để tăng độ trust)
+            # LOG STEP 4: Login (Dùng Proxy)
+            print(f"[{worker_id}] 🔑 [PROXY] Login Code: {code}")
             creds = await asyncio.to_thread(login_vmos, email, code, proxy, invite_code, current_ua)
+            
             if not creds:
+                print(f"[{worker_id}] ❌ [LOGIN-FAIL] Login thất bại.")
                 continue
 
-            print(f"[{worker_id}] 🎉 TẠO TÀI KHOẢN THÀNH CÔNG: {email}")
+            print(f"[{worker_id}] ✅ [SUCCESS] {email} -> OK!")
             return {
                 "email": email, 
                 "password": "NECONECOLYCONECO", 
@@ -627,8 +598,7 @@ async def task_worker(invite_code, update_callback=None):
                 "proxy_used": proxy
             }
         except Exception as e:
-            # Ghi log lỗi để debug nếu cần
-            # print(f"Worker Error: {e}")
+            # print(f"[{worker_id}] 💥 [CRASH] {e}") 
             proxy_manager.mark_bad(proxy)
             continue
 
@@ -670,8 +640,7 @@ async def use_code(ctx):
     if total_codes == 0:
         return
 
-    def check(m):
-        return m.author == ctx.author and m.channel == ctx.channel
+    def check(m): return m.author == ctx.author and m.channel == ctx.channel
 
     try:
         msg = await bot.wait_for('message', check=check, timeout=30.0)
@@ -699,7 +668,7 @@ async def genstop(ctx):
     global is_inf_running
     if is_inf_running:
         is_inf_running = False
-        await ctx.send("🛑 **Đã nhận lệnh dừng quá trình vô cực!** Sẽ ngừng tạo Host mới sau khi hoàn tất phiên hiện tại.")
+        await ctx.send("🛑 **Đã nhận lệnh dừng quá trình vô cực!**")
     else:
         await ctx.send("⚠️ Không có tiến trình vô cực nào đang chạy.")
 
@@ -777,6 +746,7 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
                 except: pass
 
             # 1. TẠO TÀI KHOẢN (API)
+            print(f"[HOST] 🚀 Bắt đầu tạo Host Account...")
             host_acc = await task_worker(invite_code=None, update_callback=update_host_status)
             if not host_acc:
                 await msg.edit(content=f"❌ Không thể tạo tài khoản chủ {host_idx}.", embed=None)
@@ -788,27 +758,27 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
             host_proxy = host_acc['proxy_used']
 
             # 2. KHỞI ĐỘNG BROWSER & LOGIN (THEO YÊU CẦU PLAYWRIGHT)
-            # Bước này sẽ mở trình duyệt, đăng nhập, và giữ cửa sổ ở đó.
             init_embed.description = "🌐 Đang mở trình duyệt để Login..."
             await msg.edit(embed=init_embed)
             
             pw_obj, browser_obj, page_obj = await open_browser_and_login(host_acc['email'], host_acc['password'])
-            # Lưu ý: Nếu mở trình duyệt thất bại, pw_obj sẽ là None. 
-            # Tùy ý muốn, ở đây ta cứ tiếp tục chạy API buff, hoặc dừng lại. 
 
             # 3. LẤY MÃ MỜI (API)
             init_embed.description = "🔄 Đang lấy mã mời (Invite Code)..."
             await msg.edit(embed=init_embed)
             
+            print(f"[HOST] 📨 Đang lấy Invite Code...")
             invite_code = await asyncio.to_thread(get_invite_code_vmos, host_token, host_userid, host_proxy)
             if not invite_code:
+                print(f"[HOST] ❌ Không lấy được Invite Code!")
                 embed_err = discord.Embed(title=f"⚠️ Lỗi lấy mã mời (Host {host_idx})", description=f"Skip...", color=discord.Color.red())
                 await msg.edit(embed=embed_err)
-                await close_browser_session(pw_obj, browser_obj) # Dọn dẹp nếu fail
+                await close_browser_session(pw_obj, browser_obj)
                 host_idx += 1
                 continue
+            print(f"[HOST] ✅ Invite Code: {invite_code}")
 
-            # 4. CHẠY BUFF (ĐA LUỒNG) - TRONG KHI BROWSER VẪN MỞ
+            # 4. CHẠY BUFF (ĐA LUỒNG)
             embed_run = discord.Embed(title=f"🚀 Auto-Buff {display_type} Started", color=discord.Color.blue())
             embed_run.add_field(name="👤 Tài Khoản Chủ", value=f"Email: `{host_acc['email']}`", inline=False)
             full_invite_link = f"https://cloud.vsphone.com/event/202602?channel={invite_code}"
@@ -851,14 +821,17 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
                     except:
                         total_fail += 1
                     
+                    # LOGIC RATE LIMIT: CHỈ UPDATE DISCORD MỖI 10 GIÂY
                     now = time.time()
-                    if now - last_update_time > 5 or current_assets_num >= num_buffs or not active_tasks:
+                    if now - last_update_time > 10:
                         status_text = f"Mục tiêu: **{num_buffs}**\nĐã nhận: **{current_assets_num}/{num_buffs}**\nThành công: **{total_success_local}** | Lỗi: **{total_fail}**"
                         embed_run.set_field_at(2, name="📊 Tiến độ Buff", value=status_text, inline=False)
                         try: 
                             await msg.edit(embed=embed_run)
                             last_update_time = now
-                        except: pass
+                        except discord.HTTPException as e:
+                            print(f"⚠️ Discord Rate Limit: {e}. Bỏ qua lần update này.")
+                        except Exception: pass
                     
                     if current_assets_num >= num_buffs:
                         for t in active_tasks:
@@ -893,6 +866,7 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
             # 5. MUA GÓI & LƯU CODE
             final_code_str = "Không có code nào được lấy."
             if current_assets_num >= num_buffs:
+                print(f"[HOST] 🎁 Đủ điều kiện. Bắt đầu đổi quà...")
                 embed_run.add_field(name="🎁 Đổi Code", value=f"⏳ Đang đổi quà...", inline=False)
                 await msg.edit(embed=embed_run)
                 
@@ -902,39 +876,28 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
                 codes_dict = await asyncio.to_thread(fetch_codes_as_dict, host_token, host_userid, host_proxy)
                 
                 if codes_dict:
-                    # 1. Thêm code mới vào kho
                     await asyncio.to_thread(code_storage.add_codes, codes_dict)
-                    
-                    # 2. Đọc lại toàn bộ file để lấy tổng số code hiện có
                     all_data = await asyncio.to_thread(code_storage.load_data)
-                    
-                    # 3. Format hiển thị: VIP: Tổng_số_lượng
                     lines = []
-                    # Sắp xếp key theo độ dài và tên (VD: VIP rồi tới KVIP)
                     sorted_keys = sorted(all_data.keys(), key=lambda x: (len(x), x))
-                    
                     for k in sorted_keys:
-                        key_upper = k.upper()
-                        total_count = len(all_data[k])
-                        # Padding left 5 chars để thẳng hàng
-                        lines.append(f"{key_upper:<5}: {total_count}")
+                        lines.append(f"{k.upper():<5}: {len(all_data[k])}")
                     
                     if lines:
                         final_code_str = "\n".join(lines)
                     else:
                         final_code_str = "Kho trống."
                 
-            # 6. ĐÓNG TRÌNH DUYỆT (QUAN TRỌNG: SAU KHI BUFF XONG)
+            # 6. ĐÓNG TRÌNH DUYỆT
             await close_browser_session(pw_obj, browser_obj)
 
-            # 7. CẬP NHẬT EMBED HOÀN TẤT (Định dạng lại theo yêu cầu)
+            # 7. HOÀN TẤT
             embed_run.title = "✅ Hoàn Tất Buff"
-            embed_run.description = None # Xóa description thừa
-            embed_run.clear_fields() # Xóa hết các field tiến độ cũ
+            embed_run.description = None 
+            embed_run.clear_fields() 
             
             embed_run.add_field(name="Email", value=f"`{host_acc['email']}`", inline=True)
             embed_run.add_field(name="Password", value=f"`{host_acc['password']}`", inline=True)
-            # Sử dụng yaml để highlight màu và căn chỉnh khoảng trắng
             embed_run.add_field(name="Tổng Code trong kho", value=f"```yaml\n{final_code_str}\n```", inline=False)
             
             embed_run.color = discord.Color.green()
@@ -950,7 +913,6 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
         traceback.print_exc()
 
 if __name__ == "__main__":
-    # Tự động tải config và chạy
     print("🚀 Đang khởi động Bot...")
     token_local = load_local_token()
     proxies_list = fetch_proxies_from_github()
@@ -958,19 +920,17 @@ if __name__ == "__main__":
     if not token_local:
         print("❌ KHÔNG THỂ KHỞI ĐỘNG: Thiếu Token trong file 'token.txt'.")
     else:
-        # Cập nhật proxy manager với danh sách vừa tải
         if not proxies_list:
-            print("⚠️ CẢNH BÁO: Không lấy được proxy nào từ GitHub. Bot có thể chạy lỗi nếu cần proxy.")
+            print("⚠️ CẢNH BÁO: Không lấy được proxy nào từ GitHub.")
             
         proxy_manager = ProxyManager(proxies_list)
         
-        print(f"🚀 Bot Pro Ultimate + Playwright đang chạy (Token: {token_local[:5]}***)...")
+        print(f"🚀 Bot Pro Ultimate + Playwright đang chạy...")
         while True:
             try:
                 bot.run(token_local)
             except Exception as e:
                 print(f"⚠️ Bot bị crash: {e}")
-                print("🔄 Đang tự động khởi động lại sau 5 giây...")
                 time.sleep(5)
             except KeyboardInterrupt:
                 print("🛑 Đã dừng thủ công.")
