@@ -27,7 +27,7 @@ ACCOUNT_SUFFIXES_STR = "b c d e f"
 BASE_PACKAGE_NAME = "com.roblox.clien"
 
 # 3. URL lấy Cookie (Vẫn giữ online để cập nhật cookie mới nhất)
-COOKIE_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie1"
+COOKIE_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookieInject"
 
 # ---------------------------------------------------
 # -- BIẾN CỤC BỘ --
