@@ -1,0 +1,284 @@
+#!/data/data/com.termux/files/usr/bin/python
+# -*- coding: utf-8 -*-
+
+import subprocess
+import time
+import os
+import sys
+import sqlite3
+import shutil
+import urllib.request
+
+# ==============================================================================
+# SCRIPT: Cookie Injector Pure (Hardcoded Config)
+# Chức năng: CHỈ Tải Cookie và Nạp vào máy.
+# Cấu hình danh sách tài khoản trực tiếp trong file.
+# ==============================================================================
+
+# ---------------------------------------------------
+# -- CẤU HÌNH (SỬA TRỰC TIẾP TẠI ĐÂY) --
+# ---------------------------------------------------
+
+# 1. Danh sách hậu tố tài khoản (Ngăn cách bằng khoảng trắng)
+# Ví dụ: "b c d e f" sẽ chạy com.roblox.clienb, com.roblox.clienc...
+ACCOUNT_SUFFIXES_STR = "b c d e f" 
+
+# 2. Tên gói gốc (Thường không cần sửa)
+BASE_PACKAGE_NAME = "com.roblox.clien"
+
+# 3. URL lấy Cookie (Vẫn giữ online để cập nhật cookie mới nhất)
+COOKIE_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie1"
+
+# ---------------------------------------------------
+# -- BIẾN CỤC BỘ --
+# ---------------------------------------------------
+TEMP_DIR = os.path.join(os.getcwd(), "RobloxInjector_Temp") 
+COOKIE_FILENAME = "Cookies"
+
+# ==============================================================================
+# -- HÀM HỆ THỐNG CƠ BẢN --
+# ==============================================================================
+
+def check_root_access():
+    """Kiểm tra quyền root."""
+    print("[SYSTEM] Đang kiểm tra quyền root...")
+    try:
+        process = subprocess.run(["su", "-c", "whoami"], capture_output=True, text=True, timeout=10)
+        if process.stdout.strip() == "root":
+            print("[SYSTEM] -> Quyền root: OK.")
+            return True
+        else:
+            print(f"[SYSTEM] -> Lỗi: Không có quyền root (kết quả: {process.stdout.strip()}).")
+            return False
+    except Exception as e:
+        print(f"[SYSTEM] -> Lỗi kiểm tra root: {e}")
+        return False
+
+def run_root_cmd_injector(command):
+    """Chạy lệnh dưới quyền root."""
+    try:
+        full_cmd = f"su -c '{command}'"
+        result = subprocess.run(full_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        return result.stdout.strip(), result.stderr.strip(), result.returncode
+    except Exception as e:
+        print(f"[SYSTEM] Lỗi lệnh: {e}")
+        return None, str(e), -1
+
+# ==============================================================================
+# -- HÀM INJECTOR LOGIC --
+# ==============================================================================
+
+def get_remote_cookies_list():
+    """Tải danh sách Cookie từ GitHub."""
+    print(f"[COOKIE] Đang tải danh sách Cookie từ GitHub...")
+    try:
+        req = urllib.request.Request(COOKIE_URL, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req) as response:
+            if response.status != 200:
+                print(f"[COOKIE] Lỗi HTTP: {response.status}")
+                return []
+            
+            data = response.read().decode('utf-8').strip()
+            lines = data.splitlines()
+            valid_cookies = []
+            for line in lines:
+                line = line.strip()
+                if "_|WARNING:-DO-NOT-SHARE" in line:
+                    valid_cookies.append(line)
+            
+            print(f"[COOKIE] Tìm thấy {len(valid_cookies)} cookie hợp lệ.")
+            return valid_cookies
+    except Exception as e:
+        print(f"[COOKIE] Lỗi tải Cookie: {e}")
+        return []
+
+def find_real_cookie_path(package_name):
+    """Tìm đường dẫn thực sự của file Cookies (Smart Detect)."""
+    base_path = f"/data/data/{package_name}/app_webview"
+    
+    possible_paths = [
+        f"{base_path}/Default/Cookies",
+        f"{base_path}/Cookies"
+    ]
+    
+    for path in possible_paths:
+        check_cmd = f"[ -f '{path}' ] && echo 'YES' || echo 'NO'"
+        out, _, _ = run_root_cmd_injector(check_cmd)
+        if "YES" in out:
+            return path
+            
+    return None
+
+def get_local_cookie_injector(package_name):
+    """Đọc cookie local dùng Smart Path để so sánh."""
+    target_path = find_real_cookie_path(package_name)
+    if not target_path:
+        return None
+
+    temp_check_path = os.path.join(TEMP_DIR, "Cookies_Check")
+    if not os.path.exists(TEMP_DIR): os.makedirs(TEMP_DIR)
+
+    run_root_cmd_injector(f"cp {target_path} {temp_check_path}")
+    run_root_cmd_injector(f"chmod 777 {temp_check_path}")
+
+    local_cookie_value = None
+    try:
+        conn = sqlite3.connect(temp_check_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM cookies WHERE name = '.ROBLOSECURITY'")
+        result = cursor.fetchone()
+        if result: local_cookie_value = result[0]
+        conn.close()
+    except Exception: pass
+    
+    if os.path.exists(temp_check_path): os.remove(temp_check_path)
+    return local_cookie_value
+
+def prepare_db_injector(cookie_value):
+    """Chuẩn bị file DB sqlite."""
+    db_path = os.path.join(TEMP_DIR, COOKIE_FILENAME)
+    if not os.path.exists(db_path): 
+        print(f"[COOKIE] File DB tạm không tồn tại.")
+        return False
+
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='cookies';")
+        if not cursor.fetchone():
+            conn.close()
+            return False
+
+        host_key = ".roblox.com"
+        name = ".ROBLOSECURITY"
+        
+        cursor.execute("DELETE FROM cookies WHERE host_key = ? AND name = ?", (host_key, name))
+        
+        now = int(time.time() * 1000000)
+        expires = 99999999999999999
+        
+        query_full = """
+        INSERT INTO cookies (creation_utc, host_key, name, value, path, expires_utc, is_secure, is_httponly, last_access_utc, has_expires, is_persistent, priority, samesite, source_scheme)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        query_fallback = """
+        INSERT INTO cookies (creation_utc, host_key, name, value, path, expires_utc, is_secure, is_httponly, last_access_utc)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        
+        try:
+            cursor.execute(query_full, (now, host_key, name, cookie_value, "/", expires, 1, 1, now, 1, 1, 1, 0, 1))
+        except sqlite3.OperationalError:
+            cursor.execute(query_fallback, (now, host_key, name, cookie_value, "/", expires, 1, 1, now))
+
+        conn.commit()
+        conn.close()
+        return True
+    except Exception as e:
+        print(f"[COOKIE] Lỗi SQLite: {e}")
+        return False
+
+def inject_cookie_process(package_name, cookie_value):
+    """Quy trình Inject Cookie (Core Logic)."""
+    check_pkg, _, _ = run_root_cmd_injector(f"pm path {package_name}")
+    if not check_pkg:
+        print(f"[COOKIE] Gói {package_name} chưa cài đặt -> Bỏ qua.")
+        return False
+
+    # 1. Tìm đường dẫn file cookie
+    target_path = find_real_cookie_path(package_name)
+    if not target_path:
+        print(f"[COOKIE] ⚠️ Không tìm thấy file Cookies của {package_name}.")
+        print(f"[COOKIE] -> Hãy mở app lên ít nhất 1 lần để tạo file.")
+        return False
+
+    # Dừng app
+    run_root_cmd_injector(f"am force-stop {package_name}")
+    time.sleep(1)
+
+    if os.path.exists(TEMP_DIR): shutil.rmtree(TEMP_DIR)
+    os.makedirs(TEMP_DIR)
+
+    # 2. Copy file gốc ra
+    cmd_cp_out = f"cp {target_path} {TEMP_DIR}/{COOKIE_FILENAME}"
+    _, err, code = run_root_cmd_injector(cmd_cp_out)
+    if code != 0:
+        print(f"[COOKIE] Lỗi copy file gốc: {err}")
+        return False
+
+    run_root_cmd_injector(f"chmod 777 {TEMP_DIR}/{COOKIE_FILENAME}")
+
+    # 3. Sửa DB (Chèn cookie mới)
+    if not prepare_db_injector(cookie_value):
+        print(f"[COOKIE] Lỗi xử lý DB.")
+        return False
+
+    # 4. Copy file đã sửa vào lại
+    cmd_cp_in = f"cp {TEMP_DIR}/{COOKIE_FILENAME} {target_path}"
+    run_root_cmd_injector(cmd_cp_in)
+
+    # 5. Fix quyền
+    parent_dir = os.path.dirname(target_path)
+    owner_raw, _, _ = run_root_cmd_injector(f"stat -c '%U:%G' {parent_dir}")
+    owner = owner_raw.strip()
+    
+    if owner:
+        run_root_cmd_injector(f"chown {owner} {target_path}")
+        run_root_cmd_injector(f"chmod 600 {target_path}")
+    
+    if os.path.exists(TEMP_DIR): shutil.rmtree(TEMP_DIR)
+    print(f"[COOKIE] -> Đã nạp Cookie mới cho: {package_name}")
+    return True
+
+# ==============================================================================
+# -- MAIN EXECUTION --
+# ==============================================================================
+
+def run_main_sequence():
+    """Quy trình chính: Tải config -> Check Cookie -> Inject -> Done."""
+    print("\n[MAIN] === COOKIE INJECTOR PURE (HARDCODED) ===")
+    
+    # Lấy danh sách tài khoản từ biến ACCOUNT_SUFFIXES_STR
+    accounts = [s.strip() for s in ACCOUNT_SUFFIXES_STR.split() if s.strip()]
+    if not accounts:
+        print("[MAIN] Danh sách tài khoản trống. Hãy sửa ACCOUNT_SUFFIXES_STR trong file.")
+        return
+
+    remote_cookies = get_remote_cookies_list()
+    if not remote_cookies:
+        print("[MAIN] Không lấy được danh sách Cookie -> Dừng.")
+        return
+
+    print("\n[PROCESS] Bắt đầu kiểm tra và inject...")
+    for i, suffix in enumerate(accounts):
+        pkg_name = f"{BASE_PACKAGE_NAME}{suffix}"
+        
+        if i < len(remote_cookies):
+            assigned_cookie = remote_cookies[i]
+        else:
+            print(f"[COOKIE] ⚠️ Không đủ Cookie cho '{suffix}' (Acc #{i+1}). Bỏ qua.")
+            continue
+
+        print(f"[ACC] '{suffix}' -> ", end="")
+        
+        # Kiểm tra cookie hiện tại
+        local_cookie = get_local_cookie_injector(pkg_name)
+
+        if local_cookie == assigned_cookie:
+            print("OK (Khớp).")
+        else:
+            if local_cookie is None:
+                print("MISSING -> Injecting...")
+            else:
+                print("MISMATCH -> Injecting...")
+            
+            inject_cookie_process(pkg_name, assigned_cookie)
+    
+    print("\n[MAIN] === HOÀN TẤT ===")
+
+if __name__ == "__main__":
+    if not check_root_access():
+        sys.exit(1)
+    
+    run_main_sequence()
