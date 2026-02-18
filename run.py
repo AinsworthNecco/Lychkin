@@ -2,11 +2,11 @@
 # Script Bot Discord cho VMOS Cloud (Phiên bản Ultimate - Full Uncut)
 # Tính năng tích hợp:
 # 1. Playwright: Tự động mở Chrome (System), đăng nhập và treo nick.
-# 2. Mail API: MAIL.TM (Sử dụng Proxy để tránh 429).
+# 2. Mail API: MAIL.TM (Dùng Proxy toàn bộ quy trình).
 # 3. Quản lý Config: Token đọc từ file local, Proxy tải từ GitHub.
 # 4. Anti-Rate Limit: Cơ chế cập nhật tin nhắn Discord chậm (10s/lần).
 # 5. Logging: Xuất log chi tiết.
-# 6. Luồng: Giới hạn 50 luồng.a
+# 6. Luồng: Giới hạn 50 luồng.
 
 import discord
 from discord.ext import commands
@@ -25,7 +25,7 @@ import urllib.parse
 import urllib3
 from collections import defaultdict
 
-# Tắt cảnh báo insecure request
+# Tắt cảnh báo insecure request (do dùng verify=False với Proxy)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # THƯ VIỆN MỚI CHO TRÌNH DUYỆT
@@ -237,7 +237,7 @@ class ProxyManager:
         try:
             # IP:Port
             if ':' in line and '@' not in line:
-                return f"http://{line}"
+                return f"http://{line}" # Đảm bảo có http:// cho requests
             # User:Pass@IP:Port
             if '@' in line:
                 return f"http://{line}"
@@ -289,7 +289,7 @@ async def open_browser_and_login(email, password):
         
         browser = await p.chromium.launch(
             executable_path="/usr/bin/chromium", 
-            headless=False,
+            headless=True,
             args=["--guest", "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage", "--window-size=400,600", "--window-position=1500,500"]
         )
         context = await browser.new_context()
@@ -323,9 +323,10 @@ async def close_browser_session(p, browser):
 # ==============================================================
 
 def safe_request(method, url, proxy, **kwargs):
+    # Cấu hình Proxy chuẩn cho requests
     proxies_dict = None
     if proxy:
-        # Proxy string đã có http:// từ ProxyManager
+        # Proxy từ ProxyManager đã có prefix http://, nhưng requests cần dict rõ ràng
         proxies_dict = {
             "http": proxy,
             "https": proxy
@@ -333,11 +334,11 @@ def safe_request(method, url, proxy, **kwargs):
 
     if 'timeout' not in kwargs:
         kwargs['timeout'] = 20
-    
-    # Luôn tắt verify để tương thích proxy
+        
+    # Luôn tắt verify SSL để tránh lỗi với proxy
     if 'verify' not in kwargs:
         kwargs['verify'] = False
-        
+    
     try:
         if method.lower() == 'get':
             resp = requests.get(url, proxies=proxies_dict, **kwargs)
@@ -435,21 +436,24 @@ def get_code_from_email(mail_token, email, proxy):
                 data = r.json()
                 if data.get("hydra:totalItems", 0) > 0:
                     msg = data["hydra:member"][0]
-                    # Tìm code trong subject hoặc intro
-                    txt = (msg.get("subject", "") + " " + msg.get("intro", ""))
-                    match = re.search(r"\b(\d{6})\b", txt)
-                    if match:
-                        return match.group(1)
                     
-                    # Nếu chưa tìm thấy, thử lấy chi tiết tin nhắn để quét html
+                    # QUÉT TOÀN BỘ NỘI DUNG (Subject, Intro, HTML Body)
                     msg_id = msg.get("id")
+                    
+                    # Gọi chi tiết tin nhắn để lấy HTML
                     r_detail = requests.get(f"{MAIL_TM_BASE}/messages/{msg_id}", headers=headers, proxies=proxies_dict, timeout=20, verify=False)
+                    
+                    full_content = ""
                     if r_detail.status_code == 200:
                         detail = r_detail.json()
-                        full_content = str(detail.get("html", "")) + " " + str(detail.get("text", ""))
-                        match = re.search(r"\b(\d{6})\b", full_content)
-                        if match:
-                            return match.group(1)
+                        full_content = str(detail.get("html", "")) + " " + str(detail.get("text", "")) + " " + str(detail.get("bodyHtmlContent", ""))
+                    else:
+                        # Fallback nếu không gọi được detail
+                        full_content = str(msg.get("subject", "")) + " " + str(msg.get("intro", ""))
+                    
+                    match = re.search(r"\b(\d{6})\b", full_content)
+                    if match:
+                        return match.group(1)
 
         except:
             pass
@@ -470,6 +474,7 @@ def send_code_vmos(email, proxy, user_agent=None):
         "referer": "https://cloud.vmoscloud.com/", 
         "user-agent": ua
     }
+    # Đây là chuỗi dài, hãy chắc chắn nó không bị cắt dòng
     payload = {
         "smsType": 2, 
         "mobilePhone": email, 
@@ -523,6 +528,121 @@ def login_vmos(email, code, proxy, invite_code=None, user_agent=None):
                 if r2 and r2.status_code == 200:
                     uid = r2.json().get("data", {}).get("userId")
                     return {"token": token, "userId": str(uid)}
+    return None
+
+def trigger_agent_activation(token, userid, proxy, headers):
+    save_agent_url = "https://api.vsphone.com/vsphone/api/agentUser/saveAgentUser"
+    payload = {"name": "VSPhone"}
+    try:
+        safe_request("POST", save_agent_url, proxy, headers=headers, json=payload)
+    except Exception: pass
+    time.sleep(1)
+
+def check_buff_status(token, userid, proxy):
+    ua = get_random_ua()
+    url = "https://api.vsphone.com/vsphone/api/vcActiveAssets/info"
+    headers = {
+        "token": token, "userid": str(userid), "Content-Type": "application/json",
+        "origin": "https://cloud.vmoscloud.com", "referer": "https://cloud.vmoscloud.com/",
+        "User-Agent": ua, "appversion": "1008424", "clienttype": "web"
+    }
+    for _ in range(2):
+        try:
+            resp = safe_request("POST", url, proxy, headers=headers, json={})
+            if not resp or resp.status_code != 200:
+                resp = safe_request("GET", url, proxy, headers=headers)
+            
+            if resp and resp.status_code == 200:
+                data = resp.json()
+                if data.get("code") == 200:
+                    d_obj = data.get("data") or {}
+                    return d_obj.get("assetsNum", 0)
+        except: pass
+        time.sleep(1)
+    return 0
+
+def exchange_target_gem(token, userid, proxy, target_id):
+    ua = get_random_ua()
+    url = "https://api.vsphone.com/vsphone/api/vcActiveExchangeGood/gemExchange"
+    headers = {
+        "token": token, "userid": str(userid), "Content-Type": "application/json",
+        "origin": "https://cloud.vsphone.com", "referer": "https://cloud.vsphone.com/",
+        "User-Agent": ua, "appversion": "2003004", "clienttype": "web",
+        "requestsource": "wechat-miniapp", "suppliertype": "0"
+    }
+    
+    payload = {"id": target_id}
+    print(f"[EXCHANGE] 🎁 Mua gói ID {target_id}...")
+    for attempt in range(5): 
+        try:
+            resp = safe_request("POST", url, proxy, headers=headers, json=payload)
+            if resp and resp.status_code == 200:
+                data = resp.json()
+                if data.get("code") == 200:
+                    return True
+        except: pass
+        time.sleep(2)
+    return False
+
+def fetch_codes_as_dict(token, userid, proxy):
+    ua = get_random_ua()
+    url = "https://api.vsphone.com/vsphone/api/vcActiveAssetsExchangeLog/list"
+    headers = {
+        "accept": "application/json, text/plain, */*", "appversion": "2003004",
+        "clienttype": "web", "content-type": "application/json",
+        "origin": "https://cloud.vsphone.com", "referer": "https://cloud.vsphone.com/",
+        "requestsource": "wechat-miniapp", "suppliertype": "0",
+        "token": token, "userid": str(userid), "user-agent": ua
+    }
+    try:
+        resp = safe_request("GET", url, proxy, headers=headers)
+        if not resp or resp.status_code != 200:
+            return None
+        data = resp.json()
+        if data.get("code") != 200:
+            return None
+        items = data.get("data", [])
+        if not items:
+            return None
+
+        grouped = defaultdict(list)
+        for item in items:
+            if not item.get("isActivation", True): 
+                vip_type = item.get("configName", "UNKNOWN")
+                code = item.get("awardCount", "")
+                if code:
+                    grouped[vip_type].append(code)
+        return grouped
+    except: return None
+
+# BỔ SUNG HÀM GET INVITE CODE BỊ THIẾU
+def get_invite_code_vmos(token, userid, proxy):
+    ua = get_random_ua()
+    agent_info_url = "https://api.vsphone.com/vsphone/api/agentUser/agentUserInfo"
+    headers = {
+        "token": token, "userid": str(userid), "Content-Type": "application/json",
+        "origin": "https://cloud.vmoscloud.com", "referer": "https://cloud.vmoscloud.com/",
+        "User-Agent": ua, "appversion": "1008424", "clienttype": "web"
+    }
+    
+    trigger_agent_activation(token, userid, proxy, headers)
+
+    for attempt in range(3):
+        try:
+            resp = safe_request("POST", agent_info_url, proxy, headers=headers, json={})
+            if not resp or resp.status_code != 200:
+                resp = safe_request("GET", agent_info_url, proxy, headers=headers)
+            
+            if resp and resp.status_code == 200:
+                data = resp.json()
+                if data.get("code") == 200:
+                    channel_code = data.get("data", {}).get("channelCode", "")
+                    if channel_code:
+                        return channel_code
+                elif data.get("code") == 500:
+                    time.sleep(3)
+                    continue
+        except: break
     return None
 
 async def task_worker(invite_code, update_callback=None):
