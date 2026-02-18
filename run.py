@@ -2,7 +2,7 @@
 # Script Bot Discord cho VMOS Cloud (Phiên bản Ultimate - Full Uncut)
 # Tính năng tích hợp:
 # 1. Playwright: Tự động mở Chrome (System), đăng nhập và treo nick.
-# 2. Mail API: MAIL.TM (Sửa lỗi logic đọc code: Quét cả body/html).
+# 2. Mail API: MAIL.TM (Sử dụng Proxy để tránh 429).
 # 3. Quản lý Config: Token đọc từ file local, Proxy tải từ GitHub.
 # 4. Anti-Rate Limit: Cơ chế cập nhật tin nhắn Discord chậm (10s/lần).
 # 5. Logging: Xuất log chi tiết.
@@ -237,15 +237,15 @@ class ProxyManager:
         try:
             # IP:Port
             if ':' in line and '@' not in line:
-                return f"{line}"
+                return f"http://{line}"
             # User:Pass@IP:Port
             if '@' in line:
-                return f"{line}"
+                return f"http://{line}"
             # IP:Port:User:Pass
             parts = line.split(':')
             if len(parts) >= 4:
-                return f"{parts[2]}:{parts[3]}@{parts[0]}:{parts[1]}"
-            return f"{line}"
+                return f"http://{parts[2]}:{parts[3]}@{parts[0]}:{parts[1]}"
+            return f"http://{line}"
         except:
             return None
 
@@ -289,7 +289,7 @@ async def open_browser_and_login(email, password):
         
         browser = await p.chromium.launch(
             executable_path="/usr/bin/chromium", 
-            headless=True,
+            headless=False,
             args=["--guest", "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage", "--window-size=400,600", "--window-position=1500,500"]
         )
         context = await browser.new_context()
@@ -323,18 +323,21 @@ async def close_browser_session(p, browser):
 # ==============================================================
 
 def safe_request(method, url, proxy, **kwargs):
-    # Proxy cho VMOS vẫn giữ nguyên logic cũ vì nó chạy ổn
     proxies_dict = None
     if proxy:
-        p_clean = proxy.replace("http://", "").replace("https://", "")
+        # Proxy string đã có http:// từ ProxyManager
         proxies_dict = {
-            "http": f"http://{p_clean}",
-            "https": f"http://{p_clean}"
+            "http": proxy,
+            "https": proxy
         }
 
     if 'timeout' not in kwargs:
         kwargs['timeout'] = 20
     
+    # Luôn tắt verify để tương thích proxy
+    if 'verify' not in kwargs:
+        kwargs['verify'] = False
+        
     try:
         if method.lower() == 'get':
             resp = requests.get(url, proxies=proxies_dict, **kwargs)
@@ -348,19 +351,24 @@ def safe_request(method, url, proxy, **kwargs):
         raise e
 
 # ==============================================================
-# ==>> MAIL.TM LOGIC (DIRECT IP - READ FULL BODY) <<==
+# ==>> MAIL.TM LOGIC (PROXY ENABLED) <<==
 # ==============================================================
 
 def get_temp_email(proxy):
     """
-    Tạo email từ Mail.tm (Không proxy, tránh 407).
+    Tạo email từ Mail.tm (CÓ PROXY, VERIFY=FALSE).
     """
-    # QUAN TRỌNG: Không dùng proxy cho Mail.tm
-    proxies_dict = None 
+    proxies_dict = None
+    if proxy:
+        proxies_dict = {
+            "http": proxy,
+            "https": proxy
+        }
 
     try:
         # 1. Lấy Domain
-        r = requests.get(f"{MAIL_TM_BASE}/domains", proxies=None, timeout=20)
+        # print(f"   [MAIL-TM] ⏳ Lấy domain với proxy...")
+        r = requests.get(f"{MAIL_TM_BASE}/domains", proxies=proxies_dict, timeout=20, verify=False)
         
         if r.status_code != 200:
             print(f"   [MAIL-TM] ❌ Lỗi Domain: {r.status_code}")
@@ -382,14 +390,14 @@ def get_temp_email(proxy):
             "address": email,
             "password": password
         }
-        r_acc = requests.post(f"{MAIL_TM_BASE}/accounts", json=acc_payload, proxies=None, timeout=20)
+        r_acc = requests.post(f"{MAIL_TM_BASE}/accounts", json=acc_payload, proxies=proxies_dict, timeout=20, verify=False)
         
         if r_acc.status_code not in [200, 201]:
             print(f"   [MAIL-TM] ❌ Lỗi tạo Acc: {r_acc.status_code} {r_acc.text}")
             return None, None
             
         # 3. Lấy Token
-        r_token = requests.post(f"{MAIL_TM_BASE}/token", json=acc_payload, proxies=None, timeout=20)
+        r_token = requests.post(f"{MAIL_TM_BASE}/token", json=acc_payload, proxies=proxies_dict, timeout=20, verify=False)
         
         if r_token.status_code == 200:
             token = r_token.json().get("token")
@@ -399,62 +407,50 @@ def get_temp_email(proxy):
             
     except Exception as e:
         print(f"   [MAIL-TM] 🔥 Exception: {e}")
-        pass
+        # Ném lỗi ra để worker biết mà đổi proxy
+        raise e
         
     return None, None
 
 def get_code_from_email(mail_token, email, proxy):
-    """
-    Đọc mail từ Mail.tm.
-    QUAN TRỌNG: Quét cả 'intro', 'subject' và 'html' (bodyHtmlContent).
-    Mail của VSPhone thường để code trong <div> của body HTML.
-    """
     if not mail_token:
         return None
     
-    # Không dùng proxy
     proxies_dict = None
+    if proxy:
+        proxies_dict = {
+            "http": proxy,
+            "https": proxy
+        }
+
     headers = {
         "Authorization": f"Bearer {mail_token}"
     }
     
     for _ in range(10):
         try:
-            r = requests.get(f"{MAIL_TM_BASE}/messages", headers=headers, proxies=None, timeout=20)
+            r = requests.get(f"{MAIL_TM_BASE}/messages", headers=headers, proxies=proxies_dict, timeout=20, verify=False)
             
             if r.status_code == 200:
                 data = r.json()
-                # Kiểm tra danh sách tin nhắn
-                messages = data.get("hydra:member", [])
-                
-                if messages:
-                    # Lấy tin nhắn mới nhất
-                    msg = messages[0]
+                if data.get("hydra:totalItems", 0) > 0:
+                    msg = data["hydra:member"][0]
+                    # Tìm code trong subject hoặc intro
+                    txt = (msg.get("subject", "") + " " + msg.get("intro", ""))
+                    match = re.search(r"\b(\d{6})\b", txt)
+                    if match:
+                        return match.group(1)
                     
-                    # 1. Thu thập toàn bộ nội dung text có thể chứa code
-                    # (Subject, Intro, và quan trọng nhất là body HTML/Text nếu API trả về full list)
-                    # Mail.tm list endpoint đôi khi chỉ trả về intro. Nếu cần chi tiết phải gọi endpoint /messages/{id}
-                    
+                    # Nếu chưa tìm thấy, thử lấy chi tiết tin nhắn để quét html
                     msg_id = msg.get("id")
-                    
-                    # Gọi chi tiết tin nhắn để lấy full body (HTML)
-                    r_detail = requests.get(f"{MAIL_TM_BASE}/messages/{msg_id}", headers=headers, proxies=None, timeout=20)
+                    r_detail = requests.get(f"{MAIL_TM_BASE}/messages/{msg_id}", headers=headers, proxies=proxies_dict, timeout=20, verify=False)
                     if r_detail.status_code == 200:
                         detail = r_detail.json()
-                        
-                        # Gộp tất cả các trường có khả năng chứa text
-                        full_content = ""
-                        full_content += str(detail.get("subject", "")) + " "
-                        full_content += str(detail.get("intro", "")) + " "
-                        full_content += str(detail.get("text", "")) + " " # body text
-                        full_content += str(detail.get("html", "")) + " " # body html
-                        # Có API trả về field 'bodyHtmlContent' thay vì html, cứ gộp hết cho chắc
-                        full_content += str(detail.get("bodyHtmlContent", "")) 
-                        
-                        # Regex tìm 6 số liên tiếp
+                        full_content = str(detail.get("html", "")) + " " + str(detail.get("text", ""))
                         match = re.search(r"\b(\d{6})\b", full_content)
                         if match:
                             return match.group(1)
+
         except:
             pass
         time.sleep(3)
@@ -543,8 +539,8 @@ async def task_worker(invite_code, update_callback=None):
             if update_callback:
                 await update_callback(f"🔄 Đang thử proxy: {proxy_short}...")
             
-            # LOG STEP 1: Lấy Mail (Mail.tm) - DIRECT IP
-            print(f"[{worker_id}] 🌐 [NO-PROXY] Get Email (Mail.tm)...")
+            # LOG STEP 1: Lấy Mail (Mail.tm) - DÙNG PROXY
+            print(f"[{worker_id}] 🌐 [PROXY] Get Email (Mail.tm)...")
             
             # Unpack tuple: email string, jwt token
             email_data = await asyncio.to_thread(get_temp_email, proxy)
@@ -553,6 +549,7 @@ async def task_worker(invite_code, update_callback=None):
             
             if not email:
                 # Log đã in ở get_temp_email
+                proxy_manager.mark_bad(proxy)
                 continue 
 
             if update_callback:
@@ -570,12 +567,12 @@ async def task_worker(invite_code, update_callback=None):
             if update_callback:
                 await update_callback(f"⏳ Đang chờ mã OTP...")
             
-            # LOG STEP 3: Lấy Code (Dùng Token, Direct IP, CHECK BODY)
-            print(f"[{worker_id}] ⏳ [NO-PROXY] Check inbox (Full Body)...")
+            # LOG STEP 3: Lấy Code (Dùng Token, DÙNG PROXY, CHECK BODY)
+            print(f"[{worker_id}] ⏳ [PROXY] Check inbox (Full Body)...")
             code = await asyncio.to_thread(get_code_from_email, mail_token, email, proxy)
             
             if not code:
-                print(f"[{worker_id}] ❌ [TIMEOUT] Không thấy code (Đã quét cả Body HTML).")
+                print(f"[{worker_id}] ❌ [TIMEOUT] Không thấy code.")
                 continue
 
             if update_callback:
@@ -789,7 +786,7 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
             await msg.edit(embed=embed_run)
 
             total_proxies = proxy_manager.get_count()
-            concurrency = min(total_proxies, 40)
+            concurrency = min(total_proxies, 50)
             semaphore = asyncio.Semaphore(concurrency)
             
             current_assets_num = 0
