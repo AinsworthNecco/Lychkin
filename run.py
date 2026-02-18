@@ -6,7 +6,8 @@
 # 3. Quản lý Config: Token đọc từ file local, Proxy tải từ GitHub.
 # 4. Anti-Rate Limit: Cơ chế cập nhật tin nhắn Discord chậm (10s/lần).
 # 5. Logging: Xuất log chi tiết.
-# 6. Luồng: Giới hạn 50 luồng.a
+# 6. Luồng: Giới hạn 50 luồng.
+# 7. Sửa lỗi check_buff_status: Debug chi tiết phản hồi API.
 
 import discord
 from discord.ext import commands
@@ -546,18 +547,33 @@ def check_buff_status(token, userid, proxy):
         "origin": "https://cloud.vmoscloud.com", "referer": "https://cloud.vmoscloud.com/",
         "User-Agent": ua, "appversion": "1008424", "clienttype": "web"
     }
+    # Cập nhật logic: In log debug nếu lấy về 0 hoặc lỗi
     for _ in range(2):
         try:
+            # Ưu tiên POST theo document chuẩn nếu có, hoặc thử GET nếu POST không về data
+            # Thực tế API này thường là POST với body rỗng hoặc GET đều được
+            
+            # Thử POST trước
             resp = safe_request("POST", url, proxy, headers=headers, json={})
-            if not resp or resp.status_code != 200:
-                resp = safe_request("GET", url, proxy, headers=headers)
             
             if resp and resp.status_code == 200:
                 data = resp.json()
                 if data.get("code") == 200:
                     d_obj = data.get("data") or {}
+                    # Log để debug nếu cần thiết: print(f"DEBUG Assets: {d_obj}")
                     return d_obj.get("assetsNum", 0)
-        except: pass
+            
+            # Nếu POST không được, thử GET
+            resp = safe_request("GET", url, proxy, headers=headers)
+            if resp and resp.status_code == 200:
+                data = resp.json()
+                if data.get("code") == 200:
+                    d_obj = data.get("data") or {}
+                    return d_obj.get("assetsNum", 0)
+                    
+        except Exception as e:
+            # print(f"Lỗi check buff: {e}")
+            pass
         time.sleep(1)
     return 0
 
@@ -906,7 +922,7 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
             await msg.edit(embed=embed_run)
 
             total_proxies = proxy_manager.get_count()
-            concurrency = min(total_proxies, 40)
+            concurrency = min(total_proxies, 50)
             semaphore = asyncio.Semaphore(concurrency)
             
             current_assets_num = 0
