@@ -6,7 +6,7 @@
 # 3. Quản lý Config: Token đọc từ file local, Proxy tải từ GitHub.
 # 4. Anti-Rate Limit: Cơ chế cập nhật tin nhắn Discord chậm (10s/lần).
 # 5. Logging: Xuất log chi tiết.
-# 6. Luồng: Giới hạn 50 luồng.
+# 6. Luồng: Giới hạn 50 luồng.ab
 # 7. Sửa lỗi check_buff_status: Debug chi tiết phản hồi API.
 
 import discord
@@ -922,7 +922,7 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
             await msg.edit(embed=embed_run)
 
             total_proxies = proxy_manager.get_count()
-            concurrency = min(total_proxies, 50)
+            concurrency = min(total_proxies, 40)
             semaphore = asyncio.Semaphore(concurrency)
             
             current_assets_num = 0
