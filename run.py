@@ -6,7 +6,7 @@
 # 3. Quản lý Config: Token đọc từ file local, Proxy tải từ GitHub.
 # 4. Anti-Rate Limit: Cơ chế cập nhật tin nhắn Discord chậm (10s/lần).
 # 5. Logging: Xuất log chi tiết.
-# 6. Luồng: Giới hạn 50 luồng.
+# 6. Luồng: Giới hạn 50 luồng.a
 
 import discord
 from discord.ext import commands
