@@ -1,3 +1,33 @@
+--- CẤU HÌNH CHUNG ---
+PLACE_ID="8737602449" - ID của game cần quét
+ACCOUNT_SUFFIXES="b c d e f"
+BASE_PACKAGE_NAME="com.roblox.client" - Tên gói Roblox cơ bản
+
+--- CẤU HÌNH CHO TÁC VỤ "SCAN" ---
+SCAN_INTERVAL_SECONDS="180" - Thời gian nghỉ giữa các chu kỳ quét (giây)
+MIN_PLAYER_PERCENTAGE="75" - Tỷ lệ người chơi tối thiểu (%)
+MAX_PLAYER_PERCENTAGE="90" - Tỷ lệ người chơi tối đa (%)
+
+SELECTED_EXECUTOR="1"
+EXECUTOR_PATH_1="/storage/emulated/0/Delta/Workspace/neco.txt"
+EXECUTOR_PATH_2="/storage/emulated/0/FluxusZ/workspace/neco.txt"
+EXECUTOR_PATH_3="/storage/emulated/0/Codex/Workspace/neco.txt"
+
+--- ONLY DELTA ---
+DELTA_KEY_URL="https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/key"
+KEY_CHECK_INTERVAL_MINUTES="15"
+
+--- CẤU HÌNH CHO TÁC VỤ "LAUNCH" ---
+LAUNCH_INTERVAL_SECONDS="300" - Thời gian nghỉ giữa các chu kỳ join game (giây)
+LAUNCH_DELAY_SECONDS="15" - Thời gian chờ giữa mỗi lần join của từng tài khoản
+VIP_SERVER_URL="roblox://placeId=8737602449" - URL VIP server (dùng cho launch --mode vip)
+
+--- CẤU HÌNH MẠNG (Nâng cao) ---
+CONNECTION_TIMEOUT="15" - Thời gian chờ tối đa cho mỗi kết nối (giây)
+REBOOT_ENABLED="on"
+REBOOT_INTERVAL_MINUTES="120"
+
+PROXY_LIST="
 23.95.150.145:6114:srimmznx:pbutjh244it9
 198.23.239.134:6540:srimmznx:pbutjh244it9
 107.172.163.27:6543:srimmznx:pbutjh244it9
@@ -38,3 +68,4 @@
 216.10.27.159:6837:dcqocnje:ppbnl0fjoosy
 23.26.71.145:5628:dcqocnje:ppbnl0fjoosy
 23.229.19.94:8689:dcqocnje:ppbnl0fjoosy
+"
