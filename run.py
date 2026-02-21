@@ -48,7 +48,7 @@ from playwright.sync_api import sync_playwright
 # ==============================================================
 
 TOKEN_FILE_NAME = "token.txt"
-PROXY_CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/info2"
+PROXY_CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/info1"
 CODE_FILE_NAME = "CODE.txt"
 THUMBNAIL_URL = "https://i.pinimg.com/1200x/c0/d1/59/c0d1591ce31488b9f71313326dcf01f0.jpg"
 
@@ -56,7 +56,7 @@ MAIL_TM_BASE = "https://api.mail.tm"
 
 # CONFIG DÀNH CHO CAPTCHA SOLVER (Dùng chung config của script tổng)
 CONFIG = {
-    "NUM_THREADS": 1,
+    "NUM_THREADS": 5,
     "HEADLESS": True,
     "PROXY_LIST": [],
     "EXECUTABLE_PATH": "/usr/bin/chromium"
@@ -1056,7 +1056,7 @@ async def on_command_error(ctx, error):
 async def on_ready():
     print(f"Logged in as {bot.user}")
 
-@bot.command(name="use2")
+@bot.command(name="use1")
 async def use_code(ctx):
     data = code_storage.load_data()
     embed = discord.Embed(title="📦 KHO CODE DỰ TRỮ", color=discord.Color.gold())
@@ -1103,7 +1103,7 @@ async def use_code(ctx):
     except asyncio.TimeoutError:
         await panel_msg.edit(content="⌛ Hết thời gian chờ lệnh `!use`.", embed=None)
 
-@bot.command(name="genstop2")
+@bot.command(name="genstop1")
 async def genstop(ctx):
     global is_inf_running
     if is_inf_running:
@@ -1112,7 +1112,7 @@ async def genstop(ctx):
     else:
         await ctx.send("⚠️ Không có tiến trình vô cực nào đang chạy.")
 
-@bot.command(name="genbuff2")
+@bot.command(name="genbuff1")
 async def genbuff(ctx, arg1: str = None, arg2: str = None):
     global is_inf_running
     
