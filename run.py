@@ -2,13 +2,14 @@
 # Script Bot Discord cho VMOS Cloud (Phiên bản Ultimate - Full Uncut)
 # Tính năng tích hợp:
 # 1. Playwright: Tự động mở Chrome (System), đăng nhập và treo nick.
-# 2. Mail API: MAIL.TM (Dùng Proxy toàn bộ quy trình).
-# 3. Quản lý Config: Token đọc từ file local, Proxy tải từ GitHub.
+# 2. Mail API: MAIL.TM (Không Proxy, dùng VPN/IP thật toàn bộ).
+# 3. Quản lý Config: Token đọc từ file local.
 # 4. Anti-Rate Limit: Cơ chế cập nhật tin nhắn Discord chậm (10s/lần).
 # 5. Logging: Xuất log chi tiết.
-# 6. Luồng: Giới hạn 50 luồng.ab
+# 6. Luồng: Giới hạn 3 luồng đồng thời chống crash.
 # 7. Sửa lỗi check_buff_status: Debug chi tiết phản hồi API.
 # 8. UPDATE: Bypass Captcha Slider bằng Playwright Sync + OpenCV khi gửi OTP.
+# 9. UPDATE: Xóa toàn bộ logic Proxy để nhường chỗ cho VPN.
 
 import discord
 from discord.ext import commands
@@ -36,7 +37,7 @@ import base64
 import math
 import concurrent.futures
 
-# Tắt cảnh báo insecure request (do dùng verify=False với Proxy)
+# Tắt cảnh báo insecure request
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # THƯ VIỆN BROWSER
@@ -48,17 +49,15 @@ from playwright.sync_api import sync_playwright
 # ==============================================================
 
 TOKEN_FILE_NAME = "token.txt"
-PROXY_CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/info"
 CODE_FILE_NAME = "CODE.txt"
 THUMBNAIL_URL = "https://i.pinimg.com/1200x/c0/d1/59/c0d1591ce31488b9f71313326dcf01f0.jpg"
 
 MAIL_TM_BASE = "https://api.mail.tm"
 
-# CONFIG DÀNH CHO CAPTCHA SOLVER (Dùng chung config của script tổng)
+# CONFIG DÀNH CHO CAPTCHA SOLVER
 CONFIG = {
     "NUM_THREADS": 1,
     "HEADLESS": True,
-    "PROXY_LIST": [],
     "EXECUTABLE_PATH": "/usr/bin/chromium"
 }
 
@@ -111,24 +110,6 @@ def load_local_token():
     except Exception as e:
         print(f"❌ Lỗi đọc token: {e}")
         return None
-
-def fetch_proxies_from_github():
-    print(f"🌐 Đang kết nối GitHub để lấy Proxy: {PROXY_CONFIG_URL} ...")
-    try:
-        resp = requests.get(PROXY_CONFIG_URL, timeout=15)
-        
-        if resp.status_code != 200:
-            print(f"❌ Lỗi tải Proxy: HTTP {resp.status_code}")
-            return []
-            
-        text = resp.text.strip()
-        lines = [line.strip() for line in text.split('\n') if line.strip()]
-        
-        print(f"✅ Đã tải thành công {len(lines)} proxies từ GitHub.")
-        return lines
-    except Exception as e:
-        print(f"❌ Exception khi tải Proxy GitHub: {e}")
-        return []
 
 # ==============================================================
 # ==>> LỚP QUẢN LÝ CODE STORAGE (LƯU TRỮ & TRÍCH XUẤT) <<==
@@ -239,66 +220,6 @@ class CodeStorageManager:
 code_storage = CodeStorageManager(CODE_FILE_NAME)
 
 # ==============================================================
-# ==>> LỚP QUẢN LÝ PROXY <<==
-# ==============================================================
-
-class ProxyManager:
-    def __init__(self, proxy_list=None):
-        self.proxies = []
-        self.bad_proxies = set()
-        if proxy_list:
-            self.load_proxies_from_list(proxy_list)
-    
-    def parse_proxy(self, line):
-        line = line.strip()
-        if not line or line.startswith('#'):
-            return None
-        line = re.sub(r'^https?://', '', line)
-        try:
-            # IP:Port
-            if ':' in line and '@' not in line:
-                return f"http://{line}" # Đảm bảo có http:// cho requests
-            # User:Pass@IP:Port
-            if '@' in line:
-                return f"http://{line}"
-            # IP:Port:User:Pass
-            parts = line.split(':')
-            if len(parts) >= 4:
-                return f"http://{parts[2]}:{parts[3]}@{parts[0]}:{parts[1]}"
-            return f"http://{line}"
-        except:
-            return None
-
-    def load_proxies_from_list(self, raw_lines):
-        for line in raw_lines:
-            p = self.parse_proxy(line)
-            if p:
-                self.proxies.append(p)
-        print(f"[PROXY] Tổng số proxy đã nạp: {len(self.proxies)}")
-
-    def get_live_proxy(self):
-        available = [p for p in self.proxies if p not in self.bad_proxies]
-        if not available:
-            return None
-        return random.choice(available)
-
-    def mark_bad(self, proxy):
-        if proxy and proxy not in self.bad_proxies:
-            self.bad_proxies.add(proxy)
-
-    def reset_bad_proxies(self):
-        print(f"[PROXY] ♻️ Reset {len(self.bad_proxies)} proxy lỗi.")
-        self.bad_proxies.clear()
-
-    def get_count(self):
-        return len(self.proxies)
-        
-    def get_live_count(self):
-        return len(self.proxies) - len(self.bad_proxies)
-
-proxy_manager = ProxyManager([])
-
-# ==============================================================
 # ==>> BROWSER GỐC (DÙNG ĐỂ LOGIN TREO ACC) <<==
 # ==============================================================
 
@@ -342,28 +263,19 @@ async def close_browser_session(p, browser):
 # ==>> API VMOS CŨ <<==
 # ==============================================================
 
-def safe_request(method, url, proxy, **kwargs):
-    # Cấu hình Proxy chuẩn cho requests
-    proxies_dict = None
-    if proxy:
-        # Proxy từ ProxyManager đã có prefix http://, nhưng requests cần dict rõ ràng
-        proxies_dict = {
-            "http": proxy,
-            "https": proxy
-        }
-
+def safe_request(method, url, **kwargs):
     if 'timeout' not in kwargs:
         kwargs['timeout'] = 20
         
-    # Luôn tắt verify SSL để tránh lỗi với proxy
+    # Luôn tắt verify SSL để tránh lỗi với proxy/VPN
     if 'verify' not in kwargs:
         kwargs['verify'] = False
     
     try:
         if method.lower() == 'get':
-            resp = requests.get(url, proxies=proxies_dict, **kwargs)
+            resp = requests.get(url, **kwargs)
         else:
-            resp = requests.post(url, proxies=proxies_dict, **kwargs)
+            resp = requests.post(url, **kwargs)
         
         if resp and "certain foreign ip addresses have been restricted" in resp.text.lower():
             raise requests.exceptions.ConnectionError("IP Restricted by VMOS")
@@ -372,24 +284,16 @@ def safe_request(method, url, proxy, **kwargs):
         raise e
 
 # ==============================================================
-# ==>> MAIL.TM LOGIC (PROXY ENABLED) <<==
+# ==>> MAIL.TM LOGIC <<==
 # ==============================================================
 
-def get_temp_email(proxy):
+def get_temp_email():
     """
-    Tạo email từ Mail.tm (CÓ PROXY, VERIFY=FALSE).
+    Tạo email từ Mail.tm.
     """
-    proxies_dict = None
-    if proxy:
-        proxies_dict = {
-            "http": proxy,
-            "https": proxy
-        }
-
     try:
         # 1. Lấy Domain
-        # print(f"   [MAIL-TM] ⏳ Lấy domain với proxy...")
-        r = requests.get(f"{MAIL_TM_BASE}/domains", proxies=proxies_dict, timeout=20, verify=False)
+        r = requests.get(f"{MAIL_TM_BASE}/domains", timeout=20, verify=False)
         
         if r.status_code != 200:
             print(f"   [MAIL-TM] ❌ Lỗi Domain: {r.status_code}")
@@ -411,14 +315,14 @@ def get_temp_email(proxy):
             "address": email,
             "password": password
         }
-        r_acc = requests.post(f"{MAIL_TM_BASE}/accounts", json=acc_payload, proxies=proxies_dict, timeout=20, verify=False)
+        r_acc = requests.post(f"{MAIL_TM_BASE}/accounts", json=acc_payload, timeout=20, verify=False)
         
         if r_acc.status_code not in [200, 201]:
             print(f"   [MAIL-TM] ❌ Lỗi tạo Acc: {r_acc.status_code} {r_acc.text}")
             return None, None
             
         # 3. Lấy Token
-        r_token = requests.post(f"{MAIL_TM_BASE}/token", json=acc_payload, proxies=proxies_dict, timeout=20, verify=False)
+        r_token = requests.post(f"{MAIL_TM_BASE}/token", json=acc_payload, timeout=20, verify=False)
         
         if r_token.status_code == 200:
             token = r_token.json().get("token")
@@ -428,29 +332,20 @@ def get_temp_email(proxy):
             
     except Exception as e:
         print(f"   [MAIL-TM] 🔥 Exception: {e}")
-        # Ném lỗi ra để worker biết mà đổi proxy
-        raise e
         
     return None, None
 
-def get_code_from_email(mail_token, email, proxy):
+def get_code_from_email(mail_token, email):
     if not mail_token:
         return None
     
-    proxies_dict = None
-    if proxy:
-        proxies_dict = {
-            "http": proxy,
-            "https": proxy
-        }
-
     headers = {
         "Authorization": f"Bearer {mail_token}"
     }
     
     for _ in range(10):
         try:
-            r = requests.get(f"{MAIL_TM_BASE}/messages", headers=headers, proxies=proxies_dict, timeout=20, verify=False)
+            r = requests.get(f"{MAIL_TM_BASE}/messages", headers=headers, timeout=20, verify=False)
             
             if r.status_code == 200:
                 data = r.json()
@@ -461,7 +356,7 @@ def get_code_from_email(mail_token, email, proxy):
                     msg_id = msg.get("id")
                     
                     # Gọi chi tiết tin nhắn để lấy HTML
-                    r_detail = requests.get(f"{MAIL_TM_BASE}/messages/{msg_id}", headers=headers, proxies=proxies_dict, timeout=20, verify=False)
+                    r_detail = requests.get(f"{MAIL_TM_BASE}/messages/{msg_id}", headers=headers, timeout=20, verify=False)
                     
                     full_content = ""
                     if r_detail.status_code == 200:
@@ -556,7 +451,6 @@ def feedback_loop_drag(page, start_x, start_y, target_piece_x, thread_id="1"):
     current_mouse_x = start_x
     
     for _ in range(200): 
-        # Thêm tiền tố 'r' để loại bỏ lỗi SyntaxWarning: invalid escape sequence
         piece_left_str = page.evaluate(r"""() => {
             let el = document.getElementById('aliyunCaptcha-puzzle');
             if (!el) return '0';
@@ -580,7 +474,7 @@ def feedback_loop_drag(page, start_x, start_y, target_piece_x, thread_id="1"):
             
         if distance_left > 0:
             if distance_left > 40:
-                step = random.uniform(6, 12) # Chậm lại một chút so với bản cũ
+                step = random.uniform(6, 12) 
             elif distance_left > 10:
                 step = random.uniform(2, 5)
             else:
@@ -591,7 +485,6 @@ def feedback_loop_drag(page, start_x, start_y, target_piece_x, thread_id="1"):
             current_mouse_x -= step
             
         page.mouse.move(current_mouse_x, start_y + random.uniform(-1, 1))
-        # Tăng delay lên 20-40ms mỗi bước để chuột đi đằm hơn, tránh kẹt do quá nhanh
         time.sleep(random.uniform(0.02, 0.04))
 
     time.sleep(random.uniform(0.4, 0.7)) 
@@ -608,12 +501,10 @@ def auto_drag_slider(page, thread_id="1"):
                 print(f"\n[Luồng {thread_id}] ✅ Thành công: Nút 'Get code' đã biến mất! SMS ĐÃ GỬI THÀNH CÔNG.")
                 return True
         except Exception:
-            # Nếu nút lỗi không kiểm tra được -> Mặc định là trang đã đổi (Thành công)
             return True
             
         attempt += 1
         
-        # Đưa bộ đếm về lại 10 lần (an toàn và kiên nhẫn hơn cho mạng lag)
         if attempt > 10:
             print(f"\n[Luồng {thread_id}] ❌ Fail: Sai quá 10 lần liên tục. Hủy session này để làm lại từ đầu!")
             return False
@@ -628,7 +519,7 @@ def auto_drag_slider(page, thread_id="1"):
                     pass
                 
                 print(f"[Luồng {thread_id}] ⏳ Đang đợi Captcha xuất hiện...")
-                time.sleep(2) # Chỉ đợi một chút theo logic mượt mà của bản gốc
+                time.sleep(2) 
             
             if not page.locator("#aliyunCaptcha-window-popup").is_visible():
                 print(f"[Luồng {thread_id}] ❌ Không thấy Captcha xuất hiện. Đang thử lại...")
@@ -715,8 +606,8 @@ def auto_drag_slider(page, thread_id="1"):
              print(f"[Luồng {thread_id}] ⚠️ Lỗi trong lúc xử lý Web: {e}")
              time.sleep(1)
 
-def send_with_browser(email, proxy_server=None, thread_id="1"):
-    print(f"[Luồng {thread_id}] 📨 Bắt đầu với email: {email} | Proxy cấp phát: {proxy_server} (Web dùng IP Thật)")
+def send_with_browser(email, thread_id="1"):
+    print(f"[Luồng {thread_id}] 📨 Bắt đầu với email: {email}")
 
     temp_profile_dir = tempfile.mkdtemp(prefix=f"vmos_profile_{thread_id}_")
     is_success = False
@@ -750,12 +641,8 @@ def send_with_browser(email, proxy_server=None, thread_id="1"):
                 launch_args["executable_path"] = CONFIG["EXECUTABLE_PATH"]
             else:
                 launch_args["channel"] = "chrome"
-            
-            # TẮT PROXY CHO PLAYWRIGHT THEO YÊU CẦU (Dùng IP Thật để load web nhanh hơn)
-            # if proxy_server:
-            #     launch_args["proxy"] = {"server": proxy_server} 
 
-            print(f"[Luồng {thread_id}] 🛡️ Khởi chạy Persistent Context bằng IP THẬT (Bỏ qua Proxy)...")
+            print(f"[Luồng {thread_id}] 🛡️ Khởi chạy Persistent Context (Sử dụng IP Máy / VPN)...")
             context = p.chromium.launch_persistent_context(**launch_args)
             
             try:
@@ -790,7 +677,6 @@ def send_with_browser(email, proxy_server=None, thread_id="1"):
                     page.mouse.move(box["x"] + 10, box["y"] + 10, steps=5)
                     time.sleep(0.2)
 
-                # Chạy giải captcha, nếu fail quá 10 lần sẽ trả về False
                 is_success = auto_drag_slider(page, thread_id)
                 
                 if is_success:
@@ -806,8 +692,8 @@ def send_with_browser(email, proxy_server=None, thread_id="1"):
         try:
             shutil.rmtree(temp_profile_dir, ignore_errors=True)
             print(f"[Luồng {thread_id}] 🧹 Đã dọn dẹp sạch sẽ profile tạm thời.")
-        except Exception as cleanup_error:
-            pass # Không cần in ra cảnh báo nếu dọn rác thất bại nhẹ
+        except Exception:
+            pass 
             
     return is_success
 
@@ -815,7 +701,7 @@ def send_with_browser(email, proxy_server=None, thread_id="1"):
 # ==>> VMOS ACTIONS (LOGIN SAU KHI CÓ CODE) <<==
 # ==============================================================
 
-def login_vmos(email, code, proxy, invite_code=None, user_agent=None):
+def login_vmos(email, code, invite_code=None, user_agent=None):
     ua = user_agent if user_agent else get_random_ua()
     url = "https://api.vsphone.com/vsphone/api/user/login"
     headers = {
@@ -838,7 +724,7 @@ def login_vmos(email, code, proxy, invite_code=None, user_agent=None):
     if invite_code:
         payload["channel"] = invite_code
 
-    resp = safe_request("POST", url, proxy, headers=headers, json=payload)
+    resp = safe_request("POST", url, headers=headers, json=payload)
     
     if resp and resp.status_code == 200:
         data = resp.json()
@@ -850,22 +736,22 @@ def login_vmos(email, code, proxy, invite_code=None, user_agent=None):
                 h2 = headers.copy()
                 h2["token"] = token
                 
-                r2 = safe_request("GET", user_info_url, proxy, headers=h2)
+                r2 = safe_request("GET", user_info_url, headers=h2)
                 
                 if r2 and r2.status_code == 200:
                     uid = r2.json().get("data", {}).get("userId")
                     return {"token": token, "userId": str(uid)}
     return None
 
-def trigger_agent_activation(token, userid, proxy, headers):
+def trigger_agent_activation(token, userid, headers):
     save_agent_url = "https://api.vsphone.com/vsphone/api/agentUser/saveAgentUser"
     payload = {"name": "VSPhone"}
     try:
-        safe_request("POST", save_agent_url, proxy, headers=headers, json=payload)
+        safe_request("POST", save_agent_url, headers=headers, json=payload)
     except Exception: pass
     time.sleep(1)
 
-def check_buff_status(token, userid, proxy):
+def check_buff_status(token, userid):
     ua = get_random_ua()
     url = "https://api.vsphone.com/vsphone/api/vcActiveAssets/info"
     headers = {
@@ -873,37 +759,29 @@ def check_buff_status(token, userid, proxy):
         "origin": "https://cloud.vmoscloud.com", "referer": "https://cloud.vmoscloud.com/",
         "User-Agent": ua, "appversion": "1008424", "clienttype": "web"
     }
-    # Cập nhật logic: In log debug nếu lấy về 0 hoặc lỗi
     for _ in range(2):
         try:
-            # Ưu tiên POST theo document chuẩn nếu có, hoặc thử GET nếu POST không về data
-            # Thực tế API này thường là POST với body rỗng hoặc GET đều được
-            
-            # Thử POST trước
-            resp = safe_request("POST", url, proxy, headers=headers, json={})
+            resp = safe_request("POST", url, headers=headers, json={})
             
             if resp and resp.status_code == 200:
                 data = resp.json()
                 if data.get("code") == 200:
                     d_obj = data.get("data") or {}
-                    # Log để debug nếu cần thiết: print(f"DEBUG Assets: {d_obj}")
                     return d_obj.get("assetsNum", 0)
             
-            # Nếu POST không được, thử GET
-            resp = safe_request("GET", url, proxy, headers=headers)
+            resp = safe_request("GET", url, headers=headers)
             if resp and resp.status_code == 200:
                 data = resp.json()
                 if data.get("code") == 200:
                     d_obj = data.get("data") or {}
                     return d_obj.get("assetsNum", 0)
                     
-        except Exception as e:
-            # print(f"Lỗi check buff: {e}")
+        except Exception:
             pass
         time.sleep(1)
     return 0
 
-def exchange_target_gem(token, userid, proxy, target_id):
+def exchange_target_gem(token, userid, target_id):
     ua = get_random_ua()
     url = "https://api.vsphone.com/vsphone/api/vcActiveExchangeGood/gemExchange"
     headers = {
@@ -917,7 +795,7 @@ def exchange_target_gem(token, userid, proxy, target_id):
     print(f"[EXCHANGE] 🎁 Mua gói ID {target_id}...")
     for attempt in range(5): 
         try:
-            resp = safe_request("POST", url, proxy, headers=headers, json=payload)
+            resp = safe_request("POST", url, headers=headers, json=payload)
             if resp and resp.status_code == 200:
                 data = resp.json()
                 if data.get("code") == 200:
@@ -926,7 +804,7 @@ def exchange_target_gem(token, userid, proxy, target_id):
         time.sleep(2)
     return False
 
-def fetch_codes_as_dict(token, userid, proxy):
+def fetch_codes_as_dict(token, userid):
     ua = get_random_ua()
     url = "https://api.vsphone.com/vsphone/api/vcActiveAssetsExchangeLog/list"
     headers = {
@@ -937,7 +815,7 @@ def fetch_codes_as_dict(token, userid, proxy):
         "token": token, "userid": str(userid), "user-agent": ua
     }
     try:
-        resp = safe_request("GET", url, proxy, headers=headers)
+        resp = safe_request("GET", url, headers=headers)
         if not resp or resp.status_code != 200:
             return None
         data = resp.json()
@@ -957,8 +835,7 @@ def fetch_codes_as_dict(token, userid, proxy):
         return grouped
     except: return None
 
-# BỔ SUNG HÀM GET INVITE CODE BỊ THIẾU
-def get_invite_code_vmos(token, userid, proxy):
+def get_invite_code_vmos(token, userid):
     ua = get_random_ua()
     agent_info_url = "https://api.vsphone.com/vsphone/api/agentUser/agentUserInfo"
     headers = {
@@ -967,13 +844,13 @@ def get_invite_code_vmos(token, userid, proxy):
         "User-Agent": ua, "appversion": "1008424", "clienttype": "web"
     }
     
-    trigger_agent_activation(token, userid, proxy, headers)
+    trigger_agent_activation(token, userid, headers)
 
     for attempt in range(3):
         try:
-            resp = safe_request("POST", agent_info_url, proxy, headers=headers, json={})
+            resp = safe_request("POST", agent_info_url, headers=headers, json={})
             if not resp or resp.status_code != 200:
-                resp = safe_request("GET", agent_info_url, proxy, headers=headers)
+                resp = safe_request("GET", agent_info_url, headers=headers)
             
             if resp and resp.status_code == 200:
                 data = resp.json()
@@ -990,49 +867,38 @@ def get_invite_code_vmos(token, userid, proxy):
 async def task_worker(invite_code, update_callback=None):
     worker_id = f"W-{random.randint(1000,9999)}" 
     while True:
-        proxy = proxy_manager.get_live_proxy()
-        if not proxy:
-            print(f"[{worker_id}] ❌ Hết Proxy sống!")
-            return None
-        
         current_ua = get_random_ua()
         try:
-            proxy_short = proxy.split('@')[-1]
             if update_callback:
-                await update_callback(f"🔄 Đang thử proxy: {proxy_short}...")
+                await update_callback(f"🔄 Đang bắt đầu luồng: {worker_id}...")
             
-            # LOG STEP 1: Lấy Mail (Mail.tm) - DÙNG PROXY CỦA MAIN SCRIPT
-            print(f"[{worker_id}] 🌐 [PROXY] Get Email (Mail.tm)...")
+            # LOG STEP 1: Lấy Mail (Mail.tm) 
+            print(f"[{worker_id}] 🌐 Get Email (Mail.tm)...")
             
-            # Unpack tuple: email string, jwt token
-            email_data = await asyncio.to_thread(get_temp_email, proxy)
-            # Kiểm tra xem có dữ liệu trả về không
+            email_data = await asyncio.to_thread(get_temp_email)
             email, mail_token = email_data if email_data else (None, None)
             
             if not email:
-                # Log đã in ở get_temp_email
-                proxy_manager.mark_bad(proxy)
+                await asyncio.sleep(2)
                 continue 
 
             if update_callback:
                 await update_callback(f"📩 Đang gửi mã OTP về {email} (Qua Trình Duyệt Giải Captcha)...")
             
             # LOG STEP 2: GỬI OTP BẰNG GIẢ LẬP TRÌNH DUYỆT BẮT CAPTCHA
-            print(f"[{worker_id}] 📤 [PROXY] Mở Playwright giải Captcha gửi OTP tới {email}...")
-            # Sử dụng hàm send_with_browser của bạn truyền vào email và proxy từ hệ thống tổng
-            sent = await asyncio.to_thread(send_with_browser, email, proxy, worker_id)
+            print(f"[{worker_id}] 📤 Mở Playwright giải Captcha gửi OTP tới {email}...")
+            sent = await asyncio.to_thread(send_with_browser, email, worker_id)
             
             if not sent:
                 print(f"[{worker_id}] ❌ [SEND-FAIL] Lỗi giải Captcha / Gửi mã.")
-                proxy_manager.mark_bad(proxy)
                 continue
             
             if update_callback:
                 await update_callback(f"⏳ Đang chờ mã OTP...")
             
-            # LOG STEP 3: Lấy Code (Dùng Token, DÙNG PROXY, CHECK BODY)
-            print(f"[{worker_id}] ⏳ [PROXY] Check inbox (Full Body)...")
-            code = await asyncio.to_thread(get_code_from_email, mail_token, email, proxy)
+            # LOG STEP 3: Lấy Code 
+            print(f"[{worker_id}] ⏳ Check inbox (Full Body)...")
+            code = await asyncio.to_thread(get_code_from_email, mail_token, email)
             
             if not code:
                 print(f"[{worker_id}] ❌ [TIMEOUT] Không thấy code.")
@@ -1041,9 +907,9 @@ async def task_worker(invite_code, update_callback=None):
             if update_callback:
                 await update_callback(f"🔑 Đang đăng nhập...")
             
-            # LOG STEP 4: Login (Dùng Proxy)
-            print(f"[{worker_id}] 🔑 [PROXY] Login Code: {code}")
-            creds = await asyncio.to_thread(login_vmos, email, code, proxy, invite_code, current_ua)
+            # LOG STEP 4: Login 
+            print(f"[{worker_id}] 🔑 Login Code: {code}")
+            creds = await asyncio.to_thread(login_vmos, email, code, invite_code, current_ua)
             
             if not creds:
                 print(f"[{worker_id}] ❌ [LOGIN-FAIL] Login thất bại.")
@@ -1054,12 +920,11 @@ async def task_worker(invite_code, update_callback=None):
                 "email": email, 
                 "password": "NECONECOLYCONECO", 
                 "token": creds['token'], 
-                "userId": creds['userId'], 
-                "proxy_used": proxy
+                "userId": creds['userId']
             }
         except Exception as e:
             # print(f"[{worker_id}] 💥 [CRASH] {e}") 
-            proxy_manager.mark_bad(proxy)
+            await asyncio.sleep(2)
             continue
 
 intents = discord.Intents.default()
@@ -1184,16 +1049,6 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
             if not is_inf_mode and host_idx > num_hosts:
                 break 
 
-            if proxy_manager.get_live_count() == 0:
-                if is_inf_mode:
-                    msg_err = await ctx.send("⚠️ **Cạn kiệt Proxy!** Ngủ 1 phút...") 
-                    await asyncio.sleep(60) 
-                    proxy_manager.reset_bad_proxies()
-                    await msg_err.delete()
-                else:
-                    await ctx.send(f"❌ **Hết proxy!** Ngừng tại Host {host_idx}/{num_hosts}.")
-                    break
-
             print(f"\n[GENBUFF] ---> ĐANG XỬ LÝ HOST {host_idx} <---")
             title_text = f"⚙️ Đang tạo tài khoản chủ ({'Vô cực' if is_inf_mode else f'{host_idx}/{num_hosts}'})..."
             init_embed = discord.Embed(title=title_text, color=discord.Color.orange())
@@ -1215,7 +1070,6 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
             
             host_token = host_acc['token']
             host_userid = host_acc['userId']
-            host_proxy = host_acc['proxy_used']
 
             # 2. KHỞI ĐỘNG BROWSER & LOGIN (THEO YÊU CẦU PLAYWRIGHT ĐỂ TREO ACCOUNT)
             init_embed.description = "🌐 Đang mở trình duyệt để Login..."
@@ -1228,7 +1082,7 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
             await msg.edit(embed=init_embed)
             
             print(f"[HOST] 📨 Đang lấy Invite Code...")
-            invite_code = await asyncio.to_thread(get_invite_code_vmos, host_token, host_userid, host_proxy)
+            invite_code = await asyncio.to_thread(get_invite_code_vmos, host_token, host_userid)
             if not invite_code:
                 print(f"[HOST] ❌ Không lấy được Invite Code!")
                 embed_err = discord.Embed(title=f"⚠️ Lỗi lấy mã mời (Host {host_idx})", description=f"Skip...", color=discord.Color.red())
@@ -1249,8 +1103,7 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
             await msg.edit(embed=embed_run)
 
             # GIẢM CONCURRENCY XUỐNG ĐỂ TRÁNH TRÀN RAM GÂY LỖI SIGNAL 9 (TERMUX/VPS NHỎ)
-            total_proxies = proxy_manager.get_count()
-            concurrency = min(total_proxies, 3) # Max 3 trình duyệt Chromium mở cùng lúc
+            concurrency = 3 # Max 3 trình duyệt Chromium mở cùng lúc
             semaphore = asyncio.Semaphore(concurrency)
             
             current_assets_num = 0
@@ -1266,7 +1119,6 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
                 active_tasks.add(asyncio.create_task(protected_worker()))
                 
             last_update_time = 0
-            is_host_failed = False
             
             while active_tasks:
                 done, active_tasks = await asyncio.wait(active_tasks, return_when=asyncio.FIRST_COMPLETED)
@@ -1276,7 +1128,7 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
                         res = await task
                         if res:
                             total_success_local += 1
-                            current_assets_num = await asyncio.to_thread(check_buff_status, host_token, host_userid, host_proxy)
+                            current_assets_num = await asyncio.to_thread(check_buff_status, host_token, host_userid)
                         else:
                             total_fail += 1
                     except:
@@ -1300,29 +1152,9 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
                         active_tasks.clear()
                         break
                     
-                    if proxy_manager.get_live_count() > 0:
-                        desired_running = min(concurrency, num_buffs - current_assets_num)
-                        while len(active_tasks) < desired_running:
-                            active_tasks.add(asyncio.create_task(protected_worker()))
-                    else:
-                        if not active_tasks:
-                            if is_inf_mode:
-                                embed_run.set_field_at(2, name="📊 Tiến độ Buff", value=f"⏳ **Hết Proxy Sống!** Chờ 1 phút...", inline=False) 
-                                await msg.edit(embed=embed_run)
-                                await asyncio.sleep(60) 
-                                proxy_manager.reset_bad_proxies()
-                                desired_running = min(concurrency, num_buffs - current_assets_num)
-                                for _ in range(desired_running):
-                                    active_tasks.add(asyncio.create_task(protected_worker()))
-                            else:
-                                is_host_failed = True
-                                for t in active_tasks:
-                                    t.cancel()
-                                active_tasks.clear()
-                                break
-
-            if is_host_failed:
-                break
+                    desired_running = min(concurrency, num_buffs - current_assets_num)
+                    while len(active_tasks) < desired_running:
+                        active_tasks.add(asyncio.create_task(protected_worker()))
 
             # 5. MUA GÓI & LƯU CODE
             final_code_str = "Không có code nào được lấy."
@@ -1332,9 +1164,9 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
                 await msg.edit(embed=embed_run)
                 
                 for ex_id in exchange_list:
-                    await asyncio.to_thread(exchange_target_gem, host_token, host_userid, host_proxy, ex_id)
+                    await asyncio.to_thread(exchange_target_gem, host_token, host_userid, ex_id)
                 
-                codes_dict = await asyncio.to_thread(fetch_codes_as_dict, host_token, host_userid, host_proxy)
+                codes_dict = await asyncio.to_thread(fetch_codes_as_dict, host_token, host_userid)
                 
                 if codes_dict:
                     await asyncio.to_thread(code_storage.add_codes, codes_dict)
@@ -1375,20 +1207,14 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
 
 if __name__ == "__main__":
     print("==========================================")
-    print("🚀 VMOS BOT ULTIMATE - PHIÊN BẢN 1.1 - CHỐNG CRASH")
+    print("🚀 VMOS BOT ULTIMATE - PHIÊN BẢN 1.2 - VPN (NO PROXY)")
     print("==========================================")
     print("🚀 Đang khởi động Bot...")
     token_local = load_local_token()
-    proxies_list = fetch_proxies_from_github()
     
     if not token_local:
         print("❌ KHÔNG THỂ KHỞI ĐỘNG: Thiếu Token trong file 'token.txt'.")
     else:
-        if not proxies_list:
-            print("⚠️ CẢNH BÁO: Không lấy được proxy nào từ GitHub.")
-            
-        proxy_manager = ProxyManager(proxies_list)
-        
         print(f"🚀 Bot Pro Ultimate + Captcha Bypass đang chạy...")
         while True:
             try:
