@@ -1,13 +1,13 @@
 # -*- coding: utf-8 -*-
 # Script Bot Discord cho VMOS Cloud (Phiên bản Ultimate - Full Uncut)
 # Tính năng tích hợp:
-# 1. Playwright: Tự động mở Chrome (System), đăng nhập và treo nick.
+# 1. Playwright: Tự động mở Chrome (System), đăng nhập, bypass Captcha và treo nick.
 # 2. Mail API: MAIL.TM (Dùng Proxy toàn bộ quy trình).
 # 3. Quản lý Config: Token đọc từ file local, Proxy tải từ GitHub.
 # 4. Anti-Rate Limit: Cơ chế cập nhật tin nhắn Discord chậm (10s/lần).
 # 5. Logging: Xuất log chi tiết.
-# 6. Luồng: Giới hạn 50 luồng.ab
-# 7. Sửa lỗi check_buff_status: Debug chi tiết phản hồi API.
+# 6. Luồng: Giới hạn 10 luồng (chống Crash).
+# 7. Sửa lỗi check_buff_status: Debug chi tiết phản hồi API.aaaaaaaaaaaaaaaa
 
 import discord
 from discord.ext import commands
@@ -24,13 +24,19 @@ import uuid
 import string
 import urllib.parse
 import urllib3
+import base64
+import math
+import tempfile
+import shutil
 from collections import defaultdict
+
+# THƯ VIỆN XỬ LÝ ẢNH & BROWSER (Yêu cầu: pip install playwright opencv-python numpy requests)
+from playwright.async_api import async_playwright
+import cv2
+import numpy as np
 
 # Tắt cảnh báo insecure request (do dùng verify=False với Proxy)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
-
-# THƯ VIỆN MỚI CHO TRÌNH DUYỆT
-from playwright.async_api import async_playwright
 
 # ==============================================================
 # ==>> CẤU HÌNH & HẰNG SỐ <<==
@@ -280,7 +286,7 @@ class ProxyManager:
 proxy_manager = ProxyManager([])
 
 # ==============================================================
-# ==>> BROWSER <<==
+# ==>> BROWSER & LOGIC CAPTCHA <<==
 # ==============================================================
 
 async def open_browser_and_login(email, password):
@@ -319,15 +325,309 @@ async def close_browser_session(p, browser):
             await p.stop()
         except: pass
 
+def download_image(url, save_path):
+    headers = {
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
+        "Referer": "https://cloud.vsphone.com/"
+    }
+    try:
+        if url.startswith("data:image"):
+            header, encoded = url.split(",", 1)
+            with open(save_path, "wb") as f:
+                f.write(base64.b64decode(encoded))
+            return True
+        else:
+            response = requests.get(url, headers=headers, timeout=10)
+            if response.status_code == 200:
+                with open(save_path, 'wb') as f:
+                    f.write(response.content)
+                return True
+            return False
+    except Exception as e:
+        error_msg = str(e)[:100] + "..." if len(str(e)) > 100 else str(e)
+        print(f"⚠️ Lỗi khi lấy ảnh: {error_msg}")
+        return False
+
+def find_puzzle_gap_raw(bg_path, piece_path, thread_id="1"):
+    print(f"[Luồng {thread_id}] 👁️ Đang phân tích ảnh bằng Canny Edge...")
+    bg_img = cv2.imread(bg_path)
+    piece_img = cv2.imread(piece_path, cv2.IMREAD_UNCHANGED) 
+    
+    if bg_img is None or piece_img is None:
+        print(f"[Luồng {thread_id}] ❌ Lỗi: Không thể đọc được file ảnh đã tải về.")
+        return 0, 0, 0, 0, 0, 0, 0
+
+    bg_gray = cv2.cvtColor(bg_img, cv2.COLOR_BGR2GRAY)
+    bg_edge = cv2.Canny(bg_gray, 50, 150)
+    
+    if len(piece_img.shape) == 3 and piece_img.shape[2] == 4:
+        alpha = piece_img[:, :, 3]
+        _, alpha_mask = cv2.threshold(alpha, 10, 255, cv2.THRESH_BINARY)
+        
+        x, y, w, h = cv2.boundingRect(alpha_mask) 
+        
+        if w > 0 and h > 0:
+            piece_crop = piece_img[y:y+h, x:x+w]
+            piece_crop_gray = cv2.cvtColor(piece_crop, cv2.COLOR_BGR2GRAY)
+            piece_crop_gray[alpha_mask[y:y+h, x:x+w] == 0] = 0
+            
+            piece_edge = cv2.Canny(piece_crop_gray, 100, 200)
+            
+            margin = 3
+            y_start = max(0, y - margin)
+            y_end = min(bg_edge.shape[0], y + h + margin)
+            bg_strip = bg_edge[y_start:y_end, :]
+            
+            result = cv2.matchTemplate(bg_strip, piece_edge, cv2.TM_CCOEFF_NORMED)
+            _, max_val, _, max_loc = cv2.minMaxLoc(result)
+            
+            target_raw_x = max_loc[0] - x
+            target_raw_y = y_start + max_loc[1] 
+            
+            print(f"[Luồng {thread_id}] ✅ Đã chốt tọa độ! Độ khớp: {max_val*100:.1f}%")
+            return max(0, target_raw_x), x, y, w, h, max_loc[0], target_raw_y
+            
+    return max_loc[0], 0, 0, 40, 40, max_loc[0], 0
+
+async def feedback_loop_drag(page, start_x, start_y, target_piece_x, thread_id="1"):
+    await page.mouse.move(start_x, start_y)
+    await page.mouse.down()
+    await asyncio.sleep(random.uniform(0.1, 0.2)) 
+    
+    current_mouse_x = start_x
+    
+    for _ in range(200): 
+        piece_left_str = await page.evaluate("""() => {
+            let el = document.getElementById('aliyunCaptcha-puzzle');
+            if (!el) return '0';
+            let left = el.style.left;
+            if (left && left !== '0px' && left !== '0') return left;
+            let transform = el.style.transform;
+            if (transform && transform.includes('translate')) {
+                let match = transform.match(/translate[X]?\((.+?)px/);
+                if (match) return match[1];
+            }
+            return left || '0';
+        }""")
+        
+        piece_left = float(piece_left_str.replace('px', '').strip()) if piece_left_str else 0.0
+        
+        distance_left = target_piece_x - piece_left
+        
+        if abs(distance_left) <= 1.0:
+            print(f"[Luồng {thread_id}] 🎯 Mảnh ghép khớp hoàn hảo. Chốt sổ!")
+            break
+            
+        if distance_left > 0:
+            if distance_left > 40:
+                step = random.uniform(8, 15)
+            elif distance_left > 10:
+                step = random.uniform(3, 6)
+            else:
+                step = random.uniform(0.5, 2)
+            current_mouse_x += step
+        else:
+            step = random.uniform(0.5, 2)
+            current_mouse_x -= step
+            
+        await page.mouse.move(current_mouse_x, start_y + random.uniform(-1, 1))
+        await asyncio.sleep(random.uniform(0.01, 0.02))
+
+    await asyncio.sleep(random.uniform(0.4, 0.7)) 
+    await page.mouse.up()
+
+async def auto_drag_slider(page, thread_id="1"):
+    print(f"[Luồng {thread_id}] 🤖 Đang tiến hành giải Captcha liên tục...")
+        
+    attempt = 0
+    while True:
+        get_code_btn = page.get_by_text("Get code", exact=True)
+        if not await get_code_btn.is_visible():
+            print(f"\n[Luồng {thread_id}] ✅ Nút 'Get code' biến mất! SMS ĐÃ GỬI THÀNH CÔNG.")
+            return True
+            
+        attempt += 1
+        print(f"\n[Luồng {thread_id}] 🔄 LẦN THỬ THỨ {attempt}:")
+        try:
+            if not await page.locator("#aliyunCaptcha-window-popup").is_visible():
+                print(f"[Luồng {thread_id}] 👉 Đang thử bấm nút 'Get code'...")
+                try:
+                    await get_code_btn.click(timeout=3000)
+                    await asyncio.sleep(1)
+                except Exception:
+                    pass
+            
+            if not await page.locator("#aliyunCaptcha-window-popup").is_visible():
+                await asyncio.sleep(1)
+                continue
+                
+            await asyncio.sleep(0.5) 
+            
+            bg_locator = page.locator("#aliyunCaptcha-img")
+            piece_locator = page.locator("#aliyunCaptcha-puzzle")
+            slider_handle = page.locator("#aliyunCaptcha-sliding-slider")
+            
+            if not await bg_locator.is_visible() or not await piece_locator.is_visible():
+                continue
+
+            bg_url = await bg_locator.get_attribute("src")
+            piece_url = await piece_locator.get_attribute("src")
+            
+            if not bg_url or not piece_url:
+                continue
+                
+            bg_path = f"raw_bg_{thread_id}.png"
+            piece_path = f"raw_piece_{thread_id}.png"
+            
+            bg_success = await asyncio.to_thread(download_image, bg_url, bg_path)
+            piece_success = await asyncio.to_thread(download_image, piece_url, piece_path)
+            
+            if not bg_success or not piece_success:
+                continue
+
+            target_raw_x, raw_x, raw_y, raw_w, raw_h, raw_tgt_x, raw_tgt_y = await asyncio.to_thread(find_puzzle_gap_raw, bg_path, piece_path, thread_id)
+            
+            bg_img_raw = cv2.imread(bg_path)
+            raw_width = bg_img_raw.shape[1] if bg_img_raw is not None else 1
+            
+            if os.path.exists(bg_path): os.remove(bg_path)
+            if os.path.exists(piece_path): os.remove(piece_path)
+
+            bg_box = await bg_locator.bounding_box()
+            slider_box = await slider_handle.bounding_box()
+            
+            if bg_box and slider_box:
+                scale = bg_box["width"] / raw_width 
+                target_piece_x = target_raw_x * scale
+                
+                print(f"[Luồng {thread_id}] 🎯 Quãng đường Mảnh Ghép cần đi: {target_piece_x:.2f}px")
+                
+                if target_piece_x < 10:
+                    await page.locator("#aliyunCaptcha-btn-refresh").click()
+                    await asyncio.sleep(1)
+                    continue
+
+                margin_x = slider_box["width"] * 0.2
+                margin_y = slider_box["height"] * 0.2
+                start_x = slider_box["x"] + random.uniform(margin_x, slider_box["width"] - margin_x)
+                start_y = slider_box["y"] + random.uniform(margin_y, slider_box["height"] - margin_y)
+                
+                await feedback_loop_drag(page, start_x, start_y, target_piece_x, thread_id)
+                
+                print(f"[Luồng {thread_id}] ⏳ Chờ Web xác thực kết quả...")
+                await asyncio.sleep(2) 
+                
+                if await page.locator("#aliyunCaptcha-window-popup").is_visible():
+                    print(f"[Luồng {thread_id}] ⚠️ Bị WAF từ chối! Đang bấm đổi ảnh mới...")
+                    try:
+                        refresh_btn = page.locator("#aliyunCaptcha-btn-refresh")
+                        if await refresh_btn.is_visible():
+                            await refresh_btn.click()
+                    except:
+                        pass
+                    await asyncio.sleep(0.5) 
+            
+        except Exception as e:
+             print(f"[Luồng {thread_id}] ⚠️ Lỗi: {e}")
+             await asyncio.sleep(1)
+
+async def send_with_browser(email, proxy_server=None, thread_id="1"):
+    print(f"[Luồng {thread_id}] 📨 Bắt đầu gửi mã bằng Playwright với email: {email} | Proxy: {proxy_server}")
+
+    temp_profile_dir = tempfile.mkdtemp(prefix=f"vmos_profile_{thread_id}_")
+
+    try:
+        p = await async_playwright().start()
+        try:
+            launch_args = {
+                "user_data_dir": temp_profile_dir,
+                "executable_path": "/usr/bin/chromium", 
+                "channel": "chrome", 
+                "headless": True, 
+                "viewport": {"width": 1280, "height": 720},
+                "device_scale_factor": 1,
+                "has_touch": False,
+                "is_mobile": False,
+                "args": [
+                    '--guest',                                        
+                    '--disable-blink-features=AutomationControlled', 
+                    '--disable-infobars',                            
+                    '--no-sandbox',                                   
+                    '--disable-setuid-sandbox',
+                    '--disable-dev-shm-usage',                        
+                    '--disable-gpu',                                  
+                    '--disable-software-rasterizer',
+                    '--disable-extensions',                           
+                    '--mute-audio',                                   
+                    '--disable-background-networking',                
+                    '--disable-default-apps',
+                    '--disable-sync'                                  
+                ]
+            }
+            
+            if proxy_server:
+                launch_args["proxy"] = {"server": proxy_server} 
+
+            print(f"[Luồng {thread_id}] 🛡️ Khởi chạy Persistent Context (Tối ưu RAM/CPU)...")
+            context = await p.chromium.launch_persistent_context(**launch_args)
+            
+            try:
+                await context.add_init_script("""
+                    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+                    Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+                    window.chrome = { runtime: {} };
+                """)
+                
+                page = context.pages[0] if context.pages else await context.new_page()
+
+                async def route_intercept(route):
+                    if route.request.resource_type in ["media", "font"]:
+                        await route.abort()
+                    else:
+                        await route.continue_()
+
+                await page.route("**/*", route_intercept)
+
+                target_url = "https://cloud.vsphone.com/?channel=web"
+                await page.goto(target_url, wait_until="networkidle")
+
+                await page.get_by_text("Sign Up", exact=True).click()
+                await asyncio.sleep(1)
+
+                email_input = page.locator("input[placeholder='Please enter your email address']").last
+                await email_input.fill(email)
+                await asyncio.sleep(0.5)
+
+                box = await email_input.bounding_box()
+                if box:
+                    await page.mouse.move(box["x"] + 10, box["y"] + 10, steps=5)
+                    await asyncio.sleep(0.2)
+
+                success = await auto_drag_slider(page, thread_id)
+                print(f"[Luồng {thread_id}] 🎉 Tự động hóa hoàn tất, đang đóng trình duyệt...")
+                return success
+                
+            except Exception as e:
+                print(f"[Luồng {thread_id}] ❌ Lỗi xảy ra: {e}")
+                return False
+            finally:
+                await context.close()
+        finally:
+            await p.stop()
+    finally:
+        try:
+            shutil.rmtree(temp_profile_dir, ignore_errors=True)
+            print(f"[Luồng {thread_id}] 🧹 Đã dọn dẹp sạch sẽ profile tạm thời.")
+        except Exception as cleanup_error:
+            print(f"[Luồng {thread_id}] ⚠️ Lỗi khi dọn dẹp thư mục tạm: {cleanup_error}")
+
 # ==============================================================
 # ==>> API VMOS <<==
 # ==============================================================
 
 def safe_request(method, url, proxy, **kwargs):
-    # Cấu hình Proxy chuẩn cho requests
     proxies_dict = None
     if proxy:
-        # Proxy từ ProxyManager đã có prefix http://, nhưng requests cần dict rõ ràng
         proxies_dict = {
             "http": proxy,
             "https": proxy
@@ -336,7 +636,6 @@ def safe_request(method, url, proxy, **kwargs):
     if 'timeout' not in kwargs:
         kwargs['timeout'] = 20
         
-    # Luôn tắt verify SSL để tránh lỗi với proxy
     if 'verify' not in kwargs:
         kwargs['verify'] = False
     
@@ -368,8 +667,6 @@ def get_temp_email(proxy):
         }
 
     try:
-        # 1. Lấy Domain
-        # print(f"   [MAIL-TM] ⏳ Lấy domain với proxy...")
         r = requests.get(f"{MAIL_TM_BASE}/domains", proxies=proxies_dict, timeout=20, verify=False)
         
         if r.status_code != 200:
@@ -383,11 +680,9 @@ def get_temp_email(proxy):
 
         domain = domains_data["hydra:member"][0]["domain"]
         
-        # Tạo thông tin ngẫu nhiên
         email = f"{random_string()}@{domain}"
         password = "Password123!"
         
-        # 2. Tạo Account
         acc_payload = {
             "address": email,
             "password": password
@@ -398,7 +693,6 @@ def get_temp_email(proxy):
             print(f"   [MAIL-TM] ❌ Lỗi tạo Acc: {r_acc.status_code} {r_acc.text}")
             return None, None
             
-        # 3. Lấy Token
         r_token = requests.post(f"{MAIL_TM_BASE}/token", json=acc_payload, proxies=proxies_dict, timeout=20, verify=False)
         
         if r_token.status_code == 200:
@@ -409,7 +703,6 @@ def get_temp_email(proxy):
             
     except Exception as e:
         print(f"   [MAIL-TM] 🔥 Exception: {e}")
-        # Ném lỗi ra để worker biết mà đổi proxy
         raise e
         
     return None, None
@@ -438,10 +731,8 @@ def get_code_from_email(mail_token, email, proxy):
                 if data.get("hydra:totalItems", 0) > 0:
                     msg = data["hydra:member"][0]
                     
-                    # QUÉT TOÀN BỘ NỘI DUNG (Subject, Intro, HTML Body)
                     msg_id = msg.get("id")
                     
-                    # Gọi chi tiết tin nhắn để lấy HTML
                     r_detail = requests.get(f"{MAIL_TM_BASE}/messages/{msg_id}", headers=headers, proxies=proxies_dict, timeout=20, verify=False)
                     
                     full_content = ""
@@ -449,7 +740,6 @@ def get_code_from_email(mail_token, email, proxy):
                         detail = r_detail.json()
                         full_content = str(detail.get("html", "")) + " " + str(detail.get("text", "")) + " " + str(detail.get("bodyHtmlContent", ""))
                     else:
-                        # Fallback nếu không gọi được detail
                         full_content = str(msg.get("subject", "")) + " " + str(msg.get("intro", ""))
                     
                     match = re.search(r"\b(\d{6})\b", full_content)
@@ -462,32 +752,8 @@ def get_code_from_email(mail_token, email, proxy):
     return None
 
 # ==============================================================
-# ==>> VMOS ACTIONS <<==
+# ==>> CÁC HÀM XỬ LÝ VMOS <<==
 # ==============================================================
-
-def send_code_vmos(email, proxy, user_agent=None):
-    ua = user_agent if user_agent else get_random_ua()
-    
-    url = "https://api.vsphone.com/vsphone/api/sms/smsSend"
-    headers = {
-        "content-type": "application/json", 
-        "origin": "https://cloud.vmoscloud.com",
-        "referer": "https://cloud.vmoscloud.com/", 
-        "user-agent": ua
-    }
-    # Đây là chuỗi dài, hãy chắc chắn nó không bị cắt dòng
-    payload = {
-        "smsType": 2, 
-        "mobilePhone": email, 
-        "captchaVerifyParam": "{\"sceneId\":\"5jvar3wp\",\"certifyId\":\"Sz5A7mJjnc\",\"deviceToken\":\"U0dfV0VCIzM3OTVkMjgyNDJhMTE2MTliYzI1Zjc4NmY4NGU1M2Q0LWgtMTc1MTI0ODM0NzQ5OC1lOTBiNzJmZGZkZDg0YjUzYTdiZjU0YTRiNWQ3MDIzNiNkOGJCS21wMjdYVGc5bUdPVDVUaUN1N3lWeERuRkZXL2dXSmFOYnYrcjMzTmlWUkVFVUVGVVI2OE9IWnM5U2xyYnZXMnF6WXRsVHZwRGtlclNxUFJrcGlPcGRFaXI2TW5wZUpqTnhtNHB5N29kTUlldnllYXRGbWtXUFRUNm9ldFlUOXowcnB3emJYeGdRNTJ1UVNOSFI5NlVqdGV6YnBJSTh6RU1uN2I0OERZckY1SmZxR3RwbXM1aVUyY3RWTXE2UWVjaXhrZjIvZEZqOVcrc3RqS0NDbUFKUURUUTRZcTFObGR2bm80OG1UZEs2c3hBV29lTWpUZHBOZUI2MCtZYnp6WGI3ZVpjS2ZoMCtwRWN0UkFsWC9XV0EzaDRjb1pwT1dVZzZXejI2WkhtMVNTQll1WEtmYXpsQmhyNUMza3pRcy8zM1BlVW4xd2Q2VFk4dEduVUlxVURLclhUU3ZJS2xlSk9aOWRaYzBOZldEQmdBaXZ2NEkxa09pcHkwdmhpUnphc3ZkczAyOGtPbHlDTFlmUkdyaXYvTS9tUXVxTjl4TzN2VXFtTE9OM2ltZWQ1SGxKNHNVM294ZE5lZGJMN2JvcnNxUEV6ZEVIKy9vNWFGUnI3VnBEOURVWHozZUFyeE9zZU13RHRFdzRTaDR3R1hXNS9FWEVNcXpOM0xwbkFDeHhuRlZIemxLeGM4aHB6a2ZxM1U4NGl1K2hMdE11RVBaamNVdHlWbFVXL0tvazBXUkVpcWVsQUZLcTljQmJUcWJPdy9kZXgzanNLWVIvckNPY3MvcDV6N0lpalIvcDBWbnk5TWp1U2U0U2V0b3djdStFUm9GUzFudW90U1ROIzExOSNkOTYzNzA0ZDk1NTdiODhlMjJhYWJlYjNmMzJjZDA3Nw==\",\"data\":\"JRMmbUseGiM6eQ4LaxVYLx32sUc6EyJfYRA4MlBCDPQgclpB/24VVyx4AK1qL+ksP1FoEwpQJ229/9gCqZA8AoswNlp9L0UPC07tEHBWYVhZOy0lQs9LIuVqNH9xGWPVpShRCh8WNi4eeEoyZGY28h+zdokDk9hbE1BJTaLWjK1KpiBUFiVpTEhefg1bRjg71Flk+x9SfSU+cB15wB9UAVNydxoYuBgbK1lQewIicctfr3JTCci1Xv9rtSsoYJUiaS55ZDlBLnh2WRo9XG05JA57Ly8IT2UVqiBuT9dHcdcubW9BgDh+l2Jg4gNoU2WSAgHRZWUwNyB/PdZ9L1tRVHkeLQW1OT1RV3xJb784Z0JAY2ozCawXcgUGR3pfQAlVDKJQ0nw7ttA7/gT35RIEpd7jJ/kNP6314kJXxpC/U3eyV08JQjqMeQ1kv1IaICsVaW1BCg==\"}"
-    }
-    
-    resp = safe_request("POST", url, proxy, headers=headers, json=payload, timeout=10)
-    
-    if resp and resp.status_code == 200:
-        data = resp.json()
-        return data.get("code") == 200 and "success" in data.get("msg", "").lower()
-    return False
 
 def login_vmos(email, code, proxy, invite_code=None, user_agent=None):
     ua = user_agent if user_agent else get_random_ua()
@@ -547,23 +813,16 @@ def check_buff_status(token, userid, proxy):
         "origin": "https://cloud.vmoscloud.com", "referer": "https://cloud.vmoscloud.com/",
         "User-Agent": ua, "appversion": "1008424", "clienttype": "web"
     }
-    # Cập nhật logic: In log debug nếu lấy về 0 hoặc lỗi
     for _ in range(2):
         try:
-            # Ưu tiên POST theo document chuẩn nếu có, hoặc thử GET nếu POST không về data
-            # Thực tế API này thường là POST với body rỗng hoặc GET đều được
-            
-            # Thử POST trước
             resp = safe_request("POST", url, proxy, headers=headers, json={})
             
             if resp and resp.status_code == 200:
                 data = resp.json()
                 if data.get("code") == 200:
                     d_obj = data.get("data") or {}
-                    # Log để debug nếu cần thiết: print(f"DEBUG Assets: {d_obj}")
                     return d_obj.get("assetsNum", 0)
             
-            # Nếu POST không được, thử GET
             resp = safe_request("GET", url, proxy, headers=headers)
             if resp and resp.status_code == 200:
                 data = resp.json()
@@ -572,7 +831,6 @@ def check_buff_status(token, userid, proxy):
                     return d_obj.get("assetsNum", 0)
                     
         except Exception as e:
-            # print(f"Lỗi check buff: {e}")
             pass
         time.sleep(1)
     return 0
@@ -631,7 +889,6 @@ def fetch_codes_as_dict(token, userid, proxy):
         return grouped
     except: return None
 
-# BỔ SUNG HÀM GET INVITE CODE BỊ THIẾU
 def get_invite_code_vmos(token, userid, proxy):
     ua = get_random_ua()
     agent_info_url = "https://api.vsphone.com/vsphone/api/agentUser/agentUserInfo"
@@ -678,25 +935,22 @@ async def task_worker(invite_code, update_callback=None):
             # LOG STEP 1: Lấy Mail (Mail.tm) - DÙNG PROXY
             print(f"[{worker_id}] 🌐 [PROXY] Get Email (Mail.tm)...")
             
-            # Unpack tuple: email string, jwt token
             email_data = await asyncio.to_thread(get_temp_email, proxy)
-            # Kiểm tra xem có dữ liệu trả về không
             email, mail_token = email_data if email_data else (None, None)
             
             if not email:
-                # Log đã in ở get_temp_email
                 proxy_manager.mark_bad(proxy)
                 continue 
 
             if update_callback:
-                await update_callback(f"📩 Đang gửi mã OTP về {email}...")
+                await update_callback(f"📩 Đang gửi mã OTP về {email} qua Browser...")
             
-            # LOG STEP 2: Gửi OTP (Dùng Proxy)
-            print(f"[{worker_id}] 📤 [PROXY] Gửi OTP tới {email}...")
-            sent = await asyncio.to_thread(send_code_vmos, email, proxy, current_ua)
+            # LOG STEP 2: Gửi OTP (Dùng Playwright Browser để bypass Captcha)
+            print(f"[{worker_id}] 📤 [PROXY] Gửi OTP tới {email} bằng Playwright...")
+            sent = await send_with_browser(email, proxy, worker_id)
             
             if not sent:
-                print(f"[{worker_id}] ❌ [SEND-FAIL] Lỗi gửi mã.")
+                print(f"[{worker_id}] ❌ [SEND-FAIL] Lỗi giải mã Captcha hoặc gửi mã thất bại.")
                 proxy_manager.mark_bad(proxy)
                 continue
             
@@ -731,7 +985,6 @@ async def task_worker(invite_code, update_callback=None):
                 "proxy_used": proxy
             }
         except Exception as e:
-            # print(f"[{worker_id}] 💥 [CRASH] {e}") 
             proxy_manager.mark_bad(proxy)
             continue
 
@@ -922,7 +1175,8 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
             await msg.edit(embed=embed_run)
 
             total_proxies = proxy_manager.get_count()
-            concurrency = min(total_proxies, 40)
+            # ĐÃ CHỈNH SỬA: Giới hạn tối đa 10 luồng theo yêu cầu chống Crash
+            concurrency = min(total_proxies, 10)
             semaphore = asyncio.Semaphore(concurrency)
             
             current_assets_num = 0
