@@ -6,13 +6,14 @@
 # 3. Quản lý Config: Token đọc từ file local.
 # 4. Anti-Rate Limit: Cơ chế cập nhật tin nhắn Discord chậm (10s/lần).
 # 5. Logging: Xuất log chi tiết.
-# 6. Sửa lỗi check_buff_status: Debug chi tiết phản hồi API.aaaaaaaaaaaaaaaaaaaaaaaa
+# 6. Sửa lỗi check_buff_status: Debug chi tiết phản hồi API.
 # 7. UPDATE: Bypass Captcha Slider bằng Playwright Sync + OpenCV khi gửi OTP.
 # 8. UPDATE: Xóa toàn bộ logic Proxy để nhường chỗ cho VPN.
 # 9. UPDATE: Nâng cấp lấy mail sang Temp-Mail.io siêu tốc độ.
 # 10. UPDATE: Trả về Anti-Detect nguyên bản, soi chính xác trạng thái đếm ngược 59s.
 # 11. UPDATE: Phân tách Host_Threads (Đua lấy nick chủ) và Buff_Threads (Cày điểm).
 # 12. UPDATE: Human Easing Trajectory (Quỹ đạo chuột người thật) & WebGL/OS Spoofing (Vá vân tay siêu cấp).
+# 13. UPDATE: Chuẩn hóa 100% logic Temp-mail từ VSCode & Thêm từ khóa Retrieve.
 
 import discord
 from discord.ext import commands
@@ -285,44 +286,48 @@ def safe_request(method, url, **kwargs):
         raise e
 
 # ==============================================================
-# ==>> TEMP-MAIL.IO LOGIC <<==
+# ==>> TEMP-MAIL.IO LOGIC (ĐÃ CHUẨN HÓA 100% VSCODE) <<==
 # ==============================================================
 
 def get_temp_email():
     """
-    Tạo email từ temp-mail.io.
+    Tạo email từ temp-mail.io dựa đúng trên mã gốc
     """
     url = "https://api.internal.temp-mail.io/api/v3/email/new"
-    ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
     headers = {
-        "Accept": "application/json, text/plain, */*",
-        "Accept-Language": "en-US,en;q=0.9,vi;q=0.8",
+        "Content-Type": "application/json;charset=UTF-8",
         "Application-Name": "web",
         "Application-Version": "2.4.2",
-        "Content-Type": "application/json;charset=UTF-8",
-        "User-Agent": ua
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
     }
     try:
-        response = requests.post(url, headers=headers, timeout=15, verify=False)
-        response.raise_for_status()
-        data = response.json()
-        return data.get("email"), None  # Trả về None thay vì token để tương thích logic cũ
+        response = requests.post(url, headers=headers, timeout=10, verify=False)
+        if response.status_code == 200:
+            return response.json().get("email"), None  # Trả về None thay vì token để tương thích logic cũ
+        else:
+            print(f"   [TEMP-MAIL] ❌ Lỗi tạo email: {response.status_code}")
     except Exception as e:
-        print(f"   [TEMP-MAIL] 🔥 Exception: {e}")
-        return None, None
+        print(f"   [TEMP-MAIL] ❌ Lỗi kết nối Temp-mail: {e}")
+    return None, None
 
 def get_code_from_email(mail_token, email, thread_id="1"):
     if not email:
         return None
     
     url = f"https://api.internal.temp-mail.io/api/v3/email/{email}/messages"
+    headers = {
+        "Content-Type": "application/json;charset=UTF-8",
+        "Application-Name": "web",
+        "Application-Version": "2.4.2",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
+    }
     print(f"[Luồng {thread_id}] ⏳ Bắt đầu quét hộp thư temp-mail.io (Sẽ thử trong vòng 100s)...")
     
     for i in range(20):
         try:
-            r = requests.get(url, timeout=15, verify=False)
-            if r.status_code == 200:
-                messages = r.json()
+            response = requests.get(url, headers=headers, timeout=10, verify=False)
+            if response.status_code == 200:
+                messages = response.json()
                 if messages:
                     for msg in reversed(messages):
                         body_text = msg.get("body_text", "")
@@ -506,15 +511,15 @@ def auto_drag_slider(page, thread_id="1", stop_event=None):
         # 1. Kiểm tra trạng thái nút Get Code
         try:
             btn_locator = page.locator("#get-captcha-code")
-            btn_text = btn_locator.inner_text(timeout=3000)
+            btn_text = btn_locator.inner_text(timeout=3000).lower()
             
-            # Nếu đang có số (đếm ngược 59s) -> Thành công
-            if "s" in btn_text.lower() and any(c.isdigit() for c in btn_text):
-                print(f"[Luồng {thread_id}] ✅ Nút đếm ngược ({btn_text.strip()}) xuất hiện! SMS ĐÃ GỬI THÀNH CÔNG.")
+            # Nếu nút chứa chữ 'retrieve' hoặc đếm ngược (vd 59s) -> Thành công
+            if "retrieve" in btn_text or ("s" in btn_text and any(c.isdigit() for c in btn_text)):
+                print(f"[Luồng {thread_id}] ✅ Nút xác nhận ({btn_text.strip()}) xuất hiện! SMS ĐÃ GỬI THÀNH CÔNG.")
                 return True
                 
             # Nếu hiện Get Code -> Bấm
-            if "Get code" in btn_text or "Get Code" in btn_text:
+            if "get code" in btn_text:
                 print(f"[Luồng {thread_id}] 🔎 Tiến hành click nút 'Get code'...")
                 btn_locator.click(timeout=3000)
                 time.sleep(2)
@@ -523,11 +528,11 @@ def auto_drag_slider(page, thread_id="1", stop_event=None):
 
         # 2. Xử lý logic chờ Popup hoặc Loading
         if not page.locator("#aliyunCaptcha-window-popup").is_visible():
-            # Kiểm tra xem có đang xoay loading hay đếm ngược không
+            # Kiểm tra xem có đang xoay loading hay không
             try:
-                btn_text = page.locator("#get-captcha-code").inner_text(timeout=1000)
-                if "s" in btn_text.lower() and any(c.isdigit() for c in btn_text):
-                    print(f"[Luồng {thread_id}] ✅ Nút đếm ngược ({btn_text.strip()})! SMS ĐÃ GỬI THÀNH CÔNG.")
+                btn_text = page.locator("#get-captcha-code").inner_text(timeout=1000).lower()
+                if "retrieve" in btn_text or ("s" in btn_text and any(c.isdigit() for c in btn_text)):
+                    print(f"[Luồng {thread_id}] ✅ Nút xác nhận ({btn_text.strip()})! SMS ĐÃ GỬI THÀNH CÔNG.")
                     return True
                 if btn_text.strip() == "":
                     print(f"[Luồng {thread_id}] ⏳ Hệ thống đang xử lý (Xoay Loading)... Đợi 3s...")
@@ -612,11 +617,11 @@ def auto_drag_slider(page, thread_id="1", stop_event=None):
                         return False
                         
                     try:
-                        btn_text = page.locator("#get-captcha-code").inner_text(timeout=1000)
-                        if "s" in btn_text.lower() and any(c.isdigit() for c in btn_text):
-                            print(f"[Luồng {thread_id}] ✅ Đã thấy đếm ngược ({btn_text.strip()})! SMS ĐÃ GỬI THÀNH CÔNG.")
+                        btn_text = page.locator("#get-captcha-code").inner_text(timeout=1000).lower()
+                        if "retrieve" in btn_text or ("s" in btn_text and any(c.isdigit() for c in btn_text)):
+                            print(f"[Luồng {thread_id}] ✅ Đã thấy xác nhận ({btn_text.strip()})! SMS ĐÃ GỬI THÀNH CÔNG.")
                             return True
-                        elif "Get code" in btn_text or "Get Code" in btn_text:
+                        elif "get code" in btn_text:
                             print(f"[Luồng {thread_id}] ❌ Bị WAF chặn SMS. Nút đã nhả về 'Get code'. Đang thử lại...")
                             break # Thoát vòng lặp đợi để làm lại Attempt mới
                     except Exception:
@@ -1275,7 +1280,7 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
 
 if __name__ == "__main__":
     print("==========================================")
-    print("🚀 VMOS BOT ULTIMATE - PHIÊN BẢN 1.11 - WAF BYPASS (EASING & STEALTH)")
+    print("🚀 VMOS BOT ULTIMATE - PHIÊN BẢN 1.12 - TEMP-MAIL EXACT & RETRIEVE")
     print("==========================================")
     print("🚀 Đang khởi động Bot...")
     token_local = load_local_token()
