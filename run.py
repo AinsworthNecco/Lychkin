@@ -8,7 +8,7 @@
 # 5. Logging: Xuất log chi tiết.
 # 6. Luồng: Giới hạn 50 luồng.ab
 # 7. Sửa lỗi check_buff_status: Debug chi tiết phản hồi API.
-# 8. UPDATE: Bypass Captcha Slider bằng Playwright Sync + OpenCV khi gửi OTP.
+# 8. UPDATE: Bypass Captcha Slider bằng Playwright Sync + OpenCV khi gửi OTP.aaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
 import discord
 from discord.ext import commands
@@ -634,11 +634,11 @@ def auto_drag_slider(page, thread_id="1"):
                     
                 print(f"[Luồng {thread_id}] ⏳ Đang đợi Captcha xuất hiện...")
                 try:
-                    # Chờ Captcha xuất hiện tối đa 15 giây (dành cho Proxy lag)
-                    popup_locator.wait_for(state="visible", timeout=15000)
+                    # Chờ Captcha xuất hiện tối đa 60 giây (dành cho Proxy lag)
+                    popup_locator.wait_for(state="visible", timeout=60000)
                     print(f"[Luồng {thread_id}] 🎯 Đã tìm thấy Captcha!")
                 except Exception:
-                    print(f"[Luồng {thread_id}] ❌ Không thấy Captcha sau 15s (Do mạng Proxy lag). Sẽ thử lại!")
+                    print(f"[Luồng {thread_id}] ❌ Không thấy Captcha sau 60s (Do mạng Proxy lag). Sẽ thử lại!")
                     continue
             
             if not popup_locator.is_visible():
@@ -1381,6 +1381,9 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
         traceback.print_exc()
 
 if __name__ == "__main__":
+    print("==========================================")
+    print("🚀 VMOS BOT ULTIMATE - PHIÊN BẢN 1.0")
+    print("==========================================")
     print("🚀 Đang khởi động Bot...")
     token_local = load_local_token()
     proxies_list = fetch_proxies_from_github()
