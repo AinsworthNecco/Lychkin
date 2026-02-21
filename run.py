@@ -6,12 +6,13 @@
 # 3. Quản lý Config: Token đọc từ file local.
 # 4. Anti-Rate Limit: Cơ chế cập nhật tin nhắn Discord chậm (10s/lần).
 # 5. Logging: Xuất log chi tiết.
-# 6. Sửa lỗi check_buff_status: Debug chi tiết phản hồi API.
+# 6. Sửa lỗi check_buff_status: Debug chi tiết phản hồi API.aaaaaaaaaaaaaaaaaaaaaaaa
 # 7. UPDATE: Bypass Captcha Slider bằng Playwright Sync + OpenCV khi gửi OTP.
 # 8. UPDATE: Xóa toàn bộ logic Proxy để nhường chỗ cho VPN.
 # 9. UPDATE: Nâng cấp lấy mail sang Temp-Mail.io siêu tốc độ.
 # 10. UPDATE: Trả về Anti-Detect nguyên bản, soi chính xác trạng thái đếm ngược 59s.
 # 11. UPDATE: Phân tách Host_Threads (Đua lấy nick chủ) và Buff_Threads (Cày điểm).
+# 12. UPDATE: Human Easing Trajectory (Quỹ đạo chuột người thật) & WebGL/OS Spoofing (Vá vân tay siêu cấp).
 
 import discord
 from discord.ext import commands
@@ -62,13 +63,12 @@ CONFIG = {
     "EXECUTABLE_PATH": "/usr/bin/chromium"
 }
 
-# Danh sách User-Agent (Dùng cho VMOS khi call API Login)
+# Danh sách User-Agent (Chuẩn hóa 100% sang Windows để khớp với Fingerprint Win32)
 USER_AGENTS_LIST = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/121.0.0.0"
 ]
 
@@ -409,13 +409,51 @@ def find_puzzle_gap_raw(bg_path, piece_path, thread_id="1"):
     return max_loc[0], 0, 0, 40, 40, max_loc[0], 0
 
 def feedback_loop_drag(page, start_x, start_y, target_piece_x, thread_id="1"):
+    """
+    THUẬT TOÁN KÉO CHUỘT NGƯỜI THẬT (HUMAN EASING TRAJECTORY)
+    - Đầu kéo nhanh, giữa trượt mượt, cuối chậm lại.
+    - Trục Y đi theo hình vòng cung nhẹ.
+    - Cố tình kéo lố (Overshoot) qua mục tiêu một chút rồi giật lùi về.
+    """
     page.mouse.move(start_x, start_y)
     page.mouse.down()
     time.sleep(random.uniform(0.1, 0.2)) 
     
-    current_mouse_x = start_x
+    # 1. Kéo có gia tốc (Ease-out) và cố tình kéo lố (Overshoot)
+    overshoot = random.uniform(2, 6) # Kéo lố từ 2 đến 6 pixel
+    actual_target_x = target_piece_x + overshoot
     
-    for _ in range(200): 
+    steps = random.randint(35, 55) # Tổng số bước của giai đoạn 1
+    current_x = start_x
+    
+    for i in range(steps):
+        t = i / steps
+        # Hàm EaseOutQuart: Làm mượt gia tốc giảm dần (càng gần đích càng chậm)
+        ease_t = 1 - (1 - t)**4 
+        
+        current_x = start_x + (actual_target_x * ease_t)
+        # Tạo vòng cung cho trục Y bằng hàm sin
+        curve_y = start_y + math.sin(t * math.pi) * random.uniform(-2, 2) + random.uniform(-0.5, 0.5)
+        
+        page.mouse.move(current_x, curve_y)
+        time.sleep(random.uniform(0.01, 0.03)) # Trễ siêu ngắn mô phỏng thao tác miết chuột
+        
+    time.sleep(random.uniform(0.1, 0.25)) # Khựng lại một nhịp khi nhận ra mình kéo lố
+    
+    # 2. Giật lùi về đúng vị trí (Correcting Overshoot)
+    back_steps = random.randint(5, 12)
+    for i in range(back_steps):
+        t = i / back_steps
+        ease_t = 1 - (1 - t)**2 # EaseOutQuad cho lúc giật lùi
+        current_x = (start_x + actual_target_x) - (overshoot * ease_t)
+        curve_y = start_y + random.uniform(-0.5, 0.5)
+        
+        page.mouse.move(current_x, curve_y)
+        time.sleep(random.uniform(0.02, 0.04))
+
+    # 3. Dò dẫm (Micro-adjustments) để đưa mảnh ghép khớp 100% bằng DOM feedback
+    current_mouse_x = current_x
+    for _ in range(15): 
         piece_left_str = page.evaluate(r"""() => {
             let el = document.getElementById('aliyunCaptcha-puzzle');
             if (!el) return '0';
@@ -437,20 +475,14 @@ def feedback_loop_drag(page, start_x, start_y, target_piece_x, thread_id="1"):
             print(f"[Luồng {thread_id}] 🎯 Mảnh ghép đã ăn khớp hoàn hảo (Sai số: {distance_left:.2f}px). Chốt sổ!")
             break
             
+        step = random.uniform(0.5, 1.5)
         if distance_left > 0:
-            if distance_left > 40:
-                step = random.uniform(6, 12) 
-            elif distance_left > 10:
-                step = random.uniform(2, 5)
-            else:
-                step = random.uniform(0.5, 1.5)
             current_mouse_x += step
         else:
-            step = random.uniform(0.5, 1.5)
             current_mouse_x -= step
             
-        page.mouse.move(current_mouse_x, start_y + random.uniform(-1, 1))
-        time.sleep(random.uniform(0.02, 0.04))
+        page.mouse.move(current_mouse_x, start_y + random.uniform(-0.5, 0.5))
+        time.sleep(random.uniform(0.02, 0.05))
 
     time.sleep(random.uniform(0.4, 0.7)) 
     page.mouse.up()
@@ -556,7 +588,7 @@ def auto_drag_slider(page, thread_id="1", stop_event=None):
                 time.sleep(1)
                 continue
 
-            print(f"[Luồng {thread_id}] 🖱️ Đang giải Captcha (Kéo thanh trượt)...")
+            print(f"[Luồng {thread_id}] 🖱️ Đang giải Captcha (Kéo thanh trượt bằng Human-Easing)...")
             margin_x = slider_box["width"] * 0.2
             margin_y = slider_box["height"] * 0.2
             start_x = slider_box["x"] + random.uniform(margin_x, slider_box["width"] - margin_x)
@@ -596,6 +628,8 @@ def send_with_browser(email, thread_id="1", stop_event=None):
 
     temp_profile_dir = tempfile.mkdtemp(prefix=f"vmos_profile_{thread_id}_")
     is_success = False
+    
+    current_ua = get_random_ua()
 
     try:
         with sync_playwright() as p:
@@ -606,6 +640,7 @@ def send_with_browser(email, thread_id="1", stop_event=None):
                 "device_scale_factor": 1,
                 "has_touch": False,
                 "is_mobile": False,
+                "user_agent": current_ua,
                 "args": [
                     '--disable-blink-features=AutomationControlled', 
                     '--disable-infobars',                            
@@ -631,11 +666,29 @@ def send_with_browser(email, thread_id="1", stop_event=None):
             context = p.chromium.launch_persistent_context(**launch_args)
             
             try:
-                # SCRIPT ẨN DANH (Y HỆT BẢN HOẠT ĐỘNG TỐT CỦA BẠN)
+                # =========================================================
+                # BỘ SCRIPT VÁ VÂN TAY (ULTIMATE STEALTH) DÀNH CHO LINUX/VPS
+                # Ép thông số về chuẩn Windows/PC mạnh để qua mặt WAF Aliyun
+                # =========================================================
                 context.add_init_script("""
                     Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+                    Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
                     Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+                    Object.defineProperty(navigator, 'platform', { get: () => 'Win32' });
+                    Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 });
+                    Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
                     window.chrome = { runtime: {} };
+                    
+                    const getParameter = WebGLRenderingContext.prototype.getParameter;
+                    WebGLRenderingContext.prototype.getParameter = function(parameter) {
+                        if (parameter === 37445) { // UNMASKED_VENDOR_WEBGL
+                            return 'Google Inc. (Intel)';
+                        }
+                        if (parameter === 37446) { // UNMASKED_RENDERER_WEBGL
+                            return 'ANGLE (Intel(R) UHD Graphics 620 Direct3D11 vs_11_0 ps_11_0)';
+                        }
+                        return getParameter.call(this, parameter);
+                    };
                 """)
                 
                 page = context.pages[0] if context.pages else context.new_page()
@@ -1057,7 +1110,12 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
             init_embed.description = f"🔄 Đang đua {CONFIG['HOST_THREADS']} luồng để tạo Host..."
             msg = await ctx.send(embed=init_embed)
 
-            # 1. ĐUA LUỒNG (RACING) ĐỂ TẠO TÀI KHOẢN HOST
+            async def update_host_status(status_msg):
+                init_embed.description = status_msg
+                try: await msg.edit(embed=init_embed)
+                except: pass
+
+            # 1. TẠO TÀI KHOẢN (API + CAPTCHA)
             print(f"[HOST] 🚀 Bắt đầu tạo Host Account bằng {CONFIG['HOST_THREADS']} luồng đua...")
             stop_host_event = asyncio.Event()
             host_acc_box = []
@@ -1217,7 +1275,7 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
 
 if __name__ == "__main__":
     print("==========================================")
-    print("🚀 VMOS BOT ULTIMATE - PHIÊN BẢN 1.10 - HOST RACING & BUFF CONCURRENCY")
+    print("🚀 VMOS BOT ULTIMATE - PHIÊN BẢN 1.11 - WAF BYPASS (EASING & STEALTH)")
     print("==========================================")
     print("🚀 Đang khởi động Bot...")
     token_local = load_local_token()
