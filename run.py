@@ -6,10 +6,11 @@
 # 3. Quản lý Config: Token đọc từ file local.
 # 4. Anti-Rate Limit: Cơ chế cập nhật tin nhắn Discord chậm (10s/lần).
 # 5. Logging: Xuất log chi tiết.
-# 6. Luồng: Giới hạn 3 luồng đồng thời chống crash.
+# 6. Luồng: Tùy chỉnh qua CONFIG ở đầu file.
 # 7. Sửa lỗi check_buff_status: Debug chi tiết phản hồi API.
 # 8. UPDATE: Bypass Captcha Slider bằng Playwright Sync + OpenCV khi gửi OTP.
 # 9. UPDATE: Xóa toàn bộ logic Proxy để nhường chỗ cho VPN.
+# 10. UPDATE: Nâng cấp hàm đọc Mail.tm (Kiên nhẫn 100s, lọc OTP cực chuẩn).
 
 import discord
 from discord.ext import commands
@@ -54,9 +55,9 @@ THUMBNAIL_URL = "https://i.pinimg.com/1200x/c0/d1/59/c0d1591ce31488b9f71313326dc
 
 MAIL_TM_BASE = "https://api.mail.tm"
 
-# CONFIG DÀNH CHO CAPTCHA SOLVER
+# CONFIG DÀNH CHO CAPTCHA SOLVER & MULTI-THREADING
 CONFIG = {
-    "NUM_THREADS": 1,
+    "NUM_THREADS": 1,           # <--- Tạm để 1 luồng cho máy yếu tránh lỗi Signal 9 / Timeout
     "HEADLESS": True,
     "EXECUTABLE_PATH": "/usr/bin/chromium"
 }
@@ -335,7 +336,7 @@ def get_temp_email():
         
     return None, None
 
-def get_code_from_email(mail_token, email):
+def get_code_from_email(mail_token, email, thread_id="1"):
     if not mail_token:
         return None
     
@@ -343,7 +344,9 @@ def get_code_from_email(mail_token, email):
         "Authorization": f"Bearer {mail_token}"
     }
     
-    for _ in range(10):
+    print(f"[Luồng {thread_id}] ⏳ Bắt đầu quét hộp thư (Sẽ thử trong vòng 100s)...")
+    # Tăng lên 20 lần thử x 5s = 100s. VMOS gửi mail đôi khi bị delay mạng
+    for i in range(20):
         try:
             r = requests.get(f"{MAIL_TM_BASE}/messages", headers=headers, timeout=20, verify=False)
             
@@ -351,28 +354,32 @@ def get_code_from_email(mail_token, email):
                 data = r.json()
                 if data.get("hydra:totalItems", 0) > 0:
                     msg = data["hydra:member"][0]
-                    
-                    # QUÉT TOÀN BỘ NỘI DUNG (Subject, Intro, HTML Body)
                     msg_id = msg.get("id")
                     
-                    # Gọi chi tiết tin nhắn để lấy HTML
+                    # Gọi chi tiết tin nhắn để lấy nội dung
                     r_detail = requests.get(f"{MAIL_TM_BASE}/messages/{msg_id}", headers=headers, timeout=20, verify=False)
                     
                     full_content = ""
                     if r_detail.status_code == 200:
                         detail = r_detail.json()
-                        full_content = str(detail.get("html", "")) + " " + str(detail.get("text", "")) + " " + str(detail.get("bodyHtmlContent", ""))
+                        # Ưu tiên lấy text thuần, tránh HTML để không bị bắt nhầm mã màu #123456
+                        full_content = str(detail.get("text", "")) + " " + str(detail.get("intro", "")) + " " + str(detail.get("subject", ""))
                     else:
-                        # Fallback nếu không gọi được detail
                         full_content = str(msg.get("subject", "")) + " " + str(msg.get("intro", ""))
                     
-                    match = re.search(r"\b(\d{6})\b", full_content)
+                    # Regex tìm đúng 6 số đứng độc lập (không bị dính chữ cái hoặc số khác)
+                    match = re.search(r"(?<!\d)(\d{6})(?!\d)", full_content)
                     if match:
-                        return match.group(1)
-
-        except:
-            pass
-        time.sleep(3)
+                        code_found = match.group(1)
+                        print(f"[Luồng {thread_id}] 💌 Đã thấy mã OTP: {code_found}")
+                        return code_found
+                    else:
+                        pass # Thư đã đến nhưng chứa thông báo khác hoặc chưa bóc được OTP
+        except requests.exceptions.RequestException:
+            pass # Lỗi timeout API Mail.tm, bỏ qua để vòng lặp chạy tiếp
+        
+        time.sleep(5)
+        
     return None
 
 # ==============================================================
@@ -898,7 +905,7 @@ async def task_worker(invite_code, update_callback=None):
             
             # LOG STEP 3: Lấy Code 
             print(f"[{worker_id}] ⏳ Check inbox (Full Body)...")
-            code = await asyncio.to_thread(get_code_from_email, mail_token, email)
+            code = await asyncio.to_thread(get_code_from_email, mail_token, email, worker_id)
             
             if not code:
                 print(f"[{worker_id}] ❌ [TIMEOUT] Không thấy code.")
@@ -1103,7 +1110,7 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
             await msg.edit(embed=embed_run)
 
             # GIẢM CONCURRENCY XUỐNG ĐỂ TRÁNH TRÀN RAM GÂY LỖI SIGNAL 9 (TERMUX/VPS NHỎ)
-            concurrency = 3 # Max 3 trình duyệt Chromium mở cùng lúc
+            concurrency = CONFIG["NUM_THREADS"] # Lấy từ cấu hình NUM_THREADS ở đầu file
             semaphore = asyncio.Semaphore(concurrency)
             
             current_assets_num = 0
@@ -1207,7 +1214,7 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
 
 if __name__ == "__main__":
     print("==========================================")
-    print("🚀 VMOS BOT ULTIMATE - PHIÊN BẢN 1.2 - VPN (NO PROXY)")
+    print("🚀 VMOS BOT ULTIMATE - PHIÊN BẢN 1.4 - FIX MAIL OTP")
     print("==========================================")
     print("🚀 Đang khởi động Bot...")
     token_local = load_local_token()
