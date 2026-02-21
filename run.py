@@ -8,7 +8,7 @@ import concurrent.futures
 import tempfile
 import shutil
 # YÊU CẦU CÀI ĐẶT TRƯỚC KHI CHẠY: 
-# pip install playwright opencv-python numpy requestsaaaaaa
+# pip install playwright opencv-python numpy requests
 # playwright install
 from playwright.sync_api import sync_playwright
 import cv2
@@ -117,6 +117,7 @@ def find_puzzle_gap_raw(bg_path, piece_path, thread_id="1"):
 
 # ========================================================
 # HÀM RÊ CHUỘT DÒ ĐƯỜNG THỜI GIAN THỰC (FEEDBACK LOOP DRAG)
+# Đã điều chỉnh chậm lại để ổn định hơn
 # ========================================================
 def feedback_loop_drag(page, start_x, start_y, target_piece_x, thread_id="1"):
     page.mouse.move(start_x, start_y)
@@ -150,24 +151,25 @@ def feedback_loop_drag(page, start_x, start_y, target_piece_x, thread_id="1"):
             
         if distance_left > 0:
             if distance_left > 40:
-                step = random.uniform(8, 15)
+                step = random.uniform(6, 12) # Chậm lại một chút so với bản cũ
             elif distance_left > 10:
-                step = random.uniform(3, 6)
+                step = random.uniform(2, 5)
             else:
-                step = random.uniform(0.5, 2)
+                step = random.uniform(0.5, 1.5)
             current_mouse_x += step
         else:
-            step = random.uniform(0.5, 2)
+            step = random.uniform(0.5, 1.5)
             current_mouse_x -= step
             
         page.mouse.move(current_mouse_x, start_y + random.uniform(-1, 1))
-        time.sleep(random.uniform(0.01, 0.02))
+        # Tăng delay lên 20-40ms mỗi bước để chuột đi đằm hơn, tránh kẹt do quá nhanh
+        time.sleep(random.uniform(0.02, 0.04))
 
     time.sleep(random.uniform(0.4, 0.7)) 
     page.mouse.up()
 
 # ========================================================
-# HÀM CHÍNH: XỬ LÝ CAPTCHA LIÊN TỤC 
+# HÀM CHÍNH: XỬ LÝ CAPTCHA LIÊN TỤC (CÓ FAIL-SAFE)
 # ========================================================
 def auto_drag_slider(page, thread_id="1"):
     print(f"[Luồng {thread_id}] 🤖 Đang tiến hành giải Captcha liên tục...")
@@ -180,6 +182,12 @@ def auto_drag_slider(page, thread_id="1"):
             return True
             
         attempt += 1
+        
+        # CƠ CHẾ FAIL-SAFE: Quá 10 lần sai sẽ bỏ qua để làm lại
+        if attempt > 10:
+            print(f"\n[Luồng {thread_id}] ❌ Sai quá 10 lần liên tục. Hủy session này để làm lại từ đầu!")
+            return False
+
         print(f"\n[Luồng {thread_id}] 🔄 LẦN THỬ THỨ {attempt}:")
         try:
             if not page.locator("#aliyunCaptcha-window-popup").is_visible():
@@ -266,11 +274,13 @@ def auto_drag_slider(page, thread_id="1"):
 
 # ========================================================
 # HÀM MỞ TRÌNH DUYỆT (TỐI ƯU SIÊU NHẸ CHO TERMUX)
+# Trả về True nếu thành công, False nếu thất bại
 # ========================================================
 def send_with_browser(email, proxy_server=None, thread_id="1"):
     print(f"[Luồng {thread_id}] 📨 Bắt đầu với email: {email} | Proxy: {proxy_server}")
 
     temp_profile_dir = tempfile.mkdtemp(prefix=f"vmos_profile_{thread_id}_")
+    is_success = False
 
     try:
         with sync_playwright() as p:
@@ -338,9 +348,14 @@ def send_with_browser(email, proxy_server=None, thread_id="1"):
                     page.mouse.move(box["x"] + 10, box["y"] + 10, steps=5)
                     time.sleep(0.2)
 
-                auto_drag_slider(page, thread_id)
-                print(f"[Luồng {thread_id}] 🎉 Tự động hóa hoàn tất, đang đóng trình duyệt...")
+                # Chạy giải captcha, nếu fail quá 10 lần sẽ trả về False
+                is_success = auto_drag_slider(page, thread_id)
                 
+                if is_success:
+                    print(f"[Luồng {thread_id}] 🎉 Tự động hóa hoàn tất, đang đóng trình duyệt...")
+                else:
+                    print(f"[Luồng {thread_id}] ❌ Luồng bị gián đoạn do giải Captcha thất bại nhiều lần.")
+                    
             except Exception as e:
                 print(f"[Luồng {thread_id}] ❌ Lỗi xảy ra: {e}")
             finally:
@@ -350,19 +365,35 @@ def send_with_browser(email, proxy_server=None, thread_id="1"):
             shutil.rmtree(temp_profile_dir, ignore_errors=True)
             print(f"[Luồng {thread_id}] 🧹 Đã dọn dẹp sạch sẽ profile tạm thời.")
         except Exception as cleanup_error:
-            print(f"[Luồng {thread_id}] ⚠️ Lỗi khi dọn dẹp thư mục tạm: {cleanup_error}")
+            pass # Không cần in ra cảnh báo nếu dọn rác thất bại nhẹ
+            
+    return is_success
 
 # ========================================================
-# HÀM THỰC THI
+# HÀM THỰC THI (TỰ ĐỘNG LÀM LẠI NẾU FAIL)
 # ========================================================
 def worker_task(thread_id):
-    my_proxy = None
-    if CONFIG["PROXY_LIST"]:
-        my_proxy = random.choice(CONFIG["PROXY_LIST"])
-    
-    email = get_temp_email()
-    if email:
-        send_with_browser(email, proxy_server=my_proxy, thread_id=str(thread_id))
+    """Hàm đại diện cho 1 luồng làm việc. Sẽ lặp lại liên tục đến khi gửi thành công."""
+    while True:
+        print(f"\n[Luồng {thread_id}] 🟢 BẮT ĐẦU PHIÊN LÀM VIỆC MỚI...")
+        my_proxy = None
+        if CONFIG["PROXY_LIST"]:
+            my_proxy = random.choice(CONFIG["PROXY_LIST"])
+        
+        email = get_temp_email()
+        if email:
+            # Gửi SMS
+            success = send_with_browser(email, proxy_server=my_proxy, thread_id=str(thread_id))
+            
+            # Nếu thành công thì thoát vòng lặp (nghỉ ngơi)
+            if success:
+                print(f"[Luồng {thread_id}] 🏆 HOÀN THÀNH NHIỆM VỤ!")
+                break 
+            else:
+                print(f"[Luồng {thread_id}] 🔁 Thất bại, đang chuẩn bị reset và làm lại từ đầu...")
+        
+        # Nghỉ một chút trước khi làm lại vòng lặp để tránh bị Block IP
+        time.sleep(2)
 
 if __name__ == "__main__":
     threads = CONFIG["NUM_THREADS"]
