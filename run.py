@@ -8,7 +8,7 @@
 # 5. Logging: Xuất log chi tiết.
 # 6. Luồng: Giới hạn 50 luồng.ab
 # 7. Sửa lỗi check_buff_status: Debug chi tiết phản hồi API.
-# 8. UPDATE: Bypass Captcha Slider bằng Playwright Sync + OpenCV khi gửi OTP.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+# 8. UPDATE: Bypass Captcha Slider bằng Playwright Sync + OpenCV khi gửi OTP.
 
 import discord
 from discord.ext import commands
@@ -603,6 +603,8 @@ def auto_drag_slider(page, thread_id="1"):
     attempt = 0
     while True:
         get_code_btn = page.get_by_text("Get code", exact=True)
+        # Chờ 2s để đảm bảo trang đã load nút (tránh việc proxy lag báo nút biến mất quá sớm)
+        time.sleep(2)
         if not get_code_btn.is_visible():
             print(f"\n[Luồng {thread_id}] ✅ Nút 'Get code' đã biến mất! Chắc chắn SMS đã được gửi thành công.")
             return True
@@ -619,13 +621,17 @@ def auto_drag_slider(page, thread_id="1"):
             if not page.locator("#aliyunCaptcha-window-popup").is_visible():
                 print(f"[Luồng {thread_id}] 👉 Đang thử bấm nút 'Get code' để gọi Captcha...")
                 try:
-                    get_code_btn.click(timeout=3000)
-                    time.sleep(1)
-                except Exception:
+                    # Ép click kể cả khi bị che khuất và tăng thời gian đợi click lên 10s
+                    get_code_btn.click(timeout=10000, force=True)
+                    print(f"[Luồng {thread_id}] ⏳ Đang đợi Captcha tải (do Proxy mạng chậm)...")
+                    # Tăng thời gian chờ Captcha popup xuất hiện lên tối đa 15 giây
+                    page.locator("#aliyunCaptcha-window-popup").wait_for(state="visible", timeout=15000)
+                except Exception as e:
                     pass
             
             if not page.locator("#aliyunCaptcha-window-popup").is_visible():
-                time.sleep(1)
+                print(f"[Luồng {thread_id}] ⚠️ Captcha chưa xuất hiện do mạng lag. Đợi thêm...")
+                time.sleep(2)
                 continue
                 
             time.sleep(0.5) 
@@ -682,7 +688,8 @@ def auto_drag_slider(page, thread_id="1"):
                 feedback_loop_drag(page, start_x, start_y, target_piece_x, thread_id)
                 
                 print(f"[Luồng {thread_id}] ⏳ Chờ Web xác thực kết quả...")
-                time.sleep(2) 
+                # Tăng thời gian chờ Web xác nhận sau khi giải xong slider
+                time.sleep(3) 
                 
                 if page.locator("#aliyunCaptcha-window-popup").is_visible():
                     print(f"[Luồng {thread_id}] ⚠️ Bị WAF từ chối! Đang bấm đổi ảnh mới...")
@@ -758,17 +765,25 @@ def send_with_browser(email, proxy_server=None, thread_id="1"):
                 # CẬP NHẬT CHỐNG TIMEOUT: Đổi từ "networkidle" sang "domcontentloaded" và nới lỏng timeout
                 page.goto(target_url, wait_until="domcontentloaded", timeout=60000)
 
+                print(f"[Luồng {thread_id}] ⏳ Đang đợi trang web tải...")
                 page.get_by_text("Sign Up", exact=True).click(timeout=30000)
                 time.sleep(1)
 
                 email_input = page.locator("input[placeholder='Please enter your email address']").last
                 email_input.fill(email)
-                time.sleep(0.5)
+                
+                # Thao tác này giúp frontend nhận diện email hợp lệ nhanh hơn trước khi bấm nút
+                email_input.press("Tab") 
+                time.sleep(1)
 
                 box = email_input.bounding_box()
                 if box:
                     page.mouse.move(box["x"] + 10, box["y"] + 10, steps=5)
-                    time.sleep(0.2)
+                    page.mouse.click(box["x"] + 10, box["y"] + 10) # Click ra ngoài để unfocus
+                    time.sleep(0.5)
+
+                print(f"[Luồng {thread_id}] ⏳ Đợi nút 'Get code' sẵn sàng...")
+                page.get_by_text("Get code", exact=True).wait_for(state="visible", timeout=30000)
 
                 # Chạy giải captcha, nếu fail quá 3 lần sẽ trả về False
                 is_success = auto_drag_slider(page, thread_id)
