@@ -11,6 +11,7 @@
 # 8. UPDATE: Bypass Captcha Slider bằng Playwright Sync + OpenCV khi gửi OTP.
 # 9. UPDATE: Xóa toàn bộ logic Proxy để nhường chỗ cho VPN.
 # 10. UPDATE: Nâng cấp lấy mail sang Temp-Mail.io siêu tốc độ.
+# 11. UPDATE: Theo dõi chính xác phần tử #get-captcha-code, đợi đếm ngược 200s.
 
 import discord
 from discord.ext import commands
@@ -459,12 +460,13 @@ def auto_drag_slider(page, thread_id="1"):
     attempt = 0
     while True:
         try:
-            get_code_btn = page.get_by_text("Get code", exact=True)
-            if not get_code_btn.is_visible():
-                print(f"\n[Luồng {thread_id}] ✅ Thành công: Nút 'Get code' đã biến mất! SMS ĐÃ GỬI THÀNH CÔNG.")
+            # KIỂM TRA ĐẾM NGƯỢC: Nếu thẻ #get-captcha-code đang hiển thị số (vd 59s) -> Chắc chắn đã gửi SMS
+            btn_text = page.locator("#get-captcha-code").inner_text(timeout=2000)
+            if any(char.isdigit() for char in btn_text):
+                print(f"\n[Luồng {thread_id}] ✅ Thành công: Trạng thái đếm ngược ({btn_text.strip()}) xuất hiện! SMS ĐÃ GỬI THÀNH CÔNG.")
                 return True
         except Exception:
-            return True
+            pass
             
         attempt += 1
         
@@ -477,7 +479,8 @@ def auto_drag_slider(page, thread_id="1"):
             if not page.locator("#aliyunCaptcha-window-popup").is_visible():
                 print(f"[Luồng {thread_id}] 🔎 Tìm thấy nút 'Get code', tiến hành click...")
                 try:
-                    get_code_btn.click(timeout=3000)
+                    # Click thẳng vào element #get-captcha-code để chắc chắn hơn
+                    page.locator("#get-captcha-code").click(timeout=3000)
                 except Exception:
                     pass
                 
@@ -564,6 +567,27 @@ def auto_drag_slider(page, thread_id="1"):
                     time.sleep(0.5) 
                 else:
                     print(f"[Luồng {thread_id}] ✅ Thành công: Khung Captcha đã biến mất!")
+                    print(f"[Luồng {thread_id}] ⏳ Đang đợi API gửi SMS (Chờ đếm ngược xuất hiện, tối đa 200s)...")
+                    
+                    wait_start = time.time()
+                    sms_sent = False
+                    while time.time() - wait_start < 200:
+                        try:
+                            # Quét xem thẻ #get-captcha-code đã bắt đầu chứa số đếm ngược chưa (ví dụ 59s, 58)
+                            btn_text = page.locator("#get-captcha-code").inner_text(timeout=1000)
+                            if any(c.isdigit() for c in btn_text):
+                                print(f"[Luồng {thread_id}] ✅ Đã thấy đếm ngược ({btn_text.strip()})! Chắc chắn SMS đã được gửi.")
+                                sms_sent = True
+                                break
+                        except Exception:
+                            pass
+                        time.sleep(1)
+                    
+                    if sms_sent:
+                        return True
+                    else:
+                        print(f"[Luồng {thread_id}] ❌ Quá 200s không thấy đếm ngược. Đang thử lại quy trình...")
+                        continue
             
         except Exception as e:
              print(f"[Luồng {thread_id}] ⚠️ Lỗi trong lúc xử lý Web: {e}")
@@ -999,7 +1023,7 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
         
         if is_inf_mode:
             is_inf_running = True
-            print(f"\n[GENBUFF] BẮT ĐẦU CHẾ ĐỘ VÔ CỰC (INF) - TYPE: {display_type}")
+            print(f"\n[GENBUFF] BẮT CHẾ ĐỘ VÔ CỰC (INF) - TYPE: {display_type}")
         else:
             print(f"\n[GENBUFF] BẮT ĐẦU CHẾ ĐỘ GIỚI HẠN - {num_hosts} HOST - TYPE: {display_type}")
 
@@ -1170,7 +1194,7 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
 
 if __name__ == "__main__":
     print("==========================================")
-    print("🚀 VMOS BOT ULTIMATE - PHIÊN BẢN 1.5 - TEMP-MAIL.IO")
+    print("🚀 VMOS BOT ULTIMATE - PHIÊN BẢN 1.7 - ĐỢI 200S ĐẾM NGƯỢC CODE")
     print("==========================================")
     print("🚀 Đang khởi động Bot...")
     token_local = load_local_token()
