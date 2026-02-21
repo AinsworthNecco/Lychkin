@@ -5,14 +5,13 @@
 # 2. Mail API: TEMP-MAIL.IO (Không Proxy, dùng VPN/IP thật toàn bộ).
 # 3. Quản lý Config: Token đọc từ file local.
 # 4. Anti-Rate Limit: Cơ chế cập nhật tin nhắn Discord chậm (10s/lần).
-# 5. Logging: Xuất log chi tiết.
+# 5. Logging: Xuất log chi tiết.aaaaaaaaaaaaaaaaa
 # 6. Luồng: Tùy chỉnh qua CONFIG ở đầu file.
 # 7. Sửa lỗi check_buff_status: Debug chi tiết phản hồi API.
 # 8. UPDATE: Bypass Captcha Slider bằng Playwright Sync + OpenCV khi gửi OTP.
 # 9. UPDATE: Xóa toàn bộ logic Proxy để nhường chỗ cho VPN.
 # 10. UPDATE: Nâng cấp lấy mail sang Temp-Mail.io siêu tốc độ.
-# 11. UPDATE: Theo dõi chính xác phần tử #get-captcha-code, đợi đếm ngược 200s.
-# 12. UPDATE: Fix lỗi WAF Aliyun chặn SMS (Spinning loading) bằng Anti-Detect Browser.
+# 11. UPDATE: Trả về Anti-Detect nguyên bản, soi chính xác trạng thái đếm ngược 59s.
 
 import discord
 from discord.ext import commands
@@ -62,7 +61,7 @@ CONFIG = {
     "EXECUTABLE_PATH": "/usr/bin/chromium"
 }
 
-# Danh sách User-Agent (Dùng cho VMOS)
+# Danh sách User-Agent (Dùng cho VMOS khi call API Login)
 USER_AGENTS_LIST = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
@@ -368,7 +367,7 @@ def download_image(url, save_path):
         return False
 
 def find_puzzle_gap_raw(bg_path, piece_path, thread_id="1"):
-    print(f"[Luồng {thread_id}] 👁️ Đang phân tích ảnh bằng thuật toán Canny Edge & Y-Strip Search...")
+    print(f"[Luồng {thread_id}] 👁️ Đang phân tích ảnh bằng thuật toán Canny Edge...")
     bg_img = cv2.imread(bg_path)
     piece_img = cv2.imread(piece_path, cv2.IMREAD_UNCHANGED) 
     
@@ -460,148 +459,135 @@ def auto_drag_slider(page, thread_id="1"):
         
     attempt = 0
     while True:
-        try:
-            # KIỂM TRA ĐẾM NGƯỢC: Nếu thẻ #get-captcha-code đang hiển thị số (vd 59s) -> Chắc chắn đã gửi SMS
-            btn_text = page.locator("#get-captcha-code").inner_text(timeout=2000)
-            if any(char.isdigit() for char in btn_text):
-                print(f"\n[Luồng {thread_id}] ✅ Thành công: Trạng thái đếm ngược ({btn_text.strip()}) xuất hiện! SMS ĐÃ GỬI THÀNH CÔNG.")
-                return True
-        except Exception:
-            pass
-            
         attempt += 1
-        
         if attempt > 10:
             print(f"\n[Luồng {thread_id}] ❌ Fail: Sai quá 10 lần liên tục. Hủy session này để làm lại từ đầu!")
             return False
 
         print(f"\n[Luồng {thread_id}] 🔄 LẦN THỬ THỨ {attempt}:")
+        
+        # 1. Kiểm tra trạng thái nút Get Code
         try:
-            if not page.locator("#aliyunCaptcha-window-popup").is_visible():
-                print(f"[Luồng {thread_id}] 🔎 Tìm thấy nút 'Get code', tiến hành click...")
-                try:
-                    # Click thẳng vào element #get-captcha-code để chắc chắn hơn
-                    page.locator("#get-captcha-code").click(timeout=3000)
-                except Exception:
-                    pass
+            btn_locator = page.locator("#get-captcha-code")
+            btn_text = btn_locator.inner_text(timeout=3000)
+            
+            # Nếu đang có số (đếm ngược 59s) -> Thành công
+            if "s" in btn_text.lower() and any(c.isdigit() for c in btn_text):
+                print(f"[Luồng {thread_id}] ✅ Nút đếm ngược ({btn_text.strip()}) xuất hiện! SMS ĐÃ GỬI THÀNH CÔNG.")
+                return True
                 
-                print(f"[Luồng {thread_id}] ⏳ Đang đợi Captcha xuất hiện...")
-                time.sleep(2) 
-            
-            if not page.locator("#aliyunCaptcha-window-popup").is_visible():
-                print(f"[Luồng {thread_id}] ❌ Không thấy Captcha xuất hiện. Đang thử lại...")
-                continue
-                
-            print(f"[Luồng {thread_id}] 🎯 Đã tìm thấy Captcha!")
-            print(f"[Luồng {thread_id}] 🖼️ Đang tải và phân tích ảnh...")
-            time.sleep(0.5) 
-            
-            bg_locator = page.locator("#aliyunCaptcha-img")
-            piece_locator = page.locator("#aliyunCaptcha-puzzle")
-            slider_handle = page.locator("#aliyunCaptcha-sliding-slider")
-            
-            if not bg_locator.is_visible() or not piece_locator.is_visible():
-                print(f"[Luồng {thread_id}] ❌ Lỗi hiển thị mảnh ghép Captcha.")
-                continue
+            # Nếu hiện Get Code -> Bấm
+            if "Get code" in btn_text or "Get Code" in btn_text:
+                print(f"[Luồng {thread_id}] 🔎 Tiến hành click nút 'Get code'...")
+                btn_locator.click(timeout=3000)
+                time.sleep(2)
+        except Exception:
+            pass
 
-            bg_url = bg_locator.get_attribute("src")
-            piece_url = piece_locator.get_attribute("src")
-            
-            if not bg_url or not piece_url:
-                print(f"[Luồng {thread_id}] ❌ Lỗi không lấy được link ảnh gốc.")
-                continue
-                
-            bg_path = f"raw_bg_{thread_id}.png"
-            piece_path = f"raw_piece_{thread_id}.png"
-            
-            if not download_image(bg_url, bg_path) or not download_image(piece_url, piece_path):
-                print(f"[Luồng {thread_id}] ❌ Không thể tải ảnh từ Server.")
-                continue
-
-            # 2. TÍNH TOÁN OPENCV
-            target_raw_x, raw_x, raw_y, raw_w, raw_h, raw_tgt_x, raw_tgt_y = find_puzzle_gap_raw(bg_path, piece_path, thread_id)
-            
-            bg_img_raw = cv2.imread(bg_path)
-            raw_width = bg_img_raw.shape[1] if bg_img_raw is not None else 1
-            
-            if os.path.exists(bg_path): os.remove(bg_path)
-            if os.path.exists(piece_path): os.remove(piece_path)
-
-            # 3. QUY ĐỔI TỶ LỆ 
-            bg_box = bg_locator.bounding_box()
-            slider_box = slider_handle.bounding_box()
-            
-            if bg_box and slider_box:
-                scale = bg_box["width"] / raw_width 
-                target_piece_x = target_raw_x * scale
-                
-                print(f"[Luồng {thread_id}] 🎯 Lỗ trống ảnh gốc: {target_raw_x}px | Quãng đường Mảnh Ghép cần đi: {target_piece_x:.2f}px")
-                
-                if target_piece_x < 10:
-                    print(f"[Luồng {thread_id}] ⚠️ Lỗi tọa độ (<10px). Đang bấm đổi ảnh mới...")
-                    try:
-                        page.locator("#aliyunCaptcha-btn-refresh").click(timeout=3000)
-                    except: pass
-                    time.sleep(1)
+        # 2. Xử lý logic chờ Popup hoặc Loading
+        if not page.locator("#aliyunCaptcha-window-popup").is_visible():
+            # Kiểm tra xem có đang xoay loading hay đếm ngược không
+            try:
+                btn_text = page.locator("#get-captcha-code").inner_text(timeout=1000)
+                if "s" in btn_text.lower() and any(c.isdigit() for c in btn_text):
+                    print(f"[Luồng {thread_id}] ✅ Nút đếm ngược ({btn_text.strip()})! SMS ĐÃ GỬI THÀNH CÔNG.")
+                    return True
+                if btn_text.strip() == "":
+                    print(f"[Luồng {thread_id}] ⏳ Hệ thống đang xử lý (Xoay Loading)... Đợi 3s...")
+                    time.sleep(3)
                     continue
-
-                # 4. THỰC HIỆN RÊ CHUỘT DÒ ĐƯỜNG
-                print(f"[Luồng {thread_id}] 🖱️ Đang giải Captcha (Kéo thanh trượt)...")
-                margin_x = slider_box["width"] * 0.2
-                margin_y = slider_box["height"] * 0.2
-                start_x = slider_box["x"] + random.uniform(margin_x, slider_box["width"] - margin_x)
-                start_y = slider_box["y"] + random.uniform(margin_y, slider_box["height"] - margin_y)
-                
-                feedback_loop_drag(page, start_x, start_y, target_piece_x, thread_id)
-                
-                print(f"[Luồng {thread_id}] ⏳ Đã kéo xong! Chờ Web xác thực kết quả...")
-                time.sleep(2) 
-                
-                if page.locator("#aliyunCaptcha-window-popup").is_visible():
-                    print(f"[Luồng {thread_id}] ❌ Fail: Kéo trượt bị WAF từ chối! Đang đổi ảnh mới...")
-                    try:
-                        refresh_btn = page.locator("#aliyunCaptcha-btn-refresh")
-                        if refresh_btn.is_visible():
-                            refresh_btn.click()
-                    except:
-                        pass
-                    time.sleep(0.5) 
-                else:
-                    print(f"[Luồng {thread_id}] ✅ Thành công: Khung Captcha đã biến mất!")
-                    print(f"[Luồng {thread_id}] ⏳ Đang đợi API gửi SMS (Chờ đếm ngược xuất hiện, tối đa 200s)...")
-                    
-                    wait_start = time.time()
-                    sms_sent = False
-                    while time.time() - wait_start < 200:
-                        try:
-                            # Quét xem thẻ #get-captcha-code đã bắt đầu chứa số đếm ngược chưa (ví dụ 59s, 58)
-                            btn_text = page.locator("#get-captcha-code").inner_text(timeout=1000)
-                            if any(c.isdigit() for c in btn_text):
-                                print(f"[Luồng {thread_id}] ✅ Đã thấy đếm ngược ({btn_text.strip()})! Chắc chắn SMS đã được gửi.")
-                                sms_sent = True
-                                break
-                        except Exception:
-                            pass
-                        time.sleep(1)
-                    
-                    if sms_sent:
-                        return True
-                    else:
-                        print(f"[Luồng {thread_id}] ❌ Quá 200s không thấy đếm ngược. Đang thử lại quy trình...")
-                        continue
+            except:
+                pass
+            time.sleep(1)
+            continue
             
-        except Exception as e:
-             print(f"[Luồng {thread_id}] ⚠️ Lỗi trong lúc xử lý Web: {e}")
-             time.sleep(1)
+        # 3. Tiến hành giải Captcha khi có Popup
+        print(f"[Luồng {thread_id}] 🎯 Đã tìm thấy Captcha! Đang tải và phân tích ảnh...")
+        time.sleep(0.5) 
+        
+        bg_locator = page.locator("#aliyunCaptcha-img")
+        piece_locator = page.locator("#aliyunCaptcha-puzzle")
+        slider_handle = page.locator("#aliyunCaptcha-sliding-slider")
+        
+        if not bg_locator.is_visible() or not piece_locator.is_visible():
+            print(f"[Luồng {thread_id}] ❌ Lỗi hiển thị mảnh ghép Captcha.")
+            continue
+
+        bg_url = bg_locator.get_attribute("src")
+        piece_url = piece_locator.get_attribute("src")
+        
+        if not bg_url or not piece_url:
+            print(f"[Luồng {thread_id}] ❌ Lỗi không lấy được link ảnh gốc.")
+            continue
+            
+        bg_path = f"raw_bg_{thread_id}.png"
+        piece_path = f"raw_piece_{thread_id}.png"
+        
+        if not download_image(bg_url, bg_path) or not download_image(piece_url, piece_path):
+            print(f"[Luồng {thread_id}] ❌ Không thể tải ảnh từ Server.")
+            continue
+
+        target_raw_x, raw_x, raw_y, raw_w, raw_h, raw_tgt_x, raw_tgt_y = find_puzzle_gap_raw(bg_path, piece_path, thread_id)
+        
+        bg_img_raw = cv2.imread(bg_path)
+        raw_width = bg_img_raw.shape[1] if bg_img_raw is not None else 1
+        
+        if os.path.exists(bg_path): os.remove(bg_path)
+        if os.path.exists(piece_path): os.remove(piece_path)
+
+        bg_box = bg_locator.bounding_box()
+        slider_box = slider_handle.bounding_box()
+        
+        if bg_box and slider_box:
+            scale = bg_box["width"] / raw_width 
+            target_piece_x = target_raw_x * scale
+            
+            print(f"[Luồng {thread_id}] 🎯 Lỗ trống ảnh gốc: {target_raw_x}px | Quãng đường Mảnh Ghép cần đi: {target_piece_x:.2f}px")
+            
+            if target_piece_x < 10:
+                print(f"[Luồng {thread_id}] ⚠️ Lỗi tọa độ (<10px). Đang bấm đổi ảnh mới...")
+                try: page.locator("#aliyunCaptcha-btn-refresh").click(timeout=3000)
+                except: pass
+                time.sleep(1)
+                continue
+
+            print(f"[Luồng {thread_id}] 🖱️ Đang giải Captcha (Kéo thanh trượt)...")
+            margin_x = slider_box["width"] * 0.2
+            margin_y = slider_box["height"] * 0.2
+            start_x = slider_box["x"] + random.uniform(margin_x, slider_box["width"] - margin_x)
+            start_y = slider_box["y"] + random.uniform(margin_y, slider_box["height"] - margin_y)
+            
+            feedback_loop_drag(page, start_x, start_y, target_piece_x, thread_id)
+            
+            print(f"[Luồng {thread_id}] ⏳ Đã kéo xong! Chờ Web xác thực kết quả...")
+            time.sleep(2) 
+            
+            if page.locator("#aliyunCaptcha-window-popup").is_visible():
+                print(f"[Luồng {thread_id}] ❌ Fail: Kéo trượt sai tọa độ! Đang đổi ảnh mới...")
+                try: page.locator("#aliyunCaptcha-btn-refresh").click(timeout=3000)
+                except: pass
+                time.sleep(0.5) 
+            else:
+                print(f"[Luồng {thread_id}] ✅ Khung Captcha đã biến mất! Theo dõi nút Get Code xem có bị chặn WAF không...")
+                wait_start = time.time()
+                while time.time() - wait_start < 25:
+                    try:
+                        btn_text = page.locator("#get-captcha-code").inner_text(timeout=1000)
+                        if "s" in btn_text.lower() and any(c.isdigit() for c in btn_text):
+                            print(f"[Luồng {thread_id}] ✅ Đã thấy đếm ngược ({btn_text.strip()})! SMS ĐÃ GỬI THÀNH CÔNG.")
+                            return True
+                        elif "Get code" in btn_text or "Get Code" in btn_text:
+                            print(f"[Luồng {thread_id}] ❌ Bị WAF chặn SMS. Nút đã nhả về 'Get code'. Đang thử lại...")
+                            break # Thoát vòng lặp đợi để làm lại Attempt mới
+                    except Exception:
+                        pass
+                    time.sleep(1)
 
 def send_with_browser(email, thread_id="1"):
     print(f"[Luồng {thread_id}] 📨 Bắt đầu với email: {email}")
 
     temp_profile_dir = tempfile.mkdtemp(prefix=f"vmos_profile_{thread_id}_")
     is_success = False
-    
-    # Random User-Agent để ngụy trang
-    current_ua = get_random_ua()
 
     try:
         with sync_playwright() as p:
@@ -612,7 +598,7 @@ def send_with_browser(email, thread_id="1"):
                 "device_scale_factor": 1,
                 "has_touch": False,
                 "is_mobile": False,
-                "user_agent": current_ua,  # <--- BỔ SUNG USER-AGENT GIẢ MẠO ĐỂ WAF KHÔNG NHẬN RA BOT
+                # KHÔNG truyền user_agent để browser tự dùng UA chuẩn của OS thật, tránh bị WAF chặn
                 "args": [
                     '--disable-blink-features=AutomationControlled', 
                     '--disable-infobars',                            
@@ -638,18 +624,11 @@ def send_with_browser(email, thread_id="1"):
             context = p.chromium.launch_persistent_context(**launch_args)
             
             try:
-                # BỔ SUNG CÁC SCRIPT CHỐNG DETECT MẠNH MẼ HƠN
+                # SCRIPT ẨN DANH (Y HỆT BẢN HOẠT ĐỘNG TỐT CỦA BẠN)
                 context.add_init_script("""
                     Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-                    Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
                     Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
                     window.chrome = { runtime: {} };
-                    const originalQuery = window.navigator.permissions.query;
-                    window.navigator.permissions.query = (parameters) => (
-                        parameters.name === 'notifications' ?
-                        Promise.resolve({ state: Notification.permission }) :
-                        originalQuery(parameters)
-                    );
                 """)
                 
                 page = context.pages[0] if context.pages else context.new_page()
@@ -1207,7 +1186,7 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
 
 if __name__ == "__main__":
     print("==========================================")
-    print("🚀 VMOS BOT ULTIMATE - PHIÊN BẢN 1.8 - ANTI-DETECT BROWSER")
+    print("🚀 VMOS BOT ULTIMATE - PHIÊN BẢN 1.9 - GỠ BỎ LỚP VỎ ANTI-DETECT RƯỜM RÀ")
     print("==========================================")
     print("🚀 Đang khởi động Bot...")
     token_local = load_local_token()
