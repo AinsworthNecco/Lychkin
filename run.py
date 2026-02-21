@@ -2,7 +2,7 @@
 # Script Bot Discord cho VMOS Cloud (Phiên bản Ultimate - Full Uncut)
 # Tính năng tích hợp:
 # 1. Playwright: Tự động mở Chrome (System), đăng nhập và treo nick.
-# 2. Mail API: MAIL.TM (Không Proxy, dùng VPN/IP thật toàn bộ).
+# 2. Mail API: TEMP-MAIL.IO (Không Proxy, dùng VPN/IP thật toàn bộ).
 # 3. Quản lý Config: Token đọc từ file local.
 # 4. Anti-Rate Limit: Cơ chế cập nhật tin nhắn Discord chậm (10s/lần).
 # 5. Logging: Xuất log chi tiết.
@@ -10,7 +10,7 @@
 # 7. Sửa lỗi check_buff_status: Debug chi tiết phản hồi API.
 # 8. UPDATE: Bypass Captcha Slider bằng Playwright Sync + OpenCV khi gửi OTP.
 # 9. UPDATE: Xóa toàn bộ logic Proxy để nhường chỗ cho VPN.
-# 10. UPDATE: Nâng cấp hàm đọc Mail.tm (Kiên nhẫn 100s, lọc OTP cực chuẩn).
+# 10. UPDATE: Nâng cấp lấy mail sang Temp-Mail.io siêu tốc độ.
 
 import discord
 from discord.ext import commands
@@ -52,8 +52,6 @@ from playwright.sync_api import sync_playwright
 TOKEN_FILE_NAME = "token.txt"
 CODE_FILE_NAME = "CODE.txt"
 THUMBNAIL_URL = "https://i.pinimg.com/1200x/c0/d1/59/c0d1591ce31488b9f71313326dcf01f0.jpg"
-
-MAIL_TM_BASE = "https://api.mail.tm"
 
 # CONFIG DÀNH CHO CAPTCHA SOLVER & MULTI-THREADING
 CONFIG = {
@@ -285,99 +283,57 @@ def safe_request(method, url, **kwargs):
         raise e
 
 # ==============================================================
-# ==>> MAIL.TM LOGIC <<==
+# ==>> TEMP-MAIL.IO LOGIC <<==
 # ==============================================================
 
 def get_temp_email():
     """
-    Tạo email từ Mail.tm.
+    Tạo email từ temp-mail.io.
     """
+    url = "https://api.internal.temp-mail.io/api/v3/email/new"
+    ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+    headers = {
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9,vi;q=0.8",
+        "Application-Name": "web",
+        "Application-Version": "2.4.2",
+        "Content-Type": "application/json;charset=UTF-8",
+        "User-Agent": ua
+    }
     try:
-        # 1. Lấy Domain
-        r = requests.get(f"{MAIL_TM_BASE}/domains", timeout=20, verify=False)
-        
-        if r.status_code != 200:
-            print(f"   [MAIL-TM] ❌ Lỗi Domain: {r.status_code}")
-            return None, None
-            
-        domains_data = r.json()
-        if "hydra:member" not in domains_data or not domains_data["hydra:member"]:
-             print(f"   [MAIL-TM] ❌ Không lấy được domain member.")
-             return None, None
-
-        domain = domains_data["hydra:member"][0]["domain"]
-        
-        # Tạo thông tin ngẫu nhiên
-        email = f"{random_string()}@{domain}"
-        password = "Password123!"
-        
-        # 2. Tạo Account
-        acc_payload = {
-            "address": email,
-            "password": password
-        }
-        r_acc = requests.post(f"{MAIL_TM_BASE}/accounts", json=acc_payload, timeout=20, verify=False)
-        
-        if r_acc.status_code not in [200, 201]:
-            print(f"   [MAIL-TM] ❌ Lỗi tạo Acc: {r_acc.status_code} {r_acc.text}")
-            return None, None
-            
-        # 3. Lấy Token
-        r_token = requests.post(f"{MAIL_TM_BASE}/token", json=acc_payload, timeout=20, verify=False)
-        
-        if r_token.status_code == 200:
-            token = r_token.json().get("token")
-            return email, token
-        else:
-            print(f"   [MAIL-TM] ❌ Lỗi Token: {r_token.status_code}")
-            
+        response = requests.post(url, headers=headers, timeout=15, verify=False)
+        response.raise_for_status()
+        data = response.json()
+        return data.get("email"), None  # Trả về None thay vì token để tương thích logic cũ
     except Exception as e:
-        print(f"   [MAIL-TM] 🔥 Exception: {e}")
-        
-    return None, None
+        print(f"   [TEMP-MAIL] 🔥 Exception: {e}")
+        return None, None
 
 def get_code_from_email(mail_token, email, thread_id="1"):
-    if not mail_token:
+    if not email:
         return None
     
-    headers = {
-        "Authorization": f"Bearer {mail_token}"
-    }
+    url = f"https://api.internal.temp-mail.io/api/v3/email/{email}/messages"
+    print(f"[Luồng {thread_id}] ⏳ Bắt đầu quét hộp thư temp-mail.io (Sẽ thử trong vòng 100s)...")
     
-    print(f"[Luồng {thread_id}] ⏳ Bắt đầu quét hộp thư (Sẽ thử trong vòng 100s)...")
-    # Tăng lên 20 lần thử x 5s = 100s. VMOS gửi mail đôi khi bị delay mạng
     for i in range(20):
         try:
-            r = requests.get(f"{MAIL_TM_BASE}/messages", headers=headers, timeout=20, verify=False)
-            
+            r = requests.get(url, timeout=15, verify=False)
             if r.status_code == 200:
-                data = r.json()
-                if data.get("hydra:totalItems", 0) > 0:
-                    msg = data["hydra:member"][0]
-                    msg_id = msg.get("id")
-                    
-                    # Gọi chi tiết tin nhắn để lấy nội dung
-                    r_detail = requests.get(f"{MAIL_TM_BASE}/messages/{msg_id}", headers=headers, timeout=20, verify=False)
-                    
-                    full_content = ""
-                    if r_detail.status_code == 200:
-                        detail = r_detail.json()
-                        # Ưu tiên lấy text thuần, tránh HTML để không bị bắt nhầm mã màu #123456
-                        full_content = str(detail.get("text", "")) + " " + str(detail.get("intro", "")) + " " + str(detail.get("subject", ""))
-                    else:
-                        full_content = str(msg.get("subject", "")) + " " + str(msg.get("intro", ""))
-                    
-                    # Regex tìm đúng 6 số đứng độc lập (không bị dính chữ cái hoặc số khác)
-                    match = re.search(r"(?<!\d)(\d{6})(?!\d)", full_content)
-                    if match:
-                        code_found = match.group(1)
-                        print(f"[Luồng {thread_id}] 💌 Đã thấy mã OTP: {code_found}")
-                        return code_found
-                    else:
-                        pass # Thư đã đến nhưng chứa thông báo khác hoặc chưa bóc được OTP
+                messages = r.json()
+                if messages:
+                    for msg in reversed(messages):
+                        body_text = msg.get("body_text", "")
+                        if body_text:
+                            # Regex tìm đúng 6 số đứng độc lập
+                            match = re.search(r"(?<!\d)(\d{6})(?!\d)", body_text)
+                            if match:
+                                code_found = match.group(1)
+                                print(f"[Luồng {thread_id}] 💌 Đã thấy mã OTP: {code_found}")
+                                return code_found
         except requests.exceptions.RequestException:
-            pass # Lỗi timeout API Mail.tm, bỏ qua để vòng lặp chạy tiếp
-        
+            pass # Bỏ qua lỗi mạng
+            
         time.sleep(5)
         
     return None
@@ -879,8 +835,8 @@ async def task_worker(invite_code, update_callback=None):
             if update_callback:
                 await update_callback(f"🔄 Đang bắt đầu luồng: {worker_id}...")
             
-            # LOG STEP 1: Lấy Mail (Mail.tm) 
-            print(f"[{worker_id}] 🌐 Get Email (Mail.tm)...")
+            # LOG STEP 1: Lấy Mail (Temp-mail) 
+            print(f"[{worker_id}] 🌐 Get Email (temp-mail.io)...")
             
             email_data = await asyncio.to_thread(get_temp_email)
             email, mail_token = email_data if email_data else (None, None)
@@ -1214,7 +1170,7 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
 
 if __name__ == "__main__":
     print("==========================================")
-    print("🚀 VMOS BOT ULTIMATE - PHIÊN BẢN 1.4 - FIX MAIL OTP")
+    print("🚀 VMOS BOT ULTIMATE - PHIÊN BẢN 1.5 - TEMP-MAIL.IO")
     print("==========================================")
     print("🚀 Đang khởi động Bot...")
     token_local = load_local_token()
