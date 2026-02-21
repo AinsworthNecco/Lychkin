@@ -8,7 +8,7 @@
 # 5. Logging: Xuất log chi tiết.
 # 6. Luồng: Giới hạn 50 luồng.ab
 # 7. Sửa lỗi check_buff_status: Debug chi tiết phản hồi API.
-# 8. UPDATE: Bypass Captcha Slider bằng Playwright Sync + OpenCV khi gửi OTP.
+# 8. UPDATE: Bypass Captcha Slider bằng Playwright Sync + OpenCV khi gửi OTP.bbbbbbbbbbbbbbbbbb
 
 import discord
 from discord.ext import commands
