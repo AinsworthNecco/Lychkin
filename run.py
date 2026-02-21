@@ -8,7 +8,7 @@ import concurrent.futures
 import tempfile
 import shutil
 # YÊU CẦU CÀI ĐẶT TRƯỚC KHI CHẠY: 
-# pip install playwright opencv-python numpy requests
+# pip install playwright opencv-python numpy requestsaaaaaa
 # playwright install
 from playwright.sync_api import sync_playwright
 import cv2
@@ -126,7 +126,8 @@ def feedback_loop_drag(page, start_x, start_y, target_piece_x, thread_id="1"):
     current_mouse_x = start_x
     
     for _ in range(200): 
-        piece_left_str = page.evaluate("""() => {
+        # Thêm tiền tố 'r' để loại bỏ lỗi SyntaxWarning: invalid escape sequence
+        piece_left_str = page.evaluate(r"""() => {
             let el = document.getElementById('aliyunCaptcha-puzzle');
             if (!el) return '0';
             let left = el.style.left;
@@ -193,7 +194,7 @@ def auto_drag_slider(page, thread_id="1"):
                 time.sleep(1)
                 continue
                 
-            time.sleep(0.5) # Rút ngắn thời gian chờ ảnh Load (chỉ chờ vừa đủ mạng load)
+            time.sleep(0.5) 
             
             bg_locator = page.locator("#aliyunCaptcha-img")
             piece_locator = page.locator("#aliyunCaptcha-puzzle")
@@ -208,7 +209,6 @@ def auto_drag_slider(page, thread_id="1"):
             if not bg_url or not piece_url:
                 continue
                 
-            # Đặt tên file theo luồng để tránh đụng độ file ảnh khi chạy nhiều luồng
             bg_path = f"raw_bg_{thread_id}.png"
             piece_path = f"raw_piece_{thread_id}.png"
             
@@ -221,7 +221,6 @@ def auto_drag_slider(page, thread_id="1"):
             bg_img_raw = cv2.imread(bg_path)
             raw_width = bg_img_raw.shape[1] if bg_img_raw is not None else 1
             
-            # Xóa ngay ảnh tạm sau khi xử lý xong để dọn rác
             if os.path.exists(bg_path): os.remove(bg_path)
             if os.path.exists(piece_path): os.remove(piece_path)
 
@@ -249,7 +248,7 @@ def auto_drag_slider(page, thread_id="1"):
                 feedback_loop_drag(page, start_x, start_y, target_piece_x, thread_id)
                 
                 print(f"[Luồng {thread_id}] ⏳ Chờ Web xác thực kết quả...")
-                time.sleep(2) # Giảm thời gian chờ xác thực để lặp nhanh hơn
+                time.sleep(2) 
                 
                 if page.locator("#aliyunCaptcha-window-popup").is_visible():
                     print(f"[Luồng {thread_id}] ⚠️ Bị WAF từ chối! Đang bấm đổi ảnh mới...")
@@ -266,17 +265,15 @@ def auto_drag_slider(page, thread_id="1"):
              time.sleep(1)
 
 # ========================================================
-# HÀM MỞ TRÌNH DUYỆT (TỐI ƯU SIÊU NHẸ)
+# HÀM MỞ TRÌNH DUYỆT (TỐI ƯU SIÊU NHẸ CHO TERMUX)
 # ========================================================
 def send_with_browser(email, proxy_server=None, thread_id="1"):
     print(f"[Luồng {thread_id}] 📨 Bắt đầu với email: {email} | Proxy: {proxy_server}")
 
-    # Tạo thư mục profile tạm thời cho luồng này (Đồ dùng 1 lần)
     temp_profile_dir = tempfile.mkdtemp(prefix=f"vmos_profile_{thread_id}_")
 
     try:
         with sync_playwright() as p:
-            # Xây dựng cấu hình khởi chạy siêu nhẹ
             launch_args = {
                 "user_data_dir": temp_profile_dir,
                 "headless": CONFIG["HEADLESS"], 
@@ -289,32 +286,29 @@ def send_with_browser(email, proxy_server=None, thread_id="1"):
                     '--disable-infobars',                            
                     '--no-sandbox',
                     '--disable-setuid-sandbox',
-                    '--disable-dev-shm-usage',        # Quan trọng cho đa luồng/VPS (chống đầy RAM)
-                    '--disable-gpu',                  # Tắt phần cứng đồ họa
+                    '--disable-dev-shm-usage',        
+                    '--disable-gpu',                  
                     '--disable-software-rasterizer',
-                    '--disable-extensions',           # Vô hiệu hóa tiện ích mở rộng
-                    '--mute-audio',                   # Tắt âm thanh
-                    '--disable-background-networking',# Tắt kết nối ngầm của Chrome
+                    '--disable-extensions',           
+                    '--mute-audio',                   
+                    '--disable-background-networking',
                     '--disable-default-apps',
-                    '--disable-sync'                  # Tắt đồng bộ hóa tài khoản
+                    '--disable-sync'                  
                 ]
             }
             
-            # Cấu hình đường dẫn trình duyệt cho Termux/Linux ARM
             if CONFIG.get("EXECUTABLE_PATH"):
                 launch_args["executable_path"] = CONFIG["EXECUTABLE_PATH"]
             else:
                 launch_args["channel"] = "chrome"
             
-            # Nếu có proxy thì nhét vào cấu hình
             if proxy_server:
                 launch_args["proxy"] = {"server": proxy_server} 
 
-            print(f"[Luồng {thread_id}] 🛡️ Khởi chạy Persistent Context (Tối ưu RAM/CPU)...")
+            print(f"[Luồng {thread_id}] 🛡️ Khởi chạy Persistent Context...")
             context = p.chromium.launch_persistent_context(**launch_args)
             
             try:
-                # TIÊM SCRIPT TÀNG HÌNH CHỐNG BOT
                 context.add_init_script("""
                     Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
                     Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
@@ -323,16 +317,16 @@ def send_with_browser(email, proxy_server=None, thread_id="1"):
                 
                 page = context.pages[0] if context.pages else context.new_page()
 
-                # CHẶN TẢI TÀI NGUYÊN RÁC (Giảm băng thông và RAM)
-                # Bỏ qua Font và Media. Vẫn giữ lại Image và CSS vì Captcha cần
                 page.route("**/*", lambda route: route.abort() 
                            if route.request.resource_type in ["media", "font"] 
                            else route.continue_())
 
                 target_url = "https://cloud.vsphone.com/?channel=web"
-                page.goto(target_url, wait_until="networkidle")
+                
+                # CẬP NHẬT CHỐNG TIMEOUT: Đổi từ "networkidle" sang "domcontentloaded" và nới lỏng timeout
+                page.goto(target_url, wait_until="domcontentloaded", timeout=60000)
 
-                page.get_by_text("Sign Up", exact=True).click()
+                page.get_by_text("Sign Up", exact=True).click(timeout=30000)
                 time.sleep(1)
 
                 email_input = page.locator("input[placeholder='Please enter your email address']").last
@@ -352,7 +346,6 @@ def send_with_browser(email, proxy_server=None, thread_id="1"):
             finally:
                 context.close()
     finally:
-        # Bất kể thành công hay thất bại, luôn xóa sạch thư mục profile tạm thời
         try:
             shutil.rmtree(temp_profile_dir, ignore_errors=True)
             print(f"[Luồng {thread_id}] 🧹 Đã dọn dẹp sạch sẽ profile tạm thời.")
@@ -360,10 +353,9 @@ def send_with_browser(email, proxy_server=None, thread_id="1"):
             print(f"[Luồng {thread_id}] ⚠️ Lỗi khi dọn dẹp thư mục tạm: {cleanup_error}")
 
 # ========================================================
-# HÀM THỰC THI (CHO PHÉP CHẠY NHIỀU LUỒNG CÙNG LÚC)
+# HÀM THỰC THI
 # ========================================================
 def worker_task(thread_id):
-    """Hàm đại diện cho 1 luồng làm việc"""
     my_proxy = None
     if CONFIG["PROXY_LIST"]:
         my_proxy = random.choice(CONFIG["PROXY_LIST"])
@@ -376,13 +368,10 @@ if __name__ == "__main__":
     threads = CONFIG["NUM_THREADS"]
     
     if threads == 1:
-        # Chạy bình thường 1 luồng
         worker_task(thread_id=1)
     else:
-        # Chạy song song nhiều luồng
         print(f"🚀 KHỞI ĐỘNG CHẾ ĐỘ ĐA LUỒNG: Mở {threads} trình duyệt cùng lúc...")
         with concurrent.futures.ThreadPoolExecutor(max_workers=threads) as executor:
             for i in range(threads):
-                # Khởi động lệch nhau một chút để tránh gai CPU (CPU Spike) do Chrome mở cùng lúc
                 time.sleep(random.uniform(0.5, 2.0))
                 executor.submit(worker_task, i + 1)
