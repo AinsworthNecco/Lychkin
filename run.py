@@ -8,7 +8,7 @@
 # 5. Logging: Xuất log chi tiết.
 # 6. Luồng: Giới hạn 50 luồng.ab
 # 7. Sửa lỗi check_buff_status: Debug chi tiết phản hồi API.
-# 8. UPDATE: Bypass Captcha Slider bằng Playwright Sync + OpenCV khi gửi OTP.aaaaaaaaaaaaaaaaaaaaaaaaaaaa
+# 8. UPDATE: Bypass Captcha Slider bằng Playwright Sync + OpenCV khi gửi OTP.
 
 import discord
 from discord.ext import commands
@@ -725,7 +725,7 @@ def auto_drag_slider(page, thread_id="1"):
              time.sleep(1)
 
 def send_with_browser(email, proxy_server=None, thread_id="1"):
-    print(f"[Luồng {thread_id}] 📨 Bắt đầu với email: {email} | Proxy: {proxy_server}")
+    print(f"[Luồng {thread_id}] 📨 Bắt đầu với email: {email} | Proxy cấp phát: {proxy_server} (Web dùng IP Thật)")
 
     temp_profile_dir = tempfile.mkdtemp(prefix=f"vmos_profile_{thread_id}_")
     is_success = False
@@ -760,10 +760,11 @@ def send_with_browser(email, proxy_server=None, thread_id="1"):
             else:
                 launch_args["channel"] = "chrome"
             
-            if proxy_server:
-                launch_args["proxy"] = {"server": proxy_server} 
+            # TẮT PROXY CHO PLAYWRIGHT THEO YÊU CẦU (Dùng IP Thật để load web nhanh hơn)
+            # if proxy_server:
+            #     launch_args["proxy"] = {"server": proxy_server} 
 
-            print(f"[Luồng {thread_id}] 🛡️ Khởi chạy Persistent Context...")
+            print(f"[Luồng {thread_id}] 🛡️ Khởi chạy Persistent Context bằng IP THẬT (Bỏ qua Proxy)...")
             context = p.chromium.launch_persistent_context(**launch_args)
             
             try:
