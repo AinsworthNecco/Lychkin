@@ -12,6 +12,7 @@
 # 9. UPDATE: Xóa toàn bộ logic Proxy để nhường chỗ cho VPN.
 # 10. UPDATE: Nâng cấp lấy mail sang Temp-Mail.io siêu tốc độ.
 # 11. UPDATE: Theo dõi chính xác phần tử #get-captcha-code, đợi đếm ngược 200s.
+# 12. UPDATE: Fix lỗi WAF Aliyun chặn SMS (Spinning loading) bằng Anti-Detect Browser.
 
 import discord
 from discord.ext import commands
@@ -233,7 +234,7 @@ async def open_browser_and_login(email, password):
             headless=True,
             args=["--guest", "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage", "--window-size=400,600", "--window-position=1500,500"]
         )
-        context = await browser.new_context()
+        context = await browser.new_context(user_agent=get_random_ua())
         page = await context.new_page()
         print(f"[BROWSER] 🔗 Truy cập VMOS...")
         await page.goto("https://cloud.vsphone.com/event/202602", timeout=60000)
@@ -598,6 +599,9 @@ def send_with_browser(email, thread_id="1"):
 
     temp_profile_dir = tempfile.mkdtemp(prefix=f"vmos_profile_{thread_id}_")
     is_success = False
+    
+    # Random User-Agent để ngụy trang
+    current_ua = get_random_ua()
 
     try:
         with sync_playwright() as p:
@@ -608,6 +612,7 @@ def send_with_browser(email, thread_id="1"):
                 "device_scale_factor": 1,
                 "has_touch": False,
                 "is_mobile": False,
+                "user_agent": current_ua,  # <--- BỔ SUNG USER-AGENT GIẢ MẠO ĐỂ WAF KHÔNG NHẬN RA BOT
                 "args": [
                     '--disable-blink-features=AutomationControlled', 
                     '--disable-infobars',                            
@@ -633,10 +638,18 @@ def send_with_browser(email, thread_id="1"):
             context = p.chromium.launch_persistent_context(**launch_args)
             
             try:
+                # BỔ SUNG CÁC SCRIPT CHỐNG DETECT MẠNH MẼ HƠN
                 context.add_init_script("""
                     Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+                    Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
                     Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
                     window.chrome = { runtime: {} };
+                    const originalQuery = window.navigator.permissions.query;
+                    window.navigator.permissions.query = (parameters) => (
+                        parameters.name === 'notifications' ?
+                        Promise.resolve({ state: Notification.permission }) :
+                        originalQuery(parameters)
+                    );
                 """)
                 
                 page = context.pages[0] if context.pages else context.new_page()
@@ -1194,7 +1207,7 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
 
 if __name__ == "__main__":
     print("==========================================")
-    print("🚀 VMOS BOT ULTIMATE - PHIÊN BẢN 1.7 - ĐỢI 200S ĐẾM NGƯỢC CODE")
+    print("🚀 VMOS BOT ULTIMATE - PHIÊN BẢN 1.8 - ANTI-DETECT BROWSER")
     print("==========================================")
     print("🚀 Đang khởi động Bot...")
     token_local = load_local_token()
