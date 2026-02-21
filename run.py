@@ -8,7 +8,7 @@
 # 5. Logging: Xuất log chi tiết.
 # 6. Luồng: Giới hạn 50 luồng.ab
 # 7. Sửa lỗi check_buff_status: Debug chi tiết phản hồi API.
-# 8. UPDATE: Bypass Captcha Slider bằng Playwright Sync + OpenCV khi gửi OTP.
+# 8. UPDATE: Bypass Captcha Slider bằng Playwright Sync + OpenCV khi gửi OTP.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
 import discord
 from discord.ext import commands
@@ -56,7 +56,7 @@ MAIL_TM_BASE = "https://api.mail.tm"
 
 # CONFIG DÀNH CHO CAPTCHA SOLVER (Dùng chung config của script tổng)
 CONFIG = {
-    "NUM_THREADS": 5,
+    "NUM_THREADS": 1,
     "HEADLESS": True,
     "PROXY_LIST": [],
     "EXECUTABLE_PATH": "/usr/bin/chromium"
@@ -508,7 +508,7 @@ def download_image(url, save_path):
         return False
 
 def find_puzzle_gap_raw(bg_path, piece_path, thread_id="1"):
-    print(f"[Luồng {thread_id}] 👁️ Đang phân tích ảnh bằng Canny Edge...")
+    print(f"[Luồng {thread_id}] 👁️ Đang phân tích ảnh bằng thuật toán Canny Edge & Y-Strip Search...")
     bg_img = cv2.imread(bg_path)
     piece_img = cv2.imread(piece_path, cv2.IMREAD_UNCHANGED) 
     
@@ -543,7 +543,7 @@ def find_puzzle_gap_raw(bg_path, piece_path, thread_id="1"):
             target_raw_x = max_loc[0] - x
             target_raw_y = y_start + max_loc[1] 
             
-            print(f"[Luồng {thread_id}] ✅ Đã chốt tọa độ! Độ khớp: {max_val*100:.1f}%")
+            print(f"[Luồng {thread_id}] ✅ Đã chốt hạ tọa độ! Độ khớp (Confidence): {max_val*100:.1f}%")
             return max(0, target_raw_x), x, y, w, h, max_loc[0], target_raw_y
             
     return max_loc[0], 0, 0, 40, 40, max_loc[0], 0
@@ -575,7 +575,7 @@ def feedback_loop_drag(page, start_x, start_y, target_piece_x, thread_id="1"):
         distance_left = target_piece_x - piece_left
         
         if abs(distance_left) <= 1.0:
-            print(f"[Luồng {thread_id}] 🎯 Mảnh ghép khớp hoàn hảo. Chốt sổ!")
+            print(f"[Luồng {thread_id}] 🎯 Mảnh ghép đã ăn khớp hoàn hảo (Sai số: {distance_left:.2f}px). Chốt sổ!")
             break
             
         if distance_left > 0:
@@ -604,20 +604,20 @@ def auto_drag_slider(page, thread_id="1"):
     while True:
         get_code_btn = page.get_by_text("Get code", exact=True)
         if not get_code_btn.is_visible():
-            print(f"\n[Luồng {thread_id}] ✅ Nút 'Get code' biến mất! SMS ĐÃ GỬI THÀNH CÔNG.")
+            print(f"\n[Luồng {thread_id}] ✅ Nút 'Get code' đã biến mất! Chắc chắn SMS đã được gửi thành công.")
             return True
             
         attempt += 1
         
-        # CƠ CHẾ FAIL-SAFE: Quá 10 lần sai sẽ bỏ qua để làm lại
-        if attempt > 10:
-            print(f"\n[Luồng {thread_id}] ❌ Sai quá 10 lần liên tục. Hủy session này để làm lại từ đầu!")
+        # CƠ CHẾ FAIL-SAFE: Quá 3 lần sai sẽ bỏ qua để làm lại
+        if attempt > 3:
+            print(f"\n[Luồng {thread_id}] ❌ Sai quá 3 lần liên tục. Hủy session này để làm lại từ đầu!")
             return False
 
         print(f"\n[Luồng {thread_id}] 🔄 LẦN THỬ THỨ {attempt}:")
         try:
             if not page.locator("#aliyunCaptcha-window-popup").is_visible():
-                print(f"[Luồng {thread_id}] 👉 Đang thử bấm nút 'Get code'...")
+                print(f"[Luồng {thread_id}] 👉 Đang thử bấm nút 'Get code' để gọi Captcha...")
                 try:
                     get_code_btn.click(timeout=3000)
                     time.sleep(1)
@@ -666,7 +666,7 @@ def auto_drag_slider(page, thread_id="1"):
                 scale = bg_box["width"] / raw_width 
                 target_piece_x = target_raw_x * scale
                 
-                print(f"[Luồng {thread_id}] 🎯 Quãng đường Mảnh Ghép cần đi: {target_piece_x:.2f}px")
+                print(f"[Luồng {thread_id}] 🎯 Lỗ trống ảnh gốc: {target_raw_x}px | Quãng đường Mảnh Ghép cần đi: {target_piece_x:.2f}px")
                 
                 if target_piece_x < 10:
                     page.locator("#aliyunCaptcha-btn-refresh").click()
@@ -770,7 +770,7 @@ def send_with_browser(email, proxy_server=None, thread_id="1"):
                     page.mouse.move(box["x"] + 10, box["y"] + 10, steps=5)
                     time.sleep(0.2)
 
-                # Chạy giải captcha, nếu fail quá 10 lần sẽ trả về False
+                # Chạy giải captcha, nếu fail quá 3 lần sẽ trả về False
                 is_success = auto_drag_slider(page, thread_id)
                 
                 if is_success:
