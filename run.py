@@ -8,7 +8,7 @@
 # 5. Logging: Xuất log chi tiết.
 # 6. Luồng: Giới hạn 50 luồng.ab
 # 7. Sửa lỗi check_buff_status: Debug chi tiết phản hồi API.
-# 8. UPDATE: Bypass Captcha Slider bằng Playwright Sync + OpenCV khi gửi OTP.bbbbbbbbbbbbbbbbbb
+# 8. UPDATE: Bypass Captcha Slider bằng Playwright Sync + OpenCV khi gửi OTP.
 
 import discord
 from discord.ext import commands
@@ -602,8 +602,15 @@ def auto_drag_slider(page, thread_id="1"):
         
     attempt = 0
     while True:
-        get_code_btn = page.get_by_text("Get code", exact=True)
-        if not get_code_btn.is_visible():
+        # Dùng .last để đảm bảo chỉ chọn đúng nút ở form đăng ký và wrap StrictMode an toàn
+        get_code_btn = page.get_by_text("Get code", exact=True).last
+        time.sleep(1)
+        
+        try:
+            if not get_code_btn.is_visible():
+                print(f"\n[Luồng {thread_id}] ✅ Nút 'Get code' đã biến mất! Chắc chắn SMS đã được gửi thành công.")
+                return True
+        except Exception:
             print(f"\n[Luồng {thread_id}] ✅ Nút 'Get code' đã biến mất! Chắc chắn SMS đã được gửi thành công.")
             return True
             
@@ -616,37 +623,49 @@ def auto_drag_slider(page, thread_id="1"):
 
         print(f"\n[Luồng {thread_id}] 🔄 LẦN THỬ THỨ {attempt}:")
         try:
-            if not page.locator("#aliyunCaptcha-window-popup").is_visible():
-                print(f"[Luồng {thread_id}] 👉 Đang thử bấm nút 'Get code' để gọi Captcha...")
-                try:
-                    get_code_btn.click(timeout=3000)
-                    time.sleep(1)
-                except Exception:
-                    pass
+            popup_locator = page.locator("#aliyunCaptcha-window-popup")
             
-            if not page.locator("#aliyunCaptcha-window-popup").is_visible():
-                time.sleep(1)
+            if not popup_locator.is_visible():
+                print(f"[Luồng {thread_id}] 🔎 Tìm thấy nút 'Get code', tiến hành click...")
+                try:
+                    get_code_btn.click(timeout=5000, force=True)
+                except Exception as e:
+                    print(f"[Luồng {thread_id}] ⚠️ Click nút 'Get code' thất bại (có thể bị che): {e}")
+                    
+                print(f"[Luồng {thread_id}] ⏳ Đang đợi Captcha xuất hiện...")
+                try:
+                    # Chờ Captcha xuất hiện tối đa 15 giây (dành cho Proxy lag)
+                    popup_locator.wait_for(state="visible", timeout=15000)
+                    print(f"[Luồng {thread_id}] 🎯 Đã tìm thấy Captcha!")
+                except Exception:
+                    print(f"[Luồng {thread_id}] ❌ Không thấy Captcha sau 15s (Do mạng Proxy lag). Sẽ thử lại!")
+                    continue
+            
+            if not popup_locator.is_visible():
                 continue
                 
-            time.sleep(0.5) 
+            print(f"[Luồng {thread_id}] 🖼️ Đang tải và phân tích ảnh...")
             
             bg_locator = page.locator("#aliyunCaptcha-img")
             piece_locator = page.locator("#aliyunCaptcha-puzzle")
             slider_handle = page.locator("#aliyunCaptcha-sliding-slider")
             
             if not bg_locator.is_visible() or not piece_locator.is_visible():
+                print(f"[Luồng {thread_id}] ❌ Lỗi hiển thị mảnh ghép Captcha.")
                 continue
 
             bg_url = bg_locator.get_attribute("src")
             piece_url = piece_locator.get_attribute("src")
             
             if not bg_url or not piece_url:
+                print(f"[Luồng {thread_id}] ❌ Lỗi không lấy được link ảnh gốc.")
                 continue
                 
             bg_path = f"raw_bg_{thread_id}.png"
             piece_path = f"raw_piece_{thread_id}.png"
             
             if not download_image(bg_url, bg_path) or not download_image(piece_url, piece_path):
+                print(f"[Luồng {thread_id}] ❌ Không thể tải ảnh từ Server.")
                 continue
 
             # 2. TÍNH TOÁN OPENCV
@@ -669,11 +688,15 @@ def auto_drag_slider(page, thread_id="1"):
                 print(f"[Luồng {thread_id}] 🎯 Lỗ trống ảnh gốc: {target_raw_x}px | Quãng đường Mảnh Ghép cần đi: {target_piece_x:.2f}px")
                 
                 if target_piece_x < 10:
-                    page.locator("#aliyunCaptcha-btn-refresh").click()
+                    print(f"[Luồng {thread_id}] ⚠️ Lỗi tọa độ (<10px). Đang bấm đổi ảnh mới...")
+                    try:
+                        page.locator("#aliyunCaptcha-btn-refresh").click(timeout=3000)
+                    except: pass
                     time.sleep(1)
                     continue
 
                 # 4. THỰC HIỆN RÊ CHUỘT DÒ ĐƯỜNG
+                print(f"[Luồng {thread_id}] 🖱️ Đang giải Captcha (Kéo thanh trượt)...")
                 margin_x = slider_box["width"] * 0.2
                 margin_y = slider_box["height"] * 0.2
                 start_x = slider_box["x"] + random.uniform(margin_x, slider_box["width"] - margin_x)
@@ -681,21 +704,24 @@ def auto_drag_slider(page, thread_id="1"):
                 
                 feedback_loop_drag(page, start_x, start_y, target_piece_x, thread_id)
                 
-                print(f"[Luồng {thread_id}] ⏳ Chờ Web xác thực kết quả...")
-                time.sleep(2) 
+                print(f"[Luồng {thread_id}] ⏳ Đã kéo xong! Chờ Web xác thực kết quả...")
+                # Tăng thời gian chờ Web xác nhận sau khi giải xong slider
+                time.sleep(3) 
                 
                 if page.locator("#aliyunCaptcha-window-popup").is_visible():
-                    print(f"[Luồng {thread_id}] ⚠️ Bị WAF từ chối! Đang bấm đổi ảnh mới...")
+                    print(f"[Luồng {thread_id}] ❌ Fail: Bị hệ thống từ chối hoặc kéo sai lệch! Đang đổi ảnh mới...")
                     try:
                         refresh_btn = page.locator("#aliyunCaptcha-btn-refresh")
                         if refresh_btn.is_visible():
-                            refresh_btn.click()
+                            refresh_btn.click(timeout=3000)
                     except:
                         pass
-                    time.sleep(0.5) 
+                    time.sleep(1) 
+                else:
+                    print(f"[Luồng {thread_id}] ✅ Thành công: Khung Captcha đã biến mất!")
             
         except Exception as e:
-             print(f"[Luồng {thread_id}] ⚠️ Lỗi: {e}")
+             print(f"[Luồng {thread_id}] ⚠️ Lỗi trong lúc xử lý Web: {e}")
              time.sleep(1)
 
 def send_with_browser(email, proxy_server=None, thread_id="1"):
@@ -755,12 +781,14 @@ def send_with_browser(email, proxy_server=None, thread_id="1"):
 
                 target_url = "https://cloud.vsphone.com/?channel=web"
                 
-                # CẬP NHẬT CHỐNG TIMEOUT: Đổi từ "networkidle" sang "domcontentloaded" và nới lỏng timeout
+                print(f"[Luồng {thread_id}] 🌐 Đang truy cập trang web VMOS...")
                 page.goto(target_url, wait_until="domcontentloaded", timeout=60000)
 
+                print(f"[Luồng {thread_id}] 🔎 Tìm thấy trang web, đang tìm nút 'Sign Up'...")
                 page.get_by_text("Sign Up", exact=True).click(timeout=30000)
                 time.sleep(1)
 
+                print(f"[Luồng {thread_id}] ✍️ Đang nhập email: {email}")
                 email_input = page.locator("input[placeholder='Please enter your email address']").last
                 email_input.fill(email)
                 time.sleep(0.5)
@@ -779,7 +807,7 @@ def send_with_browser(email, proxy_server=None, thread_id="1"):
                     print(f"[Luồng {thread_id}] ❌ Luồng bị gián đoạn do giải Captcha thất bại nhiều lần.")
                     
             except Exception as e:
-                print(f"[Luồng {thread_id}] ❌ Lỗi xảy ra: {e}")
+                print(f"[Luồng {thread_id}] ❌ Lỗi xảy ra (có thể do Timeout): {e}")
             finally:
                 context.close()
     finally:
