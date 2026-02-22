@@ -48,7 +48,7 @@ CONFIG = {
 # ==============================================================
 
 TOKEN_FILE_NAME = "token.txt"
-PROXY_CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/info"
+PROXY_CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/test1"
 CODE_FILE_NAME = "CODE.txt"
 THUMBNAIL_URL = "https://i.pinimg.com/1200x/c0/d1/59/c0d1591ce31488b9f71313326dcf01f0.jpg"
 
