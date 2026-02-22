@@ -1,87 +1,83 @@
-#!/data/data/com.termux/files/usr/bin/python
-# -*- coding: utf-8 -*-
-
-import subprocess
-import time
-import sys
+#!/data/data/com.termux/files/usr/bin/bash
 
 # ==========================================
 # CẤU HÌNH CƠ BẢN
 # ==========================================
-CHECK_INTERVAL = 300  # Thời gian quét (giây) -> 300s = 5 phút
-PLACE_ID = "https://www.roblox.com/share?code=98a1b858bf53db43b688552818e40748&type=Server" # ID của game cần quét
+CHECK_INTERVAL=300            # Thời gian quét (giây) -> 300s = 5 phút
+PLACE_ID="https://www.roblox.com/share?code=98a1b858bf53db43b688552818e40748&type=Server"         # ID của game cần quét
 
-BASE_PACKAGE_NAME = "com.roblox.clien" # Tên gói Roblox cơ bản
-ACCOUNT_SUFFIXES = "2 3 4 5 6"
+BASE_PACKAGE_NAME="com.roblox.clien" # Tên gói Roblox cơ bản
+ACCOUNT_SUFFIXES="b c d e f"         # Hậu tố của các bản clone
 
-# Danh sách các bản clone cần quản lý (Tự động tạo: com.roblox.clien2, com.roblox.clien3...)
-PACKAGES = [f"{BASE_PACKAGE_NAME}{suffix}" for suffix in ACCOUNT_SUFFIXES.split()]
+# ==========================================
+# CÁC HÀM XỬ LÝ
+# ==========================================
 
-def run_su_cmd(cmd):
-    """Chạy lệnh dưới quyền Root (su -c)"""
-    try:
-        result = subprocess.run(["su", "-c", cmd], capture_output=True, text=True)
-        return result.stdout.strip()
-    except Exception as e:
-        print(f"[LỖI HỆ THỐNG] Không thể chạy lệnh: {e}")
-        return ""
+setup_display() {
+    echo "[SETUP] Đang thiết lập màn hình (1080x1920, DPI 300)..."
+    su -c "wm size 1080x1920"
+    su -c "wm density 300"
+    sleep 2
+    echo "[SETUP] Hoàn tất thiết lập màn hình!"
+    echo ""
+}
 
-def setup_display():
-    """Thiết lập độ phân giải và DPI theo yêu cầu"""
-    print("[SETUP] Đang thiết lập màn hình (1080x1920, DPI 300)...")
-    run_su_cmd("wm size 1080x1920")
-    run_su_cmd("wm density 300")
-    time.sleep(2) # Đợi hệ thống áp dụng
-    print("[SETUP] Hoàn tất thiết lập màn hình!\n")
-
-def is_running(pkg_name):
-    """Kiểm tra xem package có đang chạy không"""
-    output = run_su_cmd(f"ps -ef | grep {pkg_name} | grep -v grep")
-    # Nếu output có chứa tên package, nghĩa là nó đang chạy
-    if pkg_name in output:
-        return True
-    return False
-
-def launch_app(pkg_name):
-    """Mở app dưới dạng cửa sổ và join thẳng vào game"""
-    # Bạn có thể thay đổi deeplink (roblox://...) ở đây nếu dùng link VIP server cụ thể
-    deeplink = f"roblox://placeId={PLACE_ID}"
+is_running() {
+    local pkg=$1
+    # Kiểm tra tiến trình đang chạy (bỏ qua dòng lệnh grep)
+    local output=$(su -c "ps -ef | grep $pkg | grep -v grep")
     
-    # Lệnh kết hợp: Bật chế độ cửa sổ (5) + Truyền link game (VIEW) + Chỉ định đúng package
-    cmd = (
-        f"am start --windowingMode 5 "
-        f"-a android.intent.action.VIEW "
-        f"-d '{deeplink}' "
-        f"-p {pkg_name}"
-    )
-    
-    run_su_cmd(cmd)
+    if [[ -n "$output" ]]; then
+        return 0 # Đang chạy (True)
+    else
+        return 1 # Đã tắt (False)
+    fi
+}
 
-def main():
-    print("=======================================")
-    print("  AUTO RESTARTER LITE (WINDOW MODE) ")
-    print("=======================================\n")
+launch_app() {
+    local pkg=$1
+    local deeplink="roblox://placeId=${PLACE_ID}"
     
-    # 1. Setup màn hình trước tiên
-    setup_display()
+    # Bật chế độ cửa sổ (5) + Truyền link game + Chỉ định package
+    su -c "am start --windowingMode 5 -a android.intent.action.VIEW -d '${deeplink}' -p ${pkg}"
+}
+
+# ==========================================
+# CHƯƠNG TRÌNH CHÍNH
+# ==========================================
+
+# Ép Termux chạy ngầm không bị sleep (không cần root cho lệnh này)
+termux-wake-lock
+
+echo "======================================="
+echo "  AUTO RESTARTER LITE (BASH SCRIPT)  "
+echo "======================================="
+echo ""
+
+# 1. Setup màn hình
+setup_display
+
+# 2. Vòng lặp kiểm tra liên tục
+while true; do
+    current_time=$(date +"%H:%M:%S")
+    echo "[$current_time] Bắt đầu vòng quét mới..."
     
-    # 2. Vòng lặp kiểm tra liên tục
-    while True:
-        print(f"[{time.strftime('%H:%M:%S')}] Bắt đầu vòng quét mới...")
+    # Tự động tách chuỗi ACCOUNT_SUFFIXES và duyệt qua từng số
+    for suffix in $ACCOUNT_SUFFIXES; do
+        pkg="${BASE_PACKAGE_NAME}${suffix}"
         
-        for pkg in PACKAGES:
-            if is_running(pkg):
-                print(f"  [OK] {pkg} đang chạy -> Bỏ qua (Skip).")
-            else:
-                print(f"  [START] {pkg} đã tắt -> Đang mở lại dạng cửa sổ...")
-                launch_app(pkg)
-                # Đợi 5 giây giữa các lần mở app để tránh treo máy
-                time.sleep(5)
-                
-        print(f"\n[SLEEP] Đợi {CHECK_INTERVAL} giây trước vòng quét tiếp theo...\n")
-        time.sleep(CHECK_INTERVAL)
-
-if __name__ == "__main__":
-    # Ép Termux chạy ngầm không bị sleep
-    run_su_cmd("termux-wake-lock")
-    main()
+        if is_running "$pkg"; then
+            echo "  [OK] $pkg đang chạy -> Bỏ qua (Skip)."
+        else
+            echo "  [START] $pkg đã tắt -> Đang mở lại dạng cửa sổ..."
+            launch_app "$pkg"
+            # Đợi 5 giây giữa các lần mở app để tránh treo máy
+            sleep 5
+        fi
+    done
+    
+    echo ""
+    echo "[SLEEP] Đợi ${CHECK_INTERVAL} giây trước vòng quét tiếp theo..."
+    echo ""
+    sleep $CHECK_INTERVAL
+done
