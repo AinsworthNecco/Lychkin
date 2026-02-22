@@ -1,19 +1,13 @@
 # -*- coding: utf-8 -*-
 # Script Bot Discord cho VMOS Cloud (Phiên bản Ultimate - Full Uncut)
 # Tính năng tích hợp:
-# 1. Playwright: Tự động mở Chrome (System), đăng nhập và treo nick.
-# 2. Mail API: TEMP-MAIL.IO (Không Proxy, dùng VPN/IP thật toàn bộ).
-# 3. Quản lý Config: Token đọc từ file local.
+# 1. Playwright: Tự động mở Chrome giải Captcha để lấy code (Không Proxy).
+# 2. Mail API: MAIL.TM (Dùng Proxy toàn bộ quy trình).
+# 3. Quản lý Config: Token đọc từ file local, Proxy tải từ GitHub.
 # 4. Anti-Rate Limit: Cơ chế cập nhật tin nhắn Discord chậm (10s/lần).
-# 5. Logging: Xuất log chi tiết.
-# 6. Sửa lỗi check_buff_status: Debug chi tiết phản hồi API.
-# 7. UPDATE: Bypass Captcha Slider bằng Playwright Sync + OpenCV khi gửi OTP.
-# 8. UPDATE: Xóa toàn bộ logic Proxy để nhường chỗ cho VPN.
-# 9. UPDATE: Nâng cấp lấy mail sang Temp-Mail.io siêu tốc độ.
-# 10. UPDATE: Trả về Anti-Detect nguyên bản, soi chính xác trạng thái đếm ngược 59s.
-# 11. UPDATE: Phân tách Host_Threads (Đua lấy nick chủ) và Buff_Threads (Cày điểm).
-# 12. UPDATE: Human Easing Trajectory (Quỹ đạo chuột người thật) & WebGL/OS Spoofing (Vá vân tay siêu cấp).
-# 13. UPDATE: Chuẩn hóa 100% logic Temp-mail từ VSCode & Thêm từ khóa Retrieve.
+# 5. Logging: Xuất log chi tiết từng bước.
+# 6. Luồng: Giới hạn số luồng.
+# 7. Sửa lỗi check_buff_status: Debug chi tiết phản hồi API.
 
 import discord
 from discord.ext import commands
@@ -30,46 +24,46 @@ import uuid
 import string
 import urllib.parse
 import urllib3
-from collections import defaultdict
-
-# THƯ VIỆN CHO CAPTCHA
-import cv2
-import numpy as np
-import tempfile
-import shutil
 import base64
 import math
-import concurrent.futures
+from collections import defaultdict
 
-# Tắt cảnh báo insecure request
+# THƯ VIỆN MỚI CHO TRÌNH DUYỆT VÀ CAPTCHA
+# pip install playwright opencv-python numpy requests
+from playwright.async_api import async_playwright
+import cv2
+import numpy as np
+
+# Tắt cảnh báo insecure request (do dùng verify=False với Proxy)
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
-# THƯ VIỆN BROWSER
-from playwright.async_api import async_playwright
-from playwright.sync_api import sync_playwright
+# ==============================================================
+# ==>> CẤU HÌNH HỆ THỐNG (TÙY CHỈNH TẠI ĐÂY) <<==
+# ==============================================================
+CONFIG = {
+    "URL_SIGNUP": "https://cloud.vsphone.com/?channel=web",
+    "NUM_THREADS": 40,          # Giới hạn số luồng (Bot Discord chạy max 40 để an toàn)
+    "HEADLESS": True,           # Chế độ ẩn trình duyệt
+}
 
 # ==============================================================
-# ==>> CẤU HÌNH & HẰNG SỐ <<==
+# ==>> CẤU HÌNH & HẰNG SỐ CŨ <<==
 # ==============================================================
 
 TOKEN_FILE_NAME = "token.txt"
+PROXY_CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/info"
 CODE_FILE_NAME = "CODE.txt"
 THUMBNAIL_URL = "https://i.pinimg.com/1200x/c0/d1/59/c0d1591ce31488b9f71313326dcf01f0.jpg"
 
-# CONFIG DÀNH CHO CAPTCHA SOLVER & MULTI-THREADING (DÀNH CHO MÁY MẠNH)
-CONFIG = {
-    "HOST_THREADS": 3,          # Số luồng đua nhau tạo tài khoản Host
-    "BUFF_THREADS": 5,          # Số luồng cày sub-account sau khi đã có Host
-    "HEADLESS": True,
-    "EXECUTABLE_PATH": "/usr/bin/chromium"
-}
+MAIL_TM_BASE = "https://api.mail.tm"
 
-# Danh sách User-Agent (Chuẩn hóa 100% sang Windows để khớp với Fingerprint Win32)
+# Danh sách User-Agent (Dùng cho VMOS)
 USER_AGENTS_LIST = [
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/123.0.0.0 Safari/537.36",
+    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/121.0.0.0"
 ]
 
@@ -112,6 +106,24 @@ def load_local_token():
     except Exception as e:
         print(f"❌ Lỗi đọc token: {e}")
         return None
+
+def fetch_proxies_from_github():
+    print(f"🌐 Đang kết nối GitHub để lấy Proxy: {PROXY_CONFIG_URL} ...")
+    try:
+        resp = requests.get(PROXY_CONFIG_URL, timeout=15)
+        
+        if resp.status_code != 200:
+            print(f"❌ Lỗi tải Proxy: HTTP {resp.status_code}")
+            return []
+            
+        text = resp.text.strip()
+        lines = [line.strip() for line in text.split('\n') if line.strip()]
+        
+        print(f"✅ Đã tải thành công {len(lines)} proxies từ GitHub.")
+        return lines
+    except Exception as e:
+        print(f"❌ Exception khi tải Proxy GitHub: {e}")
+        return []
 
 # ==============================================================
 # ==>> LỚP QUẢN LÝ CODE STORAGE (LƯU TRỮ & TRÍCH XUẤT) <<==
@@ -222,133 +234,68 @@ class CodeStorageManager:
 code_storage = CodeStorageManager(CODE_FILE_NAME)
 
 # ==============================================================
-# ==>> BROWSER GỐC (DÙNG ĐỂ LOGIN TREO ACC) <<==
+# ==>> LỚP QUẢN LÝ PROXY <<==
 # ==============================================================
 
-async def open_browser_and_login(email, password):
-    print(f"[BROWSER] 🌐 Mở Chromium để treo tài khoản Host...")
-    try:
-        p = await async_playwright().start()
-        
-        browser = await p.chromium.launch(
-            executable_path="/usr/bin/chromium", 
-            headless=True,
-            args=["--guest", "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage", "--window-size=400,600", "--window-position=1500,500"]
-        )
-        context = await browser.new_context(user_agent=get_random_ua())
-        page = await context.new_page()
-        print(f"[BROWSER] 🔗 Truy cập VMOS...")
-        await page.goto("https://cloud.vsphone.com/event/202602", timeout=60000)
-        print(f"[BROWSER] ✍️ Login tài khoản Host...")
-        await page.wait_for_selector('input[placeholder="Please enter your email address"]', timeout=30000)
-        await page.fill('input[placeholder="Please enter your email address"]', email)
-        await page.fill('input[placeholder="Please enter your login password"]', password)
-        await page.click('button:has-text("Sign in")')
-        print(f"[BROWSER] ✅ Tài khoản Host đã được treo trên trình duyệt thành công.")
-        return p, browser, page
-    except Exception as e:
-        print(f"[BROWSER] ❌ Lỗi: {e}")
-        return None, None, None
-
-async def close_browser_session(p, browser):
-    if browser:
-        print(f"[BROWSER] 🛑 Đóng trình duyệt tài khoản Host.")
-        try:
-            await browser.close()
-        except: pass
-    if p:
-        try:
-            await p.stop()
-        except: pass
-
-# ==============================================================
-# ==>> API VMOS CŨ <<==
-# ==============================================================
-
-def safe_request(method, url, **kwargs):
-    if 'timeout' not in kwargs:
-        kwargs['timeout'] = 20
-        
-    # Luôn tắt verify SSL để tránh lỗi với proxy/VPN
-    if 'verify' not in kwargs:
-        kwargs['verify'] = False
+class ProxyManager:
+    def __init__(self, proxy_list=None):
+        self.proxies = []
+        self.bad_proxies = set()
+        if proxy_list:
+            self.load_proxies_from_list(proxy_list)
     
-    try:
-        if method.lower() == 'get':
-            resp = requests.get(url, **kwargs)
-        else:
-            resp = requests.post(url, **kwargs)
-        
-        if resp and "certain foreign ip addresses have been restricted" in resp.text.lower():
-            raise requests.exceptions.ConnectionError("IP Restricted by VMOS")
-        return resp
-    except Exception as e:
-        raise e
-
-# ==============================================================
-# ==>> TEMP-MAIL.IO LOGIC (ĐÃ CHUẨN HÓA 100% VSCODE) <<==
-# ==============================================================
-
-def get_temp_email():
-    """
-    Tạo email từ temp-mail.io dựa đúng trên mã gốc
-    """
-    url = "https://api.internal.temp-mail.io/api/v3/email/new"
-    headers = {
-        "Content-Type": "application/json;charset=UTF-8",
-        "Application-Name": "web",
-        "Application-Version": "2.4.2",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-    }
-    try:
-        response = requests.post(url, headers=headers, timeout=10, verify=False)
-        if response.status_code == 200:
-            return response.json().get("email"), None  # Trả về None thay vì token để tương thích logic cũ
-        else:
-            print(f"   [TEMP-MAIL] ❌ Lỗi tạo email: {response.status_code}")
-    except Exception as e:
-        print(f"   [TEMP-MAIL] ❌ Lỗi kết nối Temp-mail: {e}")
-    return None, None
-
-def get_code_from_email(mail_token, email, thread_id="1"):
-    if not email:
-        return None
-    
-    url = f"https://api.internal.temp-mail.io/api/v3/email/{email}/messages"
-    headers = {
-        "Content-Type": "application/json;charset=UTF-8",
-        "Application-Name": "web",
-        "Application-Version": "2.4.2",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36"
-    }
-    print(f"[Luồng {thread_id}] ⏳ Bắt đầu quét hộp thư temp-mail.io (Sẽ thử trong vòng 100s)...")
-    
-    for i in range(20):
+    def parse_proxy(self, line):
+        line = line.strip()
+        if not line or line.startswith('#'):
+            return None
+        line = re.sub(r'^https?://', '', line)
         try:
-            response = requests.get(url, headers=headers, timeout=10, verify=False)
-            if response.status_code == 200:
-                messages = response.json()
-                if messages:
-                    for msg in reversed(messages):
-                        body_text = msg.get("body_text", "")
-                        if body_text:
-                            # Regex tìm đúng 6 số đứng độc lập
-                            match = re.search(r"(?<!\d)(\d{6})(?!\d)", body_text)
-                            if match:
-                                code_found = match.group(1)
-                                print(f"[Luồng {thread_id}] 💌 Đã thấy mã OTP: {code_found}")
-                                return code_found
-        except requests.exceptions.RequestException:
-            pass # Bỏ qua lỗi mạng
-            
-        time.sleep(5)
+            # IP:Port
+            if ':' in line and '@' not in line:
+                return f"http://{line}" # Đảm bảo có http:// cho requests
+            # User:Pass@IP:Port
+            if '@' in line:
+                return f"http://{line}"
+            # IP:Port:User:Pass
+            parts = line.split(':')
+            if len(parts) >= 4:
+                return f"http://{parts[2]}:{parts[3]}@{parts[0]}:{parts[1]}"
+            return f"http://{line}"
+        except:
+            return None
+
+    def load_proxies_from_list(self, raw_lines):
+        for line in raw_lines:
+            p = self.parse_proxy(line)
+            if p:
+                self.proxies.append(p)
+        print(f"[PROXY] Tổng số proxy đã nạp: {len(self.proxies)}")
+
+    def get_live_proxy(self):
+        available = [p for p in self.proxies if p not in self.bad_proxies]
+        if not available:
+            return None
+        return random.choice(available)
+
+    def mark_bad(self, proxy):
+        if proxy and proxy not in self.bad_proxies:
+            self.bad_proxies.add(proxy)
+
+    def reset_bad_proxies(self):
+        print(f"[PROXY] ♻️ Reset {len(self.bad_proxies)} proxy lỗi.")
+        self.bad_proxies.clear()
+
+    def get_count(self):
+        return len(self.proxies)
         
-    return None
+    def get_live_count(self):
+        return len(self.proxies) - len(self.bad_proxies)
 
-# ==============================================================
-# ==>> HÀM GIẢI CAPTCHA THAY THẾ API GỬI OTP CŨ <<==
-# ==============================================================
+proxy_manager = ProxyManager([])
 
+# ========================================================
+# ==>> HÀM TẢI/LƯU ẢNH GỐC (PLAYWRIGHT CAPTCHA) <<==
+# ========================================================
 def download_image(url, save_path):
     headers = {
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36",
@@ -372,15 +319,18 @@ def download_image(url, save_path):
         print(f"⚠️ Lỗi khi lấy ảnh: {error_msg}")
         return False
 
+# ========================================================
+# ==>> HÀM XỬ LÝ ẢNH CHUẨN XÁC (PLAYWRIGHT CAPTCHA) <<==
+# ========================================================
 def find_puzzle_gap_raw(bg_path, piece_path, thread_id="1"):
-    print(f"[Luồng {thread_id}] 👁️ Đang phân tích ảnh bằng thuật toán Canny Edge...")
+    print(f"[Luồng {thread_id}] 👁️ Đang phân tích ảnh bằng Canny Edge...")
     bg_img = cv2.imread(bg_path)
     piece_img = cv2.imread(piece_path, cv2.IMREAD_UNCHANGED) 
     
     if bg_img is None or piece_img is None:
         print(f"[Luồng {thread_id}] ❌ Lỗi: Không thể đọc được file ảnh đã tải về.")
         return 0, 0, 0, 0, 0, 0, 0
-
+        
     bg_gray = cv2.cvtColor(bg_img, cv2.COLOR_BGR2GRAY)
     bg_edge = cv2.Canny(bg_gray, 50, 150)
     
@@ -408,65 +358,30 @@ def find_puzzle_gap_raw(bg_path, piece_path, thread_id="1"):
             target_raw_x = max_loc[0] - x
             target_raw_y = y_start + max_loc[1] 
             
-            print(f"[Luồng {thread_id}] ✅ Đã chốt hạ tọa độ! Độ khớp (Confidence): {max_val*100:.1f}%")
+            print(f"[Luồng {thread_id}] ✅ Đã chốt tọa độ! Độ khớp: {max_val*100:.1f}%")
             return max(0, target_raw_x), x, y, w, h, max_loc[0], target_raw_y
             
     return max_loc[0], 0, 0, 40, 40, max_loc[0], 0
 
-def feedback_loop_drag(page, start_x, start_y, target_piece_x, thread_id="1"):
-    """
-    THUẬT TOÁN KÉO CHUỘT NGƯỜI THẬT (HUMAN EASING TRAJECTORY)
-    - Đầu kéo nhanh, giữa trượt mượt, cuối chậm lại.
-    - Trục Y đi theo hình vòng cung nhẹ.
-    - Cố tình kéo lố (Overshoot) qua mục tiêu một chút rồi giật lùi về.
-    """
-    page.mouse.move(start_x, start_y)
-    page.mouse.down()
-    time.sleep(random.uniform(0.1, 0.2)) 
+# ========================================================
+# ==>> HÀM RÊ CHUỘT DÒ ĐƯỜNG (PLAYWRIGHT CAPTCHA) ASYNC <<==
+# ========================================================
+async def feedback_loop_drag_async(page, start_x, start_y, target_piece_x, initial_green_x, thread_id="1"):
+    await page.mouse.move(start_x, start_y)
+    await page.mouse.down()
+    await asyncio.sleep(random.uniform(0.1, 0.2)) 
     
-    # 1. Kéo có gia tốc (Ease-out) và cố tình kéo lố (Overshoot)
-    overshoot = random.uniform(2, 6) # Kéo lố từ 2 đến 6 pixel
-    actual_target_x = target_piece_x + overshoot
+    current_mouse_x = start_x
     
-    steps = random.randint(35, 55) # Tổng số bước của giai đoạn 1
-    current_x = start_x
-    
-    for i in range(steps):
-        t = i / steps
-        # Hàm EaseOutQuart: Làm mượt gia tốc giảm dần (càng gần đích càng chậm)
-        ease_t = 1 - (1 - t)**4 
-        
-        current_x = start_x + (actual_target_x * ease_t)
-        # Tạo vòng cung cho trục Y bằng hàm sin
-        curve_y = start_y + math.sin(t * math.pi) * random.uniform(-2, 2) + random.uniform(-0.5, 0.5)
-        
-        page.mouse.move(current_x, curve_y)
-        time.sleep(random.uniform(0.01, 0.03)) # Trễ siêu ngắn mô phỏng thao tác miết chuột
-        
-    time.sleep(random.uniform(0.1, 0.25)) # Khựng lại một nhịp khi nhận ra mình kéo lố
-    
-    # 2. Giật lùi về đúng vị trí (Correcting Overshoot)
-    back_steps = random.randint(5, 12)
-    for i in range(back_steps):
-        t = i / back_steps
-        ease_t = 1 - (1 - t)**2 # EaseOutQuad cho lúc giật lùi
-        current_x = (start_x + actual_target_x) - (overshoot * ease_t)
-        curve_y = start_y + random.uniform(-0.5, 0.5)
-        
-        page.mouse.move(current_x, curve_y)
-        time.sleep(random.uniform(0.02, 0.04))
-
-    # 3. Dò dẫm (Micro-adjustments) để đưa mảnh ghép khớp 100% bằng DOM feedback
-    current_mouse_x = current_x
-    for _ in range(15): 
-        piece_left_str = page.evaluate(r"""() => {
+    for _ in range(200): 
+        piece_left_str = await page.evaluate("""() => {
             let el = document.getElementById('aliyunCaptcha-puzzle');
             if (!el) return '0';
             let left = el.style.left;
             if (left && left !== '0px' && left !== '0') return left;
             let transform = el.style.transform;
             if (transform && transform.includes('translate')) {
-                let match = transform.match(/translate[X]?\((.+?)px/);
+                let match = transform.match(/translate[X]?\\((.+?)px/);
                 if (match) return match[1];
             }
             return left || '0';
@@ -474,284 +389,435 @@ def feedback_loop_drag(page, start_x, start_y, target_piece_x, thread_id="1"):
         
         piece_left = float(piece_left_str.replace('px', '').strip()) if piece_left_str else 0.0
         
+        try:
+            await page.evaluate(f"let g = document.getElementById('vmos-green-box'); if(g) g.style.left = '{(initial_green_x + piece_left)}px';")
+        except:
+            pass
+        
         distance_left = target_piece_x - piece_left
         
         if abs(distance_left) <= 1.0:
-            print(f"[Luồng {thread_id}] 🎯 Mảnh ghép đã ăn khớp hoàn hảo (Sai số: {distance_left:.2f}px). Chốt sổ!")
+            print(f"[Luồng {thread_id}] 🎯 Mảnh ghép khớp hoàn hảo. Chốt sổ!")
             break
             
-        step = random.uniform(0.5, 1.5)
         if distance_left > 0:
+            if distance_left > 40:
+                step = random.uniform(8, 15)
+            elif distance_left > 10:
+                step = random.uniform(3, 6)
+            else:
+                step = random.uniform(0.5, 2)
             current_mouse_x += step
         else:
+            step = random.uniform(0.5, 2)
             current_mouse_x -= step
             
-        page.mouse.move(current_mouse_x, start_y + random.uniform(-0.5, 0.5))
-        time.sleep(random.uniform(0.02, 0.05))
+        await page.mouse.move(current_mouse_x, start_y + random.uniform(-1, 1))
+        await asyncio.sleep(random.uniform(0.01, 0.02))
 
-    time.sleep(random.uniform(0.4, 0.7)) 
-    page.mouse.up()
+    await asyncio.sleep(random.uniform(0.4, 0.7)) 
+    await page.mouse.up()
 
-def auto_drag_slider(page, thread_id="1", stop_event=None):
+# ========================================================
+# ==>> HÀM GIẢI CAPTCHA LIÊN TỤC (PLAYWRIGHT) ASYNC <<==
+# ========================================================
+async def auto_drag_slider_async(page, thread_id="1"):
     print(f"[Luồng {thread_id}] 🤖 Đang tiến hành giải Captcha liên tục...")
+    
+    data_dir = os.path.join(os.getcwd(), "data", str(thread_id))
+    if not os.path.exists(data_dir):
+        os.makedirs(data_dir)
         
     attempt = 0
     while True:
-        if stop_event and stop_event.is_set():
-            print(f"[Luồng {thread_id}] 🛑 Đã nhận tín hiệu dừng, hủy Captcha.")
-            return False
+        get_code_btn = page.get_by_text("Get code", exact=True)
+        is_btn_visible = await get_code_btn.is_visible()
 
-        attempt += 1
-        if attempt > 10:
-            print(f"\n[Luồng {thread_id}] ❌ Fail: Sai quá 10 lần liên tục. Hủy session này để làm lại từ đầu!")
-            return False
-
-        print(f"\n[Luồng {thread_id}] 🔄 LẦN THỬ THỨ {attempt}:")
-        
-        # 1. Kiểm tra trạng thái nút Get Code
-        try:
-            btn_locator = page.locator("#get-captcha-code")
-            btn_text = btn_locator.inner_text(timeout=3000).lower()
-            
-            # Nếu nút chứa chữ 'retrieve' hoặc đếm ngược (vd 59s) -> Thành công
-            if "retrieve" in btn_text or ("s" in btn_text and any(c.isdigit() for c in btn_text)):
-                print(f"[Luồng {thread_id}] ✅ Nút xác nhận ({btn_text.strip()}) xuất hiện! SMS ĐÃ GỬI THÀNH CÔNG.")
-                return True
-                
-            # Nếu hiện Get Code -> Bấm
-            if "get code" in btn_text:
-                print(f"[Luồng {thread_id}] 🔎 Tiến hành click nút 'Get code'...")
-                btn_locator.click(timeout=3000)
-                time.sleep(2)
-        except Exception:
-            pass
-
-        # 2. Xử lý logic chờ Popup hoặc Loading
-        if not page.locator("#aliyunCaptcha-window-popup").is_visible():
-            # Kiểm tra xem có đang xoay loading hay không
-            try:
-                btn_text = page.locator("#get-captcha-code").inner_text(timeout=1000).lower()
-                if "retrieve" in btn_text or ("s" in btn_text and any(c.isdigit() for c in btn_text)):
-                    print(f"[Luồng {thread_id}] ✅ Nút xác nhận ({btn_text.strip()})! SMS ĐÃ GỬI THÀNH CÔNG.")
+        if not is_btn_visible:
+            print(f"\n[Luồng {thread_id}] ⏳ Nút 'Get code' đã biến mất! Chờ xác nhận Retrieve (tối đa 200s)...")
+            # Đợi tối đa 200 giây, check nếu hiện chữ retrieve đếm ngược
+            for i in range(200):
+                content = await page.content()
+                if "Retrieve" in content:
+                    print(f"[Luồng {thread_id}] ✅ Đã thấy chữ 'Retrieve'. SMS ĐÃ GỬI THÀNH CÔNG!")
                     return True
-                if btn_text.strip() == "":
-                    print(f"[Luồng {thread_id}] ⏳ Hệ thống đang xử lý (Xoay Loading)... Đợi 3s...")
-                    time.sleep(3)
-                    continue
-            except:
-                pass
-            time.sleep(1)
-            continue
+                await asyncio.sleep(1)
             
-        # 3. Tiến hành giải Captcha khi có Popup
-        print(f"[Luồng {thread_id}] 🎯 Đã tìm thấy Captcha! Đang tải và phân tích ảnh...")
-        time.sleep(0.5) 
-        
-        bg_locator = page.locator("#aliyunCaptcha-img")
-        piece_locator = page.locator("#aliyunCaptcha-puzzle")
-        slider_handle = page.locator("#aliyunCaptcha-sliding-slider")
-        
-        if not bg_locator.is_visible() or not piece_locator.is_visible():
-            print(f"[Luồng {thread_id}] ❌ Lỗi hiển thị mảnh ghép Captcha.")
-            continue
-
-        bg_url = bg_locator.get_attribute("src")
-        piece_url = piece_locator.get_attribute("src")
-        
-        if not bg_url or not piece_url:
-            print(f"[Luồng {thread_id}] ❌ Lỗi không lấy được link ảnh gốc.")
-            continue
+            print(f"[Luồng {thread_id}] ❌ Chờ 200s không thấy Retrieve, xác nhận thất bại.")
+            return False
             
-        bg_path = f"raw_bg_{thread_id}.png"
-        piece_path = f"raw_piece_{thread_id}.png"
-        
-        if not download_image(bg_url, bg_path) or not download_image(piece_url, piece_path):
-            print(f"[Luồng {thread_id}] ❌ Không thể tải ảnh từ Server.")
-            continue
-
-        target_raw_x, raw_x, raw_y, raw_w, raw_h, raw_tgt_x, raw_tgt_y = find_puzzle_gap_raw(bg_path, piece_path, thread_id)
-        
-        bg_img_raw = cv2.imread(bg_path)
-        raw_width = bg_img_raw.shape[1] if bg_img_raw is not None else 1
-        
-        if os.path.exists(bg_path): os.remove(bg_path)
-        if os.path.exists(piece_path): os.remove(piece_path)
-
-        bg_box = bg_locator.bounding_box()
-        slider_box = slider_handle.bounding_box()
-        
-        if bg_box and slider_box:
-            scale = bg_box["width"] / raw_width 
-            target_piece_x = target_raw_x * scale
+        attempt += 1
+        print(f"\n[Luồng {thread_id}] 🔄 LẦN THỬ THỨ {attempt}:")
+        try:
+            if not await page.locator("#aliyunCaptcha-window-popup").is_visible():
+                print(f"[Luồng {thread_id}] 👉 Đang thử bấm nút 'Get code'...")
+                try:
+                    await get_code_btn.click(timeout=3000)
+                    await asyncio.sleep(2)
+                except Exception:
+                    pass
             
-            print(f"[Luồng {thread_id}] 🎯 Lỗ trống ảnh gốc: {target_raw_x}px | Quãng đường Mảnh Ghép cần đi: {target_piece_x:.2f}px")
+            if not await page.locator("#aliyunCaptcha-window-popup").is_visible():
+                await asyncio.sleep(2)
+                continue
+                
+            await asyncio.sleep(1.5) 
             
-            if target_piece_x < 10:
-                print(f"[Luồng {thread_id}] ⚠️ Lỗi tọa độ (<10px). Đang bấm đổi ảnh mới...")
-                try: page.locator("#aliyunCaptcha-btn-refresh").click(timeout=3000)
-                except: pass
-                time.sleep(1)
+            bg_locator = page.locator("#aliyunCaptcha-img")
+            piece_locator = page.locator("#aliyunCaptcha-puzzle")
+            slider_handle = page.locator("#aliyunCaptcha-sliding-slider")
+            
+            if not await bg_locator.is_visible() or not await piece_locator.is_visible():
                 continue
 
-            print(f"[Luồng {thread_id}] 🖱️ Đang giải Captcha (Kéo thanh trượt bằng Human-Easing)...")
-            margin_x = slider_box["width"] * 0.2
-            margin_y = slider_box["height"] * 0.2
-            start_x = slider_box["x"] + random.uniform(margin_x, slider_box["width"] - margin_x)
-            start_y = slider_box["y"] + random.uniform(margin_y, slider_box["height"] - margin_y)
+            bg_url = await bg_locator.get_attribute("src")
+            piece_url = await piece_locator.get_attribute("src")
             
-            feedback_loop_drag(page, start_x, start_y, target_piece_x, thread_id)
+            if not bg_url or not piece_url:
+                continue
+                
+            bg_path = os.path.join(data_dir, "raw_bg.png")
+            piece_path = os.path.join(data_dir, "raw_piece.png")
             
-            print(f"[Luồng {thread_id}] ⏳ Đã kéo xong! Chờ Web xác thực kết quả...")
-            time.sleep(2) 
+            success_bg = await asyncio.to_thread(download_image, bg_url, bg_path)
+            success_piece = await asyncio.to_thread(download_image, piece_url, piece_path)
+
+            if not success_bg or not success_piece:
+                continue
+
+            # 2. TÍNH TOÁN OPENCV
+            res = await asyncio.to_thread(find_puzzle_gap_raw, bg_path, piece_path, thread_id)
+            target_raw_x, raw_x, raw_y, raw_w, raw_h, raw_tgt_x, raw_tgt_y = res
             
-            if page.locator("#aliyunCaptcha-window-popup").is_visible():
-                print(f"[Luồng {thread_id}] ❌ Fail: Kéo trượt sai tọa độ! Đang đổi ảnh mới...")
-                try: page.locator("#aliyunCaptcha-btn-refresh").click(timeout=3000)
-                except: pass
-                time.sleep(0.5) 
-            else:
-                print(f"[Luồng {thread_id}] ✅ Khung Captcha đã biến mất! Theo dõi nút Get Code xem có bị chặn WAF không...")
-                wait_start = time.time()
-                while time.time() - wait_start < 25:
-                    if stop_event and stop_event.is_set():
-                        return False
-                        
+            bg_img_raw = await asyncio.to_thread(cv2.imread, bg_path)
+            raw_width = bg_img_raw.shape[1] if bg_img_raw is not None else 1
+            
+            if os.path.exists(bg_path): os.remove(bg_path)
+            if os.path.exists(piece_path): os.remove(piece_path)
+
+            # 3. QUY ĐỔI TỶ LỆ & VẼ LÊN TRÌNH DUYỆT
+            bg_box = await bg_locator.bounding_box()
+            slider_box = await slider_handle.bounding_box()
+            
+            if bg_box and slider_box:
+                scale = bg_box["width"] / raw_width 
+                
+                target_piece_x = target_raw_x * scale
+                
+                print(f"[Luồng {thread_id}] 🎯 Quãng đường Mảnh Ghép cần đi: {target_piece_x:.2f}px")
+                
+                if target_piece_x < 10:
+                    await page.locator("#aliyunCaptcha-btn-refresh").click()
+                    await asyncio.sleep(1)
+                    continue
+
+                if raw_w > 0:
+                    await page.evaluate(f"""
+                        () => {{
+                            document.querySelectorAll('.vmos-debug').forEach(e => e.remove());
+                            const imgBox = document.querySelector('#aliyunCaptcha-img-box');
+                            if (!imgBox) return;
+                            imgBox.style.position = 'relative';
+                            
+                            const createBox = (id, x, y, w, h, color) => {{
+                                let box = document.createElement('div');
+                                box.id = id; box.className = 'vmos-debug'; box.style.position = 'absolute';
+                                box.style.left = x + 'px'; box.style.top = y + 'px';
+                                box.style.width = w + 'px'; box.style.height = h + 'px';
+                                box.style.border = '3px solid ' + color; box.style.boxShadow = '0 0 8px ' + color;
+                                box.style.zIndex = '9999999'; box.style.pointerEvents = 'none'; 
+                                imgBox.appendChild(box);
+                            }};
+                            
+                            createBox('vmos-green-box', {raw_x * scale}, {raw_y * scale}, {raw_w * scale}, {raw_h * scale}, '#00ff00');
+                            createBox('vmos-red-box', {raw_tgt_x * scale}, {raw_tgt_y * scale}, {raw_w * scale}, {raw_h * scale}, '#ff0000');
+                        }}
+                    """)
+                    await asyncio.sleep(1.0) 
+
+                # 4. THỰC HIỆN RÊ CHUỘT DÒ ĐƯỜNG
+                margin_x = slider_box["width"] * 0.2
+                margin_y = slider_box["height"] * 0.2
+                start_x = slider_box["x"] + random.uniform(margin_x, slider_box["width"] - margin_x)
+                start_y = slider_box["y"] + random.uniform(margin_y, slider_box["height"] - margin_y)
+                
+                initial_green_x = raw_x * scale
+                await feedback_loop_drag_async(page, start_x, start_y, target_piece_x, initial_green_x, thread_id)
+                
+                print(f"[Luồng {thread_id}] ⏳ Chờ Web xác thực kết quả...")
+                await asyncio.sleep(3) 
+                
+                await page.evaluate("() => { document.querySelectorAll('.vmos-debug').forEach(e => e.remove()); }")
+
+                if await page.locator("#aliyunCaptcha-window-popup").is_visible():
+                    print(f"[Luồng {thread_id}] ⚠️ Bị WAF từ chối! Đang bấm đổi ảnh mới...")
                     try:
-                        btn_text = page.locator("#get-captcha-code").inner_text(timeout=1000).lower()
-                        if "retrieve" in btn_text or ("s" in btn_text and any(c.isdigit() for c in btn_text)):
-                            print(f"[Luồng {thread_id}] ✅ Đã thấy xác nhận ({btn_text.strip()})! SMS ĐÃ GỬI THÀNH CÔNG.")
-                            return True
-                        elif "get code" in btn_text:
-                            print(f"[Luồng {thread_id}] ❌ Bị WAF chặn SMS. Nút đã nhả về 'Get code'. Đang thử lại...")
-                            break # Thoát vòng lặp đợi để làm lại Attempt mới
-                    except Exception:
+                        refresh_btn = page.locator("#aliyunCaptcha-btn-refresh")
+                        if await refresh_btn.is_visible():
+                            await refresh_btn.click()
+                    except:
                         pass
-                    time.sleep(1)
+                await asyncio.sleep(1) 
+        
+        except Exception as e:
+             print(f"[Luồng {thread_id}] ⚠️ Lỗi: {e}")
+             await asyncio.sleep(2)
 
-def send_with_browser(email, thread_id="1", stop_event=None):
-    print(f"[Luồng {thread_id}] 📨 Bắt đầu với email: {email}")
+# ========================================================
+# ==>> HÀM MỞ TRÌNH DUYỆT ĐỂ GỬI CODE (KHÔNG DÙNG PROXY) <<==
+# ========================================================
+async def async_send_with_browser(email, worker_id="1"):
+    print(f"[Luồng {worker_id}] 🌐 [NO-PROXY] Mở Playwright để yêu cầu gửi code SMS cho: {email}")
 
-    temp_profile_dir = tempfile.mkdtemp(prefix=f"vmos_profile_{thread_id}_")
-    is_success = False
+    user_data_dir = os.path.join(os.getcwd(), "data", str(worker_id))
+    if not os.path.exists(user_data_dir):
+        os.makedirs(user_data_dir)
+
+    p = await async_playwright().start()
+    try:
+        launch_args = {
+            "user_data_dir": user_data_dir,
+            "channel": "chrome", 
+            "headless": CONFIG["HEADLESS"],
+            "viewport": {"width": 1280, "height": 720},
+            "device_scale_factor": 1,
+            "has_touch": False,
+            "is_mobile": False,
+            "args": [
+                '--disable-blink-features=AutomationControlled', 
+                '--disable-infobars',                            
+                '--no-sandbox',
+                '--disable-setuid-sandbox'
+            ]
+        }
+        
+        # Lưu ý: Yêu cầu của user là KHÔNG dùng proxy ở Playwright
+        print(f"[Luồng {worker_id}] 🛡️ Khởi chạy Persistent Context (Chống bot)...")
+        context = await p.chromium.launch_persistent_context(**launch_args)
+        
+        await context.add_init_script("""
+            Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+            Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+            window.chrome = { runtime: {} };
+        """)
+        
+        page = context.pages[0] if context.pages else await context.new_page()
+
+        print(f"[Luồng {worker_id}] 🔗 Truy cập trang Sign Up...")
+        await page.goto(CONFIG["URL_SIGNUP"], wait_until="networkidle")
+
+        print(f"[Luồng {worker_id}] 🖱️ Bấm nút Sign Up")
+        await page.get_by_text("Sign Up", exact=True).click()
+        await asyncio.sleep(1)
+
+        print(f"[Luồng {worker_id}] ⌨️ Điền email: {email}")
+        email_input = page.locator("input[placeholder='Please enter your email address']").last
+        await email_input.fill(email)
+        await asyncio.sleep(0.5)
+
+        box = await email_input.bounding_box()
+        if box:
+            await page.mouse.move(box["x"] + 10, box["y"] + 10, steps=5)
+            await asyncio.sleep(0.5)
+
+        # Chạy logic tự động kéo Captcha
+        success = await auto_drag_slider_async(page, worker_id)
+        
+        print(f"[Luồng {worker_id}] 🎉 Quá trình Playwright hoàn tất, đang đóng...")
+        await context.close()
+        return success
+    except Exception as e:
+        print(f"[Luồng {worker_id}] ❌ Lỗi Playwright: {e}")
+        return False
+    finally:
+        await p.stop()
+
+# ==============================================================
+# ==>> BROWSER HOST (TREO ACC CHỦ CŨA BẠN - VẪN GIỮ NGUYÊN) <<==
+# ==============================================================
+
+async def open_browser_and_login(email, password):
+    print(f"[BROWSER HOST] 🌐 Mở Chromium để treo Acc chủ...")
+    try:
+        p = await async_playwright().start()
+        
+        browser = await p.chromium.launch(
+            executable_path="/usr/bin/chromium", 
+            headless=True,
+            args=["--guest", "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage", "--window-size=400,600", "--window-position=1500,500"]
+        )
+        context = await browser.new_context()
+        page = await context.new_page()
+        print(f"[BROWSER HOST] 🔗 Truy cập VMOS...")
+        await page.goto("https://cloud.vsphone.com/event/202602", timeout=60000)
+        print(f"[BROWSER HOST] ✍️ Login...")
+        await page.wait_for_selector('input[placeholder="Please enter your email address"]', timeout=30000)
+        await page.fill('input[placeholder="Please enter your email address"]', email)
+        await page.fill('input[placeholder="Please enter your login password"]', password)
+        await page.click('button:has-text("Sign in")')
+        print(f"[BROWSER HOST] ✅ Treo trình duyệt thành công.")
+        return p, browser, page
+    except Exception as e:
+        print(f"[BROWSER HOST] ❌ Lỗi: {e}")
+        return None, None, None
+
+async def close_browser_session(p, browser):
+    if browser:
+        print(f"[BROWSER HOST] 🛑 Đóng trình duyệt Host.")
+        try:
+            await browser.close()
+        except: pass
+    if p:
+        try:
+            await p.stop()
+        except: pass
+
+# ==============================================================
+# ==>> API VMOS <<==
+# ==============================================================
+
+def safe_request(method, url, proxy, **kwargs):
+    # Cấu hình Proxy chuẩn cho requests
+    proxies_dict = None
+    if proxy:
+        # Proxy từ ProxyManager đã có prefix http://, nhưng requests cần dict rõ ràng
+        proxies_dict = {
+            "http": proxy,
+            "https": proxy
+        }
+
+    if 'timeout' not in kwargs:
+        kwargs['timeout'] = 20
+        
+    # Luôn tắt verify SSL để tránh lỗi với proxy
+    if 'verify' not in kwargs:
+        kwargs['verify'] = False
     
-    current_ua = get_random_ua()
+    try:
+        if method.lower() == 'get':
+            resp = requests.get(url, proxies=proxies_dict, **kwargs)
+        else:
+            resp = requests.post(url, proxies=proxies_dict, **kwargs)
+        
+        if resp and "certain foreign ip addresses have been restricted" in resp.text.lower():
+            raise requests.exceptions.ConnectionError("IP Restricted by VMOS")
+        return resp
+    except Exception as e:
+        raise e
+
+# ==============================================================
+# ==>> MAIL.TM LOGIC (PROXY ENABLED) <<==
+# ==============================================================
+
+def get_temp_email(proxy):
+    """
+    Tạo email từ Mail.tm (CÓ PROXY, VERIFY=FALSE).
+    """
+    proxies_dict = None
+    if proxy:
+        proxies_dict = {
+            "http": proxy,
+            "https": proxy
+        }
 
     try:
-        with sync_playwright() as p:
-            launch_args = {
-                "user_data_dir": temp_profile_dir,
-                "headless": CONFIG["HEADLESS"], 
-                "viewport": {"width": 1280, "height": 720},
-                "device_scale_factor": 1,
-                "has_touch": False,
-                "is_mobile": False,
-                "user_agent": current_ua,
-                "args": [
-                    '--disable-blink-features=AutomationControlled', 
-                    '--disable-infobars',                            
-                    '--no-sandbox',
-                    '--disable-setuid-sandbox',
-                    '--disable-dev-shm-usage',        
-                    '--disable-gpu',                  
-                    '--disable-software-rasterizer',
-                    '--disable-extensions',            
-                    '--mute-audio',                    
-                    '--disable-background-networking',
-                    '--disable-default-apps',
-                    '--disable-sync'                  
-                ]
-            }
+        # 1. Lấy Domain
+        r = requests.get(f"{MAIL_TM_BASE}/domains", proxies=proxies_dict, timeout=20, verify=False)
+        
+        if r.status_code != 200:
+            print(f"   [MAIL-TM] ❌ Lỗi Domain: {r.status_code}")
+            return None, None
             
-            if CONFIG.get("EXECUTABLE_PATH"):
-                launch_args["executable_path"] = CONFIG["EXECUTABLE_PATH"]
-            else:
-                launch_args["channel"] = "chrome"
+        domains_data = r.json()
+        if "hydra:member" not in domains_data or not domains_data["hydra:member"]:
+             print(f"   [MAIL-TM] ❌ Không lấy được domain member.")
+             return None, None
 
-            print(f"[Luồng {thread_id}] 🛡️ Khởi chạy Persistent Context (Sử dụng IP Máy / VPN)...")
-            context = p.chromium.launch_persistent_context(**launch_args)
+        domain = domains_data["hydra:member"][0]["domain"]
+        
+        # Tạo thông tin ngẫu nhiên
+        email = f"{random_string()}@{domain}"
+        password = "Password123!"
+        
+        # 2. Tạo Account
+        acc_payload = {
+            "address": email,
+            "password": password
+        }
+        r_acc = requests.post(f"{MAIL_TM_BASE}/accounts", json=acc_payload, proxies=proxies_dict, timeout=20, verify=False)
+        
+        if r_acc.status_code not in [200, 201]:
+            print(f"   [MAIL-TM] ❌ Lỗi tạo Acc: {r_acc.status_code} {r_acc.text}")
+            return None, None
             
-            try:
-                # =========================================================
-                # BỘ SCRIPT VÁ VÂN TAY (ULTIMATE STEALTH) DÀNH CHO LINUX/VPS
-                # Ép thông số về chuẩn Windows/PC mạnh để qua mặt WAF Aliyun
-                # =========================================================
-                context.add_init_script("""
-                    Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
-                    Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
-                    Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
-                    Object.defineProperty(navigator, 'platform', { get: () => 'Win32' });
-                    Object.defineProperty(navigator, 'deviceMemory', { get: () => 8 });
-                    Object.defineProperty(navigator, 'hardwareConcurrency', { get: () => 8 });
-                    window.chrome = { runtime: {} };
-                    
-                    const getParameter = WebGLRenderingContext.prototype.getParameter;
-                    WebGLRenderingContext.prototype.getParameter = function(parameter) {
-                        if (parameter === 37445) { // UNMASKED_VENDOR_WEBGL
-                            return 'Google Inc. (Intel)';
-                        }
-                        if (parameter === 37446) { // UNMASKED_RENDERER_WEBGL
-                            return 'ANGLE (Intel(R) UHD Graphics 620 Direct3D11 vs_11_0 ps_11_0)';
-                        }
-                        return getParameter.call(this, parameter);
-                    };
-                """)
-                
-                page = context.pages[0] if context.pages else context.new_page()
+        # 3. Lấy Token
+        r_token = requests.post(f"{MAIL_TM_BASE}/token", json=acc_payload, proxies=proxies_dict, timeout=20, verify=False)
+        
+        if r_token.status_code == 200:
+            token = r_token.json().get("token")
+            return email, token
+        else:
+            print(f"   [MAIL-TM] ❌ Lỗi Token: {r_token.status_code}")
+            
+    except Exception as e:
+        print(f"   [MAIL-TM] 🔥 Exception: {e}")
+        # Ném lỗi ra để worker biết mà đổi proxy
+        raise e
+        
+    return None, None
 
-                page.route("**/*", lambda route: route.abort() 
-                           if route.request.resource_type in ["media", "font"] 
-                           else route.continue_())
+def get_code_from_email(mail_token, email, proxy):
+    if not mail_token:
+        return None
+    
+    proxies_dict = None
+    if proxy:
+        proxies_dict = {
+            "http": proxy,
+            "https": proxy
+        }
 
-                target_url = "https://cloud.vsphone.com/?channel=web"
-                
-                print(f"[Luồng {thread_id}] 🌐 Đang truy cập trang web VMOS...")
-                page.goto(target_url, wait_until="domcontentloaded", timeout=60000)
-
-                print(f"[Luồng {thread_id}] 🔎 Tìm thấy trang web, đang tìm nút 'Sign Up'...")
-                page.get_by_text("Sign Up", exact=True).click(timeout=30000)
-                time.sleep(1)
-
-                print(f"[Luồng {thread_id}] ✍️ Đang nhập email: {email}")
-                email_input = page.locator("input[placeholder='Please enter your email address']").last
-                email_input.fill(email)
-                time.sleep(0.5)
-
-                box = email_input.bounding_box()
-                if box:
-                    page.mouse.move(box["x"] + 10, box["y"] + 10, steps=5)
-                    time.sleep(0.2)
-
-                is_success = auto_drag_slider(page, thread_id, stop_event)
-                
-                if is_success:
-                    print(f"[Luồng {thread_id}] 🎉 Tự động hóa hoàn tất, đang đóng trình duyệt...")
-                else:
-                    if stop_event and stop_event.is_set():
-                        print(f"[Luồng {thread_id}] 🛑 Đã bị hủy bỏ do luồng khác đã đua thắng.")
-                    else:
-                        print(f"[Luồng {thread_id}] ❌ Luồng bị gián đoạn do giải Captcha thất bại nhiều lần.")
-                    
-            except Exception as e:
-                if stop_event and stop_event.is_set():
-                    pass # Do luồng bị kill ngang
-                else:
-                    print(f"[Luồng {thread_id}] ❌ Lỗi Timeout tải trang/tìm nút: {e}")
-            finally:
-                context.close()
-    finally:
+    headers = {
+        "Authorization": f"Bearer {mail_token}"
+    }
+    
+    for _ in range(10):
         try:
-            shutil.rmtree(temp_profile_dir, ignore_errors=True)
-            print(f"[Luồng {thread_id}] 🧹 Đã dọn dẹp sạch sẽ profile tạm thời.")
-        except Exception:
-            pass 
+            r = requests.get(f"{MAIL_TM_BASE}/messages", headers=headers, proxies=proxies_dict, timeout=20, verify=False)
             
-    return is_success
+            if r.status_code == 200:
+                data = r.json()
+                if data.get("hydra:totalItems", 0) > 0:
+                    msg = data["hydra:member"][0]
+                    
+                    # QUÉT TOÀN BỘ NỘI DUNG (Subject, Intro, HTML Body)
+                    msg_id = msg.get("id")
+                    
+                    # Gọi chi tiết tin nhắn để lấy HTML
+                    r_detail = requests.get(f"{MAIL_TM_BASE}/messages/{msg_id}", headers=headers, proxies=proxies_dict, timeout=20, verify=False)
+                    
+                    full_content = ""
+                    if r_detail.status_code == 200:
+                        detail = r_detail.json()
+                        full_content = str(detail.get("html", "")) + " " + str(detail.get("text", "")) + " " + str(detail.get("bodyHtmlContent", ""))
+                    else:
+                        # Fallback nếu không gọi được detail
+                        full_content = str(msg.get("subject", "")) + " " + str(msg.get("intro", ""))
+                    
+                    match = re.search(r"\b(\d{6})\b", full_content)
+                    if match:
+                        return match.group(1)
+
+        except:
+            pass
+        time.sleep(3)
+    return None
 
 # ==============================================================
-# ==>> VMOS ACTIONS (LOGIN SAU KHI CÓ CODE) <<==
+# ==>> VMOS ACTIONS <<==
 # ==============================================================
 
-def login_vmos(email, code, invite_code=None, user_agent=None):
+def login_vmos(email, code, proxy, invite_code=None, user_agent=None):
     ua = user_agent if user_agent else get_random_ua()
     url = "https://api.vsphone.com/vsphone/api/user/login"
     headers = {
@@ -774,7 +840,7 @@ def login_vmos(email, code, invite_code=None, user_agent=None):
     if invite_code:
         payload["channel"] = invite_code
 
-    resp = safe_request("POST", url, headers=headers, json=payload)
+    resp = safe_request("POST", url, proxy, headers=headers, json=payload)
     
     if resp and resp.status_code == 200:
         data = resp.json()
@@ -786,22 +852,22 @@ def login_vmos(email, code, invite_code=None, user_agent=None):
                 h2 = headers.copy()
                 h2["token"] = token
                 
-                r2 = safe_request("GET", user_info_url, headers=h2)
+                r2 = safe_request("GET", user_info_url, proxy, headers=h2)
                 
                 if r2 and r2.status_code == 200:
                     uid = r2.json().get("data", {}).get("userId")
                     return {"token": token, "userId": str(uid)}
     return None
 
-def trigger_agent_activation(token, userid, headers):
+def trigger_agent_activation(token, userid, proxy, headers):
     save_agent_url = "https://api.vsphone.com/vsphone/api/agentUser/saveAgentUser"
     payload = {"name": "VSPhone"}
     try:
-        safe_request("POST", save_agent_url, headers=headers, json=payload)
+        safe_request("POST", save_agent_url, proxy, headers=headers, json=payload)
     except Exception: pass
     time.sleep(1)
 
-def check_buff_status(token, userid):
+def check_buff_status(token, userid, proxy):
     ua = get_random_ua()
     url = "https://api.vsphone.com/vsphone/api/vcActiveAssets/info"
     headers = {
@@ -811,7 +877,7 @@ def check_buff_status(token, userid):
     }
     for _ in range(2):
         try:
-            resp = safe_request("POST", url, headers=headers, json={})
+            resp = safe_request("POST", url, proxy, headers=headers, json={})
             
             if resp and resp.status_code == 200:
                 data = resp.json()
@@ -819,19 +885,19 @@ def check_buff_status(token, userid):
                     d_obj = data.get("data") or {}
                     return d_obj.get("assetsNum", 0)
             
-            resp = safe_request("GET", url, headers=headers)
+            resp = safe_request("GET", url, proxy, headers=headers)
             if resp and resp.status_code == 200:
                 data = resp.json()
                 if data.get("code") == 200:
                     d_obj = data.get("data") or {}
                     return d_obj.get("assetsNum", 0)
                     
-        except Exception:
+        except Exception as e:
             pass
         time.sleep(1)
     return 0
 
-def exchange_target_gem(token, userid, target_id):
+def exchange_target_gem(token, userid, proxy, target_id):
     ua = get_random_ua()
     url = "https://api.vsphone.com/vsphone/api/vcActiveExchangeGood/gemExchange"
     headers = {
@@ -845,7 +911,7 @@ def exchange_target_gem(token, userid, target_id):
     print(f"[EXCHANGE] 🎁 Mua gói ID {target_id}...")
     for attempt in range(5): 
         try:
-            resp = safe_request("POST", url, headers=headers, json=payload)
+            resp = safe_request("POST", url, proxy, headers=headers, json=payload)
             if resp and resp.status_code == 200:
                 data = resp.json()
                 if data.get("code") == 200:
@@ -854,7 +920,7 @@ def exchange_target_gem(token, userid, target_id):
         time.sleep(2)
     return False
 
-def fetch_codes_as_dict(token, userid):
+def fetch_codes_as_dict(token, userid, proxy):
     ua = get_random_ua()
     url = "https://api.vsphone.com/vsphone/api/vcActiveAssetsExchangeLog/list"
     headers = {
@@ -865,7 +931,7 @@ def fetch_codes_as_dict(token, userid):
         "token": token, "userid": str(userid), "user-agent": ua
     }
     try:
-        resp = safe_request("GET", url, headers=headers)
+        resp = safe_request("GET", url, proxy, headers=headers)
         if not resp or resp.status_code != 200:
             return None
         data = resp.json()
@@ -885,7 +951,7 @@ def fetch_codes_as_dict(token, userid):
         return grouped
     except: return None
 
-def get_invite_code_vmos(token, userid):
+def get_invite_code_vmos(token, userid, proxy):
     ua = get_random_ua()
     agent_info_url = "https://api.vsphone.com/vsphone/api/agentUser/agentUserInfo"
     headers = {
@@ -894,13 +960,13 @@ def get_invite_code_vmos(token, userid):
         "User-Agent": ua, "appversion": "1008424", "clienttype": "web"
     }
     
-    trigger_agent_activation(token, userid, headers)
+    trigger_agent_activation(token, userid, proxy, headers)
 
     for attempt in range(3):
         try:
-            resp = safe_request("POST", agent_info_url, headers=headers, json={})
+            resp = safe_request("POST", agent_info_url, proxy, headers=headers, json={})
             if not resp or resp.status_code != 200:
-                resp = safe_request("GET", agent_info_url, headers=headers)
+                resp = safe_request("GET", agent_info_url, proxy, headers=headers)
             
             if resp and resp.status_code == 200:
                 data = resp.json()
@@ -914,66 +980,61 @@ def get_invite_code_vmos(token, userid):
         except: break
     return None
 
-async def task_worker(invite_code=None, update_callback=None, stop_event=None, prefix="W"):
-    worker_id = f"{prefix}-{random.randint(1000,9999)}" 
+async def task_worker(invite_code, update_callback=None):
+    worker_id = f"W-{random.randint(1000,9999)}" 
     while True:
-        if stop_event and stop_event.is_set(): return None
+        proxy = proxy_manager.get_live_proxy()
+        if not proxy:
+            print(f"[{worker_id}] ❌ Hết Proxy sống!")
+            return None
         
         current_ua = get_random_ua()
         try:
-            if update_callback and not stop_event:
-                await update_callback(f"🔄 Đang bắt đầu luồng: {worker_id}...")
+            proxy_short = proxy.split('@')[-1]
+            if update_callback:
+                await update_callback(f"🔄 Đang thử proxy: {proxy_short}...")
             
-            # LOG STEP 1: Lấy Mail (Temp-mail) 
-            print(f"[{worker_id}] 🌐 Get Email (temp-mail.io)...")
+            # LOG STEP 1: Lấy Mail (Mail.tm) - DÙNG PROXY
+            print(f"[{worker_id}] 🌐 [PROXY] Get Email (Mail.tm)...")
             
-            email_data = await asyncio.to_thread(get_temp_email)
+            email_data = await asyncio.to_thread(get_temp_email, proxy)
             email, mail_token = email_data if email_data else (None, None)
             
             if not email:
-                await asyncio.sleep(2)
+                proxy_manager.mark_bad(proxy)
                 continue 
 
-            if stop_event and stop_event.is_set(): return None
-
-            if update_callback and not stop_event:
-                await update_callback(f"📩 Đang gửi mã OTP về {email} (Qua Trình Duyệt Giải Captcha)...")
+            if update_callback:
+                await update_callback(f"📩 Đang khởi chạy Playwright gửi OTP tới {email} (KHÔNG PROXY)...")
             
-            # LOG STEP 2: GỬI OTP BẰNG GIẢ LẬP TRÌNH DUYỆT BẮT CAPTCHA
-            print(f"[{worker_id}] 📤 Mở Playwright giải Captcha gửi OTP tới {email}...")
-            sent = await asyncio.to_thread(send_with_browser, email, worker_id, stop_event)
+            # LOG STEP 2: Gửi OTP BẰNG TRÌNH DUYỆT (Playwright Async - KHÔNG PROXY)
+            print(f"[{worker_id}] 📤 [NO-PROXY] Mở Playwright giải Captcha & Gửi OTP tới {email}...")
+            sent = await async_send_with_browser(email, worker_id)
             
             if not sent:
-                if stop_event and not stop_event.is_set():
-                    print(f"[{worker_id}] ❌ [SEND-FAIL] Lỗi giải Captcha / Gửi mã.")
-                continue
+                print(f"[{worker_id}] ❌ [SEND-FAIL] Lỗi gửi mã qua Playwright.")
+                continue # Không phạt proxy vì lỗi là ở Playwright / Captcha
             
-            if stop_event and stop_event.is_set(): return None
-
-            if update_callback and not stop_event:
-                await update_callback(f"⏳ Đang chờ mã OTP...")
+            if update_callback:
+                await update_callback(f"⏳ Đang chờ mã OTP từ Inbox...")
             
-            # LOG STEP 3: Lấy Code 
-            print(f"[{worker_id}] ⏳ Check inbox (Full Body)...")
-            code = await asyncio.to_thread(get_code_from_email, mail_token, email, worker_id)
+            # LOG STEP 3: Lấy Code (Dùng Token, DÙNG PROXY, CHECK BODY)
+            print(f"[{worker_id}] ⏳ [PROXY] Check inbox (Full Body)...")
+            code = await asyncio.to_thread(get_code_from_email, mail_token, email, proxy)
             
             if not code:
-                if stop_event and not stop_event.is_set():
-                    print(f"[{worker_id}] ❌ [TIMEOUT] Không thấy code.")
+                print(f"[{worker_id}] ❌ [TIMEOUT] Không thấy code.")
                 continue
 
-            if stop_event and stop_event.is_set(): return None
-
-            if update_callback and not stop_event:
+            if update_callback:
                 await update_callback(f"🔑 Đang đăng nhập...")
             
-            # LOG STEP 4: Login 
-            print(f"[{worker_id}] 🔑 Login Code: {code}")
-            creds = await asyncio.to_thread(login_vmos, email, code, invite_code, current_ua)
+            # LOG STEP 4: Login (Dùng Proxy)
+            print(f"[{worker_id}] 🔑 [PROXY] Login Code: {code}")
+            creds = await asyncio.to_thread(login_vmos, email, code, proxy, invite_code, current_ua)
             
             if not creds:
-                if stop_event and not stop_event.is_set():
-                    print(f"[{worker_id}] ❌ [LOGIN-FAIL] Login thất bại.")
+                print(f"[{worker_id}] ❌ [LOGIN-FAIL] Login thất bại.")
                 continue
 
             print(f"[{worker_id}] ✅ [SUCCESS] {email} -> OK!")
@@ -981,10 +1042,11 @@ async def task_worker(invite_code=None, update_callback=None, stop_event=None, p
                 "email": email, 
                 "password": "NECONECOLYCONECO", 
                 "token": creds['token'], 
-                "userId": creds['userId']
+                "userId": creds['userId'], 
+                "proxy_used": proxy
             }
         except Exception as e:
-            await asyncio.sleep(2)
+            proxy_manager.mark_bad(proxy)
             continue
 
 intents = discord.Intents.default()
@@ -1007,7 +1069,7 @@ async def use_code(ctx):
     embed = discord.Embed(title="📦 KHO CODE DỰ TRỮ", color=discord.Color.gold())
     total_codes = 0
     if not data:
-        embed.description = "Kho đang trống trơn! Hãy chạy `!genbuff` để kiếm thêm."
+        embed.description = "Kho đang trống trơn! Hãy chạy `!genbuff1` để kiếm thêm."
     else:
         desc = "Nhập lệnh chat bên dưới để lấy code:\n`[loại_vip] [số_lượng]`\nVí dụ: `kvip 5`\n\n**Tồn kho hiện tại:**\n"
         for vip, codes in data.items():
@@ -1046,7 +1108,7 @@ async def use_code(ctx):
         else:
             await ctx.send("❌ Sai cú pháp. Vui lòng thử lại.")
     except asyncio.TimeoutError:
-        await panel_msg.edit(content="⌛ Hết thời gian chờ lệnh `!use`.", embed=None)
+        await panel_msg.edit(content="⌛ Hết thời gian chờ lệnh `!use1`.", embed=None)
 
 @bot.command(name="genstop1")
 async def genstop(ctx):
@@ -1063,7 +1125,7 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
     
     try:
         if not arg1 or not arg2:
-            await ctx.send("❌ Cú pháp: `!genbuff <số_lượng | inf> <loại_vip | all | all-vip...>`")
+            await ctx.send("❌ Cú pháp: `!genbuff1 <số_lượng | inf> <loại_vip | all | all-vip...>`")
             return
         
         vip_type = arg2.lower()
@@ -1096,7 +1158,7 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
         
         if is_inf_mode:
             is_inf_running = True
-            print(f"\n[GENBUFF] BẮT CHẾ ĐỘ VÔ CỰC (INF) - TYPE: {display_type}")
+            print(f"\n[GENBUFF] BẮT ĐẦU CHẾ ĐỘ VÔ CỰC (INF) - TYPE: {display_type}")
         else:
             print(f"\n[GENBUFF] BẮT ĐẦU CHẾ ĐỘ GIỚI HẠN - {num_hosts} HOST - TYPE: {display_type}")
 
@@ -1109,10 +1171,20 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
             if not is_inf_mode and host_idx > num_hosts:
                 break 
 
+            if proxy_manager.get_live_count() == 0:
+                if is_inf_mode:
+                    msg_err = await ctx.send("⚠️ **Cạn kiệt Proxy!** Ngủ 1 phút...") 
+                    await asyncio.sleep(60) 
+                    proxy_manager.reset_bad_proxies()
+                    await msg_err.delete()
+                else:
+                    await ctx.send(f"❌ **Hết proxy!** Ngừng tại Host {host_idx}/{num_hosts}.")
+                    break
+
             print(f"\n[GENBUFF] ---> ĐANG XỬ LÝ HOST {host_idx} <---")
             title_text = f"⚙️ Đang tạo tài khoản chủ ({'Vô cực' if is_inf_mode else f'{host_idx}/{num_hosts}'})..."
             init_embed = discord.Embed(title=title_text, color=discord.Color.orange())
-            init_embed.description = f"🔄 Đang đua {CONFIG['HOST_THREADS']} luồng để tạo Host..."
+            init_embed.description = "🔄 Đang khởi tạo worker..."
             msg = await ctx.send(embed=init_embed)
 
             async def update_host_status(status_msg):
@@ -1120,43 +1192,30 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
                 try: await msg.edit(embed=init_embed)
                 except: pass
 
-            # 1. TẠO TÀI KHOẢN (API + CAPTCHA)
-            print(f"[HOST] 🚀 Bắt đầu tạo Host Account bằng {CONFIG['HOST_THREADS']} luồng đua...")
-            stop_host_event = asyncio.Event()
-            host_acc_box = []
-
-            async def run_host_racer(idx):
-                res = await task_worker(invite_code=None, update_callback=None, stop_event=stop_host_event, prefix=f"H{idx}")
-                if res and not stop_host_event.is_set():
-                    host_acc_box.append(res)
-                    stop_host_event.set()
-
-            racer_tasks = [asyncio.create_task(run_host_racer(i+1)) for i in range(CONFIG["HOST_THREADS"])]
-            
-            while not stop_host_event.is_set() and any(not t.done() for t in racer_tasks):
-                await asyncio.wait(racer_tasks, return_when=asyncio.FIRST_COMPLETED)
-
-            if not host_acc_box:
-                await msg.edit(content=f"❌ Không thể tạo tài khoản chủ {host_idx} sau khi đua luồng.", embed=None)
+            # 1. TẠO TÀI KHOẢN (API)
+            print(f"[HOST] 🚀 Bắt đầu tạo Host Account...")
+            host_acc = await task_worker(invite_code=None, update_callback=update_host_status)
+            if not host_acc:
+                await msg.edit(content=f"❌ Không thể tạo tài khoản chủ {host_idx}.", embed=None)
                 host_idx += 1
                 continue
-
-            host_acc = host_acc_box[0]
+            
             host_token = host_acc['token']
             host_userid = host_acc['userId']
+            host_proxy = host_acc['proxy_used']
 
-            # 2. KHỞI ĐỘNG BROWSER & LOGIN (ĐỂ TREO ACCOUNT HOST XUYÊN SUỐT)
-            init_embed.description = "🌐 Đang mở trình duyệt để treo tài khoản Host..."
+            # 2. KHỞI ĐỘNG BROWSER CHỦ & LOGIN
+            init_embed.description = "🌐 Đang mở trình duyệt để Login..."
             await msg.edit(embed=init_embed)
             
             pw_obj, browser_obj, page_obj = await open_browser_and_login(host_acc['email'], host_acc['password'])
 
-            # 3. LẤY MÃ MỜI CỦA HOST (API)
+            # 3. LẤY MÃ MỜI (API)
             init_embed.description = "🔄 Đang lấy mã mời (Invite Code)..."
             await msg.edit(embed=init_embed)
             
             print(f"[HOST] 📨 Đang lấy Invite Code...")
-            invite_code = await asyncio.to_thread(get_invite_code_vmos, host_token, host_userid)
+            invite_code = await asyncio.to_thread(get_invite_code_vmos, host_token, host_userid, host_proxy)
             if not invite_code:
                 print(f"[HOST] ❌ Không lấy được Invite Code!")
                 embed_err = discord.Embed(title=f"⚠️ Lỗi lấy mã mời (Host {host_idx})", description=f"Skip...", color=discord.Color.red())
@@ -1166,17 +1225,18 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
                 continue
             print(f"[HOST] ✅ Invite Code: {invite_code}")
 
-            # 4. CHẠY BUFF CÀY ĐIỂM (ĐA LUỒNG SUB-ACCOUNTS)
+            # 4. CHẠY BUFF (ĐA LUỒNG)
             embed_run = discord.Embed(title=f"🚀 Auto-Buff {display_type} Started", color=discord.Color.blue())
             embed_run.add_field(name="👤 Tài Khoản Chủ", value=f"Email: `{host_acc['email']}`", inline=False)
             full_invite_link = f"https://cloud.vsphone.com/event/202602?channel={invite_code}"
             embed_run.add_field(name="🎟️ Link Mời", value=f"{full_invite_link}\n(Mã: `{invite_code}`)", inline=False)
-            embed_run.add_field(name="📊 Tiến độ Buff", value=f"Đang chạy {CONFIG['BUFF_THREADS']} luồng Buff...", inline=False)
+            embed_run.add_field(name="📊 Tiến độ Buff", value=f"Đang chạy {num_buffs} luồng (Browser đang treo)...", inline=False)
             if THUMBNAIL_URL:
                 embed_run.set_thumbnail(url=THUMBNAIL_URL)
             await msg.edit(embed=embed_run)
 
-            concurrency = CONFIG["BUFF_THREADS"]
+            total_proxies = proxy_manager.get_count()
+            concurrency = min(total_proxies, CONFIG["NUM_THREADS"])
             semaphore = asyncio.Semaphore(concurrency)
             
             current_assets_num = 0
@@ -1192,6 +1252,7 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
                 active_tasks.add(asyncio.create_task(protected_worker()))
                 
             last_update_time = 0
+            is_host_failed = False
             
             while active_tasks:
                 done, active_tasks = await asyncio.wait(active_tasks, return_when=asyncio.FIRST_COMPLETED)
@@ -1201,7 +1262,7 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
                         res = await task
                         if res:
                             total_success_local += 1
-                            current_assets_num = await asyncio.to_thread(check_buff_status, host_token, host_userid)
+                            current_assets_num = await asyncio.to_thread(check_buff_status, host_token, host_userid, host_proxy)
                         else:
                             total_fail += 1
                     except:
@@ -1225,9 +1286,29 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
                         active_tasks.clear()
                         break
                     
-                    desired_running = min(concurrency, num_buffs - current_assets_num)
-                    while len(active_tasks) < desired_running:
-                        active_tasks.add(asyncio.create_task(protected_worker()))
+                    if proxy_manager.get_live_count() > 0:
+                        desired_running = min(concurrency, num_buffs - current_assets_num)
+                        while len(active_tasks) < desired_running:
+                            active_tasks.add(asyncio.create_task(protected_worker()))
+                    else:
+                        if not active_tasks:
+                            if is_inf_mode:
+                                embed_run.set_field_at(2, name="📊 Tiến độ Buff", value=f"⏳ **Hết Proxy Sống!** Chờ 1 phút...", inline=False) 
+                                await msg.edit(embed=embed_run)
+                                await asyncio.sleep(60) 
+                                proxy_manager.reset_bad_proxies()
+                                desired_running = min(concurrency, num_buffs - current_assets_num)
+                                for _ in range(desired_running):
+                                    active_tasks.add(asyncio.create_task(protected_worker()))
+                            else:
+                                is_host_failed = True
+                                for t in active_tasks:
+                                    t.cancel()
+                                active_tasks.clear()
+                                break
+
+            if is_host_failed:
+                break
 
             # 5. MUA GÓI & LƯU CODE
             final_code_str = "Không có code nào được lấy."
@@ -1237,9 +1318,9 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
                 await msg.edit(embed=embed_run)
                 
                 for ex_id in exchange_list:
-                    await asyncio.to_thread(exchange_target_gem, host_token, host_userid, ex_id)
+                    await asyncio.to_thread(exchange_target_gem, host_token, host_userid, host_proxy, ex_id)
                 
-                codes_dict = await asyncio.to_thread(fetch_codes_as_dict, host_token, host_userid)
+                codes_dict = await asyncio.to_thread(fetch_codes_as_dict, host_token, host_userid, host_proxy)
                 
                 if codes_dict:
                     await asyncio.to_thread(code_storage.add_codes, codes_dict)
@@ -1254,7 +1335,7 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
                     else:
                         final_code_str = "Kho trống."
                 
-            # 6. ĐÓNG TRÌNH DUYỆT CỦA HOST (Sau khi đã đổi quà xong)
+            # 6. ĐÓNG TRÌNH DUYỆT HOST
             await close_browser_session(pw_obj, browser_obj)
 
             # 7. HOÀN TẤT
@@ -1279,16 +1360,19 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
         traceback.print_exc()
 
 if __name__ == "__main__":
-    print("==========================================")
-    print("🚀 VMOS BOT ULTIMATE - PHIÊN BẢN 1.12 - TEMP-MAIL EXACT & RETRIEVE")
-    print("==========================================")
     print("🚀 Đang khởi động Bot...")
     token_local = load_local_token()
+    proxies_list = fetch_proxies_from_github()
     
     if not token_local:
         print("❌ KHÔNG THỂ KHỞI ĐỘNG: Thiếu Token trong file 'token.txt'.")
     else:
-        print(f"🚀 Bot Pro Ultimate + Captcha Bypass đang chạy...")
+        if not proxies_list:
+            print("⚠️ CẢNH BÁO: Không lấy được proxy nào từ GitHub.")
+            
+        proxy_manager = ProxyManager(proxies_list)
+        
+        print(f"🚀 Bot Pro Ultimate + Playwright đang chạy...")
         while True:
             try:
                 bot.run(token_local)
