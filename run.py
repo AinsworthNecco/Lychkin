@@ -42,7 +42,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # ==============================================================
 CONFIG = {
     "URL_SIGNUP": "https://cloud.vsphone.com/?channel=web",
-    "NUM_THREADS": 2,           # Giới hạn số luồng (Đang test để 2)
+    "NUM_THREADS": 10,           # Giới hạn số luồng (Đang test để 2)
     "HEADLESS": True,           # Chế độ ẩn trình duyệt
 }
 
