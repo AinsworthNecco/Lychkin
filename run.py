@@ -51,7 +51,7 @@ CONFIG = {
 # ==============================================================
 
 TOKEN_FILE_NAME = "token.txt"
-PROXY_CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/test1"
+PROXY_CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/info"
 CODE_FILE_NAME = "CODE.txt"
 THUMBNAIL_URL = "https://i.pinimg.com/1200x/c0/d1/59/c0d1591ce31488b9f71313326dcf01f0.jpg"
 
@@ -588,6 +588,7 @@ async def async_send_with_browser(email, worker_id="1"):
     try:
         launch_args = {
             "user_data_dir": user_data_dir,
+            "channel": "chrome",
             "executable_path": "/usr/bin/chromium", # Tương thích cấu hình Debian
             "headless": CONFIG["HEADLESS"],
             "viewport": {"width": 1280, "height": 720},
