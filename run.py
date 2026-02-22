@@ -7,7 +7,7 @@
 # 4. Anti-Rate Limit: Cơ chế cập nhật tin nhắn Discord chậm (10s/lần).
 # 5. Logging: Xuất log chi tiết từng bước.
 # 6. Luồng: Giới hạn số luồng.
-# 7. Sửa lỗi check_buff_status: Debug chi tiết phản hồi API.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+# 7. Sửa lỗi check_buff_status: Debug chi tiết phản hồi API.
 
 import discord
 from discord.ext import commands
@@ -42,7 +42,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # ==============================================================
 CONFIG = {
     "URL_SIGNUP": "https://cloud.vsphone.com/?channel=web",
-    "NUM_THREADS": 1,          # Giới hạn số luồng (Bot Discord chạy max 40 để an toàn)
+    "NUM_THREADS": 2,           # Giới hạn số luồng (Đang test để 2)
     "HEADLESS": True,           # Chế độ ẩn trình duyệt
 }
 
@@ -577,7 +577,7 @@ async def async_send_with_browser(email, worker_id="1"):
     try:
         launch_args = {
             "user_data_dir": user_data_dir,
-            "channel": "chrome", 
+            "executable_path": "/usr/bin/chromium", # Tương thích cấu hình Debian
             "headless": CONFIG["HEADLESS"],
             "viewport": {"width": 1280, "height": 720},
             "device_scale_factor": 1,
@@ -587,7 +587,9 @@ async def async_send_with_browser(email, worker_id="1"):
                 '--disable-blink-features=AutomationControlled', 
                 '--disable-infobars',                            
                 '--no-sandbox',
-                '--disable-setuid-sandbox'
+                '--disable-setuid-sandbox',
+                '--disable-gpu',
+                '--disable-dev-shm-usage'
             ]
         }
         
