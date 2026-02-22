@@ -4,8 +4,9 @@
 # 1. Playwright: Tự động mở Chromium giải Captcha để lấy code (Không Proxy).
 # 2. Mail API: MAIL.TM (Dùng Proxy toàn bộ quy trình).
 # 3. Quản lý Config: Token đọc từ file local, Proxy tải từ GitHub.
-# 4. Luồng: Luôn ép chạy max luồng theo cấu hình.aaaaaaaaaaaaaaaa
-# 5. Native Stealth: Tích hợp tàng hình trực tiếp bằng JS (Đã fix lỗi ngôn ngữ)
+# 4. Luồng: Luôn ép chạy max luồng theo cấu hình.
+# 5. Native Stealth: Tích hợp tàng hình sâu bằng JS (WebGL, Permissions, Plugins)
+# 6. Human-like Evasion: Di chuyển chuột chống nhận diện Bot.
 
 import discord
 from discord.ext import commands
@@ -39,8 +40,8 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # ==============================================================
 CONFIG = {
     "URL_SIGNUP": "https://cloud.vsphone.com/?channel=web",
-    "NUM_THREADS": 6,           # Giới hạn số luồng (Đang test để 2)
-    "HEADLESS": True,           # Chạy ẩn (dùng Xvfb nếu chạy trên Termux)
+    "NUM_THREADS": 2,           # Giới hạn số luồng (Đang test để 2)
+    "HEADLESS": True,           # CHÚ Ý: Mặc dù đã tàng hình mạnh, nếu có thể hãy cài xvfb và để False để tối đa tỷ lệ pass.
 }
 
 # ==============================================================
@@ -348,13 +349,21 @@ def find_puzzle_gap_raw(bg_path, piece_path, thread_id="1"):
     return max_loc[0], 0, 0, 40, 40, max_loc[0], 0
 
 async def feedback_loop_drag_async(page, start_x, start_y, target_piece_x, initial_green_x, thread_id="1"):
-    await page.mouse.move(start_x, start_y)
+    # HÀNH VI TAY NGƯỜI: Di chuyển trỏ chuột lượn lờ ở bên ngoài trước khi nhấp vào slider
+    await page.mouse.move(start_x - random.uniform(50, 150), start_y - random.uniform(50, 100))
+    await asyncio.sleep(random.uniform(0.1, 0.3))
+    
+    # Di chuyển mượt mà tới cục slider
+    await page.mouse.move(start_x, start_y, steps=random.randint(5, 15))
     await page.mouse.down()
     await asyncio.sleep(random.uniform(0.1, 0.2)) 
     
     current_mouse_x = start_x
     
-    for _ in range(200): 
+    # Cờ để kiểm tra xem đã giả vờ kéo lố chưa
+    overshoot_done = False
+    
+    for _ in range(250): 
         piece_left_str = await page.evaluate("""() => {
             let el = document.getElementById('aliyunCaptcha-puzzle');
             if (!el) return '0';
@@ -382,22 +391,38 @@ async def feedback_loop_drag_async(page, start_x, start_y, target_piece_x, initi
             break
             
         if distance_left > 0:
-            if distance_left > 40:
-                step = random.uniform(8, 15)
-            elif distance_left > 10:
-                step = random.uniform(3, 6)
+            if distance_left > 50:
+                step = random.uniform(10, 20)
+            elif distance_left > 20:
+                step = random.uniform(5, 10)
+            elif distance_left > 5:
+                step = random.uniform(2, 5)
             else:
-                step = random.uniform(0.5, 2)
+                # Gần tới đích: xác suất 30% cố tình kéo lố qua vạch (overshoot) để đánh lừa Aliyun
+                if not overshoot_done and random.random() < 0.30:
+                    step = random.uniform(3, 7) # Cố tình cộng mạnh tay
+                    overshoot_done = True
+                else:
+                    step = random.uniform(0.5, 2)
             current_mouse_x += step
         else:
+            # Đang bị kéo lố, lùi nhẹ lại
             step = random.uniform(0.5, 2)
             current_mouse_x -= step
             
-        await page.mouse.move(current_mouse_x, start_y + random.uniform(-1, 1))
-        await asyncio.sleep(random.uniform(0.01, 0.02))
+        # Thêm rung lắc ngẫu nhiên trục Y (Jitter)
+        jitter_y = random.uniform(-2, 2)
+        await page.mouse.move(current_mouse_x, start_y + jitter_y)
+        
+        # Tốc độ kéo không đều
+        await asyncio.sleep(random.uniform(0.005, 0.025))
 
+    # Chờ nhẹ trước khi nhả chuột
     await asyncio.sleep(random.uniform(0.4, 0.7)) 
     await page.mouse.up()
+    
+    # Rê chuột đi chỗ khác sau khi nhả
+    await page.mouse.move(current_mouse_x + random.uniform(20, 50), start_y + random.uniform(20, 50), steps=5)
 
 async def auto_drag_slider_async(page, thread_id="1"):
     print(f"[Luồng {thread_id}] 🤖 Đang tiến hành giải Captcha liên tục...")
@@ -569,7 +594,7 @@ async def async_send_with_browser(email, worker_id="1"):
             "executable_path": "/usr/bin/chromium", 
             "headless": CONFIG["HEADLESS"],
             "viewport": {"width": 1280, "height": 720},
-            "locale": "en-US", # BẮT BUỘC ÉP TIẾNG ANH ĐỂ WEB KHÔNG DỊCH CHỮ "SIGN UP" THÀNH TIẾNG VIỆT
+            "locale": "en-US", 
             "timezone_id": "America/New_York",
             "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "args": [
@@ -579,19 +604,47 @@ async def async_send_with_browser(email, worker_id="1"):
                 '--disable-setuid-sandbox',
                 '--disable-gpu',
                 '--disable-dev-shm-usage',
-                '--lang=en-US' # Ép tiếng Anh ở cấp độ Argument
+                '--lang=en-US',
+                '--start-maximized',
+                '--ignore-certificate-errors',
+                '--allow-running-insecure-content'
             ]
         }
         
-        print(f"[Luồng {worker_id}] 🛡️ Khởi chạy Persistent Context (Chống bot)...")
+        print(f"[Luồng {worker_id}] 🛡️ Khởi chạy Persistent Context (Ultimate Stealth)...")
         context = await p.chromium.launch_persistent_context(**launch_args)
         
-        # ĐÃ SỬA LẠI THUỘC TÍNH LANGUAGES ĐỂ ĐẢM BẢO LUÔN LÀ TIẾNG ANH
+        # HỆ THỐNG STEALTH TỐI THƯỢNG (VƯỢT ALIYUN WAF TRÊN LINUX)
         await context.add_init_script("""
-            Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+            // Ẩn cờ Automation
+            Object.defineProperty(navigator, 'webdriver', { get: () => false });
+            
+            // Giả lập Window Chrome
+            window.chrome = { runtime: {}, app: {}, csid: {}, loadTimes: function() {} };
+            
+            // Giả lập hệ thống Plugins mạnh
             Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+            
+            // Ép ngôn ngữ
             Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] }); 
-            window.chrome = { runtime: {} };
+            
+            // Giả lập API Permissions để không bị check Headless
+            const originalQuery = window.navigator.permissions.query;
+            window.navigator.permissions.query = (parameters) => (
+                parameters.name === 'notifications' ?
+                    Promise.resolve({ state: Notification.permission }) :
+                    originalQuery(parameters)
+            );
+            
+            // FAKE CARD ĐỒ HỌA (WEBGL) - Chống check GPU Linux
+            try {
+                const getParameter = WebGLRenderingContext.prototype.getParameter;
+                WebGLRenderingContext.prototype.getParameter = function(parameter) {
+                    if (parameter === 37445) return 'Google Inc. (Intel)';
+                    if (parameter === 37446) return 'ANGLE (Intel, Intel(R) Iris(TM) Plus Graphics 640, OpenGL 4.1)';
+                    return getParameter.apply(this, [parameter]);
+                };
+            } catch(e) {}
         """)
         
         page = context.pages[0] if context.pages else await context.new_page()
@@ -600,19 +653,16 @@ async def async_send_with_browser(email, worker_id="1"):
         
         await page.goto(CONFIG["URL_SIGNUP"], wait_until="domcontentloaded", timeout=60000)
 
-        # Đã tăng thời gian chờ từ 3s lên 5s cho hệ thống Termux ARM xử lý xong JS
         print(f"[Luồng {worker_id}] ⏳ Đang đợi giao diện React/Vue tải xong (5s)...")
         await asyncio.sleep(5)
 
         print(f"[Luồng {worker_id}] 🖱️ Bấm nút Sign Up")
         try:
-            # Thử click bằng Playwright locator chuẩn
             btn_signup = page.get_by_text("Sign Up", exact=True).last
             await btn_signup.wait_for(state="attached", timeout=10000)
             await btn_signup.click(timeout=10000, force=True)
         except Exception as e:
             print(f"[Luồng {worker_id}] ⚠️ Playwright Click thất bại, dùng JS dự phòng...")
-            # FALLBACK: Nếu web bị lỗi CSS che khuất nút, ép click bằng JavaScript trực tiếp
             try:
                 await page.evaluate("""
                     let btns = Array.from(document.querySelectorAll('*')).filter(el => el.textContent.trim() === 'Sign Up');
