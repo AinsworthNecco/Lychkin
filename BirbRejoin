@@ -14,9 +14,18 @@ ACCOUNT_SUFFIXES="b c d e f"         # Hậu tố của các bản clone
 # ==========================================
 
 setup_display() {
-    echo "[SETUP] Đang thiết lập màn hình (1080x1920, DPI 300)..."
-    su -c "wm size 1080x1920"
+    echo "[SETUP] Đang thiết lập màn hình (1920x1080, DPI 300, Xoay ngang)..."
+    
+    # Ép độ phân giải về tỷ lệ ngang (Rộng x Cao)
+    su -c "wm size 1920x1080"
     su -c "wm density 300"
+    
+    # Tắt tính năng tự động xoay màn hình
+    su -c "settings put system accelerometer_rotation 0"
+    
+    # Ép xoay màn hình sang nằm ngang (1 = Landscape, 0 = Portrait)
+    su -c "settings put system user_rotation 1"
+    
     sleep 2
     echo "[SETUP] Hoàn tất thiết lập màn hình!"
     echo ""
