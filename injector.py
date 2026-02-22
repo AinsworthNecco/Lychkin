@@ -2,7 +2,7 @@
 
 # ==============================================================================
 # SCRIPT: Cookie Injector Pure (Bash Version)
-# Chức năng: CHỈ Tải Cookie và Nạp vào máy bằng Bash Script.
+# Chức năng: CHỈ Tải Cookie và Nạp vào máy bằng Bash Script.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 # ==============================================================================
 
 # ---------------------------------------------------
