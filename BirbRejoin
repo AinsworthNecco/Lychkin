@@ -4,7 +4,9 @@
 # CẤU HÌNH CƠ BẢN
 # ==========================================
 CHECK_INTERVAL=300            # Thời gian quét (giây) -> 300s = 5 phút
-PLACE_ID="https://www.roblox.com/share?code=98a1b858bf53db43b688552818e40748&type=Server"         # ID của game cần quét
+
+# Hỗ trợ cả ID thường (VD: 8737602449) HOẶC Link Share/VIP (VD: https://www.roblox.com/share?...)
+JOIN_TARGET="https://www.roblox.com/share?code=98a1b858bf53db43b688552818e40748&type=Server"
 
 BASE_PACKAGE_NAME="com.roblox.clien" # Tên gói Roblox cơ bản
 ACCOUNT_SUFFIXES="b c d e f"         # Hậu tố của các bản clone
@@ -36,9 +38,14 @@ is_running() {
 
 launch_app() {
     local pkg=$1
-    local deeplink="roblox://placeId=${PLACE_ID}"
+    local deeplink="$JOIN_TARGET"
     
-    # Bật chế độ cửa sổ (5) + Truyền link game + Chỉ định package
+    # Nhận diện: Nếu JOIN_TARGET chỉ chứa các con số (ID thường), thì ghép thêm mác roblox://
+    if [[ "$deeplink" =~ ^[0-9]+$ ]]; then
+        deeplink="roblox://placeId=${deeplink}"
+    fi
+    
+    # Bật chế độ cửa sổ (5) + Truyền trực tiếp link (HTTPS hoặc Deeplink) + Chỉ định package
     su -c "am start --windowingMode 5 -a android.intent.action.VIEW -d '${deeplink}' -p ${pkg}"
 }
 
@@ -62,7 +69,7 @@ while true; do
     current_time=$(date +"%H:%M:%S")
     echo "[$current_time] Bắt đầu vòng quét mới..."
     
-    # Tự động tách chuỗi ACCOUNT_SUFFIXES và duyệt qua từng số
+    # Tự động tách chuỗi ACCOUNT_SUFFIXES và duyệt qua từng số/chữ
     for suffix in $ACCOUNT_SUFFIXES; do
         pkg="${BASE_PACKAGE_NAME}${suffix}"
         
