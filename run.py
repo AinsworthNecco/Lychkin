@@ -6,7 +6,7 @@
 # 3. Quản lý Config: Token đọc từ file local, Proxy tải từ GitHub.
 # 4. Anti-Rate Limit: Cơ chế cập nhật tin nhắn Discord chậm (10s/lần).
 # 5. Logging: Xuất log chi tiết từng bước.
-# 6. Luồng: Giới hạn số luồng.
+# 6. Luồng: Luôn ép chạy max luồng theo cấu hình.
 # 7. Sửa lỗi check_buff_status: Debug chi tiết phản hồi API.
 
 import discord
@@ -42,7 +42,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # ==============================================================
 CONFIG = {
     "URL_SIGNUP": "https://cloud.vsphone.com/?channel=web",
-    "NUM_THREADS": 5,           # Giới hạn số luồng (Đang test để 2)
+    "NUM_THREADS": 2,           # Giới hạn số luồng (Đang test để 2)
     "HEADLESS": True,           # Chế độ ẩn trình duyệt
 }
 
@@ -51,7 +51,7 @@ CONFIG = {
 # ==============================================================
 
 TOKEN_FILE_NAME = "token.txt"
-PROXY_CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/test1"
+PROXY_CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/info"
 CODE_FILE_NAME = "CODE.txt"
 THUMBNAIL_URL = "https://i.pinimg.com/1200x/c0/d1/59/c0d1591ce31488b9f71313326dcf01f0.jpg"
 
@@ -1243,13 +1243,13 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
             embed_run.add_field(name="👤 Tài Khoản Chủ", value=f"Email: `{host_acc['email']}`", inline=False)
             full_invite_link = f"https://cloud.vsphone.com/event/202602?channel={invite_code}"
             embed_run.add_field(name="🎟️ Link Mời", value=f"{full_invite_link}\n(Mã: `{invite_code}`)", inline=False)
-            embed_run.add_field(name="📊 Tiến độ Buff", value=f"Đang chạy {num_buffs} luồng (Browser đang treo)...", inline=False)
+            embed_run.add_field(name="📊 Tiến độ Buff", value=f"Đang chạy cấu hình {CONFIG['NUM_THREADS']} luồng (Browser đang treo)...", inline=False)
             if THUMBNAIL_URL:
                 embed_run.set_thumbnail(url=THUMBNAIL_URL)
             await msg.edit(embed=embed_run)
 
-            total_proxies = proxy_manager.get_count()
-            concurrency = min(total_proxies, CONFIG["NUM_THREADS"])
+            # Ép buộc số lượng luồng luôn luôn bằng CONFIG["NUM_THREADS"] (Không quan tâm giới hạn Proxy/Số Buff)
+            concurrency = CONFIG["NUM_THREADS"]
             semaphore = asyncio.Semaphore(concurrency)
             
             current_assets_num = 0
@@ -1293,15 +1293,16 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
                             print(f"⚠️ Discord Rate Limit: {e}. Bỏ qua lần update này.")
                         except Exception: pass
                     
+                    # NẾU ĐÃ ĐẠT ĐỦ TARGET BUFF THÌ THOÁT LUÔN
                     if current_assets_num >= num_buffs:
                         for t in active_tasks:
                             t.cancel()
                         active_tasks.clear()
                         break
                     
+                    # KIỂM TRA TASK ĐỂ FILL VÀO CHO ĐỦ MỨC CONCURRENCY BAN ĐẦU
                     if proxy_manager.get_live_count() > 0:
-                        desired_running = min(concurrency, num_buffs - current_assets_num)
-                        while len(active_tasks) < desired_running:
+                        while len(active_tasks) < concurrency:
                             active_tasks.add(asyncio.create_task(protected_worker()))
                     else:
                         if not active_tasks:
@@ -1310,8 +1311,7 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
                                 await msg.edit(embed=embed_run)
                                 await asyncio.sleep(60) 
                                 proxy_manager.reset_bad_proxies()
-                                desired_running = min(concurrency, num_buffs - current_assets_num)
-                                for _ in range(desired_running):
+                                for _ in range(concurrency):
                                     active_tasks.add(asyncio.create_task(protected_worker()))
                             else:
                                 is_host_failed = True
