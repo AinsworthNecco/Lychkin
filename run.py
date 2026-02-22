@@ -429,7 +429,13 @@ async def auto_drag_slider_async(page, thread_id="1"):
         os.makedirs(data_dir)
         
     attempt = 0
+    MAX_ATTEMPTS = 5
+    
     while True:
+        if attempt >= MAX_ATTEMPTS:
+            print(f"[Luồng {thread_id}] ❌ Hủy luồng Playwright: Đã thất bại {MAX_ATTEMPTS} lần liên tiếp. Lý do có thể: Giải sai lệch liên tục, web không tải được captcha, hoặc IP đã bị chặn cứng.")
+            return False
+
         get_code_btn = page.get_by_text("Get code", exact=True)
         is_btn_visible = await get_code_btn.is_visible()
 
@@ -447,7 +453,7 @@ async def auto_drag_slider_async(page, thread_id="1"):
             return False
             
         attempt += 1
-        print(f"\n[Luồng {thread_id}] 🔄 LẦN THỬ THỨ {attempt}:")
+        print(f"\n[Luồng {thread_id}] 🔄 LẦN THỬ THỨ {attempt}/{MAX_ATTEMPTS}:")
         try:
             if not await page.locator("#aliyunCaptcha-window-popup").is_visible():
                 print(f"[Luồng {thread_id}] 👉 Đang thử bấm nút 'Get code'...")
@@ -458,6 +464,7 @@ async def auto_drag_slider_async(page, thread_id="1"):
                     pass
             
             if not await page.locator("#aliyunCaptcha-window-popup").is_visible():
+                print(f"[Luồng {thread_id}] ⚠️ Lỗi: Không hiện popup Captcha. Đang thử lại...")
                 await asyncio.sleep(2)
                 continue
                 
@@ -468,12 +475,14 @@ async def auto_drag_slider_async(page, thread_id="1"):
             slider_handle = page.locator("#aliyunCaptcha-sliding-slider")
             
             if not await bg_locator.is_visible() or not await piece_locator.is_visible():
+                print(f"[Luồng {thread_id}] ⚠️ Lỗi: Popup Captcha có nhưng không hiển thị ảnh.")
                 continue
 
             bg_url = await bg_locator.get_attribute("src")
             piece_url = await piece_locator.get_attribute("src")
             
             if not bg_url or not piece_url:
+                print(f"[Luồng {thread_id}] ⚠️ Lỗi: Không trích xuất được link URL của ảnh.")
                 continue
                 
             bg_path = os.path.join(data_dir, "raw_bg.png")
@@ -483,6 +492,7 @@ async def auto_drag_slider_async(page, thread_id="1"):
             success_piece = await asyncio.to_thread(download_image, piece_url, piece_path)
 
             if not success_bg or not success_piece:
+                print(f"[Luồng {thread_id}] ⚠️ Lỗi: Tải ảnh từ URL thất bại.")
                 continue
 
             # 2. TÍNH TOÁN OPENCV
@@ -507,6 +517,7 @@ async def auto_drag_slider_async(page, thread_id="1"):
                 print(f"[Luồng {thread_id}] 🎯 Quãng đường Mảnh Ghép cần đi: {target_piece_x:.2f}px")
                 
                 if target_piece_x < 10:
+                    print(f"[Luồng {thread_id}] ⚠️ Lỗi: Mảnh ghép sát lề (< 10px), nguy cơ bot cao. Đổi ảnh...")
                     await page.locator("#aliyunCaptcha-btn-refresh").click()
                     await asyncio.sleep(1)
                     continue
@@ -550,7 +561,7 @@ async def auto_drag_slider_async(page, thread_id="1"):
                 await page.evaluate("() => { document.querySelectorAll('.vmos-debug').forEach(e => e.remove()); }")
 
                 if await page.locator("#aliyunCaptcha-window-popup").is_visible():
-                    print(f"[Luồng {thread_id}] ⚠️ Bị WAF từ chối! Đang bấm đổi ảnh mới...")
+                    print(f"[Luồng {thread_id}] ⚠️ Bị WAF từ chối (Giải sai lệch tọa độ hoặc bị quét Bot)! Đang bấm đổi ảnh mới...")
                     try:
                         refresh_btn = page.locator("#aliyunCaptcha-btn-refresh")
                         if await refresh_btn.is_visible():
@@ -560,7 +571,7 @@ async def auto_drag_slider_async(page, thread_id="1"):
                 await asyncio.sleep(1) 
         
         except Exception as e:
-             print(f"[Luồng {thread_id}] ⚠️ Lỗi: {e}")
+             print(f"[Luồng {thread_id}] ⚠️ Lỗi ngoại lệ trong lúc giải Captcha: {e}")
              await asyncio.sleep(2)
 
 # ========================================================
