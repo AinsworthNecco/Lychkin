@@ -4,8 +4,8 @@
 # 1. Playwright: Tự động mở Chromium giải Captcha để lấy code (Không Proxy).
 # 2. Mail API: MAIL.TM (Dùng Proxy toàn bộ quy trình).
 # 3. Quản lý Config: Token đọc từ file local, Proxy tải từ GitHub.
-# 4. Luồng: Luôn ép chạy max luồng theo cấu hình.
-# 5. Native Stealth: Tích hợp tàng hình trực tiếp bằng JS (Không dùng pip stealth)
+# 4. Luồng: Luôn ép chạy max luồng theo cấu hình.aaaaaaaaaaaaaaaa
+# 5. Native Stealth: Tích hợp tàng hình trực tiếp bằng JS (Đã fix lỗi ngôn ngữ)
 
 import discord
 from discord.ext import commands
@@ -79,7 +79,7 @@ VIP_MAP = {
 is_inf_running = False
 
 # ==============================================================
-# ==>> HÀM LƯU TRỮ VÀ PROXY CỦA BẠN (ĐÃ KHÔI PHỤC DẠNG DÀI) <<==
+# ==>> HÀM LƯU TRỮ VÀ PROXY CỦA BẠN (GIỮ NGUYÊN) <<==
 # ==============================================================
 
 def load_local_token():
@@ -568,7 +568,9 @@ async def async_send_with_browser(email, worker_id="1"):
             "user_data_dir": user_data_dir,
             "executable_path": "/usr/bin/chromium", 
             "headless": CONFIG["HEADLESS"],
-            "viewport": {"width": 1280, "height": 720}, 
+            "viewport": {"width": 1280, "height": 720},
+            "locale": "en-US", # BẮT BUỘC ÉP TIẾNG ANH ĐỂ WEB KHÔNG DỊCH CHỮ "SIGN UP" THÀNH TIẾNG VIỆT
+            "timezone_id": "America/New_York",
             "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "args": [
                 '--disable-blink-features=AutomationControlled', 
@@ -576,18 +578,19 @@ async def async_send_with_browser(email, worker_id="1"):
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
                 '--disable-gpu',
-                '--disable-dev-shm-usage'
+                '--disable-dev-shm-usage',
+                '--lang=en-US' # Ép tiếng Anh ở cấp độ Argument
             ]
         }
         
         print(f"[Luồng {worker_id}] 🛡️ Khởi chạy Persistent Context (Chống bot)...")
         context = await p.chromium.launch_persistent_context(**launch_args)
         
-        # SỬ DỤNG MÃ STEALTH THUẦN KHÔNG CẦN THƯ VIỆN BÊN NGOÀI
+        # ĐÃ SỬA LẠI THUỘC TÍNH LANGUAGES ĐỂ ĐẢM BẢO LUÔN LÀ TIẾNG ANH
         await context.add_init_script("""
             Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
             Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
-            Object.defineProperty(navigator, 'languages', { get: () => ['vi-VN', 'vi', 'en-US', 'en'] });
+            Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] }); 
             window.chrome = { runtime: {} };
         """)
         
@@ -595,34 +598,48 @@ async def async_send_with_browser(email, worker_id="1"):
 
         print(f"[Luồng {worker_id}] 🔗 Truy cập trang Sign Up...")
         
-        # Đổi thành domcontentloaded để tránh kẹt mạng trên Termux
         await page.goto(CONFIG["URL_SIGNUP"], wait_until="domcontentloaded", timeout=60000)
 
-        # Chờ 3 giây cho các script Vue/React của web render đầy đủ nút bấm
-        print(f"[Luồng {worker_id}] ⏳ Đang đợi giao diện tải xong...")
-        await asyncio.sleep(3)
+        # Đã tăng thời gian chờ từ 3s lên 5s cho hệ thống Termux ARM xử lý xong JS
+        print(f"[Luồng {worker_id}] ⏳ Đang đợi giao diện React/Vue tải xong (5s)...")
+        await asyncio.sleep(5)
 
         print(f"[Luồng {worker_id}] 🖱️ Bấm nút Sign Up")
         try:
-            # Khôi phục lại cách tìm nút chính xác y hệt gốc của bạn
+            # Thử click bằng Playwright locator chuẩn
             btn_signup = page.get_by_text("Sign Up", exact=True).last
-            await btn_signup.click(timeout=15000, force=True)
-        except Exception as click_err:
-            print(f"[Luồng {worker_id}] ⚠️ Click 'Sign Up' thất bại. Mã lỗi: {click_err}")
-            await context.close()
-            return False
+            await btn_signup.wait_for(state="attached", timeout=10000)
+            await btn_signup.click(timeout=10000, force=True)
+        except Exception as e:
+            print(f"[Luồng {worker_id}] ⚠️ Playwright Click thất bại, dùng JS dự phòng...")
+            # FALLBACK: Nếu web bị lỗi CSS che khuất nút, ép click bằng JavaScript trực tiếp
+            try:
+                await page.evaluate("""
+                    let btns = Array.from(document.querySelectorAll('*')).filter(el => el.textContent.trim() === 'Sign Up');
+                    if (btns.length > 0) { btns[btns.length - 1].click(); }
+                """)
+            except Exception as e2:
+                print(f"[Luồng {worker_id}] ❌ Click bằng cả JS cũng thất bại: {e2}")
+                await context.close()
+                return False
 
-        await asyncio.sleep(1)
+        await asyncio.sleep(1.5)
 
         print(f"[Luồng {worker_id}] ⌨️ Điền email: {email}")
-        email_input = page.locator("input[placeholder='Please enter your email address']").last
-        await email_input.fill(email)
-        await asyncio.sleep(0.5)
-
-        box = await email_input.bounding_box()
-        if box:
-            await page.mouse.move(box["x"] + 10, box["y"] + 10, steps=5)
+        try:
+            email_input = page.locator("input[placeholder='Please enter your email address']").last
+            await email_input.wait_for(state="visible", timeout=10000)
+            await email_input.fill(email)
             await asyncio.sleep(0.5)
+
+            box = await email_input.bounding_box()
+            if box:
+                await page.mouse.move(box["x"] + 10, box["y"] + 10, steps=5)
+                await asyncio.sleep(0.5)
+        except Exception as input_err:
+             print(f"[Luồng {worker_id}] ❌ Lỗi khi điền Email: {input_err}")
+             await context.close()
+             return False
 
         # Bắt đầu gọi hàm giải Captcha
         success = await auto_drag_slider_async(page, worker_id)
@@ -651,13 +668,13 @@ async def open_browser_and_login(email, password):
             headless=True,
             args=["--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage", "--window-size=400,600"]
         )
-        context = await browser.new_context()
+        context = await browser.new_context(locale="en-US", timezone_id="America/New_York")
         
-        # STEALTH THUẦN CHO TRÌNH DUYỆT HOST
+        # STEALTH THUẦN CHO TRÌNH DUYỆT HOST (ÉP TIẾNG ANH)
         await context.add_init_script("""
             Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
             Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
-            Object.defineProperty(navigator, 'languages', { get: () => ['vi-VN', 'vi', 'en-US', 'en'] });
+            Object.defineProperty(navigator, 'languages', { get: () => ['en-US', 'en'] });
             window.chrome = { runtime: {} };
         """)
 
