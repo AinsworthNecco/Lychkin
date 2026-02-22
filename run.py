@@ -2,8 +2,8 @@
 # Script Bot Discord cho VMOS Cloud (Phiên bản Ultimate - Full Uncut)
 # Tính năng tích hợp:
 # 1. Playwright: Tự động mở Chrome giải Captcha để lấy code (Không Proxy).
-# 2. Mail API: MAIL.TM (Dùng Proxy toàn bộ quy trình).
-# 3. Quản lý Config: Token đọc từ file local, Proxy tải từ GitHub.
+# 2. Mail API: TEMP-MAIL.IO (Dùng Proxy toàn bộ quy trình).
+# 3. Quản lý Config: Token đọc từ file local, Proxy tải từ GitHub.aaaaaaaaaaaaa
 # 4. Anti-Rate Limit: Cơ chế cập nhật tin nhắn Discord chậm (10s/lần).
 # 5. Logging: Xuất log chi tiết từng bước.
 # 6. Luồng: Giới hạn số luồng.
@@ -51,11 +51,9 @@ CONFIG = {
 # ==============================================================
 
 TOKEN_FILE_NAME = "token.txt"
-PROXY_CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/test1"
+PROXY_CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/info"
 CODE_FILE_NAME = "CODE.txt"
 THUMBNAIL_URL = "https://i.pinimg.com/1200x/c0/d1/59/c0d1591ce31488b9f71313326dcf01f0.jpg"
-
-MAIL_TM_BASE = "https://api.mail.tm"
 
 # Danh sách User-Agent (Dùng cho VMOS)
 USER_AGENTS_LIST = [
@@ -719,12 +717,13 @@ def safe_request(method, url, proxy, **kwargs):
         raise e
 
 # ==============================================================
-# ==>> MAIL.TM LOGIC (PROXY ENABLED) <<==
+# ==>> TEMP-MAIL.IO LOGIC (PROXY ENABLED) <<==
 # ==============================================================
 
 def get_temp_email(proxy):
     """
-    Tạo email từ Mail.tm (CÓ PROXY, VERIFY=FALSE).
+    Tạo email từ Temp-Mail.io (CÓ PROXY, VERIFY=FALSE).
+    Hỗ trợ cả 2 loại proxy: HTTP không mật khẩu và HTTP có mật khẩu.
     """
     proxies_dict = None
     if proxy:
@@ -733,54 +732,36 @@ def get_temp_email(proxy):
             "https": proxy
         }
 
-    try:
-        # 1. Lấy Domain
-        r = requests.get(f"{MAIL_TM_BASE}/domains", proxies=proxies_dict, timeout=20, verify=False)
-        
-        if r.status_code != 200:
-            print(f"   [MAIL-TM] ❌ Lỗi Domain: {r.status_code}")
-            return None, None
-            
-        domains_data = r.json()
-        if "hydra:member" not in domains_data or not domains_data["hydra:member"]:
-             print(f"   [MAIL-TM] ❌ Không lấy được domain member.")
-             return None, None
+    url = "https://api.internal.temp-mail.io/api/v3/email/new"
+    headers = {
+        "Accept": "application/json, text/plain, */*",
+        "Accept-Language": "en-US,en;q=0.9,vi;q=0.8",
+        "Application-Name": "web",
+        "Application-Version": "2.4.2",
+        "Content-Type": "application/json;charset=UTF-8",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+    }
 
-        domain = domains_data["hydra:member"][0]["domain"]
-        
-        # Tạo thông tin ngẫu nhiên
-        email = f"{random_string()}@{domain}"
-        password = "Password123!"
-        
-        # 2. Tạo Account
-        acc_payload = {
-            "address": email,
-            "password": password
-        }
-        r_acc = requests.post(f"{MAIL_TM_BASE}/accounts", json=acc_payload, proxies=proxies_dict, timeout=20, verify=False)
-        
-        if r_acc.status_code not in [200, 201]:
-            print(f"   [MAIL-TM] ❌ Lỗi tạo Acc: {r_acc.status_code} {r_acc.text}")
-            return None, None
-            
-        # 3. Lấy Token
-        r_token = requests.post(f"{MAIL_TM_BASE}/token", json=acc_payload, proxies=proxies_dict, timeout=20, verify=False)
-        
-        if r_token.status_code == 200:
-            token = r_token.json().get("token")
-            return email, token
+    try:
+        r = requests.post(url, headers=headers, proxies=proxies_dict, timeout=20, verify=False)
+        if r.status_code == 200:
+            data = r.json()
+            return data.get("email"), None
         else:
-            print(f"   [MAIL-TM] ❌ Lỗi Token: {r_token.status_code}")
-            
+            print(f"   [TEMP-MAIL] ❌ Lỗi tạo email: {r.status_code}")
     except Exception as e:
-        print(f"   [MAIL-TM] 🔥 Exception: {e}")
+        print(f"   [TEMP-MAIL] 🔥 Exception: {e}")
         # Ném lỗi ra để worker biết mà đổi proxy
         raise e
         
     return None, None
 
 def get_code_from_email(mail_token, email, proxy):
-    if not mail_token:
+    """
+    Lấy tin nhắn từ Temp-Mail.io (CÓ PROXY, VERIFY=FALSE).
+    Bỏ qua thông số mail_token vì temp-mail.io không cần.
+    """
+    if not email:
         return None
     
     proxies_dict = None
@@ -789,39 +770,22 @@ def get_code_from_email(mail_token, email, proxy):
             "http": proxy,
             "https": proxy
         }
-
-    headers = {
-        "Authorization": f"Bearer {mail_token}"
-    }
     
-    for _ in range(10):
+    url = f"https://api.internal.temp-mail.io/api/v3/email/{email}/messages"
+    
+    for _ in range(10): # Tương đương 30s timeout
         try:
-            r = requests.get(f"{MAIL_TM_BASE}/messages", headers=headers, proxies=proxies_dict, timeout=20, verify=False)
-            
+            r = requests.get(url, proxies=proxies_dict, timeout=20, verify=False)
             if r.status_code == 200:
-                data = r.json()
-                if data.get("hydra:totalItems", 0) > 0:
-                    msg = data["hydra:member"][0]
-                    
-                    # QUÉT TOÀN BỘ NỘI DUNG (Subject, Intro, HTML Body)
-                    msg_id = msg.get("id")
-                    
-                    # Gọi chi tiết tin nhắn để lấy HTML
-                    r_detail = requests.get(f"{MAIL_TM_BASE}/messages/{msg_id}", headers=headers, proxies=proxies_dict, timeout=20, verify=False)
-                    
-                    full_content = ""
-                    if r_detail.status_code == 200:
-                        detail = r_detail.json()
-                        full_content = str(detail.get("html", "")) + " " + str(detail.get("text", "")) + " " + str(detail.get("bodyHtmlContent", ""))
-                    else:
-                        # Fallback nếu không gọi được detail
-                        full_content = str(msg.get("subject", "")) + " " + str(msg.get("intro", ""))
-                    
-                    match = re.search(r"\b(\d{6})\b", full_content)
-                    if match:
-                        return match.group(1)
-
-        except:
+                messages = r.json()
+                if messages:
+                    for msg in reversed(messages):
+                        body_text = msg.get("body_text", "")
+                        if body_text:
+                            match = re.search(r"\b(\d{6})\b", body_text)
+                            if match:
+                                return match.group(1)
+        except Exception as e:
             pass
         time.sleep(3)
     return None
@@ -1007,8 +971,8 @@ async def task_worker(invite_code, update_callback=None):
             if update_callback:
                 await update_callback(f"🔄 Đang thử proxy: {proxy_short}...")
             
-            # LOG STEP 1: Lấy Mail (Mail.tm) - DÙNG PROXY
-            print(f"[{worker_id}] 🌐 [PROXY] Get Email (Mail.tm)...")
+            # LOG STEP 1: Lấy Mail (Temp-Mail.io) - DÙNG PROXY
+            print(f"[{worker_id}] 🌐 [PROXY] Get Email (Temp-Mail.io)...")
             
             email_data = await asyncio.to_thread(get_temp_email, proxy)
             email, mail_token = email_data if email_data else (None, None)
