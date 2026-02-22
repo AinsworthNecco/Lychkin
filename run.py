@@ -3,7 +3,7 @@
 # Tính năng tích hợp:
 # 1. Playwright: Tự động mở Chrome giải Captcha để lấy code (Không Proxy).
 # 2. Mail API: TEMP-MAIL.IO (Dùng Proxy toàn bộ quy trình).
-# 3. Quản lý Config: Token đọc từ file local, Proxy tải từ GitHub.aaaaaaaaaaaaa
+# 3. Quản lý Config: Token đọc từ file local, Proxy tải từ GitHub.bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
 # 4. Anti-Rate Limit: Cơ chế cập nhật tin nhắn Discord chậm (10s/lần).
 # 5. Logging: Xuất log chi tiết từng bước.
 # 6. Luồng: Giới hạn số luồng.
