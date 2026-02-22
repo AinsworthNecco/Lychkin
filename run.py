@@ -7,7 +7,7 @@
 # 4. Anti-Rate Limit: Cơ chế cập nhật tin nhắn Discord chậm (10s/lần).
 # 5. Logging: Xuất log chi tiết từng bước.
 # 6. Luồng: Giới hạn số luồng.
-# 7. Sửa lỗi check_buff_status: Debug chi tiết phản hồi API.
+# 7. Sửa lỗi check_buff_status: Debug chi tiết phản hồi API.aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 
 import discord
 from discord.ext import commands
@@ -42,7 +42,7 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # ==============================================================
 CONFIG = {
     "URL_SIGNUP": "https://cloud.vsphone.com/?channel=web",
-    "NUM_THREADS": 40,          # Giới hạn số luồng (Bot Discord chạy max 40 để an toàn)
+    "NUM_THREADS": 1,          # Giới hạn số luồng (Bot Discord chạy max 40 để an toàn)
     "HEADLESS": True,           # Chế độ ẩn trình duyệt
 }
 
