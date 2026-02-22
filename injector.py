@@ -1,18 +1,8 @@
-#!/data/data/com.termux/files/usr/bin/python
-# -*- coding: utf-8 -*-
-
-import subprocess
-import time
-import os
-import sys
-import sqlite3
-import shutil
-import urllib.request
+#!/data/data/com.termux/files/usr/bin/bash
 
 # ==============================================================================
-# SCRIPT: Cookie Injector Pure (Hardcoded Config)
-# Chức năng: CHỈ Tải Cookie và Nạp vào máy.
-# Cấu hình danh sách tài khoản trực tiếp trong file.
+# SCRIPT: Cookie Injector Pure (Bash Version)
+# Chức năng: CHỈ Tải Cookie và Nạp vào máy bằng Bash Script.
 # ==============================================================================
 
 # ---------------------------------------------------
@@ -20,265 +10,271 @@ import urllib.request
 # ---------------------------------------------------
 
 # 1. Danh sách hậu tố tài khoản (Ngăn cách bằng khoảng trắng)
-# Ví dụ: "b c d e f" sẽ chạy com.roblox.clienb, com.roblox.clienc...
-ACCOUNT_SUFFIXES_STR = "b c d e f" 
+ACCOUNT_SUFFIXES_STR="b c d e f"
 
 # 2. Tên gói gốc (Thường không cần sửa)
-BASE_PACKAGE_NAME = "com.roblox.clien"
+BASE_PACKAGE_NAME="com.roblox.clien"
 
-# 3. URL lấy Cookie (Vẫn giữ online để cập nhật cookie mới nhất)
-COOKIE_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookieInject"
+# 3. URL lấy Cookie
+COOKIE_URL="https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookieInject"
 
 # ---------------------------------------------------
 # -- BIẾN CỤC BỘ --
 # ---------------------------------------------------
-TEMP_DIR = os.path.join(os.getcwd(), "RobloxInjector_Temp") 
-COOKIE_FILENAME = "Cookies"
+TEMP_DIR="$(pwd)/RobloxInjector_Temp"
+COOKIE_FILENAME="Cookies"
+REMOTE_COOKIES=()
 
 # ==============================================================================
 # -- HÀM HỆ THỐNG CƠ BẢN --
 # ==============================================================================
 
-def check_root_access():
-    """Kiểm tra quyền root."""
-    print("[SYSTEM] Đang kiểm tra quyền root...")
-    try:
-        process = subprocess.run(["su", "-c", "whoami"], capture_output=True, text=True, timeout=10)
-        if process.stdout.strip() == "root":
-            print("[SYSTEM] -> Quyền root: OK.")
-            return True
-        else:
-            print(f"[SYSTEM] -> Lỗi: Không có quyền root (kết quả: {process.stdout.strip()}).")
-            return False
-    except Exception as e:
-        print(f"[SYSTEM] -> Lỗi kiểm tra root: {e}")
-        return False
+check_requirements() {
+    echo "[SYSTEM] Đang kiểm tra hệ thống..."
+    
+    # Kiểm tra Root
+    if [ "$(su -c whoami)" != "root" ]; then
+        echo "[SYSTEM] -> Lỗi: Không có quyền root. Hãy cấp quyền Root cho Termux!"
+        exit 1
+    else
+        echo "[SYSTEM] -> Quyền root: OK."
+    fi
 
-def run_root_cmd_injector(command):
-    """Chạy lệnh dưới quyền root."""
-    try:
-        full_cmd = f"su -c '{command}'"
-        result = subprocess.run(full_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        return result.stdout.strip(), result.stderr.strip(), result.returncode
-    except Exception as e:
-        print(f"[SYSTEM] Lỗi lệnh: {e}")
-        return None, str(e), -1
+    # Kiểm tra thư viện SQLite3 trong Termux
+    if ! command -v sqlite3 &> /dev/null; then
+        echo "[SYSTEM] -> Thiếu thư viện sqlite3. Đang tiến hành ép cài đặt..."
+        
+        # CƯỠNG CHẾ SỬA LỖI KHO LƯU TRỮ (Dành riêng cho Android 15 / CH Play)
+        echo "[SYSTEM] -> Đang thay đổi máy chủ Termux sang server mới nhất..."
+        echo "deb https://packages.termux.dev/apt/termux-main stable main" > $PREFIX/etc/apt/sources.list
+        
+        # Cập nhật và cài đặt lại
+        echo "[SYSTEM] -> Đang tải dữ liệu..."
+        pkg update -y > /dev/null 2>&1
+        
+        echo "[SYSTEM] -> Đang cài đặt sqlite..."
+        pkg install sqlite -y > /dev/null 2>&1
+        
+        # Kiểm tra lại lần nữa sau khi cài
+        if ! command -v sqlite3 &> /dev/null; then
+            echo ""
+            echo "=========================================================="
+            echo "[LỖI CHÍNH MẠNG] BẢN TERMUX NÀY ĐÃ QUÁ CŨ VÀ BỊ HỎNG NẶNG!"
+            echo ""
+            echo "Google Play Store không còn cập nhật Termux từ năm 2021."
+            echo "Để chạy được lệnh trên Android 15, bạn BẮT BUỘC phải làm theo 2 bước:"
+            echo "1. Xóa/Gỡ cài đặt app Termux hiện tại trên máy."
+            echo "2. Lên Google gõ tìm 'Termux F-Droid' và tải bản mới nhất từ đó về cài."
+            echo "=========================================================="
+            exit 1
+        fi
+        echo "[SYSTEM] -> Cài đặt sqlite3 hoàn tất!"
+    fi
+}
 
 # ==============================================================================
 # -- HÀM INJECTOR LOGIC --
 # ==============================================================================
 
-def get_remote_cookies_list():
-    """Tải danh sách Cookie từ GitHub."""
-    print(f"[COOKIE] Đang tải danh sách Cookie từ GitHub...")
-    try:
-        req = urllib.request.Request(COOKIE_URL, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req) as response:
-            if response.status != 200:
-                print(f"[COOKIE] Lỗi HTTP: {response.status}")
-                return []
-            
-            data = response.read().decode('utf-8').strip()
-            lines = data.splitlines()
-            valid_cookies = []
-            for line in lines:
-                line = line.strip()
-                if "_|WARNING:-DO-NOT-SHARE" in line:
-                    valid_cookies.append(line)
-            
-            print(f"[COOKIE] Tìm thấy {len(valid_cookies)} cookie hợp lệ.")
-            return valid_cookies
-    except Exception as e:
-        print(f"[COOKIE] Lỗi tải Cookie: {e}")
-        return []
-
-def find_real_cookie_path(package_name):
-    """Tìm đường dẫn thực sự của file Cookies (Smart Detect)."""
-    base_path = f"/data/data/{package_name}/app_webview"
+get_remote_cookies_list() {
+    echo "[COOKIE] Đang tải danh sách Cookie từ GitHub..."
+    local response
+    response=$(curl -sSL -A "Mozilla/5.0" "$COOKIE_URL")
     
-    possible_paths = [
-        f"{base_path}/Default/Cookies",
-        f"{base_path}/Cookies"
-    ]
+    if [ -z "$response" ]; then
+        echo "[COOKIE] Lỗi: Không tải được dữ liệu từ link."
+        return
+    fi
+
+    # Lọc lấy các dòng cookie chuẩn (Chứa warning của Roblox)
+    while IFS= read -r line; do
+        if [[ "$line" == *"_|WARNING:-DO-NOT-SHARE"* ]]; then
+            REMOTE_COOKIES+=("$line")
+        fi
+    done <<< "$response"
     
-    for path in possible_paths:
-        check_cmd = f"[ -f '{path}' ] && echo 'YES' || echo 'NO'"
-        out, _, _ = run_root_cmd_injector(check_cmd)
-        if "YES" in out:
-            return path
-            
-    return None
+    echo "[COOKIE] Tìm thấy ${#REMOTE_COOKIES[@]} cookie hợp lệ."
+}
 
-def get_local_cookie_injector(package_name):
-    """Đọc cookie local dùng Smart Path để so sánh."""
-    target_path = find_real_cookie_path(package_name)
-    if not target_path:
-        return None
+find_real_cookie_path() {
+    local pkg=$1
+    local base_path="/data/data/$pkg/app_webview"
+    local paths=("$base_path/Default/Cookies" "$base_path/Cookies")
 
-    temp_check_path = os.path.join(TEMP_DIR, "Cookies_Check")
-    if not os.path.exists(TEMP_DIR): os.makedirs(TEMP_DIR)
+    for path in "${paths[@]}"; do
+        if [ "$(su -c "[ -f '$path' ] && echo YES || echo NO")" = "YES" ]; then
+            echo "$path"
+            return 0
+        fi
+    done
+    return 1
+}
 
-    run_root_cmd_injector(f"cp {target_path} {temp_check_path}")
-    run_root_cmd_injector(f"chmod 777 {temp_check_path}")
-
-    local_cookie_value = None
-    try:
-        conn = sqlite3.connect(temp_check_path)
-        cursor = conn.cursor()
-        cursor.execute("SELECT value FROM cookies WHERE name = '.ROBLOSECURITY'")
-        result = cursor.fetchone()
-        if result: local_cookie_value = result[0]
-        conn.close()
-    except Exception: pass
+get_local_cookie_injector() {
+    local pkg=$1
+    local target_path
+    target_path=$(find_real_cookie_path "$pkg")
     
-    if os.path.exists(temp_check_path): os.remove(temp_check_path)
-    return local_cookie_value
+    if [ -z "$target_path" ]; then
+        echo ""
+        return
+    fi
 
-def prepare_db_injector(cookie_value):
-    """Chuẩn bị file DB sqlite."""
-    db_path = os.path.join(TEMP_DIR, COOKIE_FILENAME)
-    if not os.path.exists(db_path): 
-        print(f"[COOKIE] File DB tạm không tồn tại.")
-        return False
+    mkdir -p "$TEMP_DIR"
+    local temp_check_path="$TEMP_DIR/Cookies_Check"
+    
+    # Copy file ra môi trường Termux và cấp quyền để đọc
+    su -c "cp '$target_path' '$temp_check_path' && chmod 777 '$temp_check_path'"
 
-    try:
-        conn = sqlite3.connect(db_path)
-        cursor = conn.cursor()
-        
-        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='cookies';")
-        if not cursor.fetchone():
-            conn.close()
-            return False
+    # Dùng sqlite3 để truy vấn giá trị
+    local local_cookie
+    local_cookie=$(sqlite3 "$temp_check_path" "SELECT value FROM cookies WHERE name = '.ROBLOSECURITY';" 2>/dev/null)
+    
+    # Dọn dẹp file tạm
+    rm -f "$temp_check_path"
+    echo "$local_cookie"
+}
 
-        host_key = ".roblox.com"
-        name = ".ROBLOSECURITY"
-        
-        cursor.execute("DELETE FROM cookies WHERE host_key = ? AND name = ?", (host_key, name))
-        
-        now = int(time.time() * 1000000)
-        expires = 99999999999999999
-        
-        query_full = """
-        INSERT INTO cookies (creation_utc, host_key, name, value, path, expires_utc, is_secure, is_httponly, last_access_utc, has_expires, is_persistent, priority, samesite, source_scheme)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """
-        query_fallback = """
-        INSERT INTO cookies (creation_utc, host_key, name, value, path, expires_utc, is_secure, is_httponly, last_access_utc)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """
-        
-        try:
-            cursor.execute(query_full, (now, host_key, name, cookie_value, "/", expires, 1, 1, now, 1, 1, 1, 0, 1))
-        except sqlite3.OperationalError:
-            cursor.execute(query_fallback, (now, host_key, name, cookie_value, "/", expires, 1, 1, now))
+inject_cookie_process() {
+    local pkg=$1
+    local cookie_value=$2
 
-        conn.commit()
-        conn.close()
-        return True
-    except Exception as e:
-        print(f"[COOKIE] Lỗi SQLite: {e}")
-        return False
+    local check_pkg=$(su -c "pm path $pkg")
+    if [ -z "$check_pkg" ]; then
+        echo "[COOKIE] Gói $pkg chưa cài đặt -> Bỏ qua."
+        return 1
+    fi
 
-def inject_cookie_process(package_name, cookie_value):
-    """Quy trình Inject Cookie (Core Logic)."""
-    check_pkg, _, _ = run_root_cmd_injector(f"pm path {package_name}")
-    if not check_pkg:
-        print(f"[COOKIE] Gói {package_name} chưa cài đặt -> Bỏ qua.")
-        return False
-
-    # 1. Tìm đường dẫn file cookie
-    target_path = find_real_cookie_path(package_name)
-    if not target_path:
-        print(f"[COOKIE] ⚠️ Không tìm thấy file Cookies của {package_name}.")
-        print(f"[COOKIE] -> Hãy mở app lên ít nhất 1 lần để tạo file.")
-        return False
+    local target_path
+    target_path=$(find_real_cookie_path "$pkg")
+    if [ -z "$target_path" ]; then
+        echo "[COOKIE] ⚠️ Không tìm thấy file Cookies của $pkg."
+        echo "[COOKIE] -> Hãy mở app lên ít nhất 1 lần để tạo file."
+        return 1
+    fi
 
     # Dừng app
-    run_root_cmd_injector(f"am force-stop {package_name}")
-    time.sleep(1)
+    su -c "am force-stop $pkg"
+    sleep 1
 
-    if os.path.exists(TEMP_DIR): shutil.rmtree(TEMP_DIR)
-    os.makedirs(TEMP_DIR)
+    # Chuẩn bị thư mục tạm
+    rm -rf "$TEMP_DIR"
+    mkdir -p "$TEMP_DIR"
+    local temp_db="$TEMP_DIR/$COOKIE_FILENAME"
 
-    # 2. Copy file gốc ra
-    cmd_cp_out = f"cp {target_path} {TEMP_DIR}/{COOKIE_FILENAME}"
-    _, err, code = run_root_cmd_injector(cmd_cp_out)
-    if code != 0:
-        print(f"[COOKIE] Lỗi copy file gốc: {err}")
-        return False
+    # Copy database ra Termux và cấp quyền chỉnh sửa
+    su -c "cp '$target_path' '$temp_db'" || { echo "[COOKIE] Lỗi copy file gốc"; return 1; }
+    su -c "chmod 777 '$temp_db'"
 
-    run_root_cmd_injector(f"chmod 777 {TEMP_DIR}/{COOKIE_FILENAME}")
+    # Kiểm tra tính hợp lệ của DB
+    local table_exists=$(sqlite3 "$temp_db" "SELECT name FROM sqlite_master WHERE type='table' AND name='cookies';")
+    if [ -z "$table_exists" ]; then
+        echo "[COOKIE] Lỗi xử lý DB: Không tìm thấy bảng cookies."
+        return 1
+    fi
 
-    # 3. Sửa DB (Chèn cookie mới)
-    if not prepare_db_injector(cookie_value):
-        print(f"[COOKIE] Lỗi xử lý DB.")
-        return False
+    # Thông số cho bảng Cookie
+    local host_key=".roblox.com"
+    local name=".ROBLOSECURITY"
+    local now=$(($(date +%s) * 1000000))
+    local expires="99999999999999999"
 
-    # 4. Copy file đã sửa vào lại
-    cmd_cp_in = f"cp {TEMP_DIR}/{COOKIE_FILENAME} {target_path}"
-    run_root_cmd_injector(cmd_cp_in)
+    # Xóa Cookie cũ
+    sqlite3 "$temp_db" "DELETE FROM cookies WHERE host_key = '$host_key' AND name = '$name';"
 
-    # 5. Fix quyền
-    parent_dir = os.path.dirname(target_path)
-    owner_raw, _, _ = run_root_cmd_injector(f"stat -c '%U:%G' {parent_dir}")
-    owner = owner_raw.strip()
+    # Nạp Cookie mới (Thử các cấu trúc bảng từ mới nhất đến cũ nhất để tránh lỗi NOT NULL constraint)
+    local Q1="INSERT INTO cookies (creation_utc, host_key, top_frame_site_key, has_cross_site_ancestor, name, value, path, expires_utc, is_secure, is_httponly, last_access_utc, has_expires, is_persistent, priority, samesite, source_scheme, source_port, is_same_party) VALUES ($now, '$host_key', '', 0, '$name', '$cookie_value', '/', $expires, 1, 1, $now, 1, 1, 1, 0, 1, -1, 0);"
+    local Q2="INSERT INTO cookies (creation_utc, host_key, top_frame_site_key, has_cross_site_ancestor, name, value, path, expires_utc, is_secure, is_httponly, last_access_utc, has_expires, is_persistent, priority, samesite, source_scheme, source_port) VALUES ($now, '$host_key', '', 0, '$name', '$cookie_value', '/', $expires, 1, 1, $now, 1, 1, 1, 0, 1, -1);"
+    local Q3="INSERT INTO cookies (creation_utc, host_key, top_frame_site_key, has_cross_site_ancestor, name, value, path, expires_utc, is_secure, is_httponly, last_access_utc, has_expires, is_persistent, priority, samesite, source_scheme) VALUES ($now, '$host_key', '', 0, '$name', '$cookie_value', '/', $expires, 1, 1, $now, 1, 1, 1, 0, 1);"
+    local Q4="INSERT INTO cookies (creation_utc, host_key, name, value, path, expires_utc, is_secure, is_httponly, last_access_utc, has_expires, is_persistent, priority, samesite, source_scheme) VALUES ($now, '$host_key', '$name', '$cookie_value', '/', $expires, 1, 1, $now, 1, 1, 1, 0, 1);"
+    local Q5="INSERT INTO cookies (creation_utc, host_key, name, value, path, expires_utc, is_secure, is_httponly, last_access_utc) VALUES ($now, '$host_key', '$name', '$cookie_value', '/', $expires, 1, 1, $now);"
+
+    local res1=$(sqlite3 "$temp_db" "$Q1" 2>&1)
+    if [[ -n "$res1" && ("$res1" == *"Error"* || "$res1" == *"failed"*) ]]; then
+        local res2=$(sqlite3 "$temp_db" "$Q2" 2>&1)
+        if [[ -n "$res2" && ("$res2" == *"Error"* || "$res2" == *"failed"*) ]]; then
+            local res3=$(sqlite3 "$temp_db" "$Q3" 2>&1)
+            if [[ -n "$res3" && ("$res3" == *"Error"* || "$res3" == *"failed"*) ]]; then
+                local res4=$(sqlite3 "$temp_db" "$Q4" 2>&1)
+                if [[ -n "$res4" && ("$res4" == *"Error"* || "$res4" == *"failed"*) ]]; then
+                    sqlite3 "$temp_db" "$Q5" >/dev/null 2>&1
+                fi
+            fi
+        fi
+    fi
+
+    # Copy file đã sửa vào lại vị trí cũ
+    su -c "cp '$temp_db' '$target_path'"
+
+    # Fix quyền sở hữu file (Rất quan trọng)
+    local parent_dir=$(dirname "$target_path")
+    local owner=$(su -c "stat -c '%U:%G' '$parent_dir'")
     
-    if owner:
-        run_root_cmd_injector(f"chown {owner} {target_path}")
-        run_root_cmd_injector(f"chmod 600 {target_path}")
-    
-    if os.path.exists(TEMP_DIR): shutil.rmtree(TEMP_DIR)
-    print(f"[COOKIE] -> Đã nạp Cookie mới cho: {package_name}")
-    return True
+    if [ -n "$owner" ]; then
+        su -c "chown $owner '$target_path'"
+        su -c "chmod 600 '$target_path'"
+    fi
+
+    # Dọn dẹp
+    rm -rf "$TEMP_DIR"
+    echo "[COOKIE] -> Đã nạp Cookie mới cho: $pkg"
+    return 0
+}
 
 # ==============================================================================
 # -- MAIN EXECUTION --
 # ==============================================================================
 
-def run_main_sequence():
-    """Quy trình chính: Tải config -> Check Cookie -> Inject -> Done."""
-    print("\n[MAIN] === COOKIE INJECTOR PURE (HARDCODED) ===")
+run_main_sequence() {
+    echo ""
+    echo "[MAIN] === COOKIE INJECTOR PURE (BASH SCRIPT) ==="
     
-    # Lấy danh sách tài khoản từ biến ACCOUNT_SUFFIXES_STR
-    accounts = [s.strip() for s in ACCOUNT_SUFFIXES_STR.split() if s.strip()]
-    if not accounts:
-        print("[MAIN] Danh sách tài khoản trống. Hãy sửa ACCOUNT_SUFFIXES_STR trong file.")
+    get_remote_cookies_list
+    if [ ${#REMOTE_COOKIES[@]} -eq 0 ]; then
+        echo "[MAIN] Không lấy được danh sách Cookie -> Dừng."
         return
+    fi
 
-    remote_cookies = get_remote_cookies_list()
-    if not remote_cookies:
-        print("[MAIN] Không lấy được danh sách Cookie -> Dừng.")
-        return
-
-    print("\n[PROCESS] Bắt đầu kiểm tra và inject...")
-    for i, suffix in enumerate(accounts):
-        pkg_name = f"{BASE_PACKAGE_NAME}{suffix}"
+    echo ""
+    echo "[PROCESS] Bắt đầu kiểm tra và inject..."
+    
+    # Duyệt qua từng tài khoản được thiết lập
+    local i=0
+    for suffix in $ACCOUNT_SUFFIXES_STR; do
+        local pkg_name="${BASE_PACKAGE_NAME}${suffix}"
         
-        if i < len(remote_cookies):
-            assigned_cookie = remote_cookies[i]
-        else:
-            print(f"[COOKIE] ⚠️ Không đủ Cookie cho '{suffix}' (Acc #{i+1}). Bỏ qua.")
+        # Gán cookie theo thứ tự
+        if [ $i -lt ${#REMOTE_COOKIES[@]} ]; then
+            local assigned_cookie="${REMOTE_COOKIES[$i]}"
+        else
+            echo "[COOKIE] ⚠️ Không đủ Cookie cho '$suffix' (Acc #$((i+1))). Bỏ qua."
             continue
+        fi
 
-        print(f"[ACC] '{suffix}' -> ", end="")
+        echo -n "[ACC] '$suffix' -> "
         
         # Kiểm tra cookie hiện tại
-        local_cookie = get_local_cookie_injector(pkg_name)
+        local local_cookie
+        local_cookie=$(get_local_cookie_injector "$pkg_name")
 
-        if local_cookie == assigned_cookie:
-            print("OK (Khớp).")
-        else:
-            if local_cookie is None:
-                print("MISSING -> Injecting...")
-            else:
-                print("MISMATCH -> Injecting...")
-            
-            inject_cookie_process(pkg_name, assigned_cookie)
+        if [ "$local_cookie" == "$assigned_cookie" ]; then
+            echo "OK (Khớp)."
+        else
+            if [ -z "$local_cookie" ]; then
+                echo "MISSING -> Injecting..."
+            else
+                echo "MISMATCH -> Injecting..."
+            fi
+            inject_cookie_process "$pkg_name" "$assigned_cookie"
+        fi
+        
+        i=$((i+1))
+    done
     
-    print("\n[MAIN] === HOÀN TẤT ===")
+    echo ""
+    echo "[MAIN] === HOÀN TẤT ==="
+}
 
-if __name__ == "__main__":
-    if not check_root_access():
-        sys.exit(1)
-    
-    run_main_sequence()
+# Bắt đầu chạy
+check_requirements
+run_main_sequence
