@@ -54,7 +54,7 @@ THUMBNAIL_URL = "https://i.pinimg.com/1200x/c0/d1/59/c0d1591ce31488b9f71313326dc
 
 MAIL_TM_BASE = "https://api.mail.tm"
 
-# Danh sách User-Agent Mobile để đồng bộ với môi trường Termux
+# Danh sách User-Agent Mobile để đồng bộ với môi trường Termux (Dùng cho API)
 USER_AGENTS_LIST = [
     "Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
     "Mozilla/5.0 (Linux; Android 12; Pixel 6 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Mobile Safari/537.36",
@@ -470,7 +470,9 @@ async def async_send_with_browser(email, worker_id="1"):
             "user_data_dir": user_data_dir,
             "executable_path": "/usr/bin/chromium", # Chuẩn cho Debian Termux
             "headless": CONFIG["HEADLESS"],
-            "viewport": {"width": 1280, "height": 720},
+            "viewport": {"width": 1280, "height": 720}, # Ép giao diện Desktop
+            # Bắt buộc dùng UA Desktop để trang web không ẩn nút Sign Up vào menu Mobile
+            "user_agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
             "args": [
                 '--disable-blink-features=AutomationControlled', 
                 '--disable-infobars',                            
@@ -498,10 +500,12 @@ async def async_send_with_browser(email, worker_id="1"):
         page = context.pages[0] if context.pages else await context.new_page()
 
         print(f"[Luồng {worker_id}] 🔗 Truy cập trang Sign Up...")
-        await page.goto(CONFIG["URL_SIGNUP"], wait_until="networkidle")
+        # Đổi wait_until="networkidle" thành "domcontentloaded" để tránh bị timeout trên Termux
+        await page.goto(CONFIG["URL_SIGNUP"], wait_until="domcontentloaded", timeout=60000)
 
         print(f"[Luồng {worker_id}] 🖱️ Bấm nút Sign Up")
-        await page.get_by_text("Sign Up", exact=True).click()
+        # Tìm chính xác chữ Sign Up và giới hạn thời gian chờ
+        await page.get_by_text("Sign Up").last.click(timeout=15000)
         await asyncio.sleep(1)
 
         print(f"[Luồng {worker_id}] ⌨️ Điền email: {email}")
