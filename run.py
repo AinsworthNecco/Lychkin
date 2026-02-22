@@ -8,6 +8,7 @@
 # 5. Logging: Xuất log chi tiết từng bước.
 # 6. Luồng: Luôn ép chạy max luồng theo cấu hình.
 # 7. Sửa lỗi check_buff_status: Debug chi tiết phản hồi API.
+# 8. Stealth: Tích hợp playwright-stealth để vượt WAF trên Linux/Termux.
 
 import discord
 from discord.ext import commands
@@ -29,8 +30,9 @@ import math
 from collections import defaultdict
 
 # THƯ VIỆN MỚI CHO TRÌNH DUYỆT VÀ CAPTCHA
-# pip install playwright opencv-python numpy requests
+# pip install playwright opencv-python numpy requests playwright-stealth
 from playwright.async_api import async_playwright
+from playwright_stealth import stealth_async
 import cv2
 import numpy as np
 
@@ -57,14 +59,12 @@ THUMBNAIL_URL = "https://i.pinimg.com/1200x/c0/d1/59/c0d1591ce31488b9f71313326dc
 
 MAIL_TM_BASE = "https://api.mail.tm"
 
-# Danh sách User-Agent (Dùng cho VMOS)
+# Danh sách User-Agent (Dùng cho VMOS) - Ưu tiên giả lập Android nếu chạy trên Termux
 USER_AGENTS_LIST = [
+    "Mozilla/5.0 (Linux; Android 13; SM-S918B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Mobile Safari/537.36",
+    "Mozilla/5.0 (Linux; Android 12; Pixel 6 Pro) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Mobile Safari/537.36",
     "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
     "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/122.0.0.0 Safari/537.36",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64; rv:109.0) Gecko/20100101 Firefox/121.0",
-    "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Edge/121.0.0.0"
 ]
 
 def get_random_ua():
@@ -615,6 +615,10 @@ async def async_send_with_browser(email, worker_id="1"):
         """)
         
         page = context.pages[0] if context.pages else await context.new_page()
+        
+        # KÍCH HOẠT PLAYWRIGHT STEALTH Ở ĐÂY ĐỂ ẨN DANH TRÌNH DUYỆT CHROME
+        print(f"[Luồng {worker_id}] 🥷 Kích hoạt Playwright Stealth che giấu thông số giả lập...")
+        await stealth_async(page)
 
         print(f"[Luồng {worker_id}] 🔗 Truy cập trang Sign Up...")
         await page.goto(CONFIG["URL_SIGNUP"], wait_until="networkidle")
@@ -661,6 +665,10 @@ async def open_browser_and_login(email, password):
         )
         context = await browser.new_context()
         page = await context.new_page()
+        
+        # Cũng kích hoạt stealth cho Browser Host để an toàn tuyệt đối
+        await stealth_async(page)
+        
         print(f"[BROWSER HOST] 🔗 Truy cập VMOS...")
         await page.goto("https://cloud.vsphone.com/event/202602", timeout=60000)
         print(f"[BROWSER HOST] ✍️ Login...")
