@@ -4,11 +4,7 @@
 # CẤU HÌNH CƠ BẢN
 # ==========================================
 CHECK_INTERVAL=5             # Giảm xuống 5s để test các mốc 20s/30s cho mượt
-WEBHOOK_INTERVAL=20          # Gửi Webhook mỗi 30 giây (Test)
-RESTART_INTERVAL=30          # Force stop và mở lại toàn bộ sau 20 giây (Test)
-
-WEBHOOK_URL="https://discord.com/api/webhooks/1397368466947969147/HbncMuT0ETe6_5q_kKGzkdd7guLfiGqvewr3WuBFfHAxKBJo3TA7R6ad2ex31YkBHo75"
-USERNAME="thanhk9"           # Tên hiển thị trên tiêu đề Webhook
+RESTART_INTERVAL=20          # Force stop và mở lại toàn bộ sau 20 giây (Test)
 
 JOIN_TARGET="https://www.roblox.com/share?code=98a1b858bf53db43b688552818e40748&type=Server"
 BASE_PACKAGE_NAME="com.roblox.clien"  # Đã trả lại "clien" theo yêu cầu
@@ -61,126 +57,6 @@ kill_all_roblox() {
     echo "[RESTART] Đã đóng xong toàn bộ. Vòng lặp Monitor sẽ tự mở lại app."
 }
 
-# Lấy thời gian Uptime
-get_uptime() {
-    local uptime_sec=$(cut -d. -f1 /proc/uptime)
-    local d=$((uptime_sec/86400))
-    local h=$((uptime_sec%86400/3600))
-    local m=$((uptime_sec%3600/60))
-    local s=$((uptime_sec%60))
-    echo "${d}d ${h}h ${m}m ${s}s"
-}
-
-# Lấy thông tin RAM tổng và RAM đang dùng (GB)
-get_ram_info() {
-    local mem_total_kb=$(grep MemTotal /proc/meminfo | awk '{print $2}')
-    local mem_free_kb=$(grep MemFree /proc/meminfo | awk '{print $2}')
-    local mem_buffers_kb=$(grep Buffers /proc/meminfo | awk '{print $2}')
-    local mem_cached_kb=$(grep ^Cached /proc/meminfo | awk '{print $2}')
-    
-    local mem_used_kb=$((mem_total_kb - mem_free_kb - mem_buffers_kb - mem_cached_kb))
-    
-    # Tính ra GB làm tròn 2 chữ số
-    TOTAL_RAM=$(echo "scale=2; $mem_total_kb / 1024 / 1024" | bc)
-    USED_RAM=$(echo "scale=2; $mem_used_kb / 1024 / 1024" | bc)
-}
-
-# Lấy thông tin CPU tổng quan (Ước tính từ /proc/stat)
-get_cpu_usage() {
-    local cpu_log_1=$(cat /proc/stat | grep '^cpu ')
-    sleep 0.5
-    local cpu_log_2=$(cat /proc/stat | grep '^cpu ')
-    
-    local user1=$(echo $cpu_log_1 | awk '{print $2}')
-    local nice1=$(echo $cpu_log_1 | awk '{print $3}')
-    local system1=$(echo $cpu_log_1 | awk '{print $4}')
-    local idle1=$(echo $cpu_log_1 | awk '{print $5}')
-    
-    local user2=$(echo $cpu_log_2 | awk '{print $2}')
-    local nice2=$(echo $cpu_log_2 | awk '{print $3}')
-    local system2=$(echo $cpu_log_2 | awk '{print $4}')
-    local idle2=$(echo $cpu_log_2 | awk '{print $5}')
-    
-    local total_diff=$(( (user2+nice2+system2+idle2) - (user1+nice1+system1+idle1) ))
-    local idle_diff=$(( idle2 - idle1 ))
-    
-    if [ "$total_diff" -eq 0 ]; then
-        echo "0.0%"
-    else
-        local cpu_usage=$(echo "scale=1; 100 * ($total_diff - $idle_diff) / $total_diff" | bc)
-        echo "${cpu_usage}%"
-    fi
-}
-
-send_webhook() {
-    echo "[WEBHOOK] Đang thu thập dữ liệu hệ thống..."
-    
-    local uptime_str=$(get_uptime)
-    get_ram_info
-    local cpu_usage_str=$(get_cpu_usage)
-    
-    # Thu thập chi tiết từng process
-    local details_text=""
-    local process_count=0
-    local tool_mem_kb=0
-    
-    for suffix in $ACCOUNT_SUFFIXES; do
-        pkg="${BASE_PACKAGE_NAME}${suffix}"
-        
-        # Thử lấy PID
-        local pid=$(su -c "pidof $pkg")
-        if [ -n "$pid" ]; then
-            ((process_count++))
-            
-            # Lấy RAM (PSS) bằng dumpsys (tương đối tốn thời gian nhưng chính xác nhất trên Android)
-            local mem_kb=$(su -c "dumpsys meminfo $pkg | grep -i 'TOTAL PSS:'" | awk '{print $3}')
-            if [ -z "$mem_kb" ]; then
-                mem_kb=0
-            fi
-            local mem_mb=$(echo "scale=2; $mem_kb / 1024" | bc)
-            
-            # Lấy CPU (Ước tính qua top, lấy 1 dòng)
-            local app_cpu=$(su -c "top -n 1 -q -p $pid | grep $pid" | awk '{print $9}')
-            if [ -z "$app_cpu" ]; then app_cpu="0.0"; fi
-            
-            details_text+="${pkg} (CPU: ${app_cpu}%, MEM: ${mem_mb} MB)\\n"
-        fi
-    done
-    
-    if [ -z "$details_text" ]; then
-        details_text="Không có tiến trình Roblox nào đang chạy."
-    fi
-
-    echo "[WEBHOOK] Đang gửi dữ liệu lên Discord..."
-
-    # Cấu trúc JSON của Discord Embed
-    local json_payload=$(cat <<EOF
-{
-  "embeds": [
-    {
-      "title": "System Info for $USERNAME",
-      "color": 3092790,
-      "fields": [
-        { "name": "CPU Usage", "value": "\`\`\`$cpu_usage_str\`\`\`", "inline": false },
-        { "name": "Memory Used", "value": "\`\`\`$USED_RAM GB\`\`\`", "inline": false },
-        { "name": "Total Memory", "value": "\`\`\`$TOTAL_RAM GB\`\`\`", "inline": false },
-        { "name": "Tool Memory Used", "value": "\`\`\`~ 15.00 MB\`\`\`", "inline": false },
-        { "name": "Uptime", "value": "\`\`\`$uptime_str\`\`\`", "inline": false },
-        { "name": "Total Roblox Processes", "value": "\`\`\`$process_count\`\`\`", "inline": false },
-        { "name": "Details", "value": "\`\`\`\n$details_text\`\`\`", "inline": false }
-      ],
-      "footer": { "text": "Auto Restart & Monitor System" },
-      "timestamp": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
-    }
-  ]
-}
-EOF
-)
-
-    curl -H "Content-Type: application/json" -X POST -d "$json_payload" "$WEBHOOK_URL" > /dev/null 2>&1
-    echo "[WEBHOOK] Gửi thành công!"
-}
-
 # ==========================================
 # CÁC VÒNG LẶP ĐỘC LẬP
 # ==========================================
@@ -205,15 +81,7 @@ loop_app_monitor() {
     done
 }
 
-# Vòng lặp 2: Gửi Webhook
-loop_webhook_sender() {
-    while true; do
-        sleep $WEBHOOK_INTERVAL
-        send_webhook
-    done
-}
-
-# Vòng lặp 3: Tự động khởi động lại toàn bộ
+# Vòng lặp 2: Tự động khởi động lại toàn bộ
 loop_auto_restart() {
     while true; do
         sleep $RESTART_INTERVAL
@@ -232,18 +100,17 @@ termux-wake-lock
 
 echo "======================================="
 echo "  AUTO RESTARTER PRO (BASH SCRIPT)     "
-echo "  Tính năng: 3 vòng lặp chạy song song "
+echo "  Tính năng: 2 vòng lặp chạy song song "
 echo "======================================="
 echo ""
 
 # Setup màn hình
 setup_display
 
-echo "[MAIN] Khởi chạy 3 vòng lặp ngầm..."
+echo "[MAIN] Khởi chạy 2 vòng lặp ngầm..."
 
 # Gọi chạy ngầm bằng toán tử '&'
 loop_app_monitor &
-loop_webhook_sender &
 loop_auto_restart &
 
 # Dùng wait để giữ script chính sống mà không tốn tài nguyên
