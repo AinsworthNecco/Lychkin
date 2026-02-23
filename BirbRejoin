@@ -1,15 +1,14 @@
 #!/data/data/com.termux/files/usr/bin/bash
 
 # ==========================================
-# CẤU HÌNH CƠ BẢNsu -c "wm size 1280x2120"
+# CẤU HÌNH CƠ BẢN
 # ==========================================
-CHECK_INTERVAL=120            # Thời gian quét (giây) -> 300s = 5 phút
+CHECK_INTERVAL=120 # Giảm xuống 5s để test các mốc 20s/30s cho mượt
+RESTART_INTERVAL=21600          # Force stop và mở lại toàn bộ sau 20 giây (Test)
 
-# Hỗ trợ cả ID thường (VD: 8737602449) HOẶC Link Share/VIP (VD: https://www.roblox.com/share?...)
 JOIN_TARGET="https://www.roblox.com/share?code=98a1b858bf53db43b688552818e40748&type=Server"
-
-BASE_PACKAGE_NAME="com.roblox.clien" # Tên gói Roblox cơ bản
-ACCOUNT_SUFFIXES="b c d e f"         # Hậu tố của các bản clone
+BASE_PACKAGE_NAME="com.roblox.clien"  # Đã trả lại "clien" theo yêu cầu
+ACCOUNT_SUFFIXES="b c d e f"          # Hậu tố của các bản clone
 
 # ==========================================
 # CÁC HÀM XỬ LÝ
@@ -19,72 +18,100 @@ setup_display() {
     echo "[SETUP] Lychkin"
     su -c "wm size 1280x2800"
     su -c "wm density 350"
+    # Khóa tự động xoay và ép màn hình xoay ngang (Landscape)
+    su -c "settings put system accelerometer_rotation 0"
+    su -c "settings put system user_rotation 1"
     sleep 2
-    echo "[SETUP] Hoàn tất thiết lập màn hình!"
+    echo "[SETUP] Hoàn tất thiết lập màn hình và xoay ngang!"
     echo ""
 }
 
 is_running() {
     local pkg=$1
-    # Kiểm tra tiến trình đang chạy (bỏ qua dòng lệnh grep)
     local output=$(su -c "ps -ef | grep $pkg | grep -v grep")
-    
     if [[ -n "$output" ]]; then
-        return 0 # Đang chạy (True)
+        return 0 # Đang chạy
     else
-        return 1 # Đã tắt (False)
+        return 1 # Đã tắt
     fi
 }
 
 launch_app() {
     local pkg=$1
     local deeplink="$JOIN_TARGET"
-    
-    # Nhận diện: Nếu JOIN_TARGET chỉ chứa các con số (ID thường), thì ghép thêm mác roblox://
     if [[ "$deeplink" =~ ^[0-9]+$ ]]; then
         deeplink="roblox://placeId=${deeplink}"
     fi
-    
-    # Bật chế độ cửa sổ (5) + Truyền trực tiếp link (HTTPS hoặc Deeplink) + Chỉ định package
-    su -c "am start --windowingMode 5 -a android.intent.action.VIEW -d '${deeplink}' -p ${pkg}"
+    # Bật chế độ cửa sổ (5)
+    su -c "am start --windowingMode 5 -a android.intent.action.VIEW -d '${deeplink}' -p ${pkg} > /dev/null 2>&1"
+}
+
+kill_all_roblox() {
+    echo "[RESTART] Đã đủ thời gian, đang tiến hành đóng toàn bộ Roblox..."
+    for suffix in $ACCOUNT_SUFFIXES; do
+        pkg="${BASE_PACKAGE_NAME}${suffix}"
+        su -c "am force-stop $pkg"
+        echo "  -> Đã đóng $pkg"
+    done
+    sleep 3
+    echo "[RESTART] Đã đóng xong toàn bộ. Vòng lặp Monitor sẽ tự mở lại app."
+}
+
+# ==========================================
+# CÁC VÒNG LẶP ĐỘC LẬP
+# ==========================================
+
+# Vòng lặp 1: Kiểm tra và mở lại App
+loop_app_monitor() {
+    while true; do
+        H_TIME=$(date +"%H:%M:%S")
+        echo "[$H_TIME] Đang kiểm tra trạng thái các App..."
+        for suffix in $ACCOUNT_SUFFIXES; do
+            pkg="${BASE_PACKAGE_NAME}${suffix}"
+            
+            if is_running "$pkg"; then
+                echo "  [OK] $pkg đang chạy."
+            else
+                echo "  [START] $pkg đã tắt -> Đang mở lại..."
+                launch_app "$pkg"
+                sleep 5 # Đợi một chút để app load rồi mới mở app tiếp theo
+            fi
+        done
+        sleep $CHECK_INTERVAL
+    done
+}
+
+# Vòng lặp 2: Tự động khởi động lại toàn bộ
+loop_auto_restart() {
+    while true; do
+        sleep $RESTART_INTERVAL
+        kill_all_roblox
+    done
 }
 
 # ==========================================
 # CHƯƠNG TRÌNH CHÍNH
 # ==========================================
 
-# Ép Termux chạy ngầm không bị sleep (không cần root cho lệnh này)
+# Đảm bảo tắt ngầm toàn bộ tiến trình con khi dừng (Ctrl+C)
+trap "echo -e '\n[!] Đang đóng toàn bộ các tiến trình ngầm...'; kill 0; exit" SIGINT SIGTERM
+
 termux-wake-lock
 
 echo "======================================="
-echo "  AUTO RESTARTER LITE (BASH SCRIPT)  "
+echo "  AUTO RESTARTER PRO (BASH SCRIPT)     "
+echo "  Tính năng: 2 vòng lặp chạy song song "
 echo "======================================="
 echo ""
 
-# 1. Setup màn hình
+# Setup màn hình
 setup_display
 
-# 2. Vòng lặp kiểm tra liên tục
-while true; do
-    current_time=$(date +"%H:%M:%S")
-    echo "[$current_time] Bắt đầu vòng quét mới..."
-    
-    # Tự động tách chuỗi ACCOUNT_SUFFIXES và duyệt qua từng số/chữ
-    for suffix in $ACCOUNT_SUFFIXES; do
-        pkg="${BASE_PACKAGE_NAME}${suffix}"
-        
-        if is_running "$pkg"; then
-            echo "  [OK] $pkg đang chạy -> Bỏ qua (Skip)."
-        else
-            echo "  [START] $pkg đã tắt -> Đang mở lại dạng cửa sổ..."
-            launch_app "$pkg"
-            # Đợi 5 giây giữa các lần mở app để tránh treo máy
-            sleep 5
-        fi
-    done
-    
-    echo ""
-    echo "[SLEEP] Đợi ${CHECK_INTERVAL} giây trước vòng quét tiếp theo..."
-    echo ""
-    sleep $CHECK_INTERVAL
-done
+echo "[MAIN] Khởi chạy 2 vòng lặp ngầm..."
+
+# Gọi chạy ngầm bằng toán tử '&'
+loop_app_monitor &
+loop_auto_restart &
+
+# Dùng wait để giữ script chính sống mà không tốn tài nguyên
+wait
