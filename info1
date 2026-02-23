@@ -156,24 +156,26 @@ def exchange_code():
         print("Lỗi: Không có ID thiết bị. Dừng chương trình.")
         return
 
-    # 2. Nhập danh sách Active Code (Sửa lại tối ưu cho việc Copy-Paste trên điện thoại)
+    # 2. Nhập danh sách Active Code
     print("\n--- NHẬP DANH SÁCH CODE ---")
-    print("Gợi ý: Dán toàn bộ code vào đây. (Nếu bị dính nhau, cách nhau bằng dấu phẩy hoặc dấu cách đều được).")
-    print("Nhập chữ 'XONG' (hoặc nhấn Enter ở dòng trống) để BẮT ĐẦU CHẠY.")
+    print("Gợi ý: Dán toàn bộ code vào đây. Dán nhiều dòng thoải mái (tool sẽ tự bỏ qua dòng trống).")
+    print("👉 Khi nào dán xong hết, gõ chữ 'XONG' và nhấn Enter để BẮT ĐẦU CHẠY.")
     print("---------------------------")
     
     active_codes = []
     while True:
         try:
             line = input()
-            # Nếu để trống hoặc nhập chữ "xong" -> Bắt đầu chạy
-            if not line.strip() or line.strip().upper() == 'XONG':
+            # Bắt buộc phải gõ XONG mới chạy để tránh lỗi ngắt do dòng trống
+            if line.strip().upper() == 'XONG':
                 break
+            
+            # Nếu gặp dòng trống (khoảng cách giữa các code khi copy), chỉ cần bỏ qua và đọc dòng tiếp theo
+            if not line.strip():
+                continue
             
             codes_in_line = [c.strip() for c in line.replace(',', ' ').split() if c.strip()]
             active_codes.extend(codes_in_line)
-            # Tắt in ra thông báo liên tục nếu paste quá nhiều (tránh ngợp Termux)
-            # print(f"   -> Đã nhận {len(codes_in_line)} code...") 
         
         except EOFError:
             # Termux tự sinh EOF khi paste quá dài -> tự động chuyển sang bước tiếp theo
