@@ -17,7 +17,7 @@ ACCOUNT_SUFFIXES="b c d e f"         # Hậu tố của các bản clone
 
 setup_display() {
     echo "[SETUP] Lychkin"
-    su -c "wm size 1280x2120"
+    su -c "wm size 1280x2800"
     su -c "wm density 200"
     sleep 2
     echo "[SETUP] Hoàn tất thiết lập màn hình!"
