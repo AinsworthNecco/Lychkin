@@ -3,7 +3,7 @@
 # ==========================================
 # CẤU HÌNH CƠ BẢNsu -c "wm size 1280x2120"
 # ==========================================
-CHECK_INTERVAL=300            # Thời gian quét (giây) -> 300s = 5 phút
+CHECK_INTERVAL=120            # Thời gian quét (giây) -> 300s = 5 phút
 
 # Hỗ trợ cả ID thường (VD: 8737602449) HOẶC Link Share/VIP (VD: https://www.roblox.com/share?...)
 JOIN_TARGET="https://www.roblox.com/share?code=98a1b858bf53db43b688552818e40748&type=Server"
