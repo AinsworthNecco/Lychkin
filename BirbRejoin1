@@ -4,8 +4,8 @@
 # CẤU HÌNH CƠ BẢN
 # ==========================================
 CHECK_INTERVAL=120           # Thời gian quét trạng thái app (giây) -> 120s = 2 phút
-WEBHOOK_INTERVAL=3600        # Gửi Webhook mỗi 1 tiếng (giây)
-RESTART_INTERVAL=180        # Force stop và mở lại toàn bộ sau 2 tiếng (giây)
+WEBHOOK_INTERVAL=20        # Gửi Webhook mỗi 1 tiếng (giây)
+RESTART_INTERVAL=30        # Force stop và mở lại toàn bộ sau 2 tiếng (giây)
 
 WEBHOOK_URL="https://discord.com/api/webhooks/1397368466947969147/HbncMuT0ETe6_5q_kKGzkdd7guLfiGqvewr3WuBFfHAxKBJo3TA7R6ad2ex31YkBHo75"
 USERNAME="Lychkin"           # Tên hiển thị trên tiêu đề Webhook
