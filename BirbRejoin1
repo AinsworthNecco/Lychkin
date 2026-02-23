@@ -3,8 +3,8 @@
 # ==========================================
 # CẤU HÌNH CƠ BẢN
 # ==========================================
-CHECK_INTERVAL=5             # Giảm xuống 5s để test các mốc 20s/30s cho mượt
-RESTART_INTERVAL=20          # Force stop và mở lại toàn bộ sau 20 giây (Test)
+CHECK_INTERVAL=120 # Giảm xuống 5s để test các mốc 20s/30s cho mượt
+RESTART_INTERVAL=7200          # Force stop và mở lại toàn bộ sau 20 giây (Test)
 
 JOIN_TARGET="https://www.roblox.com/share?code=98a1b858bf53db43b688552818e40748&type=Server"
 BASE_PACKAGE_NAME="com.roblox.clien"  # Đã trả lại "clien" theo yêu cầu
