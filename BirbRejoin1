@@ -1,0 +1,237 @@
+#!/data/data/com.termux/files/usr/bin/bash
+
+# ==========================================
+# CẤU HÌNH CƠ BẢN
+# ==========================================
+CHECK_INTERVAL=120           # Thời gian quét trạng thái app (giây) -> 120s = 2 phút
+WEBHOOK_INTERVAL=3600        # Gửi Webhook mỗi 1 tiếng (giây)
+RESTART_INTERVAL=180        # Force stop và mở lại toàn bộ sau 2 tiếng (giây)
+
+WEBHOOK_URL="https://discord.com/api/webhooks/1397368466947969147/HbncMuT0ETe6_5q_kKGzkdd7guLfiGqvewr3WuBFfHAxKBJo3TA7R6ad2ex31YkBHo75"
+USERNAME="Lychkin"           # Tên hiển thị trên tiêu đề Webhook
+
+JOIN_TARGET="https://www.roblox.com/share?code=98a1b858bf53db43b688552818e40748&type=Server"
+BASE_PACKAGE_NAME="com.roblox.clien" # Chú ý: Đã sửa lại "clien" thành "client" cho đúng
+ACCOUNT_SUFFIXES="b c d e f"          # Hậu tố của các bản clone
+
+# Khởi tạo biến theo dõi thời gian
+LAST_WEBHOOK_TIME=$(date +%s)
+LAST_RESTART_TIME=$(date +%s)
+
+# ==========================================
+# CÁC HÀM XỬ LÝ
+# ==========================================
+
+setup_display() {
+    echo "[SETUP] Lychkin"
+    su -c "wm size 1280x2800"
+    su -c "wm density 350"
+    sleep 2
+    echo "[SETUP] Hoàn tất thiết lập màn hình!"
+    echo ""
+}
+
+is_running() {
+    local pkg=$1
+    local output=$(su -c "ps -ef | grep $pkg | grep -v grep")
+    if [[ -n "$output" ]]; then
+        return 0 # Đang chạy
+    else
+        return 1 # Đã tắt
+    fi
+}
+
+launch_app() {
+    local pkg=$1
+    local deeplink="$JOIN_TARGET"
+    if [[ "$deeplink" =~ ^[0-9]+$ ]]; then
+        deeplink="roblox://placeId=${deeplink}"
+    fi
+    # Bật chế độ cửa sổ (5)
+    su -c "am start --windowingMode 5 -a android.intent.action.VIEW -d '${deeplink}' -p ${pkg} > /dev/null 2>&1"
+}
+
+kill_all_roblox() {
+    echo "[RESTART] Đã đủ 2 tiếng, đang tiến hành đóng toàn bộ Roblox..."
+    for suffix in $ACCOUNT_SUFFIXES; do
+        pkg="${BASE_PACKAGE_NAME}${suffix}"
+        su -c "am force-stop $pkg"
+        echo "  -> Đã đóng $pkg"
+    done
+    sleep 3
+    echo "[RESTART] Đã đóng xong toàn bộ. Hệ thống sẽ tự mở lại ở vòng quét tiếp theo."
+}
+
+# Lấy thời gian Uptime
+get_uptime() {
+    local uptime_sec=$(cut -d. -f1 /proc/uptime)
+    local d=$((uptime_sec/86400))
+    local h=$((uptime_sec%86400/3600))
+    local m=$((uptime_sec%3600/60))
+    local s=$((uptime_sec%60))
+    echo "${d}d ${h}h ${m}m ${s}s"
+}
+
+# Lấy thông tin RAM tổng và RAM đang dùng (GB)
+get_ram_info() {
+    local mem_total_kb=$(grep MemTotal /proc/meminfo | awk '{print $2}')
+    local mem_free_kb=$(grep MemFree /proc/meminfo | awk '{print $2}')
+    local mem_buffers_kb=$(grep Buffers /proc/meminfo | awk '{print $2}')
+    local mem_cached_kb=$(grep ^Cached /proc/meminfo | awk '{print $2}')
+    
+    local mem_used_kb=$((mem_total_kb - mem_free_kb - mem_buffers_kb - mem_cached_kb))
+    
+    # Tính ra GB làm tròn 2 chữ số
+    TOTAL_RAM=$(echo "scale=2; $mem_total_kb / 1024 / 1024" | bc)
+    USED_RAM=$(echo "scale=2; $mem_used_kb / 1024 / 1024" | bc)
+}
+
+# Lấy thông tin CPU tổng quan (Ước tính từ /proc/stat)
+get_cpu_usage() {
+    local cpu_log_1=$(cat /proc/stat | grep '^cpu ')
+    sleep 0.5
+    local cpu_log_2=$(cat /proc/stat | grep '^cpu ')
+    
+    local user1=$(echo $cpu_log_1 | awk '{print $2}')
+    local nice1=$(echo $cpu_log_1 | awk '{print $3}')
+    local system1=$(echo $cpu_log_1 | awk '{print $4}')
+    local idle1=$(echo $cpu_log_1 | awk '{print $5}')
+    
+    local user2=$(echo $cpu_log_2 | awk '{print $2}')
+    local nice2=$(echo $cpu_log_2 | awk '{print $3}')
+    local system2=$(echo $cpu_log_2 | awk '{print $4}')
+    local idle2=$(echo $cpu_log_2 | awk '{print $5}')
+    
+    local total_diff=$(( (user2+nice2+system2+idle2) - (user1+nice1+system1+idle1) ))
+    local idle_diff=$(( idle2 - idle1 ))
+    
+    if [ "$total_diff" -eq 0 ]; then
+        echo "0.0%"
+    else
+        local cpu_usage=$(echo "scale=1; 100 * ($total_diff - $idle_diff) / $total_diff" | bc)
+        echo "${cpu_usage}%"
+    fi
+}
+
+send_webhook() {
+    echo "[WEBHOOK] Đang thu thập dữ liệu hệ thống..."
+    
+    local uptime_str=$(get_uptime)
+    get_ram_info
+    local cpu_usage_str=$(get_cpu_usage)
+    
+    # Thu thập chi tiết từng process
+    local details_text=""
+    local process_count=0
+    local tool_mem_kb=0 # Nếu có tool thứ 3 chạy, bạn có thể cộng vào đây (hiện tại tính RAM của script bash)
+    
+    for suffix in $ACCOUNT_SUFFIXES; do
+        pkg="${BASE_PACKAGE_NAME}${suffix}"
+        
+        # Thử lấy PID
+        local pid=$(su -c "pidof $pkg")
+        if [ -n "$pid" ]; then
+            ((process_count++))
+            
+            # Lấy RAM (PSS) bằng dumpsys (tương đối tốn thời gian nhưng chính xác nhất trên Android)
+            local mem_kb=$(su -c "dumpsys meminfo $pkg | grep -i 'TOTAL PSS:'" | awk '{print $3}')
+            if [ -z "$mem_kb" ]; then
+                mem_kb=0
+            fi
+            local mem_mb=$(echo "scale=2; $mem_kb / 1024" | bc)
+            
+            # Lấy CPU (Ước tính qua top, lấy 1 dòng)
+            local app_cpu=$(su -c "top -n 1 -q -p $pid | grep $pid" | awk '{print $9}')
+            if [ -z "$app_cpu" ]; then app_cpu="0.0"; fi
+            
+            # Thay thế . bằng tên chuẩn nếu muốn giống ảnh
+            # VD: com.roblox.clientb -> ugphone.bryxis.torven (Trong code này giữ nguyên package name)
+            details_text+="${pkg} (CPU: ${app_cpu}%, MEM: ${mem_mb} MB)\\n"
+        fi
+    done
+    
+    if [ -z "$details_text" ]; then
+        details_text="Không có tiến trình Roblox nào đang chạy."
+    fi
+
+    echo "[WEBHOOK] Đang gửi dữ liệu lên Discord..."
+
+    # Cấu trúc JSON của Discord Embed
+    local json_payload=$(cat <<EOF
+{
+  "embeds": [
+    {
+      "title": "System Info for $USERNAME",
+      "color": 3092790,
+      "fields": [
+        { "name": "CPU Usage", "value": "\`\`\`$cpu_usage_str\`\`\`", "inline": false },
+        { "name": "Memory Used", "value": "\`\`\`$USED_RAM GB\`\`\`", "inline": false },
+        { "name": "Total Memory", "value": "\`\`\`$TOTAL_RAM GB\`\`\`", "inline": false },
+        { "name": "Tool Memory Used", "value": "\`\`\`~ 15.00 MB\`\`\`", "inline": false },
+        { "name": "Uptime", "value": "\`\`\`$uptime_str\`\`\`", "inline": false },
+        { "name": "Total Roblox Processes", "value": "\`\`\`$process_count\`\`\`", "inline": false },
+        { "name": "Details", "value": "\`\`\`\n$details_text\`\`\`", "inline": false }
+      ],
+      "footer": { "text": "Auto Restart & Monitor System" },
+      "timestamp": "$(date -u +'%Y-%m-%dT%H:%M:%SZ')"
+    }
+  ]
+}
+EOF
+)
+
+    curl -H "Content-Type: application/json" -X POST -d "$json_payload" "$WEBHOOK_URL" > /dev/null 2>&1
+    echo "[WEBHOOK] Gửi thành công!"
+}
+
+# ==========================================
+# CHƯƠNG TRÌNH CHÍNH
+# ==========================================
+
+termux-wake-lock
+
+echo "======================================="
+echo "  AUTO RESTARTER PRO (BASH SCRIPT)     "
+echo "  Tính năng: Gửi Webhook & Auto Kill   "
+echo "======================================="
+echo ""
+
+# 1. Setup màn hình
+setup_display
+
+# 2. Vòng lặp chính
+while true; do
+    CURRENT_TIME=$(date +%s)
+    H_TIME=$(date +"%H:%M:%S")
+    echo "[$H_TIME] Đang kiểm tra hệ thống..."
+
+    # Kiểm tra xem đã đủ 2 tiếng để Reset chưa
+    if (( CURRENT_TIME - LAST_RESTART_TIME >= RESTART_INTERVAL )); then
+        kill_all_roblox
+        LAST_RESTART_TIME=$CURRENT_TIME
+    fi
+
+    # Kiểm tra xem đã đủ 1 tiếng để gửi Webhook chưa
+    if (( CURRENT_TIME - LAST_WEBHOOK_TIME >= WEBHOOK_INTERVAL )); then
+        send_webhook
+        LAST_WEBHOOK_TIME=$CURRENT_TIME
+    fi
+
+    # Quét và mở lại app nếu bị tắt
+    for suffix in $ACCOUNT_SUFFIXES; do
+        pkg="${BASE_PACKAGE_NAME}${suffix}"
+        
+        if is_running "$pkg"; then
+            echo "  [OK] $pkg đang chạy."
+        else
+            echo "  [START] $pkg đã tắt -> Đang mở lại..."
+            launch_app "$pkg"
+            sleep 5
+        fi
+    done
+    
+    echo ""
+    echo "[SLEEP] Đợi ${CHECK_INTERVAL} giây trước vòng quét tiếp theo..."
+    echo ""
+    sleep $CHECK_INTERVAL
+done
