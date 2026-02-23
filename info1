@@ -6,14 +6,22 @@ from datetime import datetime
 
 # --- CẤU HÌNH NGƯỜI DÙNG (SỬA Ở ĐÂY) ---
 # Điền Token vào đây để lấy danh sách máy (BẮT BUỘC ĐỂ QUÉT DANH SÁCH)
-CONFIG_TOKEN = "SzSEtfFnkgMVaDMjviCxB4dgNhKzHAkI"             # Ví dụ: "SzSEtfFnkgMVaDMjviCxB4dgNhKzHAkI"aaaaaaaaaaaaaaaa
+CONFIG_TOKEN = "fmatFmlIuzv4f5R9yWkDopIdkvTO5g97"             # Ví dụ: "SzSEtfFnkgMVaDMjviCxB4dgNhKzHAkI"
 # ---------------------------------------
 
 def check_tty():
-    """Kiểm tra xem script có đang chạy trong môi trường cho phép nhập liệu hay không"""
+    """Kiểm tra và sửa lỗi nếu script chạy qua pipe (curl ... | python)"""
     if not sys.stdin.isatty():
-        print("⚠️ CẢNH BÁO: Bạn đang chạy script trong môi trường KHÔNG TƯƠNG TÁC.")
-        print("👉 Lỗi EOF có thể xảy ra. Vui lòng mở trực tiếp app Termux và gõ: python ten_file.py")
+        print("⚠️ CẢNH BÁO: Script đang chạy qua pipe (curl ... | python).")
+        print("👉 Đang thử kết nối lại với Terminal để cho phép nhập liệu...")
+        try:
+            # Trỏ lại luồng nhập dữ liệu chuẩn về Terminal của người dùng (chuyên trị Termux/Linux)
+            sys.stdin = open('/dev/tty', 'r')
+            print("✅ Đã kết nối lại bàn phím thành công!")
+        except Exception as e:
+            print(f"❌ Không thể kết nối lại bàn phím: {e}")
+            print("👉 HƯỚNG DẪN: Vui lòng tải file về trước khi chạy bằng lệnh:")
+            print("   curl -sSL [link_cua_ban] -o tool.py && python tool.py")
         print("-" * 50)
 
 def safe_input(prompt_text):
