@@ -3,20 +3,16 @@
 # ==========================================
 # CẤU HÌNH CƠ BẢN
 # ==========================================
-CHECK_INTERVAL=120           # Thời gian quét trạng thái app (giây) -> 120s = 2 phút
-WEBHOOK_INTERVAL=20        # Gửi Webhook mỗi 1 tiếng (giây)
-RESTART_INTERVAL=30        # Force stop và mở lại toàn bộ sau 2 tiếng (giây)
+CHECK_INTERVAL=5             # Giảm xuống 5s để test các mốc 20s/30s cho mượt
+WEBHOOK_INTERVAL=20          # Gửi Webhook mỗi 30 giây (Test)
+RESTART_INTERVAL=30          # Force stop và mở lại toàn bộ sau 20 giây (Test)
 
 WEBHOOK_URL="https://discord.com/api/webhooks/1397368466947969147/HbncMuT0ETe6_5q_kKGzkdd7guLfiGqvewr3WuBFfHAxKBJo3TA7R6ad2ex31YkBHo75"
-USERNAME="Lychkin"           # Tên hiển thị trên tiêu đề Webhook
+USERNAME="thanhk9"           # Tên hiển thị trên tiêu đề Webhook
 
 JOIN_TARGET="https://www.roblox.com/share?code=98a1b858bf53db43b688552818e40748&type=Server"
-BASE_PACKAGE_NAME="com.roblox.clien" # Chú ý: Đã sửa lại "clien" thành "client" cho đúng
+BASE_PACKAGE_NAME="com.roblox.clien"  # Đã trả lại "clien" theo yêu cầu
 ACCOUNT_SUFFIXES="b c d e f"          # Hậu tố của các bản clone
-
-# Khởi tạo biến theo dõi thời gian
-LAST_WEBHOOK_TIME=$(date +%s)
-LAST_RESTART_TIME=$(date +%s)
 
 # ==========================================
 # CÁC HÀM XỬ LÝ
@@ -26,8 +22,11 @@ setup_display() {
     echo "[SETUP] Lychkin"
     su -c "wm size 1280x2800"
     su -c "wm density 350"
+    # Khóa tự động xoay và ép màn hình xoay ngang (Landscape)
+    su -c "settings put system accelerometer_rotation 0"
+    su -c "settings put system user_rotation 1"
     sleep 2
-    echo "[SETUP] Hoàn tất thiết lập màn hình!"
+    echo "[SETUP] Hoàn tất thiết lập màn hình và xoay ngang!"
     echo ""
 }
 
@@ -52,14 +51,14 @@ launch_app() {
 }
 
 kill_all_roblox() {
-    echo "[RESTART] Đã đủ 2 tiếng, đang tiến hành đóng toàn bộ Roblox..."
+    echo "[RESTART] Đã đủ thời gian, đang tiến hành đóng toàn bộ Roblox..."
     for suffix in $ACCOUNT_SUFFIXES; do
         pkg="${BASE_PACKAGE_NAME}${suffix}"
         su -c "am force-stop $pkg"
         echo "  -> Đã đóng $pkg"
     done
     sleep 3
-    echo "[RESTART] Đã đóng xong toàn bộ. Hệ thống sẽ tự mở lại ở vòng quét tiếp theo."
+    echo "[RESTART] Đã đóng xong toàn bộ. Vòng lặp Monitor sẽ tự mở lại app."
 }
 
 # Lấy thời gian Uptime
@@ -123,7 +122,7 @@ send_webhook() {
     # Thu thập chi tiết từng process
     local details_text=""
     local process_count=0
-    local tool_mem_kb=0 # Nếu có tool thứ 3 chạy, bạn có thể cộng vào đây (hiện tại tính RAM của script bash)
+    local tool_mem_kb=0
     
     for suffix in $ACCOUNT_SUFFIXES; do
         pkg="${BASE_PACKAGE_NAME}${suffix}"
@@ -144,8 +143,6 @@ send_webhook() {
             local app_cpu=$(su -c "top -n 1 -q -p $pid | grep $pid" | awk '{print $9}')
             if [ -z "$app_cpu" ]; then app_cpu="0.0"; fi
             
-            # Thay thế . bằng tên chuẩn nếu muốn giống ảnh
-            # VD: com.roblox.clientb -> ugphone.bryxis.torven (Trong code này giữ nguyên package name)
             details_text+="${pkg} (CPU: ${app_cpu}%, MEM: ${mem_mb} MB)\\n"
         fi
     done
@@ -185,53 +182,69 @@ EOF
 }
 
 # ==========================================
+# CÁC VÒNG LẶP ĐỘC LẬP
+# ==========================================
+
+# Vòng lặp 1: Kiểm tra và mở lại App
+loop_app_monitor() {
+    while true; do
+        H_TIME=$(date +"%H:%M:%S")
+        echo "[$H_TIME] Đang kiểm tra trạng thái các App..."
+        for suffix in $ACCOUNT_SUFFIXES; do
+            pkg="${BASE_PACKAGE_NAME}${suffix}"
+            
+            if is_running "$pkg"; then
+                echo "  [OK] $pkg đang chạy."
+            else
+                echo "  [START] $pkg đã tắt -> Đang mở lại..."
+                launch_app "$pkg"
+                sleep 5 # Đợi một chút để app load rồi mới mở app tiếp theo
+            fi
+        done
+        sleep $CHECK_INTERVAL
+    done
+}
+
+# Vòng lặp 2: Gửi Webhook
+loop_webhook_sender() {
+    while true; do
+        sleep $WEBHOOK_INTERVAL
+        send_webhook
+    done
+}
+
+# Vòng lặp 3: Tự động khởi động lại toàn bộ
+loop_auto_restart() {
+    while true; do
+        sleep $RESTART_INTERVAL
+        kill_all_roblox
+    done
+}
+
+# ==========================================
 # CHƯƠNG TRÌNH CHÍNH
 # ==========================================
+
+# Đảm bảo tắt ngầm toàn bộ tiến trình con khi dừng (Ctrl+C)
+trap "echo -e '\n[!] Đang đóng toàn bộ các tiến trình ngầm...'; kill 0; exit" SIGINT SIGTERM
 
 termux-wake-lock
 
 echo "======================================="
 echo "  AUTO RESTARTER PRO (BASH SCRIPT)     "
-echo "  Tính năng: Gửi Webhook & Auto Kill   "
+echo "  Tính năng: 3 vòng lặp chạy song song "
 echo "======================================="
 echo ""
 
-# 1. Setup màn hình
+# Setup màn hình
 setup_display
 
-# 2. Vòng lặp chính
-while true; do
-    CURRENT_TIME=$(date +%s)
-    H_TIME=$(date +"%H:%M:%S")
-    echo "[$H_TIME] Đang kiểm tra hệ thống..."
+echo "[MAIN] Khởi chạy 3 vòng lặp ngầm..."
 
-    # Kiểm tra xem đã đủ 2 tiếng để Reset chưa
-    if (( CURRENT_TIME - LAST_RESTART_TIME >= RESTART_INTERVAL )); then
-        kill_all_roblox
-        LAST_RESTART_TIME=$CURRENT_TIME
-    fi
+# Gọi chạy ngầm bằng toán tử '&'
+loop_app_monitor &
+loop_webhook_sender &
+loop_auto_restart &
 
-    # Kiểm tra xem đã đủ 1 tiếng để gửi Webhook chưa
-    if (( CURRENT_TIME - LAST_WEBHOOK_TIME >= WEBHOOK_INTERVAL )); then
-        send_webhook
-        LAST_WEBHOOK_TIME=$CURRENT_TIME
-    fi
-
-    # Quét và mở lại app nếu bị tắt
-    for suffix in $ACCOUNT_SUFFIXES; do
-        pkg="${BASE_PACKAGE_NAME}${suffix}"
-        
-        if is_running "$pkg"; then
-            echo "  [OK] $pkg đang chạy."
-        else
-            echo "  [START] $pkg đã tắt -> Đang mở lại..."
-            launch_app "$pkg"
-            sleep 5
-        fi
-    done
-    
-    echo ""
-    echo "[SLEEP] Đợi ${CHECK_INTERVAL} giây trước vòng quét tiếp theo..."
-    echo ""
-    sleep $CHECK_INTERVAL
-done
+# Dùng wait để giữ script chính sống mà không tốn tài nguyên
+wait
