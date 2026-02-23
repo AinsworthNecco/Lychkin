@@ -167,7 +167,7 @@ def exchange_code():
         try:
             line = input()
             # Bắt buộc phải gõ XONG mới chạy để tránh lỗi ngắt do dòng trống
-            if line.strip().upper() == 'XONG':
+            if line.strip().upper() == 'yea':
                 break
             
             # Nếu gặp dòng trống (khoảng cách giữa các code khi copy), chỉ cần bỏ qua và đọc dòng tiếp theo
