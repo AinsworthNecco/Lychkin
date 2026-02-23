@@ -3,8 +3,9 @@
 # ==========================================
 # CẤU HÌNH CƠ BẢN
 # ==========================================
-CHECK_INTERVAL=120 # Giảm xuống 5s để test các mốc 20s/30s cho mượt
-RESTART_INTERVAL=7200          # Force stop và mở lại toàn bộ sau 20 giây (Test)
+CHECK_INTERVAL=120           # Quét trạng thái App mỗi 2 phút (120 giây)
+RESTART_INTERVAL=21600       # Force stop và mở lại toàn bộ sau 6 tiếng (21600 giây)
+ENABLE_AUTO_RESTART="OFF"     # Công tắc: "ON" để bật, "OFF" để tắt tự động Restart
 
 JOIN_TARGET="https://www.roblox.com/share?code=98a1b858bf53db43b688552818e40748&type=Server"
 BASE_PACKAGE_NAME="com.roblox.clien"  # Đã trả lại "clien" theo yêu cầu
@@ -107,11 +108,18 @@ echo ""
 # Setup màn hình
 setup_display
 
-echo "[MAIN] Khởi chạy 2 vòng lặp ngầm..."
+echo "[MAIN] Khởi chạy các vòng lặp ngầm..."
 
 # Gọi chạy ngầm bằng toán tử '&'
 loop_app_monitor &
-loop_auto_restart &
+
+# Bật/Tắt vòng lặp Restart tùy theo công tắc
+if [ "$ENABLE_AUTO_RESTART" == "ON" ]; then
+    echo "  -> Chức năng Auto Restart (6 tiếng): ĐANG BẬT"
+    loop_auto_restart &
+else
+    echo "  -> Chức năng Auto Restart: ĐÃ TẮT"
+fi
 
 # Dùng wait để giữ script chính sống mà không tốn tài nguyên
 wait
