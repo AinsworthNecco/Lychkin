@@ -1,12 +1,31 @@
 import requests
 import json
 import time
+import sys
 from datetime import datetime
 
 # --- CẤU HÌNH NGƯỜI DÙNG (SỬA Ở ĐÂY) ---
 # Điền Token vào đây để lấy danh sách máy (BẮT BUỘC ĐỂ QUÉT DANH SÁCH)
-CONFIG_TOKEN = "fmatFmlIuzv4f5R9yWkDopIdkvTO5g97"             # Ví dụ: "SzSEtfFnkgMVaDMjviCxB4dgNhKzHAkI"
+CONFIG_TOKEN = "SzSEtfFnkgMVaDMjviCxB4dgNhKzHAkI"             # Ví dụ: "SzSEtfFnkgMVaDMjviCxB4dgNhKzHAkI"aaaaaaaaaaaaaaaa
 # ---------------------------------------
+
+def check_tty():
+    """Kiểm tra xem script có đang chạy trong môi trường cho phép nhập liệu hay không"""
+    if not sys.stdin.isatty():
+        print("⚠️ CẢNH BÁO: Bạn đang chạy script trong môi trường KHÔNG TƯƠNG TÁC.")
+        print("👉 Lỗi EOF có thể xảy ra. Vui lòng mở trực tiếp app Termux và gõ: python ten_file.py")
+        print("-" * 50)
+
+def safe_input(prompt_text):
+    """Hàm nhập liệu an toàn, chống crash (văng) trên Termux khi bị EOF"""
+    try:
+        return input(prompt_text).strip()
+    except EOFError:
+        print("\n[!] Lỗi EOF: Không thể nhận dữ liệu nhập vào lúc này.")
+        return ""
+    except KeyboardInterrupt:
+        print("\n[!] Bạn đã hủy nhập.")
+        sys.exit()
 
 def get_remaining_time(timestamp_ms):
     try:
@@ -74,9 +93,12 @@ def select_device(headers):
             print(f"   ID: {equip_id} | Còn lại: {remaining_str}")
             print("-" * 30)
             
-        # Cho người dùng chọn
+        # Cho người dùng chọn (Sử dụng hàm nhập an toàn)
         while True:
-            choice = input(f"Chọn máy cần gia hạn (1-{len(all_pads)}): ").strip()
+            choice = safe_input(f"Chọn máy cần gia hạn (1-{len(all_pads)}): ")
+            if not choice: # Nếu bị lỗi EOF, trả về None để nhập thủ công
+                return None
+
             if choice.isdigit():
                 idx_choice = int(choice)
                 if 1 <= idx_choice <= len(all_pads):
@@ -86,10 +108,11 @@ def select_device(headers):
             print("Lựa chọn không hợp lệ. Vui lòng chọn lại.")
             
     except Exception as e:
-        print(f"Lỗi khi lấy danh sách thiết bị: {str(e)}")
+        print(f"Lỗi hệ thống khi lấy danh sách: {str(e)}")
         return None
 
 def exchange_code():
+    check_tty()
     print("--- TOOL AUTO ĐỔI CODE VSPHONE ---")
     
     user_token = CONFIG_TOKEN
@@ -97,7 +120,10 @@ def exchange_code():
     # Nếu chưa config token cứng thì hỏi nhập
     if not user_token:
         print("Cảnh báo: Chưa có Token trong cấu hình.")
-        user_token = input("Nhập Token để quét thiết bị: ").strip()
+        user_token = safe_input("Nhập Token để quét thiết bị: ")
+        if not user_token:
+            print("Lỗi: Không lấy được Token.")
+            return
     
     # Cấu hình Headers
     headers = {
@@ -108,43 +134,49 @@ def exchange_code():
         'Referer': 'https://www.vsphone.com/'
     }
     
-    if user_token:
-        headers['token'] = user_token
-    else:
-        print("Lỗi: Cần có Token để lấy danh sách máy.")
-        return
+    headers['token'] = user_token
 
     # 1. Chọn máy từ danh sách
     renew_id = select_device(headers)
     
-    # Nếu không lấy được ID từ list (lỗi token, mạng...), cho nhập tay
+    # Nếu không lấy được ID từ list (lỗi token, mạng, hoặc EOF trên Termux), cho nhập tay
     if not renew_id:
         print("\nChuyển sang chế độ nhập ID thủ công.")
-        renew_id = input("Nhập ID thiết bị (renewEquipmentIds): ").strip()
+        renew_id = safe_input("Nhập ID thiết bị (renewEquipmentIds): ")
     
     if not renew_id:
-        print("Lỗi: Không có ID thiết bị.")
+        print("Lỗi: Không có ID thiết bị. Dừng chương trình.")
         return
 
-    # 2. Nhập danh sách Active Code
+    # 2. Nhập danh sách Active Code (Sửa lại tối ưu cho việc Copy-Paste trên điện thoại)
     print("\n--- NHẬP DANH SÁCH CODE ---")
-    print("Paste danh sách code vào bên dưới. SAU KHI NHẬP XONG, NHẤN ENTER TRÊN DÒNG TRỐNG ĐỂ CHẠY.")
+    print("Gợi ý: Dán toàn bộ code vào đây. (Nếu bị dính nhau, cách nhau bằng dấu phẩy hoặc dấu cách đều được).")
+    print("Nhập chữ 'XONG' (hoặc nhấn Enter ở dòng trống) để BẮT ĐẦU CHẠY.")
     print("---------------------------")
     
     active_codes = []
     while True:
         try:
             line = input()
-            if not line.strip():
+            # Nếu để trống hoặc nhập chữ "xong" -> Bắt đầu chạy
+            if not line.strip() or line.strip().upper() == 'XONG':
                 break
+            
             codes_in_line = [c.strip() for c in line.replace(',', ' ').split() if c.strip()]
             active_codes.extend(codes_in_line)
-            print(f"   -> Đã nhận {len(codes_in_line)} code. (Nhấn Enter dòng trống để CHẠY)")
+            # Tắt in ra thông báo liên tục nếu paste quá nhiều (tránh ngợp Termux)
+            # print(f"   -> Đã nhận {len(codes_in_line)} code...") 
+        
         except EOFError:
+            # Termux tự sinh EOF khi paste quá dài -> tự động chuyển sang bước tiếp theo
+            print("\n[!] Nhận được tín hiệu ngắt từ Termux. Bắt đầu xử lý code đã nhập...")
             break
+        except KeyboardInterrupt:
+            print("\nĐã hủy.")
+            return
     
     if not active_codes:
-        print("Không tìm thấy code nào.")
+        print("Không tìm thấy code nào. Dừng chương trình.")
         return
 
     print(f"\nĐã nhận tổng cộng {len(active_codes)} code. Bắt đầu xử lý cho máy ID: {renew_id}...\n")
@@ -164,7 +196,6 @@ def exchange_code():
         
         while True:
             try:
-                # Gọi API Bước 1 (thêm timeout để không bị treo)
                 resp1 = requests.get(step1_url, params=step1_params, headers=headers, timeout=10)
                 
                 if resp1.status_code != 200:
@@ -181,33 +212,27 @@ def exchange_code():
                 
                 msg = data1.get("msg", "")
                 if data1.get("code") != 200 or not data1.get("data"):
-                    # Kiểm tra lỗi spam ở Bước 1
                     if "too frequent" in msg.lower() or "quá thường xuyên" in msg.lower():
                         print(f"   -> Server báo quá nhanh Bước 1 ({msg})... Đợi 2s thử lại...")
                         time.sleep(2)
                         continue
 
-                    # Nếu code đã qua sử dụng -> Skip luôn
                     if "was used on" in msg or "đã được sử dụng" in msg:
                         print(f"   -> Code đã qua sử dụng: {msg} -> BỎ QUA.")
                         break
 
-                    # Nếu lỗi logic khác (vd: code sai) thì break, không spam
                     print(f"   -> Lỗi Bước 1: {msg}")
                     break
 
                 info = data1["data"]
                 print(f"   -> Sản phẩm: {info.get('goodShowName', 'Unknown')}")
-                break # Thành công bước 1, thoát vòng lặp retry
+                break 
 
             except Exception as e:
-                # Bắt lỗi timeout/connection error và thử lại
-                print(f"   -> Lỗi ngoại lệ Bước 1: {str(e)}")
-                print("   -> Đang thử lại sau 2s...")
+                print(f"   -> Lỗi ngoại lệ Bước 1: {str(e)}. Đang thử lại sau 2s...")
                 time.sleep(2)
                 continue
         
-        # Nếu Bước 1 thất bại (do lỗi logic active code), bỏ qua sang code kế tiếp
         if not info:
             print("-" * 30)
             continue
@@ -230,7 +255,6 @@ def exchange_code():
             try:
                 resp2 = requests.post(step2_url, json=payload, headers=headers, timeout=10)
                 
-                # Xử lý HTTP 200 OK
                 if resp2.status_code == 200:
                     try:
                         result2 = resp2.json()
@@ -243,21 +267,19 @@ def exchange_code():
 
                     if result2.get("code") == 200:
                         print(f"   -> THÀNH CÔNG! {msg}")
-                        break # Thoát vòng lặp retry, chuyển sang code tiếp theo
+                        break 
                     
-                    # Kiểm tra lỗi "Too frequent" để spam lại
                     elif "too frequent" in msg.lower() or "quá thường xuyên" in msg.lower():
                         print(f"   -> Server báo quá nhanh ({msg})... Đợi 2s rồi thử lại...")
                         time.sleep(2)
-                        continue # Thử lại bước 2 ngay lập tức
+                        continue 
                     
                     else:
                         print(f"   -> THẤT BẠI Bước 2: {msg}")
-                        break # Lỗi khác (vd: code sai) thì bỏ qua code này
+                        break 
                 
-                # Xử lý lỗi 524 (Timeout) hoặc các lỗi server 5xx khác
                 elif resp2.status_code == 524 or (500 <= resp2.status_code < 600):
-                    print(f"   -> Lỗi Server Bước 2 (HTTP {resp2.status_code}). Mặc kệ và thử lại sau 2s...")
+                    print(f"   -> Lỗi Server Bước 2 (HTTP {resp2.status_code}). Thử lại sau 2s...")
                     time.sleep(2)
                     continue
                 
@@ -266,12 +288,10 @@ def exchange_code():
                     break
 
             except Exception as e:
-                # Lỗi kết nối mạng (rớt mạng, timeout client...) cũng thử lại luôn cho chắc
                 print(f"   -> Lỗi kết nối Bước 2: {str(e)}. Thử lại sau 2s...")
                 time.sleep(2)
                 continue
         
-        # Nghỉ nhẹ giữa các code khác nhau
         time.sleep(1)
         print("-" * 30)
 
