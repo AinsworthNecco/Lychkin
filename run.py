@@ -2,11 +2,11 @@
 # Script Bot Discord cho VMOS Cloud (Phiên bản Ultimate - Full Uncut)
 # Tính năng tích hợp:
 # 1. Playwright: Tự động mở Chrome giải Captcha để lấy code (Không Proxy).
-# 2. Mail API: MAIL.TM (Dùng Proxy toàn bộ quy trình).
-# 3. Quản lý Config: Token đọc từ file local, Proxy tải từ GitHub.
+# 2. Mail API: MAIL.TM (Lấy mã qua Request API, Dùng Proxy toàn bộ).
+# 3. Quản lý Config: Token đọc từ file local, Proxy tải từ file local proxies.txt.
 # 4. Anti-Rate Limit: Cơ chế cập nhật tin nhắn Discord chậm (10s/lần).
 # 5. Logging: Xuất log chi tiết từng bước.
-# 6. Luồng: Luôn ép chạy max luồng theo cấu hình.
+# 6. Luồng: Giới hạn số luồng.
 # 7. Sửa lỗi check_buff_status: Debug chi tiết phản hồi API.
 
 import discord
@@ -42,8 +42,9 @@ urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 # ==============================================================
 CONFIG = {
     "URL_SIGNUP": "https://cloud.vsphone.com/?channel=web",
-    "NUM_THREADS": 1,           # Giới hạn số luồng (Đang test để 2)
-    "HEADLESS": True,           # Chế độ ẩn trình duyệt
+    "NUM_THREADS": 10,           # Giới hạn số luồng
+    "HEADLESS": False,          # Chế độ ẩn trình duyệt
+    "CHROMIUM_PATH": "/usr/bin/chromium", # Đường dẫn Chromium trên Debian/Termux (Để "" nếu chạy Windows dùng channel chrome)
 }
 
 # ==============================================================
@@ -51,8 +52,9 @@ CONFIG = {
 # ==============================================================
 
 TOKEN_FILE_NAME = "token.txt"
-PROXY_CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/testsh"
-CODE_FILE_NAME = "CODE.txt"
+PROXY_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/info"
+HOST_PROXY_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/info1"
+CODE_FILE_NAME = "code1.txt"
 THUMBNAIL_URL = "https://i.pinimg.com/1200x/c0/d1/59/c0d1591ce31488b9f71313326dcf01f0.jpg"
 
 MAIL_TM_BASE = "https://api.mail.tm"
@@ -107,22 +109,20 @@ def load_local_token():
         print(f"❌ Lỗi đọc token: {e}")
         return None
 
-def fetch_proxies_from_github():
-    print(f"🌐 Đang kết nối GitHub để lấy Proxy: {PROXY_CONFIG_URL} ...")
+def load_proxies_from_url(url):
+    print(f"📂 Đang tải proxy từ URL {url} ...")
     try:
-        resp = requests.get(PROXY_CONFIG_URL, timeout=15)
-        
-        if resp.status_code != 200:
-            print(f"❌ Lỗi tải Proxy: HTTP {resp.status_code}")
+        response = requests.get(url, timeout=15)
+        if response.status_code == 200:
+            text = response.text.strip()
+            lines = [line.strip() for line in text.split('\n') if line.strip()]
+            print(f"✅ Đã tải thành công {len(lines)} proxies từ URL.")
+            return lines
+        else:
+            print(f"❌ LỖI: Không thể tải proxy từ URL, mã lỗi {response.status_code}!")
             return []
-            
-        text = resp.text.strip()
-        lines = [line.strip() for line in text.split('\n') if line.strip()]
-        
-        print(f"✅ Đã tải thành công {len(lines)} proxies từ GitHub.")
-        return lines
     except Exception as e:
-        print(f"❌ Exception khi tải Proxy GitHub: {e}")
+        print(f"❌ Lỗi tải proxy từ URL: {e}")
         return []
 
 # ==============================================================
@@ -245,24 +245,46 @@ class ProxyManager:
             self.load_proxies_from_list(proxy_list)
     
     def parse_proxy(self, line):
-        line = line.strip()
-        if not line or line.startswith('#'):
-            return None
-        line = re.sub(r'^https?://', '', line)
-        try:
-            # IP:Port
-            if ':' in line and '@' not in line:
-                return f"http://{line}" # Đảm bảo có http:// cho requests
-            # User:Pass@IP:Port
-            if '@' in line:
-                return f"http://{line}"
-            # IP:Port:User:Pass
-            parts = line.split(':')
-            if len(parts) >= 4:
-                return f"http://{parts[2]}:{parts[3]}@{parts[0]}:{parts[1]}"
-            return f"http://{line}"
-        except:
-            return None
+            line = line.strip()
+            if not line or line.startswith('#'):
+                return None
+                
+            # Tách scheme nếu có (http, https, socks4, socks5), nếu không mặc định là http
+            scheme = "http"
+            if "://" in line:
+                scheme, line = line.split("://", 1)
+                
+            try:
+                # Format: User:Pass@IP:Port
+                if '@' in line:
+                    auth, ip_port = line.split('@', 1)
+                    user, pwd = auth.split(':', 1)
+                    
+                    # Encode ký tự đặc biệt trong user/pass
+                    user = urllib.parse.quote(user)
+                    pwd = urllib.parse.quote(pwd)
+                    
+                    return f"{scheme}://{user}:{pwd}@{ip_port}"
+                    
+                # Format: IP:Port:User:Pass
+                parts = line.split(':')
+                if len(parts) >= 4:
+                    ip = parts[0]
+                    port = parts[1]
+                    user = urllib.parse.quote(parts[2])
+                    # Nhỡ password chứa dấu : thì phải join lại
+                    pwd = urllib.parse.quote(':'.join(parts[3:])) 
+                    
+                    return f"{scheme}://{user}:{pwd}@{ip}:{port}"
+                    
+                # Format: IP:Port (Không có auth)
+                if len(parts) == 2:
+                    return f"{scheme}://{line}"
+                    
+                return f"{scheme}://{line}"
+            except Exception as e:
+                print(f"❌ Lỗi xử lý proxy dòng '{line}': {e}")
+                return None
 
     def load_proxies_from_list(self, raw_lines):
         for line in raw_lines:
@@ -292,6 +314,7 @@ class ProxyManager:
         return len(self.proxies) - len(self.bad_proxies)
 
 proxy_manager = ProxyManager([])
+host_proxy_manager = ProxyManager([])
 
 # ========================================================
 # ==>> HÀM TẢI/LƯU ẢNH GỐC (PLAYWRIGHT CAPTCHA) <<==
@@ -429,7 +452,7 @@ async def auto_drag_slider_async(page, thread_id="1"):
         os.makedirs(data_dir)
         
     attempt = 0
-    MAX_ATTEMPTS = 5
+    MAX_ATTEMPTS = 15 # Tăng số lần thử lên vì thời gian lặp nhanh hơn khi gặp lỗi
     
     while True:
         if attempt >= MAX_ATTEMPTS:
@@ -455,20 +478,37 @@ async def auto_drag_slider_async(page, thread_id="1"):
         attempt += 1
         print(f"\n[Luồng {thread_id}] 🔄 LẦN THỬ THỨ {attempt}/{MAX_ATTEMPTS}:")
         try:
+            # Xử lý đóng thông báo lỗi nếu có sẵn trên màn hình
+            error_popup = page.get_by_text("Failed to load the captcha component")
+            if await error_popup.is_visible():
+                try:
+                    await page.get_by_text("OK", exact=True).click(timeout=1000)
+                except: pass
+                await asyncio.sleep(0.5)
+
             if not await page.locator("#aliyunCaptcha-window-popup").is_visible():
                 print(f"[Luồng {thread_id}] 👉 Đang thử bấm nút 'Get code'...")
                 try:
                     await get_code_btn.click(timeout=3000)
-                    await asyncio.sleep(2)
+                    await asyncio.sleep(1.0) # Rút ngắn từ 2s -> 1s để lặp nhanh hơn
                 except Exception:
                     pass
             
+            # Kiểm tra lại xem nó có văng lỗi ngay sau khi bấm không
+            if await error_popup.is_visible():
+                print(f"[Luồng {thread_id}] ⚠️ Proxy yếu: Lỗi 'Failed to load captcha'. Bấm OK & thử lại liền...")
+                try:
+                    await page.get_by_text("OK", exact=True).click(timeout=1000)
+                except: pass
+                await asyncio.sleep(0.5)
+                continue
+            
             if not await page.locator("#aliyunCaptcha-window-popup").is_visible():
                 print(f"[Luồng {thread_id}] ⚠️ Lỗi: Không hiện popup Captcha. Đang thử lại...")
-                await asyncio.sleep(2)
+                await asyncio.sleep(1.0) # Rút ngắn từ 2s -> 1s
                 continue
                 
-            await asyncio.sleep(1.5) 
+            await asyncio.sleep(1.0) 
             
             bg_locator = page.locator("#aliyunCaptcha-img")
             piece_locator = page.locator("#aliyunCaptcha-puzzle")
@@ -575,10 +615,11 @@ async def auto_drag_slider_async(page, thread_id="1"):
              await asyncio.sleep(2)
 
 # ========================================================
-# ==>> HÀM MỞ TRÌNH DUYỆT ĐỂ GỬI CODE (KHÔNG DÙNG PROXY) <<==
+# ==>> HÀM MỞ TRÌNH DUYỆT ĐỂ GỬI CODE (DÙNG PROXY TỪ proxies1.txt) <<==
 # ========================================================
-async def async_send_with_browser(email, worker_id="1"):
-    print(f"[Luồng {worker_id}] 🌐 [NO-PROXY] Mở Playwright để yêu cầu gửi code SMS cho: {email}")
+async def async_send_with_browser(email, worker_id="1", proxy_str=None):
+    proxy_short = proxy_str.split('@')[-1] if proxy_str and '@' in proxy_str else proxy_str or "NO-PROXY"
+    print(f"[Luồng {worker_id}] 🌐 [PROXY1: {proxy_short}] Mở Playwright để yêu cầu gửi code SMS cho: {email}")
 
     user_data_dir = os.path.join(os.getcwd(), "data", str(worker_id))
     if not os.path.exists(user_data_dir):
@@ -586,10 +627,16 @@ async def async_send_with_browser(email, worker_id="1"):
 
     p = await async_playwright().start()
     try:
+        proxy_config = None
+        if proxy_str:
+            parsed = urllib.parse.urlparse(proxy_str)
+            proxy_config = {"server": f"{parsed.scheme}://{parsed.hostname}:{parsed.port}"}
+            if parsed.username and parsed.password:
+                proxy_config["username"] = urllib.parse.unquote(parsed.username)
+                proxy_config["password"] = urllib.parse.unquote(parsed.password)
+
         launch_args = {
             "user_data_dir": user_data_dir,
-            "channel": "chrome",
-            "executable_path": "/usr/bin/chromium", # Tương thích cấu hình Debian
             "headless": CONFIG["HEADLESS"],
             "viewport": {"width": 1280, "height": 720},
             "device_scale_factor": 1,
@@ -600,12 +647,21 @@ async def async_send_with_browser(email, worker_id="1"):
                 '--disable-infobars',                            
                 '--no-sandbox',
                 '--disable-setuid-sandbox',
-                '--disable-gpu',
-                '--disable-dev-shm-usage'
+                '--disable-dev-shm-usage', # Chống lỗi sập RAM trên Linux/Termux
+                '--disable-gpu'
             ]
         }
         
-        # Lưu ý: Yêu cầu của user là KHÔNG dùng proxy ở Playwright
+        # Nếu cấu hình có CHROMIUM_PATH, ưu tiên xài executable_path (dành cho Debian Termux)
+        # Nếu không có (chạy trên Windows), cứ mặc định xài channel=chrome
+        if CONFIG.get("CHROMIUM_PATH"):
+            launch_args["executable_path"] = CONFIG["CHROMIUM_PATH"]
+        else:
+            launch_args["channel"] = "chrome" 
+            
+        if proxy_config:
+            launch_args["proxy"] = proxy_config
+        
         print(f"[Luồng {worker_id}] 🛡️ Khởi chạy Persistent Context (Chống bot)...")
         context = await p.chromium.launch_persistent_context(**launch_args)
         
@@ -647,33 +703,145 @@ async def async_send_with_browser(email, worker_id="1"):
         await p.stop()
 
 # ==============================================================
-# ==>> BROWSER HOST (TREO ACC CHỦ CŨA BẠN - VẪN GIỮ NGUYÊN) <<==
+# ==>> BROWSER HOST (TREO ACC CHỦ CŨA BẠN - ĐA LUỒNG) <<==
 # ==============================================================
 
-async def open_browser_and_login(email, password):
-    print(f"[BROWSER HOST] 🌐 Mở Chromium để treo Acc chủ...")
+async def single_browser_login(email, password, proxy_str):
+    start_time = time.time()
+    p = None
+    browser = None
+    proxy_short = proxy_str.split('@')[-1] if proxy_str and '@' in proxy_str else proxy_str
     try:
+        print(f"[BROWSER HOST] 🔄 Khởi tạo tab với proxy: {proxy_short}")
         p = await async_playwright().start()
         
-        browser = await p.chromium.launch(
-            executable_path="/usr/bin/chromium", 
-            headless=True,
-            args=["--guest", "--no-sandbox", "--disable-gpu", "--disable-dev-shm-usage", "--window-size=400,600", "--window-position=1500,500"]
-        )
+        proxy_config = None
+        if proxy_str:
+            parsed = urllib.parse.urlparse(proxy_str)
+            proxy_config = {"server": f"{parsed.scheme}://{parsed.hostname}:{parsed.port}"}
+            if parsed.username and parsed.password:
+                proxy_config["username"] = urllib.parse.unquote(parsed.username)
+                proxy_config["password"] = urllib.parse.unquote(parsed.password)
+        
+        launch_args = {
+            "headless": CONFIG["HEADLESS"], 
+            "proxy": proxy_config,
+            "args": [
+                "--guest", 
+                "--no-sandbox", 
+                "--disable-setuid-sandbox", 
+                "--disable-dev-shm-usage", # Tối ưu Linux/Termux
+                "--disable-gpu",
+                "--window-size=400,600", 
+                "--window-position=1500,500",
+                "--disable-blink-features=AutomationControlled" 
+            ]
+        }
+        
+        # Tương tự gửi code, fallback channel=chrome cho PC nếu ko có CHROMIUM_PATH
+        if CONFIG.get("CHROMIUM_PATH"):
+            launch_args["executable_path"] = CONFIG["CHROMIUM_PATH"]
+        else:
+            launch_args["channel"] = "chrome"
+
+        browser = await p.chromium.launch(**launch_args)
+        
         context = await browser.new_context()
+        await context.add_init_script("""
+            Object.defineProperty(navigator, 'webdriver', { get: () => undefined });
+            Object.defineProperty(navigator, 'plugins', { get: () => [1, 2, 3, 4, 5] });
+            window.chrome = { runtime: {} };
+        """)
+        
         page = await context.new_page()
-        print(f"[BROWSER HOST] 🔗 Truy cập VMOS...")
-        await page.goto("https://cloud.vsphone.com/event/202602", timeout=60000)
-        print(f"[BROWSER HOST] ✍️ Login...")
-        await page.wait_for_selector('input[placeholder="Please enter your email address"]', timeout=30000)
+        # Đợi tối đa 30s để load trang nếu mạng yếu
+        await page.goto("https://cloud.vsphone.com/event/202602", timeout=30000, wait_until="domcontentloaded")
+        await page.wait_for_selector('input[placeholder="Please enter your email address"]', timeout=15000)
         await page.fill('input[placeholder="Please enter your email address"]', email)
         await page.fill('input[placeholder="Please enter your login password"]', password)
         await page.click('button:has-text("Sign in")')
-        print(f"[BROWSER HOST] ✅ Treo trình duyệt thành công.")
-        return p, browser, page
+        
+        await asyncio.sleep(2)
+        print(f"[BROWSER HOST] ✅ Proxy {proxy_short} đăng nhập THÀNH CÔNG!")
+        return p, browser, page, proxy_str
+        
+    except asyncio.CancelledError:
+        print(f"[BROWSER HOST] 🛑 Hủy tab proxy {proxy_short} (Đã có tab khác win).")
+        if browser:
+            try: await browser.close()
+            except: pass
+        if p:
+            try: await p.stop()
+            except: pass
+        raise
     except Exception as e:
-        print(f"[BROWSER HOST] ❌ Lỗi: {e}")
-        return None, None, None
+        # In trực tiếp mã lỗi nguyên thủy (ví dụ: ERR_PROXY_CONNECTION_FAILED) ra để dễ nhận biết lý do chết nhanh
+        err_msg = str(e).split('\n')[0] if e else "Unknown Error"
+        print(f"[BROWSER HOST] ❌ Tab proxy {proxy_short} lỗi (Proxy die/từ chối): {err_msg}")
+        
+        # Bắt buộc đợi đủ 30 giây mới đóng tab
+        elapsed = time.time() - start_time
+        if elapsed < 30.0:
+            wait_time = 30.0 - elapsed
+            print(f"[BROWSER HOST] ⏳ Ép tab {proxy_short} đợi thêm {wait_time:.1f}s cho đủ 30s...")
+            try:
+                await asyncio.sleep(wait_time)
+            except asyncio.CancelledError:
+                pass
+                
+        if browser:
+            try: await browser.close()
+            except: pass
+        if p:
+            try: await p.stop()
+            except: pass
+        return None
+
+async def task_wrapper(email, password, proxy_str):
+    try:
+        # Tăng timeout tổng lên 35s để code bên trong có đủ thời gian ép đợi 30s mà không bị văng Exception quá sớm
+        return await asyncio.wait_for(single_browser_login(email, password, proxy_str), timeout=35.0)
+    except asyncio.TimeoutError:
+        proxy_short = proxy_str.split('@')[-1] if proxy_str and '@' in proxy_str else proxy_str
+        print(f"[BROWSER HOST] ⏱️ Tab proxy {proxy_short} treo quá thời gian cho phép -> Tắt mở lại!")
+        return None
+    except Exception:
+        return None
+
+async def open_browser_and_login_concurrent(email, password):
+    print(f"[BROWSER HOST] 🌐 Bắt đầu duy trì 3 luồng trình duyệt để đăng nhập Acc chủ...")
+    tasks = set()
+    
+    while True:
+        while len(tasks) < 3: # Đã giảm xuống 3 luồng
+            p_str = host_proxy_manager.get_live_proxy()
+            if not p_str:
+                if len(tasks) == 0:
+                    await asyncio.sleep(5)
+                    p_str = host_proxy_manager.get_live_proxy()
+                    if not p_str:
+                        break
+                else:
+                    break
+            if p_str:
+                tasks.add(asyncio.create_task(task_wrapper(email, password, p_str)))
+        
+        if not tasks:
+            print(f"[BROWSER HOST] ❌ Không có luồng nào chạy (Hết proxy cho host).")
+            return None, None, None, None
+            
+        done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+        
+        for t in done:
+            tasks.remove(t)
+            res = t.result()
+            if res: # Success
+                print(f"[BROWSER HOST] 🎉 Đã chốt 1 tab thành công, tiến hành đóng các tab còn lại...")
+                for p_task in pending:
+                    p_task.cancel()
+                if pending:
+                    await asyncio.gather(*pending, return_exceptions=True)
+                return res[0], res[1], res[2], res[3]
 
 async def close_browser_session(p, browser):
     if browser:
@@ -687,14 +855,13 @@ async def close_browser_session(p, browser):
         except: pass
 
 # ==============================================================
-# ==>> API VMOS <<==
+# ==>> API VMOS & REQUEST NETWORK <<==
 # ==============================================================
 
-def safe_request(method, url, proxy, **kwargs):
+def safe_request(method, url, proxy=None, **kwargs):
     # Cấu hình Proxy chuẩn cho requests
     proxies_dict = None
     if proxy:
-        # Proxy từ ProxyManager đã có prefix http://, nhưng requests cần dict rõ ràng
         proxies_dict = {
             "http": proxy,
             "https": proxy
@@ -720,12 +887,12 @@ def safe_request(method, url, proxy, **kwargs):
         raise e
 
 # ==============================================================
-# ==>> MAIL.TM LOGIC (PROXY ENABLED) <<==
+# ==>> MAIL.TM LOGIC (DÙNG PROXY HOÀN TOÀN TẠO & CHECK MAIL) <<==
 # ==============================================================
 
 def get_temp_email(proxy):
     """
-    Tạo email từ Mail.tm (CÓ PROXY, VERIFY=FALSE).
+    Tạo email từ Mail.tm (DÙNG PROXY, VERIFY=FALSE).
     """
     proxies_dict = None
     if proxy:
@@ -751,7 +918,7 @@ def get_temp_email(proxy):
         
         # Tạo thông tin ngẫu nhiên
         email = f"{random_string()}@{domain}"
-        password = "Password123!"
+        password = "NECONECOLYCONECO"
         
         # 2. Tạo Account
         acc_payload = {
@@ -775,12 +942,14 @@ def get_temp_email(proxy):
             
     except Exception as e:
         print(f"   [MAIL-TM] 🔥 Exception: {e}")
-        # Ném lỗi ra để worker biết mà đổi proxy
         raise e
         
     return None, None
 
 def get_code_from_email(mail_token, email, proxy):
+    """
+    Dùng API requests (CÓ PROXY) để check inbox và lấy mã 6 số.
+    """
     if not mail_token:
         return None
     
@@ -795,7 +964,7 @@ def get_code_from_email(mail_token, email, proxy):
         "Authorization": f"Bearer {mail_token}"
     }
     
-    for _ in range(10):
+    for _ in range(20):
         try:
             r = requests.get(f"{MAIL_TM_BASE}/messages", headers=headers, proxies=proxies_dict, timeout=20, verify=False)
             
@@ -1001,14 +1170,14 @@ async def task_worker(invite_code, update_callback=None):
         if not proxy:
             print(f"[{worker_id}] ❌ Hết Proxy sống!")
             return None
-        
+            
         current_ua = get_random_ua()
         try:
             proxy_short = proxy.split('@')[-1]
             if update_callback:
-                await update_callback(f"🔄 Đang thử proxy: {proxy_short}...")
+                await update_callback(f"🔄 Đang khởi tạo luồng {worker_id} (Proxy: {proxy_short})...")
             
-            # LOG STEP 1: Lấy Mail (Mail.tm) - DÙNG PROXY
+            # LOG STEP 1: Lấy Mail (Mail.tm) qua API (CÓ PROXY)
             print(f"[{worker_id}] 🌐 [PROXY] Get Email (Mail.tm)...")
             
             email_data = await asyncio.to_thread(get_temp_email, proxy)
@@ -1016,24 +1185,30 @@ async def task_worker(invite_code, update_callback=None):
             
             if not email:
                 proxy_manager.mark_bad(proxy)
+                await asyncio.sleep(2)
                 continue 
 
             if update_callback:
-                await update_callback(f"📩 Đang khởi chạy Playwright gửi OTP tới {email} (KHÔNG PROXY)...")
+                await update_callback(f"📩 Đang khởi chạy Playwright gửi OTP tới {email}...")
             
-            # LOG STEP 2: Gửi OTP BẰNG TRÌNH DUYỆT (Playwright Async - KHÔNG PROXY)
-            print(f"[{worker_id}] 📤 [NO-PROXY] Mở Playwright giải Captcha & Gửi OTP tới {email}...")
-            sent = await async_send_with_browser(email, worker_id)
+            # LOG STEP 2: Gửi OTP BẰNG TRÌNH DUYỆT (Playwright Async - DÙNG PROXY TỪ proxies1.txt)
+            pw_proxy = host_proxy_manager.get_live_proxy()
+            pw_proxy_short = pw_proxy.split('@')[-1] if pw_proxy else "NO-PROXY"
+            print(f"[{worker_id}] 📤 [PROXY1: {pw_proxy_short}] Mở Playwright giải Captcha & Gửi OTP tới {email}...")
+            
+            sent = await async_send_with_browser(email, worker_id, pw_proxy)
             
             if not sent:
                 print(f"[{worker_id}] ❌ [SEND-FAIL] Lỗi gửi mã qua Playwright.")
-                continue # Không phạt proxy vì lỗi là ở Playwright / Captcha
+                if pw_proxy:
+                    host_proxy_manager.mark_bad(pw_proxy)
+                continue # Do Playwright lỗi
             
             if update_callback:
                 await update_callback(f"⏳ Đang chờ mã OTP từ Inbox...")
             
-            # LOG STEP 3: Lấy Code (Dùng Token, DÙNG PROXY, CHECK BODY)
-            print(f"[{worker_id}] ⏳ [PROXY] Check inbox (Full Body)...")
+            # LOG STEP 3: Lấy Code bằng API (requests, CÓ PROXY)
+            print(f"[{worker_id}] ⏳ [PROXY] Check inbox bằng API (Mail.tm)...")
             code = await asyncio.to_thread(get_code_from_email, mail_token, email, proxy)
             
             if not code:
@@ -1043,7 +1218,7 @@ async def task_worker(invite_code, update_callback=None):
             if update_callback:
                 await update_callback(f"🔑 Đang đăng nhập...")
             
-            # LOG STEP 4: Login (Dùng Proxy)
+            # LOG STEP 4: Login (CÓ PROXY)
             print(f"[{worker_id}] 🔑 [PROXY] Login Code: {code}")
             creds = await asyncio.to_thread(login_vmos, email, code, proxy, invite_code, current_ua)
             
@@ -1056,12 +1231,14 @@ async def task_worker(invite_code, update_callback=None):
                 "email": email, 
                 "password": "NECONECOLYCONECO", 
                 "token": creds['token'], 
-                "userId": creds['userId'], 
-                "proxy_used": proxy
+                "userId": creds['userId'],
+                "proxy_used": proxy # Trả về proxy đã dùng để acc host tiếp tục sử dụng
             }
         except Exception as e:
-            proxy_manager.mark_bad(proxy)
-            continue
+             print(f"[{worker_id}] ⚠️ Lỗi ngoại lệ worker: {e}")
+             proxy_manager.mark_bad(proxy)
+             await asyncio.sleep(2)
+             continue
 
 intents = discord.Intents.default()
 intents.message_content = True
@@ -1077,7 +1254,7 @@ async def on_command_error(ctx, error):
 async def on_ready():
     print(f"Logged in as {bot.user}")
 
-@bot.command(name="use1")
+@bot.command(name="usea")
 async def use_code(ctx):
     data = code_storage.load_data()
     embed = discord.Embed(title="📦 KHO CODE DỰ TRỮ", color=discord.Color.gold())
@@ -1124,7 +1301,7 @@ async def use_code(ctx):
     except asyncio.TimeoutError:
         await panel_msg.edit(content="⌛ Hết thời gian chờ lệnh `!use1`.", embed=None)
 
-@bot.command(name="genstop1")
+@bot.command(name="genstopa")
 async def genstop(ctx):
     global is_inf_running
     if is_inf_running:
@@ -1133,7 +1310,7 @@ async def genstop(ctx):
     else:
         await ctx.send("⚠️ Không có tiến trình vô cực nào đang chạy.")
 
-@bot.command(name="genbuff1")
+@bot.command(name="genbuffa")
 async def genbuff(ctx, arg1: str = None, arg2: str = None):
     global is_inf_running
     
@@ -1185,15 +1362,13 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
             if not is_inf_mode and host_idx > num_hosts:
                 break 
 
-            if proxy_manager.get_live_count() == 0:
-                if is_inf_mode:
-                    msg_err = await ctx.send("⚠️ **Cạn kiệt Proxy!** Ngủ 1 phút...") 
-                    await asyncio.sleep(60) 
-                    proxy_manager.reset_bad_proxies()
-                    await msg_err.delete()
-                else:
-                    await ctx.send(f"❌ **Hết proxy!** Ngừng tại Host {host_idx}/{num_hosts}.")
-                    break
+            while proxy_manager.get_live_count() == 0 or host_proxy_manager.get_live_count() == 0:
+                msg_err = await ctx.send("⚠️ **Cạn kiệt Proxy!** Đợi 30 giây để thử lại...") 
+                await asyncio.sleep(30) 
+                proxy_manager.reset_bad_proxies()
+                host_proxy_manager.reset_bad_proxies()
+                try: await msg_err.delete()
+                except: pass
 
             print(f"\n[GENBUFF] ---> ĐANG XỬ LÝ HOST {host_idx} <---")
             title_text = f"⚙️ Đang tạo tài khoản chủ ({'Vô cực' if is_inf_mode else f'{host_idx}/{num_hosts}'})..."
@@ -1206,9 +1381,29 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
                 try: await msg.edit(embed=init_embed)
                 except: pass
 
-            # 1. TẠO TÀI KHOẢN (API)
-            print(f"[HOST] 🚀 Bắt đầu tạo Host Account...")
-            host_acc = await task_worker(invite_code=None, update_callback=update_host_status)
+            # 1. TẠO TÀI KHOẢN (API) - ĐÃ GIẢM XUỐNG 3 LUỒNG
+            print(f"[HOST] 🚀 Bắt đầu tạo Host Account (3 luồng)...")
+            
+            async def create_host_acc_wrapper():
+                tasks = set()
+                for _ in range(3):
+                    tasks.add(asyncio.create_task(task_worker(invite_code=None, update_callback=update_host_status)))
+                while tasks:
+                    done, pending = await asyncio.wait(tasks, return_when=asyncio.FIRST_COMPLETED)
+                    for t in done:
+                        tasks.remove(t)
+                        try:
+                            res = t.result()
+                            if res:
+                                print(f"[HOST] 🎉 Đã chốt 1 luồng tạo tài khoản, đóng các luồng còn lại...")
+                                for p in pending: p.cancel()
+                                if pending: await asyncio.gather(*pending, return_exceptions=True)
+                                return res
+                        except: pass
+                return None
+                
+            host_acc = await create_host_acc_wrapper()
+            
             if not host_acc:
                 await msg.edit(content=f"❌ Không thể tạo tài khoản chủ {host_idx}.", embed=None)
                 host_idx += 1
@@ -1218,13 +1413,20 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
             host_userid = host_acc['userId']
             host_proxy = host_acc['proxy_used']
 
-            # 2. KHỞI ĐỘNG BROWSER CHỦ & LOGIN
-            init_embed.description = "🌐 Đang mở trình duyệt để Login..."
+            # 2. KHỞI ĐỘNG BROWSER CHỦ & LOGIN (3 LUỒNG)
+            init_embed.description = "🌐 Đang mở 3 trình duyệt để Login..."
             await msg.edit(embed=init_embed)
             
-            pw_obj, browser_obj, page_obj = await open_browser_and_login(host_acc['email'], host_acc['password'])
+            pw_obj, browser_obj, page_obj, win_proxy = await open_browser_and_login_concurrent(host_acc['email'], host_acc['password'])
+            if not pw_obj:
+                await msg.edit(content=f"❌ Không thể mở tài khoản chủ {host_idx} (Hết proxy hoặc lỗi tất cả luồng).", embed=None)
+                host_idx += 1
+                continue
+                
+            if win_proxy:
+                host_proxy = win_proxy  # Cập nhật proxy đã đăng nhập thành công để gọi API Host bên dưới
 
-            # 3. LẤY MÃ MỜI (API)
+            # 3. LẤY MÃ MỜI (API - CÓ DÙNG PROXY CỦA HOST)
             init_embed.description = "🔄 Đang lấy mã mời (Invite Code)..."
             await msg.edit(embed=init_embed)
             
@@ -1244,18 +1446,19 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
             embed_run.add_field(name="👤 Tài Khoản Chủ", value=f"Email: `{host_acc['email']}`", inline=False)
             full_invite_link = f"https://cloud.vsphone.com/event/202602?channel={invite_code}"
             embed_run.add_field(name="🎟️ Link Mời", value=f"{full_invite_link}\n(Mã: `{invite_code}`)", inline=False)
-            embed_run.add_field(name="📊 Tiến độ Buff", value=f"Đang chạy cấu hình {CONFIG['NUM_THREADS']} luồng (Browser đang treo)...", inline=False)
+            embed_run.add_field(name="📊 Tiến độ Buff", value=f"Đang chạy {CONFIG['NUM_THREADS']} luồng (Browser đang treo)...", inline=False)
             if THUMBNAIL_URL:
                 embed_run.set_thumbnail(url=THUMBNAIL_URL)
             await msg.edit(embed=embed_run)
 
-            # Ép buộc số lượng luồng luôn luôn bằng CONFIG["NUM_THREADS"] (Không quan tâm giới hạn Proxy/Số Buff)
+            # Cố định luôn số luồng là số được đặt ở CONFIG, không quan tâm số buff còn lại
             concurrency = CONFIG["NUM_THREADS"]
             semaphore = asyncio.Semaphore(concurrency)
             
             current_assets_num = 0
             total_success_local = 0
             total_fail = 0
+            consecutive_failures = 0 # Biến đếm lỗi liên tục
             
             async def protected_worker():
                 async with semaphore:
@@ -1276,11 +1479,28 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
                         res = await task
                         if res:
                             total_success_local += 1
+                            consecutive_failures = 0 # Reset đếm lỗi nếu gửi mã thành công
                             current_assets_num = await asyncio.to_thread(check_buff_status, host_token, host_userid, host_proxy)
                         else:
                             total_fail += 1
+                            consecutive_failures += 1 # Cộng dồn nếu lỗi
                     except:
                         total_fail += 1
+                        consecutive_failures += 1 # Cộng dồn nếu lỗi ngoại lệ
+                        
+                    # Cơ chế nghỉ 5 phút nếu 10 lần liên tục đều xịt
+                    if consecutive_failures >= 10:
+                        embed_run.set_field_at(2, name="📊 Tiến độ Buff", value=f"⚠️ **Fail 10 lần liên tục!** Đang nghỉ 5 phút (Anti-Ban)...", inline=False)
+                        try: await msg.edit(embed=embed_run)
+                        except: pass
+                        
+                        print(f"[GENBUFF] ⚠️ Fail 10 lần liên tục! Đóng băng hệ thống 5 phút (300 giây)...")
+                        await asyncio.sleep(300)
+                        
+                        consecutive_failures = 0
+                        proxy_manager.reset_bad_proxies() 
+                        host_proxy_manager.reset_bad_proxies()
+                        print(f"[GENBUFF] ♻️ Đã hết 5 phút nghỉ ngơi, tiếp tục cày cuốc!")
                     
                     # LOGIC RATE LIMIT: CHỈ UPDATE DISCORD MỖI 10 GIÂY
                     now = time.time()
@@ -1294,32 +1514,30 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
                             print(f"⚠️ Discord Rate Limit: {e}. Bỏ qua lần update này.")
                         except Exception: pass
                     
-                    # NẾU ĐÃ ĐẠT ĐỦ TARGET BUFF THÌ THOÁT LUÔN
                     if current_assets_num >= num_buffs:
                         for t in active_tasks:
                             t.cancel()
                         active_tasks.clear()
                         break
                     
-                    # KIỂM TRA TASK ĐỂ FILL VÀO CHO ĐỦ MỨC CONCURRENCY BAN ĐẦU
                     if proxy_manager.get_live_count() > 0:
-                        while len(active_tasks) < concurrency:
+                        # Luôn cố gắng giữ số tác vụ bằng với concurrency
+                        desired_running = concurrency
+                        while len(active_tasks) < desired_running:
                             active_tasks.add(asyncio.create_task(protected_worker()))
                     else:
                         if not active_tasks:
-                            if is_inf_mode:
-                                embed_run.set_field_at(2, name="📊 Tiến độ Buff", value=f"⏳ **Hết Proxy Sống!** Chờ 1 phút...", inline=False) 
-                                await msg.edit(embed=embed_run)
-                                await asyncio.sleep(60) 
-                                proxy_manager.reset_bad_proxies()
-                                for _ in range(concurrency):
-                                    active_tasks.add(asyncio.create_task(protected_worker()))
-                            else:
-                                is_host_failed = True
-                                for t in active_tasks:
-                                    t.cancel()
-                                active_tasks.clear()
-                                break
+                            embed_run.set_field_at(2, name="📊 Tiến độ Buff", value=f"⏳ **Hết Proxy Sống!** Chờ 30 giây để thử lại...", inline=False) 
+                            try: await msg.edit(embed=embed_run)
+                            except: pass
+                            
+                            await asyncio.sleep(30) 
+                            proxy_manager.reset_bad_proxies()
+                            host_proxy_manager.reset_bad_proxies()
+                            
+                            desired_running = concurrency
+                            for _ in range(desired_running):
+                                active_tasks.add(asyncio.create_task(protected_worker()))
 
             if is_host_failed:
                 break
@@ -1376,15 +1594,20 @@ async def genbuff(ctx, arg1: str = None, arg2: str = None):
 if __name__ == "__main__":
     print("🚀 Đang khởi động Bot...")
     token_local = load_local_token()
-    proxies_list = fetch_proxies_from_github()
+    
+    proxies_list = load_proxies_from_url(PROXY_URL)
+    host_proxies_list = load_proxies_from_url(HOST_PROXY_URL)
     
     if not token_local:
         print("❌ KHÔNG THỂ KHỞI ĐỘNG: Thiếu Token trong file 'token.txt'.")
     else:
         if not proxies_list:
-            print("⚠️ CẢNH BÁO: Không lấy được proxy nào từ GitHub.")
+            print(f"⚠️ CẢNH BÁO: Không lấy được proxy nào từ URL '{PROXY_URL}'.")
+        if not host_proxies_list:
+            print(f"⚠️ CẢNH BÁO: Không lấy được proxy nào từ URL '{HOST_PROXY_URL}' cho tài khoản chủ.")
             
         proxy_manager = ProxyManager(proxies_list)
+        host_proxy_manager = ProxyManager(host_proxies_list)
         
         print(f"🚀 Bot Pro Ultimate + Playwright đang chạy...")
         while True:
