@@ -12,7 +12,7 @@ ENABLE_HARDCORE_OPTIMIZE="ON" # Bật tối ưu hóa sâu (Giảm sáng, dọn R
 # CẤU HÌNH EXTREME (VẮT KIỆT MÁY CŨ)
 # ==========================================
 ENABLE_EXTREME_MODE="ON"      # Bật ép Swap RAM và Giảm FPS (Cảnh báo: Hại bộ nhớ máy)
-SWAP_SIZE_MB=12288            # Dung lượng Swap RAM ảo tạo thêm (12GB)
+SWAP_SIZE_MB=4096             # Dung lượng Swap RAM ảo tạo thêm (Đã hạ xuống 4GB)
 TARGET_FPS=30.0               # Ép tần số quét/FPS thấp nhất có thể (30 hoặc 60)
 
 JOIN_TARGET="https://www.roblox.com/share?code=98a1b858bf53db43b688552818e40748&type=Server"
@@ -64,13 +64,18 @@ setup_environment() {
         su -c "settings put system peak_refresh_rate $TARGET_FPS"
         su -c "setprop debug.hwui.fps_divisor 2 >/dev/null 2>&1" # Giảm nửa FPS dựng hình giao diện
         
-        # 7. Thiết lập Swap RAM ảo trên bộ nhớ trong
-        echo "  -> Đang thiết lập $SWAP_SIZE_MB MB Swap RAM..."
-        su -c "if [ ! -f /data/swapfile ]; then 
-            dd if=/dev/zero of=/data/swapfile bs=1M count=$SWAP_SIZE_MB; 
-            mkswap /data/swapfile; 
-            chmod 600 /data/swapfile; 
-        fi"
+        # 7. Thiết lập Swap RAM ảo trên bộ nhớ trong (Tự động xóa và tạo mới nếu sai dung lượng)
+        echo "  -> Đang kiểm tra và thiết lập $SWAP_SIZE_MB MB Swap RAM..."
+        su -c "swapoff /data/swapfile >/dev/null 2>&1"
+        su -c "
+            CURRENT_SIZE=\$(du -m /data/swapfile 2>/dev/null | cut -f1)
+            if [ \"\$CURRENT_SIZE\" != \"$SWAP_SIZE_MB\" ]; then
+                rm -f /data/swapfile
+                dd if=/dev/zero of=/data/swapfile bs=1M count=$SWAP_SIZE_MB
+                mkswap /data/swapfile
+                chmod 600 /data/swapfile
+            fi
+        "
         su -c "swapon /data/swapfile >/dev/null 2>&1"
         
         # 8. Tinh chỉnh Kernel để bào Swap RAM và giữ RAM thực tế
