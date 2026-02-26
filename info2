@@ -184,8 +184,9 @@ draw_ui() {
     echo "╚══════╝   ╚═╝    ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝"
     echo -e "\e[0m"
 
-    echo -e "\e[32mCheck UI time:\e[0m $CHECK_INTERVAL"
-    echo -e "\e[32mAuto block:\e[0m $([ "$ENABLE_EXTREME_MODE" == "ON" ] && echo "Enable" || echo "Disable")"
+    echo -e "\e[32mCheck UI time:\e[0m $CHECK_INTERVAL s"
+    echo -e "\e[32mAuto restart:\e[0m $ENABLE_AUTO_RESTART"
+    echo -e "\e[32mExtreme mode:\e[0m $ENABLE_EXTREME_MODE"
     
     echo -e "+-------------------------------------------------+"
     # Canh giữa Text CPU / RAM
@@ -216,7 +217,6 @@ draw_ui() {
         fi
     done
     echo -e "+-------------------------------------------------+"
-    echo -e "Wait bypass..."
 }
 
 # ==========================================
