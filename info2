@@ -1,100 +1,159 @@
-216.26.232.35:3129
-45.3.35.115:3129
-104.207.41.87:3129
-216.26.241.99:3129
-209.50.164.136:3129
-209.50.167.58:3129
-209.50.170.117:3129
-104.207.56.39:3129
-45.3.47.149:3129
-45.3.48.91:3129
-104.207.57.154:3129
-65.111.27.222:3129
-209.50.180.238:3129
-209.50.164.172:3129
-154.213.164.38:3129
-104.207.45.117:3129
-65.111.7.81:3129
-216.26.251.109:3129
-209.50.191.190:3129
-104.207.33.184:3129
-209.50.175.222:3129
-45.3.32.202:3129
-45.3.39.82:3129
-45.3.54.139:3129
-45.3.32.104:3129
-104.207.54.47:3129
-45.3.47.221:3129
-104.207.46.169:3129
-45.3.51.220:3129
-65.111.2.89:3129
-209.50.166.162:3129
-193.56.28.113:3129
-216.26.245.126:3129
-65.111.5.8:3129
-65.111.22.141:3129
-209.50.183.36:3129
-104.207.36.220:3129
-209.50.176.15:3129
-104.207.63.100:3129
-45.3.32.157:3129
-104.207.53.202:3129
-216.26.233.246:3129
-209.50.176.206:3129
-216.26.240.203:3129
-65.111.23.249:3129
-45.3.62.39:3129
-104.207.61.74:3129
-104.207.35.186:3129
-216.26.255.174:3129
-216.26.225.7:3129
-45.3.41.255:3129
-65.111.31.103:3129
-65.111.30.60:3129
-209.50.183.218:3129
-104.207.46.143:3129
-45.3.45.208:3129
-104.207.43.193:3129
-65.111.4.198:3129
-104.207.34.192:3129
-154.213.165.103:3129
-209.50.186.132:3129
-216.26.242.187:3129
-104.207.50.255:3129
-216.26.237.106:3129
-104.207.34.234:3129
-65.111.14.22:3129
-216.26.251.67:3129
-209.50.173.43:3129
-104.207.57.195:3129
-209.50.183.249:3129
-104.167.19.187:3129
-216.26.227.217:3129
-104.207.42.253:3129
-45.3.46.220:3129
-45.3.48.189:3129
-216.26.235.239:3129
-65.111.25.209:3129
-45.3.49.118:3129
-209.50.166.51:3129
-216.26.253.139:3129
-104.167.25.160:3129
-45.3.37.7:3129
-209.50.183.95:3129
-65.111.5.119:3129
-216.26.249.6:3129
-65.111.4.170:3129
-104.167.25.247:3129
-65.111.5.243:3129
-216.26.230.90:3129
-216.26.253.123:3129
-216.26.231.194:3129
-216.26.234.150:3129
-209.50.176.88:3129
-154.213.165.198:3129
-154.213.165.220:3129
-65.111.25.110:3129
-216.26.249.85:3129
-45.3.36.17:3129
-154.213.166.3:3129
-216.26.237.28:3129
+#!/data/data/com.termux/files/usr/bin/bash
+
+# ==========================================
+# CẤU HÌNH CƠ BẢN
+# ==========================================
+CHECK_INTERVAL=120           # Quét trạng thái App mỗi 2 phút (120 giây)
+RESTART_INTERVAL=21600       # Force stop và mở lại toàn bộ sau 6 tiếng (21600 giây)
+ENABLE_AUTO_RESTART="OFF"     # Công tắc: "ON" để bật, "OFF" để tắt tự động Restart
+ENABLE_HARDCORE_OPTIMIZE="ON" # Bật tối ưu hóa sâu (Giảm sáng, dọn RAM, chống kill ngầm)
+
+JOIN_TARGET="https://www.roblox.com/share?code=98a1b858bf53db43b688552818e40748&type=Server"
+BASE_PACKAGE_NAME="com.roblox.clien"  
+ACCOUNT_SUFFIXES="b c d e f"          
+
+# ==========================================
+# CÁC HÀM XỬ LÝ & TỐI ƯU
+# ==========================================
+
+setup_environment() {
+    echo "[SETUP] Đang thiết lập môi trường và tối ưu hóa hệ thống..."
+    
+    # 1. Thiết lập màn hình hiển thị
+    su -c "wm size 1280x2800"
+    su -c "wm density 350"
+    su -c "settings put system accelerometer_rotation 0"
+    su -c "settings put system user_rotation 1" # Xoay ngang
+    
+    # 2. Tắt hoàn toàn Animation (Hoạt ảnh) để giảm tải GPU/CPU
+    su -c "settings put global window_animation_scale 0"
+    su -c "settings put global transition_animation_scale 0"
+    su -c "settings put global animator_duration_scale 0"
+    
+    # 3. Kích hoạt tính năng Đa cửa sổ (Multi-window / Freeform)
+    su -c "settings put global force_resizable_activities 1"
+    su -c "settings put global enable_freeform_support 1"
+    su -c "settings put global force_allow_on_external 1"
+    
+    if [ "$ENABLE_HARDCORE_OPTIMIZE" == "ON" ]; then
+        # 4. Vô hiệu hóa Phantom Process (Chống Android 12+ kill Termux/Clone ngầm)
+        su -c "device_config put activity_manager max_phantom_processes 2147483647 >/dev/null 2>&1"
+        su -c "settings put global settings_enable_monitor_phantom_procs false >/dev/null 2>&1"
+        
+        # 5. Tối ưu nhiệt độ & Pin khi treo
+        su -c "settings put system screen_brightness_mode 0" # Tắt độ sáng tự động
+        su -c "settings put system screen_brightness 1"      # Giảm độ sáng xuống thấp nhất
+        su -c "settings put global stay_on_while_plugged_in 7" # Luôn thức khi cắm sạc
+        su -c "dumpsys deviceidle disable >/dev/null 2>&1"     # Tắt Doze Mode chống rớt mạng
+        
+        echo "[SETUP] Đã bật chế độ Tối ưu hóa sâu (Hardcore Optimize)."
+    fi
+
+    sleep 2
+    echo "[SETUP] Hoàn tất thiết lập môi trường!"
+    echo ""
+}
+
+is_running() {
+    local pkg=$1
+    local output=$(su -c "ps -ef | grep $pkg | grep -v grep")
+    if [[ -n "$output" ]]; then
+        return 0 # Đang chạy
+    else
+        return 1 # Đã tắt
+    fi
+}
+
+launch_app() {
+    local pkg=$1
+    local deeplink="$JOIN_TARGET"
+    if [[ "$deeplink" =~ ^[0-9]+$ ]]; then
+        deeplink="roblox://placeId=${deeplink}"
+    fi
+    # Bật chế độ cửa sổ (5)
+    su -c "am start --windowingMode 5 -a android.intent.action.VIEW -d '${deeplink}' -p ${pkg} > /dev/null 2>&1"
+}
+
+kill_all_roblox() {
+    echo "[RESTART] Đã đủ thời gian, đang tiến hành đóng toàn bộ Roblox..."
+    for suffix in $ACCOUNT_SUFFIXES; do
+        pkg="${BASE_PACKAGE_NAME}${suffix}"
+        su -c "am force-stop $pkg"
+        echo "  -> Đã đóng $pkg"
+    done
+    
+    # [TỐI ƯU THÊM] Dọn dẹp RAM (Drop Caches) sau khi kill app để giải phóng bộ nhớ
+    if [ "$ENABLE_HARDCORE_OPTIMIZE" == "ON" ]; then
+        echo "  -> [OPTIMIZE] Đang dọn dẹp RAM hệ thống..."
+        su -c "sync && echo 3 > /proc/sys/vm/drop_caches"
+    fi
+    
+    sleep 3
+    echo "[RESTART] Đã đóng và dọn dẹp xong. Vòng lặp Monitor sẽ tự mở lại app."
+}
+
+# ==========================================
+# CÁC VÒNG LẶP ĐỘC LẬP
+# ==========================================
+
+# Vòng lặp 1: Kiểm tra và mở lại App
+loop_app_monitor() {
+    while true; do
+        H_TIME=$(date +"%H:%M:%S")
+        echo "[$H_TIME] Đang kiểm tra trạng thái các App..."
+        for suffix in $ACCOUNT_SUFFIXES; do
+            pkg="${BASE_PACKAGE_NAME}${suffix}"
+            
+            if is_running "$pkg"; then
+                echo "  [OK] $pkg đang chạy."
+            else
+                echo "  [START] $pkg đã tắt -> Đang mở lại..."
+                launch_app "$pkg"
+                sleep 5 # Đợi một chút để app load rồi mới mở app tiếp theo
+            fi
+        done
+        sleep $CHECK_INTERVAL
+    done
+}
+
+# Vòng lặp 2: Tự động khởi động lại toàn bộ
+loop_auto_restart() {
+    while true; do
+        sleep $RESTART_INTERVAL
+        kill_all_roblox
+    done
+}
+
+# ==========================================
+# CHƯƠNG TRÌNH CHÍNH
+# ==========================================
+
+# Khôi phục độ sáng màn hình khi dừng script (Ctrl+C)
+trap "echo -e '\n[!] Đang đóng tiến trình và khôi phục màn hình...'; su -c 'settings put system screen_brightness 100'; kill 0; exit" SIGINT SIGTERM
+
+termux-wake-lock
+
+echo "======================================="
+echo "  AUTO RESTARTER PRO V2 (OPTIMIZED)    "
+echo "  Tối ưu đa nhiệm, RAM, Pin & Nhiệt độ "
+echo "======================================="
+echo ""
+
+# Setup môi trường
+setup_environment
+
+echo "[MAIN] Khởi chạy các vòng lặp ngầm..."
+
+# Gọi chạy ngầm bằng toán tử '&'
+loop_app_monitor &
+
+# Bật/Tắt vòng lặp Restart tùy theo công tắc
+if [ "$ENABLE_AUTO_RESTART" == "ON" ]; then
+    echo "  -> Chức năng Auto Restart (6 tiếng): ĐANG BẬT"
+    loop_auto_restart &
+else
+    echo "  -> Chức năng Auto Restart: ĐÃ TẮT"
+fi
+
+# Dùng wait để giữ script chính sống
+wait
