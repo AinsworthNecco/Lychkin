@@ -39,6 +39,7 @@ PREV_ACTIVE=""
 # ==========================================
 
 setup_environment() {
+    tput civis 2>/dev/null || true # Ẩn con trỏ chuột nhấp nháy cho UI mượt hơn
     clear
     echo "[SETUP] Đang thiết lập môi trường và tối ưu hóa hệ thống..."
     
@@ -91,7 +92,11 @@ setup_environment() {
 }
 
 get_cpu() {
-    local cur_stat=$(cat /proc/stat | head -n 1)
+    local cur_stat=$(su -c "cat /proc/stat 2>/dev/null" | head -n 1)
+    if [ -z "$cur_stat" ]; then
+        CPU_PCT="N/A"
+        return
+    fi
     local user=$(echo $cur_stat | awk '{print $2}')
     local nice=$(echo $cur_stat | awk '{print $3}')
     local system=$(echo $cur_stat | awk '{print $4}')
@@ -115,7 +120,11 @@ get_cpu() {
 }
 
 get_ram() {
-    local mem_info=$(su -c "cat /proc/meminfo")
+    local mem_info=$(su -c "cat /proc/meminfo 2>/dev/null")
+    if [ -z "$mem_info" ]; then
+        RAM_PCT="N/A"
+        return
+    fi
     local mem_total=$(echo "$mem_info" | awk '/MemTotal/ {print $2}')
     local mem_avail=$(echo "$mem_info" | awk '/MemAvailable/ {print $2}')
     
@@ -224,6 +233,7 @@ draw_ui() {
 # ==========================================
 
 cleanup_on_exit() {
+    tput cnorm 2>/dev/null || true # Hiện lại con trỏ chuột khi thoát
     clear
     echo -e '\n[!] Đang đóng tiến trình và khôi phục hệ thống...'
     su -c 'settings put system screen_brightness 100'
