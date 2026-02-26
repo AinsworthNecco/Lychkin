@@ -1,248 +1,27 @@
-#!/bin/bash
+#!/system/bin/sh
 
-# ==============================================================================
-# SCRIPT: Cookie Injector Pure (Hardcoded Config) - Bash Version
-# ==============================================================================
-
-# ---------------------------------------------------
-# -- CẤU HÌNH (SỬA TRỰC TIẾP TẠI ĐÂY) --
-# ---------------------------------------------------
-ACCOUNT_SUFFIXES_STR="b c d e f"
-BASE_PACKAGE_NAME="com.roblox.clien"
-COOKIE_URL="https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookieInject"
-
-# ---------------------------------------------------
-# -- BIẾN CỤC BỘ --
-# ---------------------------------------------------
-TEMP_DIR="$PWD/RobloxInjector_Temp"
-COOKIE_FILENAME="Cookies"
-
-# Đã xóa phần kiểm tra pkg install (để vượt lỗi Android 15)
-
-# ==============================================================================
-# -- HÀM HỆ THỐNG --
-# ==============================================================================
-
-check_root_access() {
-    echo "[SYSTEM] Đang kiểm tra quyền root..."
-    if [ "$(su -c whoami 2>/dev/null)" = "root" ]; then
-        echo "[SYSTEM] -> Quyền root: OK."
-        return 0
-    else
-        echo "[SYSTEM] -> Lỗi: Không có quyền root (hãy cấp quyền cho Termux trong Magisk/KernelSU)."
-        return 1
-    fi
-}
-
-run_sqlite() {
-    local db="$1"
-    local query="$2"
-    # Ưu tiên dùng sqlite3 của hệ thống (Android/Magisk) để không bị lỗi Signal 4
-    if su -c "command -v sqlite3" &>/dev/null; then
-        su -c "sqlite3 '$db' \"$query\"" 2>/dev/null
-    elif command -v sqlite3 &>/dev/null; then
-        sqlite3 "$db" "$query" 2>/dev/null
-    else
-        echo "ERROR_NO_SQLITE"
-    fi
-}
-
-get_remote_cookies_list() {
-    echo "[COOKIE] Đang tải danh sách Cookie từ GitHub..."
-    
-    # Dùng curl/wget gốc của máy (nằm trong /system/bin) để né lỗi Termux
-    local raw_data=""
-    if su -c "command -v curl" &>/dev/null; then
-        raw_data=$(su -c "curl -sL -A 'Mozilla/5.0' '$COOKIE_URL'")
-    elif su -c "command -v wget" &>/dev/null; then
-        raw_data=$(su -c "wget -qO- '$COOKIE_URL'")
-    elif command -v curl &>/dev/null; then
-        raw_data=$(curl -sL -A "Mozilla/5.0" "$COOKIE_URL")
-    fi
-
-    # Tải và lọc ra những dòng chứa cookie hợp lệ
-    mapfile -t REMOTE_COOKIES < <(echo "$raw_data" | grep "_|WARNING:-DO-NOT-SHARE")
-    
-    if [ ${#REMOTE_COOKIES[@]} -gt 0 ]; then
-        echo "[COOKIE] Tìm thấy ${#REMOTE_COOKIES[@]} cookie hợp lệ."
-    else
-        echo "[COOKIE] Lỗi: Không tìm thấy cookie hợp lệ hoặc lỗi mạng."
-    fi
-}
-
-find_real_cookie_path() {
-    local pkg=$1
-    local base_path="/data/data/${pkg}/app_webview"
-    # Dùng su để check file tồn tại và in ra đường dẫn
-    su -c "
-        if [ -f '${base_path}/Default/Cookies' ]; then
-            echo '${base_path}/Default/Cookies'
-        elif [ -f '${base_path}/Cookies' ]; then
-            echo '${base_path}/Cookies'
-        fi
-    "
-}
-
-get_local_cookie() {
-    local pkg=$1
-    local target_path=$(find_real_cookie_path "$pkg")
-    
-    if [ -z "$target_path" ]; then
-        return 1
-    fi
-
-    local temp_check_path="${TEMP_DIR}/Cookies_Check"
-    mkdir -p "$TEMP_DIR"
-
-    su -c "cp '$target_path' '$temp_check_path' && chmod 777 '$temp_check_path'"
-
-    # Đọc db sqlite bằng hàm bọc an toàn
-    local val=$(run_sqlite "$temp_check_path" "SELECT value FROM cookies WHERE name = '.ROBLOSECURITY';")
-    if [ "$val" == "ERROR_NO_SQLITE" ]; then val=""; fi
-    
-    rm -f "$temp_check_path"
-    echo "$val"
-}
-
-prepare_db_injector() {
-    local cookie_value="$1"
-    local db_path="${TEMP_DIR}/${COOKIE_FILENAME}"
-
-    if [ ! -f "$db_path" ]; then
-        echo "[COOKIE] File DB tạm không tồn tại."
-        return 1
-    fi
-
-    # Kiểm tra công cụ SQLite
-    local test_sqlite=$(run_sqlite "$db_path" "SELECT 1;")
-    if [ "$test_sqlite" == "ERROR_NO_SQLITE" ]; then
-        echo "[LỖI NẶNG] Máy bạn không có sẵn công cụ SQLite (Cả ở Hệ thống lẫn Termux)."
-        echo "-> Bắt buộc phải thay thế bằng file Cookies mẫu, script hiện tại không thể sửa DB nhị phân."
-        return 1
-    fi
-
-    local now=$(($(date +%s) * 1000000))
-    local expires="99999999999999999"
-    # Escape single quotes để tránh lỗi SQL syntax
-    local escaped_cookie=$(echo "$cookie_value" | sed "s/'/''/g")
-
-    # Xóa cookie cũ nếu có
-    run_sqlite "$db_path" "DELETE FROM cookies WHERE host_key = '.roblox.com' AND name = '.ROBLOSECURITY';"
-
-    # Tạo các query (query full cho webview mới, fallback cho webview cũ)
-    local query_full="INSERT INTO cookies (creation_utc, host_key, name, value, path, expires_utc, is_secure, is_httponly, last_access_utc, has_expires, is_persistent, priority, samesite, source_scheme) VALUES ($now, '.roblox.com', '.ROBLOSECURITY', '$escaped_cookie', '/', $expires, 1, 1, $now, 1, 1, 1, 0, 1);"
-    
-    local query_fallback="INSERT INTO cookies (creation_utc, host_key, name, value, path, expires_utc, is_secure, is_httponly, last_access_utc) VALUES ($now, '.roblox.com', '.ROBLOSECURITY', '$escaped_cookie', '/', $expires, 1, 1, $now);"
-
-    # Thực thi tuần tự (Tự động bỏ qua lỗi nếu bảng không tương thích)
-    run_sqlite "$db_path" "$query_full"
-    run_sqlite "$db_path" "$query_fallback"
-    
-    return 0
-}
-
-inject_cookie_process() {
-    local pkg=$1
-    local cookie_value=$2
-
-    # Check gói cài đặt
-    if ! su -c "pm path $pkg" >/dev/null 2>&1; then
-        echo "[COOKIE] Gói $pkg chưa cài đặt -> Bỏ qua."
-        return 1
-    fi
-
-    local target_path=$(find_real_cookie_path "$pkg")
-    if [ -z "$target_path" ]; then
-        echo "[COOKIE] ⚠️ Không tìm thấy file Cookies của $pkg."
-        echo "[COOKIE] -> Hãy mở app lên ít nhất 1 lần để tạo file."
-        return 1
-    fi
-
-    su -c "am force-stop $pkg"
-    sleep 1
-
-    rm -rf "$TEMP_DIR"
-    mkdir -p "$TEMP_DIR"
-
-    # Copy ra Termux Temp
-    su -c "cp '$target_path' '${TEMP_DIR}/${COOKIE_FILENAME}' && chmod 777 '${TEMP_DIR}/${COOKIE_FILENAME}'"
-
-    if ! prepare_db_injector "$cookie_value"; then
-        return 1
-    fi
-
-    local parent_dir=$(dirname "$target_path")
-
-    # Copy file lại và sửa quyền
-    su -c "
-        cp '${TEMP_DIR}/${COOKIE_FILENAME}' '$target_path'
-        owner=\$(stat -c '%U:%G' '$parent_dir')
-        if [ -n \"\$owner\" ]; then
-            chown \$owner '$target_path'
-            chmod 600 '$target_path'
-        fi
-    "
-
-    rm -rf "$TEMP_DIR"
-    echo "[COOKIE] -> Đã nạp Cookie mới cho: $pkg"
-}
-
-# ==============================================================================
-# -- MAIN EXECUTION --
-# ==============================================================================
-
-run_main_sequence() {
-    echo -e "\n[MAIN] === COOKIE INJECTOR PURE (BASH) ==="
-
-    read -ra ACCOUNTS <<< "$ACCOUNT_SUFFIXES_STR"
-    if [ ${#ACCOUNTS[@]} -eq 0 ]; then
-        echo "[MAIN] Danh sách tài khoản trống. Hãy sửa ACCOUNT_SUFFIXES_STR trong file."
-        return
-    fi
-
-    get_remote_cookies_list
-    if [ ${#REMOTE_COOKIES[@]} -eq 0 ]; then
-        echo "[MAIN] Không lấy được danh sách Cookie -> Dừng."
-        return
-    fi
-
-    echo -e "\n[PROCESS] Bắt đầu kiểm tra và inject..."
-    
-    local i=0
-    for suffix in "${ACCOUNTS[@]}"; do
-        local pkg_name="${BASE_PACKAGE_NAME}${suffix}"
-        
-        if [ $i -lt ${#REMOTE_COOKIES[@]} ]; then
-            local assigned_cookie="${REMOTE_COOKIES[$i]}"
-        else
-            echo "[COOKIE] ⚠️ Không đủ Cookie cho '${suffix}' (Acc #$((i+1))). Bỏ qua."
-            continue
-        fi
-
-        echo -n "[ACC] '${suffix}' -> "
-        
-        local local_cookie=$(get_local_cookie "$pkg_name")
-
-        if [ "$local_cookie" == "$assigned_cookie" ]; then
-            echo "OK (Khớp)."
-        else
-            if [ -z "$local_cookie" ]; then
-                echo "MISSING -> Injecting..."
-            else
-                echo "MISMATCH -> Injecting..."
-            fi
-            
-            inject_cookie_process "$pkg_name" "$assigned_cookie"
-        fi
-        
-        ((i++))
-    done
-
-    echo -e "\n[MAIN] === HOÀN TẤT ==="
-}
-
-if ! check_root_access; then
+# Kiểm tra quyền root
+if [ "$(id -u)" -ne 0 ]; then
+    echo "Vui lòng chạy bằng su (root)"
     exit 1
 fi
 
-run_main_sequence
+SWAPFILE="/data/local/swapfile"
+SIZE="4G"
+
+echo "Tạo swap $SIZE..."
+
+# Tạo file swap
+dd if=/dev/zero of=$SWAPFILE bs=1M count=4096
+
+# Phân quyền
+chmod 600 $SWAPFILE
+
+# Tạo vùng swap
+mkswap $SWAPFILE
+
+# Kích hoạt swap
+swapon $SWAPFILE
+
+echo "Hoàn tất!"
+free -h
