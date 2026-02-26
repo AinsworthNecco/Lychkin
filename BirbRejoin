@@ -3,37 +3,126 @@
 # ==========================================
 # CẤU HÌNH CƠ BẢN
 # ==========================================
-CHECK_INTERVAL=120 # Giảm xuống 5s để test các mốc 20s/30s cho mượt
-RESTART_INTERVAL=21600          # Force stop và mở lại toàn bộ sau 20 giây (Test)
+CHECK_INTERVAL=120           # Quét trạng thái App mỗi 2 phút (120 giây)
+RESTART_INTERVAL=21600       # Force stop và mở lại toàn bộ sau 6 tiếng (21600 giây)
+ENABLE_AUTO_RESTART="OFF"      # Công tắc: "ON" để bật, "OFF" để tắt tự động Restart
+ENABLE_HARDCORE_OPTIMIZE="ON" # Bật tối ưu hóa sâu (Giảm sáng, dọn RAM, chống kill ngầm)
+
+# ==========================================
+# CẤU HÌNH EXTREME (VẮT KIỆT MÁY CŨ)
+# ==========================================
+ENABLE_EXTREME_MODE="ON"      # Bật ép Giảm FPS
+TARGET_FPS=15.0               # Ép tần số quét/FPS thấp nhất
 
 JOIN_TARGET="https://www.roblox.com/share?code=98a1b858bf53db43b688552818e40748&type=Server"
-BASE_PACKAGE_NAME="com.roblox.clien"  # Đã trả lại "clien" theo yêu cầu
-ACCOUNT_SUFFIXES="b c d e f"          # Hậu tố của các bản clone
+BASE_PACKAGE_NAME="com.roblox.clien"  
+ACCOUNT_SUFFIXES="b c d e f"          
 
 # ==========================================
-# CÁC HÀM XỬ LÝ
+# CÁC BIẾN TOÀN CỤC & TRẠNG THÁI UI
+# ==========================================
+declare -A APP_STATUS
+for suffix in $ACCOUNT_SUFFIXES; do
+    APP_STATUS["${BASE_PACKAGE_NAME}${suffix}"]="Initializing"
+done
+
+CHECK_TIMER=5 # Chạy check lần đầu sau 5 giây
+RESTART_TIMER=$RESTART_INTERVAL
+CPU_PCT="0"
+RAM_PCT="0"
+PREV_TOTAL=""
+PREV_ACTIVE=""
+
+# ==========================================
+# HÀM XỬ LÝ HỆ THỐNG
 # ==========================================
 
-setup_display() {
-    echo "[SETUP] Lychkin"
+setup_environment() {
+    tput civis 2>/dev/null || true # Ẩn con trỏ chuột nhấp nháy cho UI mượt hơn
+    clear
+    echo "[SETUP] Đang thiết lập môi trường và tối ưu hóa hệ thống..."
+    
     su -c "wm size 1280x2800"
     su -c "wm density 350"
-    # Khóa tự động xoay và ép màn hình xoay ngang (Landscape)
     su -c "settings put system accelerometer_rotation 0"
     su -c "settings put system user_rotation 1"
+    
+    su -c "settings put global window_animation_scale 0"
+    su -c "settings put global transition_animation_scale 0"
+    su -c "settings put global animator_duration_scale 0"
+    su -c "settings put global force_resizable_activities 1"
+    su -c "settings put global enable_freeform_support 1"
+    su -c "settings put global force_allow_on_external 1"
+    
+    if [ "$ENABLE_HARDCORE_OPTIMIZE" == "ON" ]; then
+        su -c "device_config put activity_manager max_phantom_processes 2147483647 >/dev/null 2>&1"
+        su -c "settings put global settings_enable_monitor_phantom_procs false >/dev/null 2>&1"
+        su -c "settings put system screen_brightness_mode 0" 
+        su -c "settings put system screen_brightness 1"      
+        su -c "settings put global stay_on_while_plugged_in 7"
+        su -c "dumpsys deviceidle disable >/dev/null 2>&1"     
+    fi
+
+    if [ "$ENABLE_EXTREME_MODE" == "ON" ]; then
+        su -c "settings put system min_refresh_rate $TARGET_FPS"
+        su -c "settings put system peak_refresh_rate $TARGET_FPS"
+        su -c "setprop debug.hwui.fps_divisor 2 >/dev/null 2>&1"
+    fi
+    
     sleep 2
-    echo "[SETUP] Hoàn tất thiết lập màn hình và xoay ngang!"
-    echo ""
+}
+
+get_cpu() {
+    local cur_stat=$(su -c "cat /proc/stat 2>/dev/null" | head -n 1)
+    if [ -z "$cur_stat" ]; then
+        CPU_PCT="N/A"
+        return
+    fi
+    local user=$(echo $cur_stat | awk '{print $2}')
+    local nice=$(echo $cur_stat | awk '{print $3}')
+    local system=$(echo $cur_stat | awk '{print $4}')
+    local idle=$(echo $cur_stat | awk '{print $5}')
+    local iowait=$(echo $cur_stat | awk '{print $6}')
+    local irq=$(echo $cur_stat | awk '{print $7}')
+    local softirq=$(echo $cur_stat | awk '{print $8}')
+
+    local total=$((user + nice + system + idle + iowait + irq + softirq))
+    local active=$((total - idle - iowait))
+
+    if [ -n "$PREV_TOTAL" ]; then
+        local diff_total=$((total - PREV_TOTAL))
+        local diff_active=$((active - PREV_ACTIVE))
+        if [ $diff_total -ne 0 ]; then
+            CPU_PCT=$(( diff_active * 100 / diff_total ))
+        fi
+    fi
+    PREV_TOTAL=$total
+    PREV_ACTIVE=$active
+}
+
+get_ram() {
+    local mem_info=$(su -c "cat /proc/meminfo 2>/dev/null")
+    if [ -z "$mem_info" ]; then
+        RAM_PCT="N/A"
+        return
+    fi
+    local mem_total=$(echo "$mem_info" | awk '/MemTotal/ {print $2}')
+    local mem_avail=$(echo "$mem_info" | awk '/MemAvailable/ {print $2}')
+    
+    if [ -z "$mem_avail" ]; then
+        local mem_free=$(echo "$mem_info" | awk '/MemFree/ {print $2}')
+        local mem_cached=$(echo "$mem_info" | awk '/Cached/ {print $2}' | head -n 1)
+        mem_avail=$((mem_free + mem_cached))
+    fi
+    
+    if [ -n "$mem_total" ] && [ $mem_total -gt 0 ]; then
+        RAM_PCT=$(( 100 - (mem_avail * 100 / mem_total) ))
+    fi
 }
 
 is_running() {
-    local pkg=$1
-    local output=$(su -c "ps -ef | grep $pkg | grep -v grep")
-    if [[ -n "$output" ]]; then
-        return 0 # Đang chạy
-    else
-        return 1 # Đã tắt
-    fi
+    local output=$(su -c "ps -ef | grep $1 | grep -v grep")
+    [[ -n "$output" ]] && return 0 || return 1
 }
 
 launch_app() {
@@ -42,76 +131,135 @@ launch_app() {
     if [[ "$deeplink" =~ ^[0-9]+$ ]]; then
         deeplink="roblox://placeId=${deeplink}"
     fi
-    # Bật chế độ cửa sổ (5)
     su -c "am start --windowingMode 5 -a android.intent.action.VIEW -d '${deeplink}' -p ${pkg} > /dev/null 2>&1"
 }
 
-kill_all_roblox() {
-    echo "[RESTART] Đã đủ thời gian, đang tiến hành đóng toàn bộ Roblox..."
+do_restart() {
     for suffix in $ACCOUNT_SUFFIXES; do
         pkg="${BASE_PACKAGE_NAME}${suffix}"
+        APP_STATUS["$pkg"]="Rejoin"
         su -c "am force-stop $pkg"
-        echo "  -> Đã đóng $pkg"
     done
+    draw_ui
+    
+    if [ "$ENABLE_HARDCORE_OPTIMIZE" == "ON" ]; then
+        su -c "sync && echo 3 > /proc/sys/vm/drop_caches"
+    fi
     sleep 3
-    echo "[RESTART] Đã đóng xong toàn bộ. Vòng lặp Monitor sẽ tự mở lại app."
+    ((RESTART_TIMER-=3))
+    ((CHECK_TIMER-=3))
+    CHECK_TIMER=0
 }
 
 # ==========================================
-# CÁC VÒNG LẶP ĐỘC LẬP
+# GIAO DIỆN (UI)
 # ==========================================
 
-# Vòng lặp 1: Kiểm tra và mở lại App
-loop_app_monitor() {
-    while true; do
-        H_TIME=$(date +"%H:%M:%S")
-        echo "[$H_TIME] Đang kiểm tra trạng thái các App..."
-        for suffix in $ACCOUNT_SUFFIXES; do
-            pkg="${BASE_PACKAGE_NAME}${suffix}"
-            
-            if is_running "$pkg"; then
-                echo "  [OK] $pkg đang chạy."
-            else
-                echo "  [START] $pkg đã tắt -> Đang mở lại..."
-                launch_app "$pkg"
-                sleep 5 # Đợi một chút để app load rồi mới mở app tiếp theo
-            fi
-        done
-        sleep $CHECK_INTERVAL
+pad() {
+    printf "%-$2s" "$1"
+}
+
+draw_ui() {
+    clear
+    # Chữ Lychkin màu cam đậm
+    echo -e "\e[38;5;208m"
+    echo "██╗     ██╗   ██╗ ██████╗██╗  ██╗██╗  ██╗██╗███╗   ██╗"
+    echo "██║     ╚██╗ ██╔╝██╔════╝██║  ██║██║ ██╔╝██║████╗  ██║"
+    echo "██║      ╚████╔╝ ██║     ███████║█████═╝ ██║██╔██╗ ██║"
+    echo "██║       ╚██╔╝  ██║     ██╔══██║██╔═██╗ ██║██║╚██╗██║"
+    echo "███████╗   ██║   ╚██████╗██║  ██║██║  ██╗██║██║ ╚████║"
+    echo "╚══════╝   ╚═╝    ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝"
+    echo -e "\e[0m"
+
+    echo -e "\e[32mCheck UI time:\e[0m $CHECK_INTERVAL s"
+    echo -e "\e[32mAuto restart:\e[0m $ENABLE_AUTO_RESTART"
+    echo -e "\e[32mExtreme mode:\e[0m $ENABLE_EXTREME_MODE"
+    
+    echo -e "+-------------------------------------------------+"
+    # Canh giữa Text CPU / RAM
+    local stats_str="CPU: ${CPU_PCT}% | RAM: ${RAM_PCT}%"
+    local pad_left=$(( (49 - ${#stats_str}) / 2 ))
+    local pad_right=$(( 49 - ${#stats_str} - pad_left ))
+    printf "|%*s%s%*s|\n" $pad_left "" "$stats_str" $pad_right ""
+    
+    echo -e "+-------------------------------------------------+"
+    echo -e "| Next Check: $(pad "${CHECK_TIMER}s" 10)| Next Restart: $(pad "${RESTART_TIMER}s" 10)|"
+    echo -e "+-------------------------------------------------+"
+    echo -e "| Package Name         | Status                   |"
+    echo -e "+-------------------------------------------------+"
+    
+    for suffix in $ACCOUNT_SUFFIXES; do
+        local pkg="${BASE_PACKAGE_NAME}${suffix}"
+        local status="${APP_STATUS[$pkg]}"
+        local pkg_padded=$(pad "$pkg" 20)
+        
+        if [ "$status" == "Running" ]; then
+            echo -e "| $pkg_padded | \e[32mRunning\e[0m                  |"
+        elif [ "$status" == "Starting" ]; then
+            echo -e "| $pkg_padded | \e[33mStarting\e[0m                 |"
+        elif [ "$status" == "Rejoin" ]; then
+            echo -e "| $pkg_padded | \e[38;5;208mRejoin\e[0m                   |"
+        else
+            echo -e "| $pkg_padded | \e[36mInitializing\e[0m             |"
+        fi
     done
-}
-
-# Vòng lặp 2: Tự động khởi động lại toàn bộ
-loop_auto_restart() {
-    while true; do
-        sleep $RESTART_INTERVAL
-        kill_all_roblox
-    done
+    echo -e "+-------------------------------------------------+"
 }
 
 # ==========================================
-# CHƯƠNG TRÌNH CHÍNH
+# CHƯƠNG TRÌNH CHÍNH (VÒNG LẶP UI)
 # ==========================================
 
-# Đảm bảo tắt ngầm toàn bộ tiến trình con khi dừng (Ctrl+C)
-trap "echo -e '\n[!] Đang đóng toàn bộ các tiến trình ngầm...'; kill 0; exit" SIGINT SIGTERM
+cleanup_on_exit() {
+    tput cnorm 2>/dev/null || true # Hiện lại con trỏ chuột khi thoát
+    clear
+    echo -e '\n[!] Đang đóng tiến trình và khôi phục hệ thống...'
+    su -c 'settings put system screen_brightness 100'
+    if [ "$ENABLE_EXTREME_MODE" == "ON" ]; then
+        su -c "settings put system peak_refresh_rate 60.0"
+        su -c "settings put system min_refresh_rate 60.0"
+        su -c "setprop debug.hwui.fps_divisor 1 >/dev/null 2>&1"
+    fi
+    echo -e '\e[0m'
+    kill 0
+    exit
+}
+
+trap cleanup_on_exit SIGINT SIGTERM
 
 termux-wake-lock
+setup_environment
 
-echo "======================================="
-echo "  AUTO RESTARTER PRO (BASH SCRIPT)     "
-echo "  Tính năng: 2 vòng lặp chạy song song "
-echo "======================================="
-echo ""
+# Main Loop (1 Giây / Lần)
+while true; do
+    get_cpu
+    get_ram
+    draw_ui
 
-# Setup màn hình
-setup_display
+    if [ "$ENABLE_AUTO_RESTART" == "ON" ] && [ $RESTART_TIMER -le 0 ]; then
+        do_restart
+        RESTART_TIMER=$RESTART_INTERVAL
+    fi
 
-echo "[MAIN] Khởi chạy 2 vòng lặp ngầm..."
+    if [ $CHECK_TIMER -le 0 ]; then
+        for suffix in $ACCOUNT_SUFFIXES; do
+            pkg="${BASE_PACKAGE_NAME}${suffix}"
+            if is_running "$pkg"; then
+                APP_STATUS["$pkg"]="Running"
+            else
+                APP_STATUS["$pkg"]="Starting"
+                draw_ui # Update UI ngay lập tức để User thấy nó đang "Starting"
+                launch_app "$pkg"
+                sleep 5
+                # Trừ bù thời gian bị delay do lệnh sleep
+                ((CHECK_TIMER-=5))
+                ((RESTART_TIMER-=5))
+            fi
+        done
+        CHECK_TIMER=$CHECK_INTERVAL
+    fi
 
-# Gọi chạy ngầm bằng toán tử '&'
-loop_app_monitor &
-loop_auto_restart &
-
-# Dùng wait để giữ script chính sống mà không tốn tài nguyên
-wait
+    sleep 1
+    ((CHECK_TIMER--))
+    ((RESTART_TIMER--))
+done
