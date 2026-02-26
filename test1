@@ -1,23 +1,42 @@
 #!/system/bin/sh
 
-# Nếu chưa root thì chạy lại toàn bộ script bằng su
+SWAPFILE="/data/local/swapfile"
+SIZE_MB=12288   # 12GB
+
+echo "=== FARM MODE ENABLE ==="
+
+# Nếu chưa root thì dừng
 if [ "$(id -u)" -ne 0 ]; then
-    echo "Đang yêu cầu quyền root..."
-    su -c sh << 'EOF'
-$(cat)
-EOF
-    exit 0
+    echo "Cần quyền root!"
+    exit 1
 fi
 
-SWAPFILE="/data/local/swapfile"
-SIZE="4G"
+# Tắt zram nếu có
+if [ -e /dev/block/zram0 ]; then
+    echo "Tắt zram..."
+    swapoff /dev/block/zram0 2>/dev/null
+    echo 1 > /sys/block/zram0/reset 2>/dev/null
+fi
 
-echo "Tạo swap $SIZE..."
+# Nếu swapfile chưa tồn tại thì tạo
+if [ ! -f "$SWAPFILE" ]; then
+    echo "Tạo swap ${SIZE_MB}MB..."
+    dd if=/dev/zero of=$SWAPFILE bs=1M count=$SIZE_MB
+    chmod 600 $SWAPFILE
+    mkswap $SWAPFILE
+fi
 
-dd if=/dev/zero of=$SWAPFILE bs=1M count=4096
-chmod 600 $SWAPFILE
-mkswap $SWAPFILE
+# Bật swap
 swapon $SWAPFILE
 
-echo "Hoàn tất!"
+# Tối ưu kernel
+echo 100 > /proc/sys/vm/swappiness
+echo 10 > /proc/sys/vm/vfs_cache_pressure
+echo 0 > /proc/sys/vm/overcommit_memory
+
+echo "Clear cache..."
+sync
+echo 3 > /proc/sys/vm/drop_caches
+
+echo "=== FARM MODE ACTIVE ==="
 free -h
