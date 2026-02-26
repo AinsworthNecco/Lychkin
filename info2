@@ -11,13 +11,14 @@ ENABLE_HARDCORE_OPTIMIZE="ON" # Bật tối ưu hóa sâu (Giảm sáng, dọn R
 # ==========================================
 # CẤU HÌNH EXTREME (VẮT KIỆT MÁY CŨ)
 # ==========================================
-ENABLE_EXTREME_MODE="ON"      # Bật ép Swap RAM và Giảm FPS
+ENABLE_EXTREME_MODE="ON"      # Bật ép Giảm FPS
+ENABLE_SWAP_RAM="OFF"          # Công tắc: "ON" để bật Swap, "OFF" tắt và dọn dẹp Swap
 SWAP_SIZE_MB=4096             # Dung lượng Swap RAM ảo (Đọc qua file txt để tối ưu)
-TARGET_FPS=30.0               # Ép tần số quét/FPS thấp nhất
+TARGET_FPS=20            # Ép tần số quét/FPS thấp nhất
 
 JOIN_TARGET="https://www.roblox.com/share?code=98a1b858bf53db43b688552818e40748&type=Server"
 BASE_PACKAGE_NAME="com.roblox.clien"  
-ACCOUNT_SUFFIXES="b c d e f"          
+ACCOUNT_SUFFIXES="b c d"          
 
 # ==========================================
 # CÁC BIẾN TOÀN CỤC & TRẠNG THÁI UI
@@ -68,7 +69,9 @@ setup_environment() {
         su -c "settings put system min_refresh_rate $TARGET_FPS"
         su -c "settings put system peak_refresh_rate $TARGET_FPS"
         su -c "setprop debug.hwui.fps_divisor 2 >/dev/null 2>&1"
+    fi
         
+    if [ "$ENABLE_SWAP_RAM" == "ON" ]; then
         # Tạo Swap siêu tốc dựa vào file txt đánh dấu
         echo "[EXTREME] Kích hoạt Swap RAM siêu tốc (Đọc cấu hình)..."
         su -c "
@@ -87,6 +90,17 @@ setup_environment() {
         su -c "echo 100 > /proc/sys/vm/swappiness"            
         su -c "echo 10 > /proc/sys/vm/watermark_scale_factor" 
         su -c "echo 100 > /proc/sys/vm/vfs_cache_pressure"    
+    else
+        # Nếu công tắc OFF, tiến hành quét và xóa Swap cũ
+        echo "[SETUP] Đang kiểm tra và dọn dẹp Swap RAM cũ (nếu có)..."
+        su -c "
+            if [ -f /data/swapfile ]; then
+                swapoff /data/swapfile >/dev/null 2>&1
+                rm -f /data/swapfile
+                rm -f /data/swap_size.txt
+            fi
+            echo 60 > /proc/sys/vm/swappiness 2>/dev/null
+        "
     fi
     sleep 2
 }
@@ -163,7 +177,7 @@ do_restart() {
     
     if [ "$ENABLE_HARDCORE_OPTIMIZE" == "ON" ]; then
         su -c "sync && echo 3 > /proc/sys/vm/drop_caches"
-        if [ "$ENABLE_EXTREME_MODE" == "ON" ]; then
+        if [ "$ENABLE_SWAP_RAM" == "ON" ]; then
             su -c "swapoff /data/swapfile && swapon /data/swapfile" >/dev/null 2>&1
         fi
     fi
@@ -196,6 +210,7 @@ draw_ui() {
     echo -e "\e[32mCheck UI time:\e[0m $CHECK_INTERVAL s"
     echo -e "\e[32mAuto restart:\e[0m $ENABLE_AUTO_RESTART"
     echo -e "\e[32mExtreme mode:\e[0m $ENABLE_EXTREME_MODE"
+    echo -e "\e[32mSwap RAM:\e[0m $ENABLE_SWAP_RAM"
     
     echo -e "+-------------------------------------------------+"
     # Canh giữa Text CPU / RAM
@@ -241,6 +256,8 @@ cleanup_on_exit() {
         su -c "settings put system peak_refresh_rate 60.0"
         su -c "settings put system min_refresh_rate 60.0"
         su -c "setprop debug.hwui.fps_divisor 1 >/dev/null 2>&1"
+    fi
+    if [ "$ENABLE_SWAP_RAM" == "ON" ]; then
         su -c "swapoff /data/swapfile >/dev/null 2>&1"
     fi
     echo -e '\e[0m'
