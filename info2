@@ -11,94 +11,128 @@ ENABLE_HARDCORE_OPTIMIZE="ON" # Bật tối ưu hóa sâu (Giảm sáng, dọn R
 # ==========================================
 # CẤU HÌNH EXTREME (VẮT KIỆT MÁY CŨ)
 # ==========================================
-ENABLE_EXTREME_MODE="ON"      # Bật ép Swap RAM và Giảm FPS (Cảnh báo: Hại bộ nhớ máy)
-SWAP_SIZE_MB=4096             # Dung lượng Swap RAM ảo tạo thêm (Đã hạ xuống 4GB)
-TARGET_FPS=30.0               # Ép tần số quét/FPS thấp nhất có thể (30 hoặc 60)
+ENABLE_EXTREME_MODE="ON"      # Bật ép Swap RAM và Giảm FPS
+SWAP_SIZE_MB=4096             # Dung lượng Swap RAM ảo (Đọc qua file txt để tối ưu)
+TARGET_FPS=30.0               # Ép tần số quét/FPS thấp nhất
 
 JOIN_TARGET="https://www.roblox.com/share?code=98a1b858bf53db43b688552818e40748&type=Server"
 BASE_PACKAGE_NAME="com.roblox.clien"  
 ACCOUNT_SUFFIXES="b c d e f"          
 
 # ==========================================
-# CÁC HÀM XỬ LÝ & TỐI ƯU
+# CÁC BIẾN TOÀN CỤC & TRẠNG THÁI UI
+# ==========================================
+declare -A APP_STATUS
+for suffix in $ACCOUNT_SUFFIXES; do
+    APP_STATUS["${BASE_PACKAGE_NAME}${suffix}"]="Initializing"
+done
+
+CHECK_TIMER=5 # Chạy check lần đầu sau 5 giây
+RESTART_TIMER=$RESTART_INTERVAL
+CPU_PCT="0"
+RAM_PCT="0"
+PREV_TOTAL=""
+PREV_ACTIVE=""
+
+# ==========================================
+# HÀM XỬ LÝ HỆ THỐNG
 # ==========================================
 
 setup_environment() {
+    clear
     echo "[SETUP] Đang thiết lập môi trường và tối ưu hóa hệ thống..."
     
-    # 1. Thiết lập màn hình hiển thị
     su -c "wm size 1280x2800"
     su -c "wm density 350"
     su -c "settings put system accelerometer_rotation 0"
-    su -c "settings put system user_rotation 1" # Xoay ngang
+    su -c "settings put system user_rotation 1"
     
-    # 2. Tắt hoàn toàn Animation (Hoạt ảnh) để giảm tải GPU/CPU
     su -c "settings put global window_animation_scale 0"
     su -c "settings put global transition_animation_scale 0"
     su -c "settings put global animator_duration_scale 0"
-    
-    # 3. Kích hoạt tính năng Đa cửa sổ (Multi-window / Freeform)
     su -c "settings put global force_resizable_activities 1"
     su -c "settings put global enable_freeform_support 1"
     su -c "settings put global force_allow_on_external 1"
     
     if [ "$ENABLE_HARDCORE_OPTIMIZE" == "ON" ]; then
-        # 4. Vô hiệu hóa Phantom Process (Chống Android 12+ kill Termux/Clone ngầm)
         su -c "device_config put activity_manager max_phantom_processes 2147483647 >/dev/null 2>&1"
         su -c "settings put global settings_enable_monitor_phantom_procs false >/dev/null 2>&1"
-        
-        # 5. Tối ưu nhiệt độ & Pin khi treo
-        su -c "settings put system screen_brightness_mode 0" # Tắt độ sáng tự động
-        su -c "settings put system screen_brightness 1"      # Giảm độ sáng xuống thấp nhất
-        su -c "settings put global stay_on_while_plugged_in 7" # Luôn thức khi cắm sạc
-        su -c "dumpsys deviceidle disable >/dev/null 2>&1"     # Tắt Doze Mode chống rớt mạng
-        
-        echo "[SETUP] Đã bật chế độ Tối ưu hóa sâu (Hardcore Optimize)."
+        su -c "settings put system screen_brightness_mode 0" 
+        su -c "settings put system screen_brightness 1"      
+        su -c "settings put global stay_on_while_plugged_in 7"
+        su -c "dumpsys deviceidle disable >/dev/null 2>&1"     
     fi
 
     if [ "$ENABLE_EXTREME_MODE" == "ON" ]; then
-        echo "[EXTREME] Bắt đầu kích hoạt các tinh chỉnh vắt kiệt phần cứng..."
-        
-        # 6. Ép giảm FPS (Giảm tần số quét màn hình, giảm tải GPU)
         su -c "settings put system min_refresh_rate $TARGET_FPS"
         su -c "settings put system peak_refresh_rate $TARGET_FPS"
-        su -c "setprop debug.hwui.fps_divisor 2 >/dev/null 2>&1" # Giảm nửa FPS dựng hình giao diện
+        su -c "setprop debug.hwui.fps_divisor 2 >/dev/null 2>&1"
         
-        # 7. Thiết lập Swap RAM ảo trên bộ nhớ trong (Tự động xóa và tạo mới nếu sai dung lượng)
-        echo "  -> Đang kiểm tra và thiết lập $SWAP_SIZE_MB MB Swap RAM..."
-        su -c "swapoff /data/swapfile >/dev/null 2>&1"
+        # Tạo Swap siêu tốc dựa vào file txt đánh dấu
+        echo "[EXTREME] Kích hoạt Swap RAM siêu tốc (Đọc cấu hình)..."
         su -c "
-            CURRENT_SIZE=\$(du -m /data/swapfile 2>/dev/null | cut -f1)
+            CURRENT_SIZE=\$(cat /data/swap_size.txt 2>/dev/null)
             if [ \"\$CURRENT_SIZE\" != \"$SWAP_SIZE_MB\" ]; then
+                swapoff /data/swapfile >/dev/null 2>&1
                 rm -f /data/swapfile
-                dd if=/dev/zero of=/data/swapfile bs=1M count=$SWAP_SIZE_MB
-                mkswap /data/swapfile
+                dd if=/dev/zero of=/data/swapfile bs=1M count=$SWAP_SIZE_MB 2>/dev/null
+                mkswap /data/swapfile >/dev/null 2>&1
                 chmod 600 /data/swapfile
+                echo $SWAP_SIZE_MB > /data/swap_size.txt
             fi
+            swapon /data/swapfile >/dev/null 2>&1
         "
-        su -c "swapon /data/swapfile >/dev/null 2>&1"
         
-        # 8. Tinh chỉnh Kernel để bào Swap RAM và giữ RAM thực tế
-        su -c "echo 100 > /proc/sys/vm/swappiness"            # Ép dùng Swap tối đa (Mặc định 60)
-        su -c "echo 10 > /proc/sys/vm/watermark_scale_factor" # Dọn RAM sớm hơn bình thường
-        su -c "echo 100 > /proc/sys/vm/vfs_cache_pressure"    # Xóa cache file hệ thống nhanh hơn
-        
-        echo "[EXTREME] Kích hoạt Swap RAM và Giới hạn FPS thành công!"
+        su -c "echo 100 > /proc/sys/vm/swappiness"            
+        su -c "echo 10 > /proc/sys/vm/watermark_scale_factor" 
+        su -c "echo 100 > /proc/sys/vm/vfs_cache_pressure"    
     fi
-
     sleep 2
-    echo "[SETUP] Hoàn tất thiết lập môi trường!"
-    echo ""
+}
+
+get_cpu() {
+    local cur_stat=$(cat /proc/stat | head -n 1)
+    local user=$(echo $cur_stat | awk '{print $2}')
+    local nice=$(echo $cur_stat | awk '{print $3}')
+    local system=$(echo $cur_stat | awk '{print $4}')
+    local idle=$(echo $cur_stat | awk '{print $5}')
+    local iowait=$(echo $cur_stat | awk '{print $6}')
+    local irq=$(echo $cur_stat | awk '{print $7}')
+    local softirq=$(echo $cur_stat | awk '{print $8}')
+
+    local total=$((user + nice + system + idle + iowait + irq + softirq))
+    local active=$((total - idle - iowait))
+
+    if [ -n "$PREV_TOTAL" ]; then
+        local diff_total=$((total - PREV_TOTAL))
+        local diff_active=$((active - PREV_ACTIVE))
+        if [ $diff_total -ne 0 ]; then
+            CPU_PCT=$(( diff_active * 100 / diff_total ))
+        fi
+    fi
+    PREV_TOTAL=$total
+    PREV_ACTIVE=$active
+}
+
+get_ram() {
+    local mem_info=$(su -c "cat /proc/meminfo")
+    local mem_total=$(echo "$mem_info" | awk '/MemTotal/ {print $2}')
+    local mem_avail=$(echo "$mem_info" | awk '/MemAvailable/ {print $2}')
+    
+    if [ -z "$mem_avail" ]; then
+        local mem_free=$(echo "$mem_info" | awk '/MemFree/ {print $2}')
+        local mem_cached=$(echo "$mem_info" | awk '/Cached/ {print $2}' | head -n 1)
+        mem_avail=$((mem_free + mem_cached))
+    fi
+    
+    if [ -n "$mem_total" ] && [ $mem_total -gt 0 ]; then
+        RAM_PCT=$(( 100 - (mem_avail * 100 / mem_total) ))
+    fi
 }
 
 is_running() {
-    local pkg=$1
-    local output=$(su -c "ps -ef | grep $pkg | grep -v grep")
-    if [[ -n "$output" ]]; then
-        return 0 # Đang chạy
-    else
-        return 1 # Đã tắt
-    fi
+    local output=$(su -c "ps -ef | grep $1 | grep -v grep")
+    [[ -n "$output" ]] && return 0 || return 1
 }
 
 launch_app() {
@@ -107,73 +141,90 @@ launch_app() {
     if [[ "$deeplink" =~ ^[0-9]+$ ]]; then
         deeplink="roblox://placeId=${deeplink}"
     fi
-    # Bật chế độ cửa sổ (5)
     su -c "am start --windowingMode 5 -a android.intent.action.VIEW -d '${deeplink}' -p ${pkg} > /dev/null 2>&1"
 }
 
-kill_all_roblox() {
-    echo "[RESTART] Đã đủ thời gian, đang tiến hành đóng toàn bộ Roblox..."
+do_restart() {
     for suffix in $ACCOUNT_SUFFIXES; do
         pkg="${BASE_PACKAGE_NAME}${suffix}"
+        APP_STATUS["$pkg"]="Rejoin"
         su -c "am force-stop $pkg"
-        echo "  -> Đã đóng $pkg"
     done
+    draw_ui
     
-    # [TỐI ƯU THÊM] Dọn dẹp RAM (Drop Caches & Swap) sau khi kill app để giải phóng bộ nhớ
     if [ "$ENABLE_HARDCORE_OPTIMIZE" == "ON" ]; then
-        echo "  -> [OPTIMIZE] Đang dọn dẹp Cache và RAM hệ thống..."
         su -c "sync && echo 3 > /proc/sys/vm/drop_caches"
-        
-        # Nếu bật Extreme, ta cũng nên dọn Swap 1 lần trong ngày để tránh phân mảnh quá nặng
         if [ "$ENABLE_EXTREME_MODE" == "ON" ]; then
-            # Chỉ dọn swap 1 cách an toàn: tắt đi bật lại
-            echo "  -> [EXTREME] Đang làm mới Swap RAM (Có thể mất thời gian)..."
             su -c "swapoff /data/swapfile && swapon /data/swapfile" >/dev/null 2>&1
         fi
     fi
-    
     sleep 3
-    echo "[RESTART] Đã đóng và dọn dẹp xong. Vòng lặp Monitor sẽ tự mở lại app."
+    ((RESTART_TIMER-=3))
+    ((CHECK_TIMER-=3))
+    CHECK_TIMER=0
 }
 
 # ==========================================
-# CÁC VÒNG LẶP ĐỘC LẬP
+# GIAO DIỆN (UI)
 # ==========================================
 
-# Vòng lặp 1: Kiểm tra và mở lại App
-loop_app_monitor() {
-    while true; do
-        H_TIME=$(date +"%H:%M:%S")
-        echo "[$H_TIME] Đang kiểm tra trạng thái các App..."
-        for suffix in $ACCOUNT_SUFFIXES; do
-            pkg="${BASE_PACKAGE_NAME}${suffix}"
-            
-            if is_running "$pkg"; then
-                echo "  [OK] $pkg đang chạy."
-            else
-                echo "  [START] $pkg đã tắt -> Đang mở lại..."
-                launch_app "$pkg"
-                sleep 5 # Đợi một chút để app load rồi mới mở app tiếp theo
-            fi
-        done
-        sleep $CHECK_INTERVAL
+pad() {
+    printf "%-$2s" "$1"
+}
+
+draw_ui() {
+    clear
+    # Chữ Lychkin màu cam đậm
+    echo -e "\e[38;5;208m"
+    echo "██╗     ██╗   ██╗ ██████╗██╗  ██╗██╗  ██╗██╗███╗   ██╗"
+    echo "██║     ╚██╗ ██╔╝██╔════╝██║  ██║██║ ██╔╝██║████╗  ██║"
+    echo "██║      ╚████╔╝ ██║     ███████║█████═╝ ██║██╔██╗ ██║"
+    echo "██║       ╚██╔╝  ██║     ██╔══██║██╔═██╗ ██║██║╚██╗██║"
+    echo "███████╗   ██║   ╚██████╗██║  ██║██║  ██╗██║██║ ╚████║"
+    echo "╚══════╝   ╚═╝    ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝"
+    echo -e "\e[0m"
+
+    echo -e "\e[32mCheck UI time:\e[0m $CHECK_INTERVAL"
+    echo -e "\e[32mAuto block:\e[0m $([ "$ENABLE_EXTREME_MODE" == "ON" ] && echo "Enable" || echo "Disable")"
+    
+    echo -e "+-------------------------------------------------+"
+    # Canh giữa Text CPU / RAM
+    local stats_str="CPU: ${CPU_PCT}% | RAM: ${RAM_PCT}%"
+    local pad_left=$(( (49 - ${#stats_str}) / 2 ))
+    local pad_right=$(( 49 - ${#stats_str} - pad_left ))
+    printf "|%*s%s%*s|\n" $pad_left "" "$stats_str" $pad_right ""
+    
+    echo -e "+-------------------------------------------------+"
+    echo -e "| Next Check: $(pad "${CHECK_TIMER}s" 10)| Next Restart: $(pad "${RESTART_TIMER}s" 10)|"
+    echo -e "+-------------------------------------------------+"
+    echo -e "| Package Name         | Status                   |"
+    echo -e "+-------------------------------------------------+"
+    
+    for suffix in $ACCOUNT_SUFFIXES; do
+        local pkg="${BASE_PACKAGE_NAME}${suffix}"
+        local status="${APP_STATUS[$pkg]}"
+        local pkg_padded=$(pad "$pkg" 20)
+        
+        if [ "$status" == "Running" ]; then
+            echo -e "| $pkg_padded | \e[32mRunning\e[0m                  |"
+        elif [ "$status" == "Starting" ]; then
+            echo -e "| $pkg_padded | \e[33mStarting\e[0m                 |"
+        elif [ "$status" == "Rejoin" ]; then
+            echo -e "| $pkg_padded | \e[38;5;208mRejoin\e[0m                   |"
+        else
+            echo -e "| $pkg_padded | \e[36mInitializing\e[0m             |"
+        fi
     done
-}
-
-# Vòng lặp 2: Tự động khởi động lại toàn bộ
-loop_auto_restart() {
-    while true; do
-        sleep $RESTART_INTERVAL
-        kill_all_roblox
-    done
+    echo -e "+-------------------------------------------------+"
+    echo -e "Wait bypass..."
 }
 
 # ==========================================
-# CHƯƠNG TRÌNH CHÍNH
+# CHƯƠNG TRÌNH CHÍNH (VÒNG LẶP UI)
 # ==========================================
 
-# Khôi phục độ sáng màn hình và FPS khi dừng script (Ctrl+C)
 cleanup_on_exit() {
+    clear
     echo -e '\n[!] Đang đóng tiến trình và khôi phục hệ thống...'
     su -c 'settings put system screen_brightness 100'
     if [ "$ENABLE_EXTREME_MODE" == "ON" ]; then
@@ -182,6 +233,7 @@ cleanup_on_exit() {
         su -c "setprop debug.hwui.fps_divisor 1 >/dev/null 2>&1"
         su -c "swapoff /data/swapfile >/dev/null 2>&1"
     fi
+    echo -e '\e[0m'
     kill 0
     exit
 }
@@ -189,28 +241,38 @@ cleanup_on_exit() {
 trap cleanup_on_exit SIGINT SIGTERM
 
 termux-wake-lock
-
-echo "======================================="
-echo "  AUTO RESTARTER PRO V3 (EXTREME)      "
-echo "  Chế độ vắt kiệt: SWAP RAM & GIẢM FPS "
-echo "======================================="
-echo ""
-
-# Setup môi trường
 setup_environment
 
-echo "[MAIN] Khởi chạy các vòng lặp ngầm..."
+# Main Loop (1 Giây / Lần)
+while true; do
+    get_cpu
+    get_ram
+    draw_ui
 
-# Gọi chạy ngầm bằng toán tử '&'
-loop_app_monitor &
+    if [ "$ENABLE_AUTO_RESTART" == "ON" ] && [ $RESTART_TIMER -le 0 ]; then
+        do_restart
+        RESTART_TIMER=$RESTART_INTERVAL
+    fi
 
-# Bật/Tắt vòng lặp Restart tùy theo công tắc
-if [ "$ENABLE_AUTO_RESTART" == "ON" ]; then
-    echo "  -> Chức năng Auto Restart (6 tiếng): ĐANG BẬT"
-    loop_auto_restart &
-else
-    echo "  -> Chức năng Auto Restart: ĐÃ TẮT"
-fi
+    if [ $CHECK_TIMER -le 0 ]; then
+        for suffix in $ACCOUNT_SUFFIXES; do
+            pkg="${BASE_PACKAGE_NAME}${suffix}"
+            if is_running "$pkg"; then
+                APP_STATUS["$pkg"]="Running"
+            else
+                APP_STATUS["$pkg"]="Starting"
+                draw_ui # Update UI ngay lập tức để User thấy nó đang "Starting"
+                launch_app "$pkg"
+                sleep 5
+                # Trừ bù thời gian bị delay do lệnh sleep
+                ((CHECK_TIMER-=5))
+                ((RESTART_TIMER-=5))
+            fi
+        done
+        CHECK_TIMER=$CHECK_INTERVAL
+    fi
 
-# Dùng wait để giữ script chính sống
-wait
+    sleep 1
+    ((CHECK_TIMER--))
+    ((RESTART_TIMER--))
+done
