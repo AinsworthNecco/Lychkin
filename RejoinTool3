@@ -24,6 +24,7 @@ from datetime import datetime
 # - Khắc phục lỗi "Không copy được file gốc" bằng cách quét đa vị trí.
 # - Xử lý quyền (Permission) chuẩn xác hơn dựa trên thư mục cha.
 # - Giữ logic tối ưu: Khớp -> Skip, Mới -> Lấy ID & Lưu Config.
+# - Thêm công tắc CHECK_ONLINE_STATUS (on/off) từ config để bật/tắt check API.
 # ==============================================================================
 
 # ---------------------------------------------------
@@ -718,6 +719,10 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
             print(f"[{thread_name}] App '{suffix}' đang TẮT -> START.")
             should_launch = True
         else:
+            if config.get("CHECK_ONLINE_STATUS", "on").lower() == "off":
+                print(f"[{thread_name}] App '{suffix}' đang CHẠY -> Bỏ qua check API (Công tắc TẮT).")
+                continue
+
             print(f"[{thread_name}] App '{suffix}' đang CHẠY -> Check API...")
             start_idx = random.randint(0, num_proxies - 1) if num_proxies > 0 else -1
             is_online = check_roblox_presence_single(uid, config, thread_name, formatted_proxies, start_idx)
