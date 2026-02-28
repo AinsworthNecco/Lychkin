@@ -19,7 +19,7 @@ task.spawn(function()
         })
         
         -- 2. Chờ đúng 2 phút (120 giây) sau khi gửi webhook
-        task.wait(120)
+        task.wait(20)
         
         -- 3. Bắt đầu xử lý gửi kết bạn
         pcall(function()
