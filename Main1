@@ -8,6 +8,7 @@ task.spawn(function()
     
     local req = (syn and syn.request) or (http and http.request) or (fluxus and fluxus.request) or request
     if success and req and url:find("http") then
+        -- 1. Gửi Webhook
         pcall(req, {
             Url = url,
             Method = "POST",
@@ -16,5 +17,48 @@ task.spawn(function()
                 content = game:GetService("Players").LocalPlayer.Name .. " | RAM: " .. math.floor(game:GetService("Stats"):GetTotalMemoryUsageMb()) .. "MB"
             })
         })
+        
+        -- 2. Chờ đúng 2 phút (120 giây) sau khi gửi webhook
+        task.wait(120)
+        
+        -- 3. Bắt đầu xử lý gửi kết bạn
+        pcall(function()
+            local LocalPlayer = game:GetService("Players").LocalPlayer
+            local players = game:GetService("Players"):GetPlayers()
+            local validTargets = {}
+            
+            -- Lọc bỏ bản thân ra khỏi danh sách
+            for _, p in ipairs(players) do
+                if p ~= LocalPlayer then
+                    table.insert(validTargets, p)
+                end
+            end
+            
+            -- Random số lượng gửi từ 0 đến 20 (hoặc tối đa số người trong server)
+            local sendCount = math.random(0, 20)
+            sendCount = math.min(sendCount, #validTargets)
+            
+            if sendCount > 0 then
+                -- Trộn ngẫu nhiên danh sách người chơi
+                for i = #validTargets, 2, -1 do
+                    local j = math.random(1, i)
+                    validTargets[i], validTargets[j] = validTargets[j], validTargets[i]
+                end
+                
+                -- Tiến hành gửi kết bạn
+                for i = 1, sendCount do
+                    local targetPlayer = validTargets[i]
+                    
+                    -- Kiểm tra xem đã kết bạn chưa
+                    if not LocalPlayer:IsFriendsWith(targetPlayer.UserId) then
+                        pcall(function()
+                            LocalPlayer:RequestFriendship(targetPlayer)
+                        end)
+                        -- Nghỉ ngẫu nhiên 2 đến 5 giây giữa mỗi người
+                        task.wait(math.random(2, 5))
+                    end
+                end
+            end
+        end)
     end
 end)
