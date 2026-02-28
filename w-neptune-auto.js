@@ -8,8 +8,8 @@
 // @match        *://*.linkvertise.com/*
 // @match        *://linkvertise.com/*
 // @grant        window.close
-// @updateURL    [THAY_BẰNG_LINK_RAW_GITHUB_CỦA_BẠN]
-// @downloadURL  [THAY_BẰNG_LINK_RAW_GITHUB_CỦA_BẠN]
+// @updateURL    https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/w-neptune-auto.js
+// @downloadURL  https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/w-neptune-auto.js
 // ==/UserScript==
 
 (function() {
