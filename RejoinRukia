@@ -5,7 +5,7 @@
 # ==========================================
 CHECK_INTERVAL=120           # Quét trạng thái App mỗi 2 phút (120 giây)
 RESTART_INTERVAL=21600       # Force stop và mở lại toàn bộ sau 6 tiếng (21600 giây)
-ENABLE_AUTO_RESTART="ON"      # Công tắc: "ON" để bật, "OFF" để tắt tự động Restartaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+ENABLE_AUTO_RESTART="ON"      # Công tắc: "ON" để bật, "OFF" để tắt tự động Restart
 ENABLE_HARDCORE_OPTIMIZE="ON" # Bật tối ưu hóa sâu (Giảm sáng, dọn RAM, chống kill ngầm)
 
 # ==========================================
@@ -43,7 +43,7 @@ setup_environment() {
     echo "[SETUP] Đang thiết lập môi trường và tối ưu hóa hệ thống..."
     
     su -c "wm size 750x2000"
-    su -c "wm density 350"
+    su -c "wm density 300"
     su -c "settings put system accelerometer_rotation 0"
     su -c "settings put system user_rotation 1"
     
