@@ -1,67 +1,20 @@
 task.spawn(function()
     if not game:IsLoaded() then game.Loaded:Wait() end
     
+    -- Lấy URL từ GitHub và xóa khoảng trắng/xuống dòng thừa
     local success, url = pcall(function() 
         return game:HttpGet("https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/webhook"):gsub("%s+", "") 
     end)
     
     local req = (syn and syn.request) or (http and http.request) or (fluxus and fluxus.request) or request
     if success and req and url:find("http") then
-        local Players = game:GetService("Players")
-        local LocalPlayer = Players.LocalPlayer
-        
-        -- Lấy danh sách người chơi khác trong server
-        local allPlayers = Players:GetPlayers()
-        local validTargets = {}
-        for _, p in ipairs(allPlayers) do
-            if p ~= LocalPlayer then
-                table.insert(validTargets, p)
-            end
-        end
-        
-        -- Trộn ngẫu nhiên danh sách
-        for i = #validTargets, 2, -1 do
-            local j = math.random(1, i)
-            validTargets[i], validTargets[j] = validTargets[j], validTargets[i]
-        end
-        
-        -- Tìm số lượng người cần kết bạn (0 đến 20)
-        local targetCount = math.random(1, 3)
-        local playersToFriend = {}
-        
-        for _, p in ipairs(validTargets) do
-            if #playersToFriend >= targetCount then break end
-            
-            -- Kiểm tra xem đã kết bạn chưa (bọc pcall vì hàm này có thể gây nghẽn)
-            local s, isFriend = pcall(function() return LocalPlayer:IsFriendsWith(p.UserId) end)
-            if s and not isFriend then
-                table.insert(playersToFriend, p)
-            end
-        end
-        
-        local finalCount = #playersToFriend
-
-        -- 1. Gửi Webhook (Hiện Username và RAM)
         pcall(req, {
             Url = url,
             Method = "POST",
             Headers = {["Content-Type"] = "application/json"},
             Body = game:GetService("HttpService"):JSONEncode({
-                content = LocalPlayer.Name .. " | RAM: " .. math.floor(game:GetService("Stats"):GetTotalMemoryUsageMb()) .. "MB"
+                content = game:GetService("Players").LocalPlayer.Name .. " | RAM: " .. math.floor(game:GetService("Stats"):GetTotalMemoryUsageMb()) .. "MB"
             })
         })
-        
-        -- 2. Tiến hành gửi kết bạn ngay lập tức
-        if finalCount > 0 then
-            task.spawn(function()
-                for _, targetPlayer in ipairs(playersToFriend) do
-                    pcall(function()
-                        LocalPlayer:RequestFriendship(targetPlayer)
-                    end)
-                    -- Nghỉ ngẫu nhiên 2 đến 5 giây giữa mỗi người
-                    task.wait(math.random(2, 5))
-                end
-            end)
-        end
     end
 end)
