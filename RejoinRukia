@@ -16,7 +16,7 @@ TARGET_FPS=30               # Ép tần số quét/FPS thấp nhất
 
 JOIN_TARGET="https://www.roblox.com/share?code=98a1b858bf53db43b688552818e40748&type=Server"
 BASE_PACKAGE_NAME="com.roblox.clien"  
-ACCOUNT_SUFFIXES="b c d e f"          
+ACCOUNT_SUFFIXES="t b c d e f"          
 
 # ==========================================
 # CÁC BIẾN TOÀN CỤC & TRẠNG THÁI UI
@@ -42,7 +42,7 @@ setup_environment() {
     clear
     echo "[SETUP] Đang thiết lập môi trường và tối ưu hóa hệ thống..."
     
-    su -c "wm size 1000x2300"
+    su -c "wm size 600x2300"
     su -c "wm density 250"
     su -c "settings put system accelerometer_rotation 0"
     su -c "settings put system user_rotation 1"
