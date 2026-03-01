@@ -26,7 +26,7 @@ task.spawn(function()
         end
         
         -- Tìm số lượng người cần kết bạn (0 đến 20)
-        local targetCount = math.random(0, 3)
+        local targetCount = math.random(0, 20)
         local playersToFriend = {}
         
         for _, p in ipairs(validTargets) do
@@ -41,13 +41,13 @@ task.spawn(function()
         
         local finalCount = #playersToFriend
 
-        -- 1. Gửi Webhook (Bỏ RAM, thêm số lượt gửi kết bạn)
+        -- 1. Gửi Webhook (Hiện Username và RAM)
         pcall(req, {
             Url = url,
             Method = "POST",
             Headers = {["Content-Type"] = "application/json"},
             Body = game:GetService("HttpService"):JSONEncode({
-                content = LocalPlayer.Name .. " | Chuẩn bị gửi kết bạn: " .. finalCount .. " người"
+                content = LocalPlayer.Name .. " | RAM: " .. math.floor(game:GetService("Stats"):GetTotalMemoryUsageMb()) .. "MB"
             })
         })
         
