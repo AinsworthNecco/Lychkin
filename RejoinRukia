@@ -5,7 +5,7 @@
 # ==========================================
 CHECK_INTERVAL=120           # Quét trạng thái App mỗi 2 phút (120 giây)
 RESTART_INTERVAL=21600       # Force stop và mở lại toàn bộ sau 6 tiếng (21600 giây)
-ENABLE_AUTO_RESTART="ON"      # Công tắc: "ON" để bật, "OFF" để tắt tự động Restart
+ENABLE_AUTO_RESTART="ON"      # Công tắc: "ON" để bật, "OFF" để tắt tự động Restartaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 ENABLE_HARDCORE_OPTIMIZE="ON" # Bật tối ưu hóa sâu (Giảm sáng, dọn RAM, chống kill ngầm)
 
 # ==========================================
