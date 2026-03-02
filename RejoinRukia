@@ -14,7 +14,7 @@ ENABLE_HARDCORE_OPTIMIZE="ON" # Bật tối ưu hóa sâu (Giảm sáng, dọn R
 ENABLE_EXTREME_MODE="ON"      # Bật ép Giảm FPS
 TARGET_FPS=30               # Ép tần số quét/FPS thấp nhất
 
-JOIN_TARGET="https://www.roblox.com/share?code=98a1b858bf53db43b688552818e40748&type=Server"
+JOIN_TARGET="16277809958"
 BASE_PACKAGE_NAME="com.roblox.clien"  
 ACCOUNT_SUFFIXES="b c d e f"          
 
