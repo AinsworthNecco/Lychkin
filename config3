@@ -2,19 +2,11 @@
 #             LYCHKIN'S TASK RUNNER - CORE CONFIGURATION
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-# --- TỐI ƯU & GIAO DIỆN ---
-ENABLE_SCAN="OFF"                    # Module quét Server (ON/OFF)
-ENABLE_HARDCORE_OPTIMIZE="ON"        # Dọn dẹp RAM, giảm sáng (ON/OFF)
-ENABLE_EXTREME_MODE="ON"             # Ép giảm FPS màn hình (ON/OFF)
-TARGET_FPS="7"                       # Tần số quét màn hình cực hạn
-ENABLE_CHANGE_ANDROID_ID="ON"        # Fake ID thiết bị (ON/OFF)
-TARGET_ANDROID_ID="36ea1127de363534" # Mã Android ID cần fake
-
 # --- THÔNG TIN TÀI KHOẢN & GAME ---
 CHECK_ONLINE_STATUS="off"            # Check API online trước khi mở (on/off)
 PLACE_ID="8737602449"                # ID Game Roblox
 BASE_PACKAGE_NAME="com.roblox.client" # Gói ứng dụng gốc
-ACCOUNT_SUFFIXES="a b c d e"         # Hậu tố app clone
+ACCOUNT_SUFFIXES="2 3 4 5 6"         # Hậu tố app clone
 
 # --- CẤU HÌNH QUÉT SERVER (SCAN) ---
 SCAN_INTERVAL_SECONDS="180"          # Thời gian nghỉ giữa các lần quét (giây)
@@ -37,7 +29,7 @@ KEY_CHECK_INTERVAL_MINUTES="15"      # Chu kỳ check cập nhật Key (phút)
 # --- MẠNG & HỆ THỐNG ---
 CONNECTION_TIMEOUT="15"              # Timeout khi gọi API (giây)
 REBOOT_ENABLED="on"                  # Tự động khởi động lại máy (on/off)
-REBOOT_INTERVAL_MINUTES="60"         # Thời gian khởi động lại (phút)
+REBOOT_INTERVAL_MINUTES="120"         # Thời gian khởi động lại (phút)
 
 # --- DANH SÁCH PROXY ---
 PROXY_LIST="
