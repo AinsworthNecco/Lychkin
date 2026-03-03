@@ -1,32 +1,35 @@
---- CẤU HÌNH CHUNG ---
-CHECK_ONLINE_STATUS = "off"
-PLACE_ID="8737602449" - ID của game cần quét
-ACCOUNT_SUFFIXES="2 3 4"
-BASE_PACKAGE_NAME="com.roblox.client" - Tên gói Roblox cơ bản
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#             LYCHKIN'S TASK RUNNER - CORE CONFIGURATION
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
---- CẤU HÌNH CHO TÁC VỤ "SCAN" ---
-SCAN_INTERVAL_SECONDS="180" - Thời gian nghỉ giữa các chu kỳ quét (giây)
-MIN_PLAYER_PERCENTAGE="75" - Tỷ lệ người chơi tối thiểu (%)
-MAX_PLAYER_PERCENTAGE="90" - Tỷ lệ người chơi tối đa (%)
+# --- THÔNG TIN TÀI KHOẢN & GAME ---
+CHECK_ONLINE_STATUS="off"            # Check API online trước khi mở (on/off)
+PLACE_ID="8737602449"                # ID Game Roblox
+BASE_PACKAGE_NAME="com.roblox.client" # Gói ứng dụng gốc
+ACCOUNT_SUFFIXES="2 3 4 5 6"         # Hậu tố app clone
 
-SELECTED_EXECUTOR="3"
+# --- CẤU HÌNH QUÉT SERVER (SCAN) ---
+SCAN_INTERVAL_SECONDS="180"          # Thời gian nghỉ giữa các lần quét (giây)
+MIN_PLAYER_PERCENTAGE="75"           # % người chơi tối thiểu
+MAX_PLAYER_PERCENTAGE="90"           # % người chơi tối đa
+
+# --- CẤU HÌNH MỞ APP (LAUNCH) ---
+LAUNCH_INTERVAL_SECONDS="300"        # Thời gian vòng lặp kiểm tra app (giây)
+LAUNCH_DELAY_SECONDS="15"            # Độ trễ mở giữa 2 tài khoản (giây)
+VIP_SERVER_URL="roblox://placeId=8737602449" # Link VIP Server
+
+# --- EXECUTOR & DELTA KEY ---
+SELECTED_EXECUTOR="1"
 EXECUTOR_PATH_1="/storage/emulated/0/Delta/Workspace/neco.txt"
 EXECUTOR_PATH_2="/storage/emulated/0/FluxusZ/workspace/neco.txt"
 EXECUTOR_PATH_3="/storage/emulated/0/Codex/Workspace/neco.txt"
-
---- ONLY DELTA ---
 DELTA_KEY_URL="https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/key"
-KEY_CHECK_INTERVAL_MINUTES="15"
+KEY_CHECK_INTERVAL_MINUTES="15"      # Chu kỳ check cập nhật Key (phút)
 
---- CẤU HÌNH CHO TÁC VỤ "LAUNCH" ---
-LAUNCH_INTERVAL_SECONDS="300" - Thời gian nghỉ giữa các chu kỳ join game (giây)
-LAUNCH_DELAY_SECONDS="15" - Thời gian chờ giữa mỗi lần join của từng tài khoản
-VIP_SERVER_URL="roblox://placeId=8737602449" - URL VIP server (dùng cho launch --mode vip)
-
---- CẤU HÌNH MẠNG (Nâng cao) ---
-CONNECTION_TIMEOUT="15" - Thời gian chờ tối đa cho mỗi kết nối (giây)
-REBOOT_ENABLED="on"
-REBOOT_INTERVAL_MINUTES="60"
+# --- MẠNG & HỆ THỐNG ---
+CONNECTION_TIMEOUT="15"              # Timeout khi gọi API (giây)
+REBOOT_ENABLED="on"                  # Tự động khởi động lại máy (on/off)
+REBOOT_INTERVAL_MINUTES="120"         # Thời gian khởi động lại (phút)
 
 PROXY_LIST="
 142.111.48.253:7030:ispjmank:ag0avc9n7fzn
