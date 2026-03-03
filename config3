@@ -1,51 +1,45 @@
-# ==========================================
-# CẤU HÌNH GIAO DIỆN & TỐI ƯU HỆ THỐNG
-# ==========================================
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+#             LYCHKIN'S TASK RUNNER - CORE CONFIGURATION
+# ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-# Bật/Tắt module quét Server (ON hoặc OFF)
-ENABLE_SCAN = "OFF"
+# --- TỐI ƯU & GIAO DIỆN ---
+ENABLE_SCAN="OFF"                    # Module quét Server (ON/OFF)
+ENABLE_HARDCORE_OPTIMIZE="ON"        # Dọn dẹp RAM, giảm sáng (ON/OFF)
+ENABLE_EXTREME_MODE="ON"             # Ép giảm FPS màn hình (ON/OFF)
+TARGET_FPS="7"                       # Tần số quét màn hình cực hạn
+ENABLE_CHANGE_ANDROID_ID="ON"        # Fake ID thiết bị (ON/OFF)
+TARGET_ANDROID_ID="36ea1127de363534" # Mã Android ID cần fake
 
-# Bật/Tắt chế độ tối ưu hardcore (Giảm sáng, dọn dẹp phantom processes)
-ENABLE_HARDCORE_OPTIMIZE = "ON"
+# --- THÔNG TIN TÀI KHOẢN & GAME ---
+CHECK_ONLINE_STATUS="off"            # Check API online trước khi mở (on/off)
+PLACE_ID="8737602449"                # ID Game Roblox
+BASE_PACKAGE_NAME="com.roblox.client" # Gói ứng dụng gốc
+ACCOUNT_SUFFIXES="a b c d e"         # Hậu tố app clone
 
-# Bật/Tắt chế độ extreme (Ép giảm FPS để máy mát hơn)
-ENABLE_EXTREME_MODE = "ON"
-TARGET_FPS = 7
+# --- CẤU HÌNH QUÉT SERVER (SCAN) ---
+SCAN_INTERVAL_SECONDS="180"          # Thời gian nghỉ giữa các lần quét (giây)
+MIN_PLAYER_PERCENTAGE="75"           # % người chơi tối thiểu
+MAX_PLAYER_PERCENTAGE="90"           # % người chơi tối đa
 
-# Bật/Tắt và thiết lập tự động đổi Android ID (Dùng để fake ID thiết bị)
-ENABLE_CHANGE_ANDROID_ID = "ON"
-TARGET_ANDROID_ID = "36ea1127de363534"
+# --- CẤU HÌNH MỞ APP (LAUNCH) ---
+LAUNCH_INTERVAL_SECONDS="300"        # Thời gian vòng lặp kiểm tra app (giây)
+LAUNCH_DELAY_SECONDS="15"            # Độ trễ mở giữa 2 tài khoản (giây)
+VIP_SERVER_URL="roblox://placeId=8737602449" # Link VIP Server
 
---- CẤU HÌNH CHUNG ---
-CHECK_ONLINE_STATUS = "off"
-PLACE_ID="8737602449" - ID của game cần quét
-ACCOUNT_SUFFIXES="a b c d e"
-BASE_PACKAGE_NAME="com.roblox.client" - Tên gói Roblox cơ bản
-
---- CẤU HÌNH CHO TÁC VỤ "SCAN" ---
-SCAN_INTERVAL_SECONDS="180" - Thời gian nghỉ giữa các chu kỳ quét (giây)
-MIN_PLAYER_PERCENTAGE="75" - Tỷ lệ người chơi tối thiểu (%)
-MAX_PLAYER_PERCENTAGE="90" - Tỷ lệ người chơi tối đa (%)
-
+# --- EXECUTOR & DELTA KEY ---
 SELECTED_EXECUTOR="1"
 EXECUTOR_PATH_1="/storage/emulated/0/Delta/Workspace/neco.txt"
 EXECUTOR_PATH_2="/storage/emulated/0/FluxusZ/workspace/neco.txt"
 EXECUTOR_PATH_3="/storage/emulated/0/Codex/Workspace/neco.txt"
-
---- ONLY DELTA ---
 DELTA_KEY_URL="https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/key"
-KEY_CHECK_INTERVAL_MINUTES="15"
+KEY_CHECK_INTERVAL_MINUTES="15"      # Chu kỳ check cập nhật Key (phút)
 
---- CẤU HÌNH CHO TÁC VỤ "LAUNCH" ---
-LAUNCH_INTERVAL_SECONDS="300" - Thời gian nghỉ giữa các chu kỳ join game (giây)
-LAUNCH_DELAY_SECONDS="15" - Thời gian chờ giữa mỗi lần join của từng tài khoản
-VIP_SERVER_URL="roblox://placeId=8737602449" - URL VIP server (dùng cho launch --mode vip)
+# --- MẠNG & HỆ THỐNG ---
+CONNECTION_TIMEOUT="15"              # Timeout khi gọi API (giây)
+REBOOT_ENABLED="on"                  # Tự động khởi động lại máy (on/off)
+REBOOT_INTERVAL_MINUTES="60"         # Thời gian khởi động lại (phút)
 
---- CẤU HÌNH MẠNG (Nâng cao) ---
-CONNECTION_TIMEOUT="15" - Thời gian chờ tối đa cho mỗi kết nối (giây)
-REBOOT_ENABLED="on"
-REBOOT_INTERVAL_MINUTES="60"
-
+# --- DANH SÁCH PROXY ---
 PROXY_LIST="
 142.111.48.253:7030:yhgguymx:5jphw88olanm
 31.59.20.176:6754:yhgguymx:5jphw88olanm
