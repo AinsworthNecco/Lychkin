@@ -1,7 +1,25 @@
+# ==========================================
+# CẤU HÌNH GIAO DIỆN & TỐI ƯU HỆ THỐNG
+# ==========================================
+
+# Bật/Tắt module quét Server (ON hoặc OFF)
+ENABLE_SCAN = "OFF"
+
+# Bật/Tắt chế độ tối ưu hardcore (Giảm sáng, dọn dẹp phantom processes)
+ENABLE_HARDCORE_OPTIMIZE = "ON"
+
+# Bật/Tắt chế độ extreme (Ép giảm FPS để máy mát hơn)
+ENABLE_EXTREME_MODE = "ON"
+TARGET_FPS = 7
+
+# Bật/Tắt và thiết lập tự động đổi Android ID (Dùng để fake ID thiết bị)
+ENABLE_CHANGE_ANDROID_ID = "ON"
+TARGET_ANDROID_ID = "36ea1127de363534"
+
 --- CẤU HÌNH CHUNG ---
 CHECK_ONLINE_STATUS = "off"
 PLACE_ID="8737602449" - ID của game cần quét
-ACCOUNT_SUFFIXES="2 3 4 5 6"
+ACCOUNT_SUFFIXES="a b c d e"
 BASE_PACKAGE_NAME="com.roblox.client" - Tên gói Roblox cơ bản
 
 --- CẤU HÌNH CHO TÁC VỤ "SCAN" ---
