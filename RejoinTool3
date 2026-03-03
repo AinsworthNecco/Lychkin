@@ -24,8 +24,8 @@ from datetime import datetime
 # ---------------------------------------------------
 # -- URL CẤU HÌNH --
 # ---------------------------------------------------
-CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/config2"
-COOKIE_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookieF2"
+CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/config3"
+COOKIE_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookieF3"
 
 # ---------------------------------------------------
 # -- BIẾN TOÀN CỤC & TRẠNG THÁI UI --
