@@ -90,12 +90,7 @@ def setup_environment(config):
     os.system('tput civis 2>/dev/null || true') # Ẩn con trỏ chuột
     print("[SETUP] Đang thiết lập môi trường và tối ưu hóa hệ thống...")
     try:
-        # Kích thước & Màn hình
-        os.system("su -c 'wm size 1280x2800'")
-        os.system("su -c 'wm density 350'")
-        os.system("su -c 'settings put system accelerometer_rotation 0'")
-        os.system("su -c 'settings put system user_rotation 1'")
-        
+        # Kích thước & Màn hình      
         # Tắt Animation
         os.system("su -c 'settings put global window_animation_scale 0'")
         os.system("su -c 'settings put global transition_animation_scale 0'")
