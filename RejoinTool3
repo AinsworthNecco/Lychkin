@@ -92,7 +92,7 @@ def setup_environment(config):
     try:
         # Kích thước & Màn hình
         os.system("su -c 'wm size 300x300'")
-        os.system("su -c 'wm density 200'")
+        os.system("su -c 'wm density 100'")
         os.system("su -c 'settings put system accelerometer_rotation 0'")
         os.system("su -c 'settings put system user_rotation 0'")
         
