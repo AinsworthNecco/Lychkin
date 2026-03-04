@@ -25,6 +25,7 @@ from datetime import datetime
 # - Hardcode sẵn GITHUB_STATUS_URL theo yêu cầu người dùng.
 # - Tích hợp logic Injector mới: Tự động tìm đường dẫn file Cookie (Smart Detect).
 # - Thêm công tắc CHECK_ONLY_TYPE (1: Check API, 2: Check qua GitHub file).
+# - [FIX]: Tự động lấy lại Username nếu Cookie khớp nhưng file config.txt bị thiếu tên.
 # ==============================================================================
 
 # ---------------------------------------------------
@@ -89,8 +90,9 @@ def load_local_ids_from_file():
                         parts = line.split(":")
                         suf = parts[0].strip()
                         uid = parts[1].strip()
+                        username = parts[2].strip() if len(parts) > 2 else ""
                         if uid.isdigit():
-                            local_map[suf] = uid
+                            local_map[suf] = {'id': uid, 'username': username}
         except Exception as e:
             print(f"[CONFIG] Lỗi đọc file local: {e}")
     return local_map
@@ -130,9 +132,11 @@ def fetch_and_load_config(url):
             for acc in config["ACCOUNT_SUFFIXES"]:
                 suf = acc['suffix']
                 if suf in local_ids:
-                    acc['id'] = local_ids[suf]
+                    acc['id'] = local_ids[suf]['id']
+                    acc['username'] = local_ids[suf]['username']
                 else:
                     acc['id'] = "0"
+                    acc['username'] = ""
         
         if "SELECTED_EXECUTOR" in config:
             selected_id = config["SELECTED_EXECUTOR"]
@@ -409,6 +413,9 @@ def run_cookie_check_sequence(config):
     base_pkg = config.get("BASE_PACKAGE_NAME", "com.roblox.clien")
     accounts = config.get("ACCOUNT_SUFFIXES", []) 
 
+    # Đọc trước file local để kiểm tra xem acc đã có username chưa
+    local_ids_map = load_local_ids_from_file()
+
     for i, acc in enumerate(accounts):
         suffix = acc['suffix']
         pkg_name = f"{base_pkg}{suffix}"
@@ -422,8 +429,25 @@ def run_cookie_check_sequence(config):
         print(f"[COOKIE] Acc '{suffix}' -> ", end="")
         local_cookie = get_local_cookie_injector(pkg_name)
 
+        # Lấy thông tin username hiện tại từ file config.txt (nếu có)
+        current_username = ""
+        if str(suffix) in local_ids_map:
+            current_username = local_ids_map[str(suffix)].get('username', '')
+
         if local_cookie == assigned_cookie:
-            print("OK (Khớp) -> Skip.")
+            # FIX: Nếu cookie khớp, nhưng file config.txt chưa có Username (định dạng cũ)
+            if not current_username:
+                print("OK (Khớp) nhưng THIẾU Username -> Cập nhật từ API...")
+                uid, username = get_roblox_user_info(assigned_cookie)
+                if uid and username:
+                    print(f"[INFO] Bổ sung: ID {uid} | User {username}")
+                    update_local_config_file(suffix, uid, username)
+                    acc['id'] = uid 
+                    acc['username'] = username
+                else:
+                    print(f"[INFO] Lỗi lấy thông tin bổ sung từ API.")
+            else:
+                print("OK (Khớp) -> Skip.")
         else:
             if local_cookie is None:
                 print("MISSING (Chưa có/Không tìm thấy file).")
@@ -439,6 +463,7 @@ def run_cookie_check_sequence(config):
                     print(f"[INFO] Tìm thấy: ID {uid} | User {username}")
                     update_local_config_file(suffix, uid, username)
                     acc['id'] = uid 
+                    acc['username'] = username
                 else:
                     print(f"[INFO] Không lấy được thông tin từ API.")
     
@@ -449,7 +474,7 @@ def run_cookie_check_sequence(config):
 # ==============================================================================
 
 def fetch_github_status_map(url, thread_name="LAUNCH"):
-    """Tải và parse file trạng thái từ GitHub hỗ trợ chuẩn Suffix:ID:Username."""
+    """Tải và parse file trạng thái từ GitHub hỗ trợ chuẩn Username|Status."""
     status_map = {}
     if not url: 
         return status_map
@@ -461,27 +486,12 @@ def fetch_github_status_map(url, thread_name="LAUNCH"):
                 line = line.strip()
                 if not line: continue
                 
-                suffix = None
-                status = None
-                
-                # Phân tích cú pháp linh hoạt (Hỗ trợ | hoặc :)
                 if "|" in line:
                     parts = line.split("|")
-                    status = parts[-1].strip()
-                    left = parts[0].strip()
-                    suffix = left.split(":")[0] if ":" in left else left
-                elif ":" in line:
-                    parts = line.split(":")
-                    suffix = parts[0].strip()
-                    # Nếu có đuôi đính kèm trạng thái 1 hoặc 2 (VD: 2:123:Name:1)
-                    if parts[-1].strip() in ["1", "2"]:
-                        status = parts[-1].strip()
-                    else:
-                        # Nếu format chỉ là 2:id:username, mặc định hiểu là trạng thái 1 (Ingame)
-                        status = "1"
-                
-                if suffix and status:
-                    status_map[suffix] = status
+                    if len(parts) >= 2:
+                        username = parts[0].strip()
+                        status = parts[1].strip()
+                        status_map[username] = status
     except Exception as e:
         print(f"[{thread_name}] Lỗi tải file trạng thái GitHub: {e}")
     return status_map
@@ -750,7 +760,7 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
         if github_url:
             github_status_map = fetch_github_status_map(github_url, thread_name)
     # ----------------------------------------------------
-
+    
     for i, acc in enumerate(accounts):
         suffix, uid, username = acc['suffix'], acc['id'], acc.get('username', '')
         pkg_name = f"{base_pkg}{suffix}"
