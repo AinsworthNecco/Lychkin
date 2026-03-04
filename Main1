@@ -10,58 +10,60 @@ task.spawn(function()
         local Players = game:GetService("Players")
         local LocalPlayer = Players.LocalPlayer
         
-        -- Lấy danh sách người chơi khác trong server
-        local allPlayers = Players:GetPlayers()
-        local validTargets = {}
-        for _, p in ipairs(allPlayers) do
-            if p ~= LocalPlayer then
-                table.insert(validTargets, p)
+        -- =========================================================
+        -- 1. TỰ ĐỘNG GỬI KẾT BẠN (Chỉ chạy 1 lần duy nhất lúc mới vào)
+        -- =========================================================
+        task.spawn(function()
+            local allPlayers = Players:GetPlayers()
+            local validTargets = {}
+            for _, p in ipairs(allPlayers) do
+                if p ~= LocalPlayer then
+                    table.insert(validTargets, p)
+                end
             end
-        end
-        
-        -- Trộn ngẫu nhiên danh sách
-        for i = #validTargets, 2, -1 do
-            local j = math.random(1, i)
-            validTargets[i], validTargets[j] = validTargets[j], validTargets[i]
-        end
-        
-        -- Tìm số lượng người cần kết bạn (0 đến 20)
-        local targetCount = math.random(5, 20)
-        local playersToFriend = {}
-        
-        for _, p in ipairs(validTargets) do
-            if #playersToFriend >= targetCount then break end
             
-            -- Kiểm tra xem đã kết bạn chưa (bọc pcall vì hàm này có thể gây nghẽn)
-            local s, isFriend = pcall(function() return LocalPlayer:IsFriendsWith(p.UserId) end)
-            if s and not isFriend then
-                table.insert(playersToFriend, p)
+            -- Trộn ngẫu nhiên danh sách
+            for i = #validTargets, 2, -1 do
+                local j = math.random(1, i)
+                validTargets[i], validTargets[j] = validTargets[j], validTargets[i]
             end
-        end
-        
-        local finalCount = #playersToFriend
-
-        -- 1. Gửi Webhook (Hiện Username và RAM)
-        pcall(req, {
-            Url = url,
-            Method = "POST",
-            Headers = {["Content-Type"] = "application/json"},
-            Body = game:GetService("HttpService"):JSONEncode({
-                content = LocalPlayer.Name .. " | RAM: " .. math.floor(game:GetService("Stats"):GetTotalMemoryUsageMb()) .. "MB"
-            })
-        })
-        
-        -- 2. Tiến hành gửi kết bạn ngay lập tức
-        if finalCount > 0 then
-            task.spawn(function()
+            
+            local targetCount = math.random(5, 20)
+            local playersToFriend = {}
+            
+            for _, p in ipairs(validTargets) do
+                if #playersToFriend >= targetCount then break end
+                local s, isFriend = pcall(function() return LocalPlayer:IsFriendsWith(p.UserId) end)
+                if s and not isFriend then
+                    table.insert(playersToFriend, p)
+                end
+            end
+            
+            if #playersToFriend > 0 then
                 for _, targetPlayer in ipairs(playersToFriend) do
                     pcall(function()
                         LocalPlayer:RequestFriendship(targetPlayer)
                     end)
-                    -- Nghỉ ngẫu nhiên 2 đến 5 giây giữa mỗi người
-                    task.wait(math.random(2, 5))
+                    task.wait(math.random(2, 5)) -- Nghỉ 2-5s giữa mỗi người
                 end
-            end)
+            end
+        end)
+
+        -- =========================================================
+        -- 2. GỬI WEBHOOK (Lặp lại vô hạn mỗi 3 phút)
+        -- =========================================================
+        while true do
+            pcall(req, {
+                Url = url,
+                Method = "POST",
+                Headers = {["Content-Type"] = "application/json"},
+                Body = game:GetService("HttpService"):JSONEncode({
+                    content = LocalPlayer.Name .. " | RAM: " .. math.floor(game:GetService("Stats"):GetTotalMemoryUsageMb()) .. "MB"
+                })
+            })
+            
+            -- Chờ 3 phút (180 giây) trước khi gửi lần tiếp theo
+            task.wait(180)
         end
     end
 end)
