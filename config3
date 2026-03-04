@@ -15,7 +15,7 @@ MIN_PLAYER_PERCENTAGE="75"           # % người chơi tối thiểu
 MAX_PLAYER_PERCENTAGE="90"           # % người chơi tối đa
 
 # --- CẤU HÌNH MỞ APP (LAUNCH) ---
-LAUNCH_INTERVAL_SECONDS="300"        # Thời gian vòng lặp kiểm tra app (giây)
+LAUNCH_INTERVAL_SECONDS="180"        # Thời gian vòng lặp kiểm tra app (giây)
 LAUNCH_DELAY_SECONDS="15"            # Độ trễ mở giữa 2 tài khoản (giây)
 VIP_SERVER_URL="roblox://placeId=8737602449" # Link VIP Server
 
