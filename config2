@@ -4,7 +4,7 @@
 
 # --- THÔNG TIN TÀI KHOẢN & GAME ---
 CHECK_ONLINE_STATUS="on"            # Check API online trước khi mở (on/off)
-CHECK_ONLY_TYPE= "2"                    # 1 api 2 github
+CHECK_ONLY_TYPE= "1"                    # 1 api 2 github
 PLACE_ID="8737602449"                # ID Game Roblox
 BASE_PACKAGE_NAME="com.roblox.client" # Gói ứng dụng gốc
 ACCOUNT_SUFFIXES="2 3 4 5 6"         # Hậu tố app clone
