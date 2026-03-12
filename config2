@@ -6,8 +6,8 @@
 CHECK_ONLINE_STATUS="on"            # Check API online trước khi mở (on/off)
 CHECK_ONLY_TYPE= "1"                    # 1 api 2 github
 PLACE_ID="8737602449"                # ID Game Roblox
-BASE_PACKAGE_NAME="com.roblox.clien" # Gói ứng dụng gốc
-ACCOUNT_SUFFIXES="b c d e f"         # Hậu tố app clone
+BASE_PACKAGE_NAME="com.roblox.client" # Gói ứng dụng gốc
+ACCOUNT_SUFFIXES="2 3 4 5 6"         # Hậu tố app clone
 
 # --- CẤU HÌNH QUÉT SERVER (SCAN) ---
 SCAN_INTERVAL_SECONDS="180"          # Thời gian nghỉ giữa các lần quét (giây)
