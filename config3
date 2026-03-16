@@ -3,7 +3,7 @@
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 # --- THÔNG TIN TÀI KHOẢN & GAME ---
-CHECK_ONLINE_STATUS="on"            # Check API online trước khi mở (on/off)
+CHECK_ONLINE_STATUS="on"            # Check API online trước khi mở (on/off) "/storage/emulated/0/FluxusZ/workspace/neco.txt"
 CHECK_ONLY_TYPE= "1"                    # 1 api 2 github
 PLACE_ID="8737602449"                # ID Game Roblox
 BASE_PACKAGE_NAME="com.roblox.clien" # Gói ứng dụng gốc
@@ -20,9 +20,9 @@ LAUNCH_DELAY_SECONDS="15"            # Độ trễ mở giữa 2 tài khoản (g
 VIP_SERVER_URL="roblox://placeId=8737602449" # Link VIP Server
 
 # --- EXECUTOR & DELTA KEY ---
-SELECTED_EXECUTOR="1"
+SELECTED_EXECUTOR="2"
 EXECUTOR_PATH_1="/storage/emulated/0/Delta/Workspace/neco.txt"
-EXECUTOR_PATH_2="/storage/emulated/0/FluxusZ/workspace/neco.txt"
+EXECUTOR_PATH_2="/storage/emulated/0/Delta/Workspace/neco.txt"
 EXECUTOR_PATH_3="/storage/emulated/0/Codex/Workspace/neco.txt"
 DELTA_KEY_URL="https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/key"
 KEY_CHECK_INTERVAL_MINUTES="15"      # Chu kỳ check cập nhật Key (phút)
