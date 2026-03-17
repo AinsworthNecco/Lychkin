@@ -32,7 +32,7 @@ from datetime import datetime
 # -- URL CẤU HÌNH --
 # ---------------------------------------------------
 CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/config3"
-COOKIE_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookieF3"
+COOKIE_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie/Fold3"
 
 # ---------------------------------------------------
 # -- BIẾN TOÀN CỤC --
