@@ -31,6 +31,7 @@ from datetime import datetime
 # ---------------------------------------------------
 CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/config/fold3"
 COOKIE_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie/Fold3"
+PROXY_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/proxy/proxy"
 
 # ---------------------------------------------------
 # -- BIẾN TOÀN CỤC --
@@ -94,6 +95,16 @@ def load_local_ids_from_file():
             print(f"[CONFIG] Lỗi đọc file local: {e}")
     return local_map
 
+def fetch_proxies_from_url(url):
+    """Tải danh sách proxy từ URL."""
+    try:
+        response = requests.get(url, timeout=15)
+        if response.status_code == 200:
+            return [item.strip() for item in response.text.splitlines() if item.strip()]
+    except Exception as e:
+        print(f"[PROXY] Lỗi tải proxy từ URL: {e}")
+    return []
+
 def fetch_and_load_config(url):
     global current_executor_id
     try:
@@ -118,10 +129,11 @@ def fetch_and_load_config(url):
                         if ':' in s: s = s.split(':')[0]
                         accounts.append({'suffix': s, 'id': None})
                 config[key] = accounts
-            elif key == "PROXY_LIST":
-                config[key] = [item.strip() for item in value.splitlines() if item.strip()]
             else:
                 config[key] = value
+        
+        # Tải proxy từ URL mới
+        config["PROXY_LIST"] = fetch_proxies_from_url(PROXY_URL)
         
         # Merge ID từ local config
         local_ids = load_local_ids_from_file()
