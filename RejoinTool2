@@ -17,15 +17,13 @@ import urllib.request
 from datetime import datetime
 
 # ==============================================================================
-# SCRIPT: Lychkins's Task Runner v1.11 (Smart Path Injector + Username Support)
+# SCRIPT: Lychkins's Task Runner v1.10 (Smart Path Injector)
 #
-# CẬP NHẬT MỚI (v1.11):
-# - Định dạng lưu local config chuyển thành: Suffix:ID:Username
-# - Hỗ trợ đọc file webhook Github bằng định dạng Suffix:ID:Username
-# - Hardcode sẵn GITHUB_STATUS_URL theo yêu cầu người dùng.
+# CẬP NHẬT MỚI (v1.10):
 # - Tích hợp logic Injector mới: Tự động tìm đường dẫn file Cookie (Smart Detect).
-# - Thêm công tắc CHECK_ONLY_TYPE (1: Check API, 2: Check qua GitHub file).
-# - [FIX]: Tự động lấy lại Username nếu Cookie khớp nhưng file config.txt bị thiếu tên.
+# - Khắc phục lỗi "Không copy được file gốc" bằng cách quét đa vị trí.
+# - Xử lý quyền (Permission) chuẩn xác hơn dựa trên thư mục cha.
+# - Giữ logic tối ưu: Khớp -> Skip, Mới -> Lấy ID & Lưu Config.
 # ==============================================================================
 
 # ---------------------------------------------------
@@ -33,6 +31,7 @@ from datetime import datetime
 # ---------------------------------------------------
 CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/config/fold2"
 COOKIE_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie/Fold2"
+PROXY_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/proxy/proxy"
 
 # ---------------------------------------------------
 # -- BIẾN TOÀN CỤC --
@@ -79,7 +78,7 @@ def check_process_running(pkg_name):
         return False
 
 def load_local_ids_from_file():
-    """Đọc file config.txt local để lấy map Suffix:ID. (Hỗ trợ định dạng suffix:id:username)"""
+    """Đọc file config.txt local để lấy map Suffix:ID."""
     local_map = {}
     if os.path.exists(LOCAL_CONFIG_FILE):
         try:
@@ -87,15 +86,24 @@ def load_local_ids_from_file():
                 for line in f:
                     line = line.strip()
                     if ":" in line:
-                        parts = line.split(":")
+                        parts = line.split(":", 1)
                         suf = parts[0].strip()
                         uid = parts[1].strip()
-                        username = parts[2].strip() if len(parts) > 2 else ""
                         if uid.isdigit():
-                            local_map[suf] = {'id': uid, 'username': username}
+                            local_map[suf] = uid
         except Exception as e:
             print(f"[CONFIG] Lỗi đọc file local: {e}")
     return local_map
+
+def fetch_proxies_from_url(url):
+    """Tải danh sách proxy từ URL."""
+    try:
+        response = requests.get(url, timeout=15)
+        if response.status_code == 200:
+            return [item.strip() for item in response.text.splitlines() if item.strip()]
+    except Exception as e:
+        print(f"[PROXY] Lỗi tải proxy từ URL: {e}")
+    return []
 
 def fetch_and_load_config(url):
     global current_executor_id
@@ -108,7 +116,7 @@ def fetch_and_load_config(url):
         
         for key, _, value in pattern.findall(response.text):
             value = value.strip()
-            if key in ["SCAN_INTERVAL_SECONDS", "LAUNCH_INTERVAL_SECONDS", "CONNECTION_TIMEOUT", "REBOOT_INTERVAL_MINUTES", "LAUNCH_DELAY_SECONDS", "KEY_CHECK_INTERVAL_MINUTES", "CHECK_ONLY_TYPE"]:
+            if key in ["SCAN_INTERVAL_SECONDS", "LAUNCH_INTERVAL_SECONDS", "CONNECTION_TIMEOUT", "REBOOT_INTERVAL_MINUTES", "LAUNCH_DELAY_SECONDS", "KEY_CHECK_INTERVAL_MINUTES"]:
                 config[key] = int(value)
             elif key in ["MIN_PLAYER_PERCENTAGE", "MAX_PLAYER_PERCENTAGE"]:
                 config[key] = float(value)
@@ -121,10 +129,11 @@ def fetch_and_load_config(url):
                         if ':' in s: s = s.split(':')[0]
                         accounts.append({'suffix': s, 'id': None})
                 config[key] = accounts
-            elif key == "PROXY_LIST":
-                config[key] = [item.strip() for item in value.splitlines() if item.strip()]
             else:
                 config[key] = value
+        
+        # Tải proxy từ URL mới
+        config["PROXY_LIST"] = fetch_proxies_from_url(PROXY_URL)
         
         # Merge ID từ local config
         local_ids = load_local_ids_from_file()
@@ -132,11 +141,9 @@ def fetch_and_load_config(url):
             for acc in config["ACCOUNT_SUFFIXES"]:
                 suf = acc['suffix']
                 if suf in local_ids:
-                    acc['id'] = local_ids[suf]['id']
-                    acc['username'] = local_ids[suf]['username']
+                    acc['id'] = local_ids[suf]
                 else:
                     acc['id'] = "0"
-                    acc['username'] = ""
         
         if "SELECTED_EXECUTOR" in config:
             selected_id = config["SELECTED_EXECUTOR"]
@@ -227,12 +234,15 @@ def find_real_cookie_path(package_name):
         f"{base_path}/Cookies"
     ]
     
+    # print(f"[COOKIE] Đang quét path cho {package_name}...", end=" ")
     for path in possible_paths:
         check_cmd = f"[ -f '{path}' ] && echo 'YES' || echo 'NO'"
         out, _, _ = run_root_cmd_injector(check_cmd)
         if "YES" in out:
+            # print(f"-> Found: {path}")
             return path
             
+    # print("-> Not found.")
     return None
 
 def get_local_cookie_injector(package_name):
@@ -356,23 +366,23 @@ def inject_cookie_process(package_name, cookie_value):
     print(f"[COOKIE] -> Đã nạp Cookie mới cho: {package_name}")
     return True
 
-# --- HÀM LẤY ID & USERNAME VÀ LƯU CONFIG ---
+# --- HÀM LẤY ID VÀ LƯU CONFIG ---
 
-def get_roblox_user_info(cookie):
-    """Gọi API Roblox để lấy ID và Username của cookie."""
+def get_roblox_user_id(cookie):
+    """Gọi API Roblox để lấy ID của cookie."""
     try:
         url = "https://users.roblox.com/v1/users/authenticated"
         cookies = {'.ROBLOSECURITY': cookie}
         response = requests.get(url, cookies=cookies, timeout=10)
         if response.status_code == 200:
             data = response.json()
-            return str(data.get('id')), str(data.get('name', 'Unknown'))
+            return str(data.get('id'))
     except Exception:
         pass
-    return None, None
+    return None
 
-def update_local_config_file(suffix, user_id, username):
-    """Cập nhật file config.txt với định dạng suffix:id:username."""
+def update_local_config_file(suffix, user_id):
+    """Cập nhật file config.txt với định dạng suffix:id."""
     lines = []
     if os.path.exists(LOCAL_CONFIG_FILE):
         try:
@@ -380,7 +390,7 @@ def update_local_config_file(suffix, user_id, username):
                 lines = f.readlines()
         except: pass
     
-    new_entry = f"{suffix}:{user_id}:{username}\n"
+    new_entry = f"{suffix}:{user_id}\n"
     updated = False
     new_content = []
     
@@ -397,7 +407,7 @@ def update_local_config_file(suffix, user_id, username):
     try:
         with open(LOCAL_CONFIG_FILE, "w") as f:
             f.writelines(new_content)
-        print(f"[CONFIG] Đã lưu vào {LOCAL_CONFIG_FILE}: {suffix}:{user_id}:{username}")
+        print(f"[CONFIG] Đã lưu vào {LOCAL_CONFIG_FILE}: {suffix}:{user_id}")
     except Exception as e:
         print(f"[CONFIG] Lỗi ghi file: {e}")
 
@@ -413,9 +423,6 @@ def run_cookie_check_sequence(config):
     base_pkg = config.get("BASE_PACKAGE_NAME", "com.roblox.clien")
     accounts = config.get("ACCOUNT_SUFFIXES", []) 
 
-    # Đọc trước file local để kiểm tra xem acc đã có username chưa
-    local_ids_map = load_local_ids_from_file()
-
     for i, acc in enumerate(accounts):
         suffix = acc['suffix']
         pkg_name = f"{base_pkg}{suffix}"
@@ -429,25 +436,8 @@ def run_cookie_check_sequence(config):
         print(f"[COOKIE] Acc '{suffix}' -> ", end="")
         local_cookie = get_local_cookie_injector(pkg_name)
 
-        # Lấy thông tin username hiện tại từ file config.txt (nếu có)
-        current_username = ""
-        if str(suffix) in local_ids_map:
-            current_username = local_ids_map[str(suffix)].get('username', '')
-
         if local_cookie == assigned_cookie:
-            # FIX: Nếu cookie khớp, nhưng file config.txt chưa có Username (định dạng cũ)
-            if not current_username:
-                print("OK (Khớp) nhưng THIẾU Username -> Cập nhật từ API...")
-                uid, username = get_roblox_user_info(assigned_cookie)
-                if uid and username:
-                    print(f"[INFO] Bổ sung: ID {uid} | User {username}")
-                    update_local_config_file(suffix, uid, username)
-                    acc['id'] = uid 
-                    acc['username'] = username
-                else:
-                    print(f"[INFO] Lỗi lấy thông tin bổ sung từ API.")
-            else:
-                print("OK (Khớp) -> Skip.")
+            print("OK (Khớp) -> Skip.")
         else:
             if local_cookie is None:
                 print("MISSING (Chưa có/Không tìm thấy file).")
@@ -457,44 +447,20 @@ def run_cookie_check_sequence(config):
             success = inject_cookie_process(pkg_name, assigned_cookie)
             
             if success:
-                print(f"[INFO] Đang lấy ID và Username mới cho '{suffix}'...")
-                uid, username = get_roblox_user_info(assigned_cookie)
+                print(f"[INFO] Đang lấy ID mới cho '{suffix}'...")
+                uid = get_roblox_user_id(assigned_cookie)
                 if uid:
-                    print(f"[INFO] Tìm thấy: ID {uid} | User {username}")
-                    update_local_config_file(suffix, uid, username)
+                    print(f"[INFO] ID tìm thấy: {uid}")
+                    update_local_config_file(suffix, uid)
                     acc['id'] = uid 
-                    acc['username'] = username
                 else:
-                    print(f"[INFO] Không lấy được thông tin từ API.")
+                    print(f"[INFO] Không lấy được ID từ API.")
     
     print("[COOKIE] === HOÀN TẤT ===\n")
 
 # ==============================================================================
 # -- CÁC HÀM KẾT NỐI API (SCANNER/LAUNCHER) --
 # ==============================================================================
-
-def fetch_github_status_map(url, thread_name="LAUNCH"):
-    """Tải và parse file trạng thái từ GitHub hỗ trợ chuẩn Username|Status."""
-    status_map = {}
-    if not url: 
-        return status_map
-    try:
-        response = requests.get(url, timeout=15)
-        if response.status_code == 200:
-            lines = response.text.splitlines()
-            for line in lines:
-                line = line.strip()
-                if not line: continue
-                
-                if "|" in line:
-                    parts = line.split("|")
-                    if len(parts) >= 2:
-                        username = parts[0].strip()
-                        status = parts[1].strip()
-                        status_map[username] = status
-    except Exception as e:
-        print(f"[{thread_name}] Lỗi tải file trạng thái GitHub: {e}")
-    return status_map
 
 def execute_api_request_with_proxy(method, url, config, thread_name, json_data=None):
     global proxy_index, failed_proxy_count, current_proxies
@@ -550,6 +516,7 @@ def execute_api_request_simple(method, url, config, thread_name, json_data=None,
     return None
 
 def check_roblox_presence_single(account_id, config, thread_name, proxy_list, initial_proxy_index):
+    # ID này được lấy từ config.txt local
     if not account_id or str(account_id) == "0":
         print(f"[{thread_name}] ⚠️ Không có User ID (hoặc ID=0) trong config.txt -> Bỏ qua check.")
         return False
@@ -749,81 +716,35 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
     base_pkg = config.get("BASE_PACKAGE_NAME", "com.roblox.clien")
     formatted_proxies = format_proxies(config.get("PROXY_LIST", []))
     num_proxies = len(formatted_proxies)
-
-    # --- CHUẨN BỊ LOGIC: Tải Github map trước nếu cần ---
-    check_only_type = config.get("CHECK_ONLY_TYPE", 1)
-    github_status_map = {}
-    
-    if str(config.get("CHECK_ONLINE_STATUS", "on")).lower() == "on" and check_only_type == 2:
-        # Lấy từ Config, nếu chưa điền thì lấy URL bạn cung cấp làm mặc định
-        github_url = config.get("GITHUB_STATUS_URL", "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/webhook_status")
-        if github_url:
-            github_status_map = fetch_github_status_map(github_url, thread_name)
-    # ----------------------------------------------------
     
     for i, acc in enumerate(accounts):
-        suffix, uid, username = acc['suffix'], acc['id'], acc.get('username', '')
+        suffix, uid = acc['suffix'], acc['id']
         pkg_name = f"{base_pkg}{suffix}"
         
-        print(f"\n[{thread_name}] ---- CHECK ACCOUNT: {suffix} (ID: {uid} | User: {username}) ----")
+        print(f"\n[{thread_name}] ---- CHECK ACCOUNT: {suffix} (ID: {uid}) ----")
         
         is_process_active = check_process_running(pkg_name)
         should_launch = False
         
-        # 1. CHECK CƠ BẢN LÀ INSTANCE CÓ ĐANG BẬT KHÔNG
         if not is_process_active:
             print(f"[{thread_name}] App '{suffix}' đang TẮT -> START.")
             should_launch = True
         else:
-            # 2. APP ĐANG BẬT -> TIẾN HÀNH CHECK ONLINE STATUS
-            if str(config.get("CHECK_ONLINE_STATUS", "on")).lower() == "off":
-                print(f"[{thread_name}] App '{suffix}' đang CHẠY -> Bỏ qua check (Công tắc TẮT).")
-                continue
-
-            # --- KIỂM TRA ONLINE BẰNG LOGIC 1 HOẶC 2 ---
-            if check_only_type == 1:
-                print(f"[{thread_name}] App '{suffix}' đang CHẠY -> Check API (Logic 1)...")
-                start_idx = random.randint(0, num_proxies - 1) if num_proxies > 0 else -1
-                is_online = check_roblox_presence_single(uid, config, thread_name, formatted_proxies, start_idx)
-                
-                if is_online:
-                    print(f"[{thread_name}] '{suffix}' ONLINE -> Skip.")
-                    continue 
-                else:
-                    print(f"[{thread_name}] '{suffix}' OFFLINE -> Kill & Restart.")
-                    try:
-                        cmd_kill = f"PID=$(ps -ef | grep {pkg_name} | grep -v grep | awk '{{print $2}}'); if [ ! -z \"$PID\" ]; then kill -9 $PID; fi"
-                        subprocess.run(["su", "-c", cmd_kill], capture_output=True, timeout=10)
-                        time.sleep(3) 
-                    except: pass
-                    should_launch = True
-
-            elif check_only_type == 2:
-                print(f"[{thread_name}] App '{suffix}' đang CHẠY -> Check GitHub (Logic 2)...")
-                if not username:
-                    print(f"[{thread_name}] ⚠️ Chưa có thông tin Username cho '{suffix}'. Bỏ qua check GitHub.")
-                    continue
-
-                status_val = github_status_map.get(username)
-                
-                if status_val == "1":
-                    print(f"[{thread_name}] '{username}' báo 1 (Ingame) -> Skip.")
-                    continue
-                elif status_val == "2":
-                    print(f"[{thread_name}] '{username}' báo 2 (Crash/Disconnect) -> Kill & Restart.")
-                    try:
-                        cmd_kill = f"PID=$(ps -ef | grep {pkg_name} | grep -v grep | awk '{{print $2}}'); if [ ! -z \"$PID\" ]; then kill -9 $PID; fi"
-                        subprocess.run(["su", "-c", cmd_kill], capture_output=True, timeout=10)
-                        time.sleep(3) 
-                    except: pass
-                    should_launch = True
-                else:
-                    print(f"[{thread_name}] ⚠️ '{username}' không có trong danh sách GitHub (hoặc trạng thái lạ) -> Bỏ qua.")
-                    continue
+            print(f"[{thread_name}] App '{suffix}' đang CHẠY -> Check API...")
+            start_idx = random.randint(0, num_proxies - 1) if num_proxies > 0 else -1
+            is_online = check_roblox_presence_single(uid, config, thread_name, formatted_proxies, start_idx)
+            
+            if is_online:
+                print(f"[{thread_name}] '{suffix}' ONLINE -> Skip.")
+                continue 
             else:
-                print(f"[{thread_name}] Lỗi: CHECK_ONLY_TYPE={check_only_type} không hợp lệ.")
-                continue
-            # ---------------------------------------------
+                print(f"[{thread_name}] '{suffix}' OFFLINE -> Kill & Restart.")
+                try:
+                    cmd_kill = f"PID=$(ps -ef | grep {pkg_name} | grep -v grep | awk '{{print $2}}'); if [ ! -z \"$PID\" ]; then kill -9 $PID; fi"
+                    subprocess.run(["su", "-c", cmd_kill], capture_output=True, timeout=10)
+                    time.sleep(3) 
+                except: pass
+                should_launch = True
 
         if should_launch:
             target_url = ""
@@ -878,7 +799,7 @@ if __name__ == "__main__":
     os.system("termux-wake-lock")
     if not check_root_access(): sys.exit(1)
     
-    print("[MAIN] Tải cấu hình & Kiểm tra Cookie (v1.11 Smart Inject + Username)...")
+    print("[MAIN] Tải cấu hình & Kiểm tra Cookie (v1.10 Smart Inject)...")
     initial_config = fetch_and_load_config(CONFIG_URL)
     run_cookie_check_sequence(initial_config)
     
