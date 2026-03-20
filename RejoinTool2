@@ -801,6 +801,15 @@ if __name__ == "__main__":
     
     print("[MAIN] Tải cấu hình & Kiểm tra Cookie (v1.10 Smart Inject)...")
     initial_config = fetch_and_load_config(CONFIG_URL)
+    
+    # Đọc thiết lập resize màn hình từ config
+    if initial_config.get("WM_RESIZE_ENABLED", "off").lower() == "on":
+        wm_size = initial_config.get("WM_SIZE", "600x600")
+        wm_density = initial_config.get("WM_DENSITY", "300")
+        print(f"[MAIN] Áp dụng cấu hình màn hình: Size {wm_size}, Density {wm_density}")
+        os.system(f'su -c "wm size {wm_size}"')
+        os.system(f'su -c "wm density {wm_density}"')
+    
     run_cookie_check_sequence(initial_config)
     
     # Reload lại để đảm bảo ID mới (nếu có update) được nạp vào
