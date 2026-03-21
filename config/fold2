@@ -31,5 +31,5 @@ REBOOT_INTERVAL_MINUTES="120"         # Thời gian khởi động lại (phút)
 
 WM_RESIZE_ENABLED = "on"
 WM_SIZE = "180x180"
-WM_DENSITY = "100"
+WM_DENSITY = "50"
 Khi muốn tắt, bạn chỉ cần sửa thành `WM_RESIZE_ENABLED = "off"` là script sẽ không chạy 2 lệnh đổi độ phân giải nữa.
