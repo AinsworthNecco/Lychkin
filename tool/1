@@ -149,11 +149,21 @@ def ui_loop():
         scan_timer = f"{UI_STATE.get('SCAN_TIMER', 0)}s"
         launch_timer = f"{UI_STATE.get('LAUNCH_TIMER', 0)}s"
         
+        # Hàm format có màu nhưng vẫn giữ nguyên khoảng trắng để căn lề bảng
+        def fmt_color(text, color_code, width):
+            text = str(text)
+            return f"\033[{color_code}m{text}{' ' * (width - len(text))}\033[0m"
+
+        ac_c = fmt_color(ac_enabled, "32", 5)        # Công tắc màu Xanh lá
+        time_c = fmt_color(ac_time_str, "33", 16)    # Bộ đếm màu Vàng
+        scan_c = fmt_color(scan_timer, "36", 5)      # Scan timer màu Cyan
+        launch_c = fmt_color(launch_timer, "36", 14) # Launch timer màu Cyan
+        
         print("+-------------------------------------------------+")
         print(f"|{' ' * pad_left}{stats_str}{' ' * pad_right}|")
         print("+-------------------------------------------------+")
-        print(f"| Auto Close: {ac_enabled:<5} | Time left: {ac_time_str:<12} |")
-        print(f"| Next Scan : {scan_timer:<5} | Next Launch: {launch_timer:<10} |")
+        print(f"| Auto Close: {ac_c} | Time left: {time_c} |")
+        print(f"| Next Scan : {scan_c} | Next Launch: {launch_c} |")
         print("+-------------------------------------------------+")
         
         # 3 dòng Log duy nhất (Cắt bớt text nếu quá dài để không bị vỡ khung)
@@ -161,9 +171,11 @@ def ui_loop():
         launch_log = UI_STATE.get('LAUNCH_LOG', '')[:50]
         sys_log = UI_STATE.get('SYS_LOG', '')[:50]
         
-        print(f"[\033[32mSCAN\033[0m]   : {scan_log}")
-        print(f"[\033[33mLAUNCH\033[0m] : {launch_log}")
-        print(f"[\033[36mSYSTEM\033[0m] : {sys_log}")
+        # SYSTEM màu vàng và nằm trên cùng
+        print(f"[\033[33mSYSTEM\033[0m] : {sys_log}")
+        # SCAN và LAUNCH cùng màu cyan
+        print(f"[\033[36mSCAN\033[0m]   : {scan_log}")
+        print(f"[\033[36mLAUNCH\033[0m] : {launch_log}")
         
         time.sleep(1)
 
