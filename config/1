@@ -27,7 +27,7 @@ KEY_CHECK_INTERVAL_MINUTES="15"      # Chu kỳ check cập nhật Key (phút)
 # --- MẠNG & HỆ THỐNG ---
 CONNECTION_TIMEOUT="15"              # Timeout khi gọi API (giây)
 REBOOT_ENABLED="on"                  # Tự động khởi động lại máy (on/off)
-REBOOT_INTERVAL_MINUTES="120"         # Thời gian khởi động lại (phút)
+REBOOT_INTERVAL_MINUTES="240"         # Thời gian khởi động lại (phút)
 
 WM_RESIZE_ENABLED = "off"
 WM_SIZE = "1000x1000"
