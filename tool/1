@@ -116,7 +116,7 @@ def fetch_and_load_config(url):
         
         for key, _, value in pattern.findall(response.text):
             value = value.strip()
-            if key in ["SCAN_INTERVAL_SECONDS", "LAUNCH_INTERVAL_SECONDS", "CONNECTION_TIMEOUT", "REBOOT_INTERVAL_MINUTES", "LAUNCH_DELAY_SECONDS", "KEY_CHECK_INTERVAL_MINUTES"]:
+            if key in ["SCAN_INTERVAL_SECONDS", "LAUNCH_INTERVAL_SECONDS", "CONNECTION_TIMEOUT", "REBOOT_INTERVAL_MINUTES", "LAUNCH_DELAY_SECONDS", "KEY_CHECK_INTERVAL_MINUTES", "AUTO_CLOSE_HOURS"]:
                 config[key] = int(value)
             elif key in ["MIN_PLAYER_PERCENTAGE", "MAX_PLAYER_PERCENTAGE"]:
                 config[key] = float(value)
@@ -679,11 +679,11 @@ def run_scanner(config, thread_name="SCAN"):
             print(f"\n[{thread_name}] Dừng quét.")
             break
             
-    output_path = config["OUTPUT_FILE_PATH"]
-    output_dir = os.path.dirname(output_path)
-    if output_dir and not os.path.exists(output_dir):
-        try: os.makedirs(output_dir)
-        except: pass
+        output_path = config["OUTPUT_FILE_PATH"]
+        output_dir = os.path.dirname(output_path)
+        if output_dir and not os.path.exists(output_dir):
+            try: os.makedirs(output_dir)
+            except: pass
 
     with file_lock:
         try:
@@ -770,6 +770,34 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
 # -- VÒNG LẶP & MAIN --
 # ==============================================================================
 
+def auto_close_loop():
+    thread_name = "AUTO-CLOSE"
+    while True:
+        try:
+            config = fetch_and_load_config(CONFIG_URL)
+            if config.get("AUTO_CLOSE_ENABLED", "off").lower() == "on":
+                hours = config.get("AUTO_CLOSE_HOURS", 1)
+                print(f"[{thread_name}] Tính năng được BẬT. Chờ {hours} giờ để tắt toàn bộ tab...")
+                time.sleep(hours * 3600)
+                
+                accounts = config.get("ACCOUNT_SUFFIXES", [])
+                base_pkg = config.get("BASE_PACKAGE_NAME", "com.roblox.clien")
+                
+                print(f"[{thread_name}] Đã đến giờ. Tiến hành tắt toàn bộ tab (kill process)...")
+                for acc in accounts:
+                    suffix = acc['suffix']
+                    pkg_name = f"{base_pkg}{suffix}"
+                    try:
+                        cmd_kill = f"PID=$(ps -ef | grep {pkg_name} | grep -v grep | awk '{{print $2}}'); if [ ! -z \"$PID\" ]; then kill -9 $PID; fi"
+                        subprocess.run(["su", "-c", cmd_kill], capture_output=True, timeout=10)
+                    except: pass
+                print(f"[{thread_name}] Đã tắt xong toàn bộ tab. Chờ chu kỳ tiếp theo...")
+            else:
+                time.sleep(3600) # Sleep 1 tiếng rồi kiểm tra lại nếu đang tắt
+        except Exception as e:
+            print(f"[{thread_name}] Lỗi: {e}")
+            time.sleep(60)
+
 def scanner_loop():
     print("[SCAN] Bắt đầu.")
     config = fetch_and_load_config(CONFIG_URL)
@@ -810,6 +838,12 @@ if __name__ == "__main__":
         os.system(f'su -c "wm size {wm_size}"')
         os.system(f'su -c "wm density {wm_density}"')
     
+    # Đọc thiết lập tự động xoay ngang màn hình từ config
+    if initial_config.get("WM_ROTATION_ENABLED", "off").lower() == "on":
+        print("[MAIN] Áp dụng cấu hình tự động xoay ngang màn hình...")
+        os.system('su -c "settings put system accelerometer_rotation 0"')
+        os.system('su -c "settings put system user_rotation 1"')
+    
     run_cookie_check_sequence(initial_config)
     
     # Reload lại để đảm bảo ID mới (nếu có update) được nạp vào
@@ -817,6 +851,7 @@ if __name__ == "__main__":
     
     threading.Thread(target=reboot_loop, daemon=True).start()
     threading.Thread(target=delta_key_monitor_loop, daemon=True).start()
+    threading.Thread(target=auto_close_loop, daemon=True).start()
 
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest='command')
