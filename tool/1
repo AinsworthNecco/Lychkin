@@ -76,43 +76,59 @@ def ui_log(thread_name, msg):
         UI_STATE['SYS_LOG'] = clean_msg
 
 def update_system_stats():
-    """Đọc CPU và RAM tương tự script Bash."""
+    """Đọc CPU và RAM thông qua su -c (như script Bash) để tránh lỗi Permission Denied trên Android."""
     global prev_total_cpu, prev_active_cpu, UI_STATE
     
-    # Tính CPU
+    # --- Đọc CPU ---
     try:
-        with open('/proc/stat', 'r') as f:
-            line = f.readline()
-        parts = [int(x) for x in line.split()[1:8]]
-        idle = parts[3] + parts[4]  # idle + iowait
-        total = sum(parts)
-        active = total - idle
-        
-        if prev_total_cpu > 0:
-            diff_total = total - prev_total_cpu
-            diff_active = active - prev_active_cpu
-            if diff_total > 0:
-                UI_STATE['CPU'] = int(100 * diff_active / diff_total)
-        
-        prev_total_cpu = total
-        prev_active_cpu = active
-    except:
+        # Dùng su -c để lấy dòng đầu tiên của /proc/stat bằng quyền root
+        stat_out = subprocess.run(["su", "-c", "cat /proc/stat"], capture_output=True, text=True, timeout=2)
+        if stat_out.returncode == 0 and stat_out.stdout:
+            line = stat_out.stdout.strip().split('\n')[0]
+            if line.startswith('cpu '):
+                parts = [int(x) for x in line.split()[1:8]]
+                idle = parts[3] + parts[4]  # idle + iowait
+                total = sum(parts)
+                active = total - idle
+                
+                if prev_total_cpu > 0:
+                    diff_total = total - prev_total_cpu
+                    diff_active = active - prev_active_cpu
+                    if diff_total > 0:
+                        UI_STATE['CPU'] = int(100 * diff_active / diff_total)
+                
+                prev_total_cpu = total
+                prev_active_cpu = active
+    except Exception:
         pass
 
-    # Tính RAM
+    # --- Đọc RAM ---
     try:
-        with open('/proc/meminfo', 'r') as f:
-            lines = f.readlines()
-        mem_total = 0
-        mem_avail = 0
-        for line in lines:
-            if line.startswith('MemTotal:'):
-                mem_total = int(line.split()[1])
-            elif line.startswith('MemAvailable:'):
-                mem_avail = int(line.split()[1])
-        if mem_total > 0:
-            UI_STATE['RAM'] = int(100 - (mem_avail * 100 / mem_total))
-    except:
+        mem_out = subprocess.run(["su", "-c", "cat /proc/meminfo"], capture_output=True, text=True, timeout=2)
+        if mem_out.returncode == 0 and mem_out.stdout:
+            lines = mem_out.stdout.strip().split('\n')
+            mem_total = 0
+            mem_avail = 0
+            mem_free = 0
+            mem_cached = 0
+            
+            for line in lines:
+                if line.startswith('MemTotal:'):
+                    mem_total = int(line.split()[1])
+                elif line.startswith('MemAvailable:'):
+                    mem_avail = int(line.split()[1])
+                elif line.startswith('MemFree:'):
+                    mem_free = int(line.split()[1])
+                elif line.startswith('Cached:'):
+                    mem_cached = int(line.split()[1])
+            
+            # Nếu máy Android không báo MemAvailable (các bản Android cũ), dùng Free + Cached bù vào
+            if mem_avail == 0 and mem_free > 0:
+                mem_avail = mem_free + mem_cached
+                
+            if mem_total > 0:
+                UI_STATE['RAM'] = int(100 - (mem_avail * 100 / mem_total))
+    except Exception:
         pass
 
 def ui_loop():
