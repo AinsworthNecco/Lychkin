@@ -17,7 +17,7 @@ import urllib.request
 from datetime import datetime
 
 # ==============================================================================
-# SCRIPT: Lychkins's Task Runner v1.12 (Smart Path Injector + Dashboard UI)
+# SCRIPT: Lychkins's Task Runner v1.13 (Smart Path Injector + Update Loop UI)
 # ==============================================================================
 
 # ---------------------------------------------------
@@ -45,10 +45,11 @@ UI_READY = False
 UI_STATE = {
     'SCAN_TIMER': 0, 
     'LAUNCH_TIMER': 0, 
+    'UPDATE_TIMER': 0,
     'AUTO_CLOSE_TIMER': 0, 
     'SCAN_LOG': 'Đang chờ...', 
     'LAUNCH_LOG': 'Đang chờ...', 
-    'SYS_LOG': 'Đang chờ...', 
+    'UPDATE_LOG': 'Đang chờ...', 
     'AUTO_CLOSE_ENABLED': 'OFF', 
     'CPU': 0, 
     'RAM': 0
@@ -63,57 +64,88 @@ prev_active_cpu = 0
 def ui_log(thread_name, msg):
     """Thay thế lệnh print() để ghi log vào Dashboard 1 dòng."""
     global UI_READY, UI_STATE
+    clean_msg = msg.replace('\r', '').replace('\n', '').strip()
+    
     if not UI_READY:
-        print(f"[{thread_name}] {msg}")
+        print(f"[{thread_name}] {clean_msg}")
         return
         
-    clean_msg = msg.replace('\r', '').replace('\n', '').strip()
     if thread_name == "SCAN":
         UI_STATE['SCAN_LOG'] = clean_msg
     elif thread_name == "LAUNCH":
         UI_STATE['LAUNCH_LOG'] = clean_msg
-    else:
-        UI_STATE['SYS_LOG'] = clean_msg
+    elif thread_name in ["UPDATE", "SYS", "AUTO-CLOSE"]:
+        UI_STATE['UPDATE_LOG'] = clean_msg
 
 def update_system_stats():
-    """Đọc CPU và RAM tương tự script Bash."""
+    """Đọc CPU và RAM cực kỳ mạnh mẽ (hỗ trợ cả đọc trực tiếp và qua root)."""
     global prev_total_cpu, prev_active_cpu, UI_STATE
     
-    # Tính CPU
+    # --- Đọc CPU ---
+    stat_text = ""
     try:
         with open('/proc/stat', 'r') as f:
-            line = f.readline()
-        parts = [int(x) for x in line.split()[1:8]]
-        idle = parts[3] + parts[4]  # idle + iowait
-        total = sum(parts)
-        active = total - idle
-        
-        if prev_total_cpu > 0:
-            diff_total = total - prev_total_cpu
-            diff_active = active - prev_active_cpu
-            if diff_total > 0:
-                UI_STATE['CPU'] = int(100 * diff_active / diff_total)
-        
-        prev_total_cpu = total
-        prev_active_cpu = active
-    except:
-        pass
+            stat_text = f.readline()
+    except Exception:
+        try:
+            stat_out = subprocess.run(["su", "-c", "cat /proc/stat"], capture_output=True, text=True, timeout=2)
+            if stat_out.returncode == 0:
+                stat_text = stat_out.stdout.strip().split('\n')[0]
+        except Exception:
+            pass
 
-    # Tính RAM
+    if stat_text and stat_text.startswith('cpu '):
+        try:
+            parts = [int(x) for x in stat_text.split()[1:8]]
+            idle = parts[3] + parts[4]  # idle + iowait
+            total = sum(parts)
+            active = total - idle
+            
+            if prev_total_cpu > 0:
+                diff_total = total - prev_total_cpu
+                diff_active = active - prev_active_cpu
+                if diff_total > 0:
+                    UI_STATE['CPU'] = int(100 * diff_active / diff_total)
+            
+            prev_total_cpu = total
+            prev_active_cpu = active
+        except Exception:
+            pass
+
+    # --- Đọc RAM ---
+    mem_text = ""
     try:
         with open('/proc/meminfo', 'r') as f:
-            lines = f.readlines()
-        mem_total = 0
-        mem_avail = 0
-        for line in lines:
-            if line.startswith('MemTotal:'):
-                mem_total = int(line.split()[1])
-            elif line.startswith('MemAvailable:'):
-                mem_avail = int(line.split()[1])
-        if mem_total > 0:
-            UI_STATE['RAM'] = int(100 - (mem_avail * 100 / mem_total))
-    except:
-        pass
+            mem_text = f.read()
+    except Exception:
+        try:
+            mem_out = subprocess.run(["su", "-c", "cat /proc/meminfo"], capture_output=True, text=True, timeout=2)
+            if mem_out.returncode == 0:
+                mem_text = mem_out.stdout
+        except Exception:
+            pass
+
+    if mem_text:
+        try:
+            # Dùng Regex để tự động tìm chính xác số, bỏ qua các vấn đề định dạng khoảng trắng của Android
+            total_match = re.search(r'(?m)^MemTotal:\s+(\d+)', mem_text)
+            avail_match = re.search(r'(?m)^MemAvailable:\s+(\d+)', mem_text)
+            free_match = re.search(r'(?m)^MemFree:\s+(\d+)', mem_text)
+            cached_match = re.search(r'(?m)^Cached:\s+(\d+)', mem_text)
+
+            mem_total = int(total_match.group(1)) if total_match else 0
+            mem_avail = int(avail_match.group(1)) if avail_match else 0
+            mem_free = int(free_match.group(1)) if free_match else 0
+            mem_cached = int(cached_match.group(1)) if cached_match else 0
+
+            # Nếu máy Android không báo MemAvailable (các bản Android cũ), dùng Free + Cached bù vào
+            if mem_avail == 0 and mem_free > 0:
+                mem_avail = mem_free + mem_cached
+                
+            if mem_total > 0:
+                UI_STATE['RAM'] = int(100 - (mem_avail * 100 / mem_total))
+        except Exception:
+            pass
 
 def ui_loop():
     """Luồng chính chuyên vẽ Giao diện."""
@@ -148,47 +180,56 @@ def ui_loop():
         
         scan_timer = f"{UI_STATE.get('SCAN_TIMER', 0)}s"
         launch_timer = f"{UI_STATE.get('LAUNCH_TIMER', 0)}s"
+        upd_timer = f"{UI_STATE.get('UPDATE_TIMER', 0)}s"
         
+        scan_log = UI_STATE.get('SCAN_LOG', '')
+        launch_log = UI_STATE.get('LAUNCH_LOG', '')
+        upd_log = UI_STATE.get('UPDATE_LOG', '')
+
         # Hàm format có màu nhưng vẫn giữ nguyên khoảng trắng để căn lề bảng
         def fmt_color(text, color_code, width):
-            text = str(text)
-            return f"\033[{color_code}m{text}{' ' * (width - len(text))}\033[0m"
+            text = str(text)[:width]
+            padded = text + ' ' * max(0, width - len(text))
+            return f"\033[{color_code}m{padded}\033[0m"
 
-        ac_c = fmt_color(ac_enabled, "32", 5)        # Công tắc màu Xanh lá
-        time_c = fmt_color(ac_time_str, "33", 16)    # Bộ đếm màu Vàng
-        scan_c = fmt_color(scan_timer, "36", 5)      # Scan timer màu Cyan
-        launch_c = fmt_color(launch_timer, "36", 14) # Launch timer màu Cyan
+        def make_row(name, timer, log, c_name, c_time, c_log):
+            n = fmt_color(name, c_name, 10)
+            t = fmt_color(timer, c_time, 6)
+            # Tăng lên 25 để vừa khít 51 ký tự viền bảng
+            l = fmt_color(log, c_log, 25) 
+            return f"| {n} | {t} | {l} |"
+
+        # Định dạng riêng cho dòng Auto Close (Tăng lên 27 để vừa khít bảng)
+        ac_status = f"Auto Close : {ac_enabled}"
+        ac_time   = f"Time : {ac_time_str}"
+        ac_str = f"| \033[32m{ac_status:<17}\033[0m | \033[33m{ac_time:<27}\033[0m |"
+
+        # Định dạng cho Scan, Launch, Update
+        scan_row = make_row("Scan", scan_timer, scan_log, "36", "36", "36")
+        launch_row = make_row("Launch", launch_timer, launch_log, "36", "36", "36")
+        update_row = make_row("Update", upd_timer, upd_log, "33", "33", "33")
         
         print("+-------------------------------------------------+")
         print(f"|{' ' * pad_left}{stats_str}{' ' * pad_right}|")
         print("+-------------------------------------------------+")
-        print(f"| Auto Close: {ac_c} | Time left: {time_c} |")
-        print(f"| Next Scan : {scan_c} | Next Launch: {launch_c} |")
+        print(ac_str)
+        print(scan_row)
+        print(launch_row)
+        print(update_row)
         print("+-------------------------------------------------+")
-        
-        # 3 dòng Log duy nhất (Cắt bớt text nếu quá dài để không bị vỡ khung)
-        scan_log = UI_STATE.get('SCAN_LOG', '')[:50]
-        launch_log = UI_STATE.get('LAUNCH_LOG', '')[:50]
-        sys_log = UI_STATE.get('SYS_LOG', '')[:50]
-        
-        # SYSTEM màu vàng và nằm trên cùng
-        print(f"[\033[33mSYSTEM\033[0m] : {sys_log}")
-        # SCAN và LAUNCH cùng màu cyan
-        print(f"[\033[36mSCAN\033[0m]   : {scan_log}")
-        print(f"[\033[36mLAUNCH\033[0m] : {launch_log}")
         
         time.sleep(1)
 
 def countdown(seconds, thread_name="MAIN"):
-    """Countdown chạy ngầm, không in ra màn hình mà nạp vào UI STATE."""
+    """Countdown chạy ngầm, tự động gán Timer theo Thread Name."""
+    timer_key = f"{thread_name}_TIMER"
     for i in range(seconds, 0, -1):
-        if thread_name == "SCAN": UI_STATE['SCAN_TIMER'] = i
-        elif thread_name == "LAUNCH": UI_STATE['LAUNCH_TIMER'] = i
-        else: pass
+        if timer_key in UI_STATE:
+            UI_STATE[timer_key] = i
         time.sleep(1)
     
-    if thread_name == "SCAN": UI_STATE['SCAN_TIMER'] = 0
-    elif thread_name == "LAUNCH": UI_STATE['LAUNCH_TIMER'] = 0
+    if timer_key in UI_STATE:
+        UI_STATE[timer_key] = 0
 
 # ==============================================================================
 # -- CÁC HÀM TIỆN ÍCH CƠ BẢN --
@@ -232,7 +273,7 @@ def load_local_ids_from_file():
                         if uid.isdigit():
                             local_map[suf] = uid
         except Exception as e:
-            print(f"[CONFIG] Lỗi đọc file local: {e}")
+            pass
     return local_map
 
 def fetch_proxies_from_url(url):
@@ -241,7 +282,7 @@ def fetch_proxies_from_url(url):
         if response.status_code == 200:
             return [item.strip() for item in response.text.splitlines() if item.strip()]
     except Exception as e:
-        print(f"[PROXY] Lỗi tải proxy từ URL: {e}")
+        ui_log("UPDATE", f"Lỗi tải proxy: {e}")
     return []
 
 def fetch_and_load_config(url):
@@ -255,7 +296,7 @@ def fetch_and_load_config(url):
         
         for key, _, value in pattern.findall(response.text):
             value = value.strip()
-            if key in ["SCAN_INTERVAL_SECONDS", "LAUNCH_INTERVAL_SECONDS", "CONNECTION_TIMEOUT", "REBOOT_INTERVAL_MINUTES", "LAUNCH_DELAY_SECONDS", "KEY_CHECK_INTERVAL_MINUTES", "AUTO_CLOSE_HOURS"]:
+            if key in ["SCAN_INTERVAL_SECONDS", "LAUNCH_INTERVAL_SECONDS", "CONNECTION_TIMEOUT", "REBOOT_INTERVAL_MINUTES", "LAUNCH_DELAY_SECONDS", "KEY_CHECK_INTERVAL_MINUTES", "AUTO_CLOSE_HOURS", "UPDATE_INTERVAL_MINUTES"]:
                 config[key] = int(value)
             elif key in ["MIN_PLAYER_PERCENTAGE", "MAX_PLAYER_PERCENTAGE"]:
                 config[key] = float(value)
@@ -289,19 +330,19 @@ def fetch_and_load_config(url):
             if target_path_key in config:
                 config["OUTPUT_FILE_PATH"] = config[target_path_key]
             else:
-                print(f"[CONFIG] Lỗi: Executor {selected_id} thiếu '{target_path_key}'.")
+                ui_log("UPDATE", f"Lỗi: Executor {selected_id} thiếu '{target_path_key}'.")
                 sys.exit(1)
         
         if "OUTPUT_FILE_PATH" not in config:
-            print("[CONFIG] Lỗi: Thiếu OUTPUT_FILE_PATH.")
+            ui_log("UPDATE", "Lỗi: Thiếu OUTPUT_FILE_PATH.")
             sys.exit(1)
         if "PLACE_ID" not in config:
-            print("[CONFIG] Lỗi: Thiếu PLACE_ID.")
+            ui_log("UPDATE", "Lỗi: Thiếu PLACE_ID.")
             sys.exit(1)
 
         return config
     except Exception as e:
-        print(f"\n[CONFIG] Lỗi tải cấu hình: {e}")
+        ui_log("UPDATE", f"Lỗi tải cấu hình: {e}")
         sys.exit(1)
 
 def format_proxies(proxy_list):
@@ -329,12 +370,12 @@ def run_root_cmd_injector(command):
         return None, str(e), -1
 
 def get_remote_cookies_list():
-    print(f"[COOKIE] Đang tải danh sách Cookie từ GitHub...")
+    ui_log("UPDATE", "Đang tải danh sách Cookie từ GitHub...")
     try:
         req = urllib.request.Request(COOKIE_URL, headers={'User-Agent': 'Mozilla/5.0'})
         with urllib.request.urlopen(req) as response:
             if response.status != 200:
-                print(f"[COOKIE] Lỗi HTTP: {response.status}")
+                ui_log("UPDATE", f"Lỗi HTTP Cookie: {response.status}")
                 return []
             
             data = response.read().decode('utf-8').strip()
@@ -345,10 +386,10 @@ def get_remote_cookies_list():
                 if "_|WARNING:-DO-NOT-SHARE" in line:
                     valid_cookies.append(line)
             
-            print(f"[COOKIE] Tìm thấy {len(valid_cookies)} cookie hợp lệ.")
+            ui_log("UPDATE", f"Tìm thấy {len(valid_cookies)} cookie hợp lệ.")
             return valid_cookies
     except Exception as e:
-        print(f"[COOKIE] Lỗi tải Cookie: {e}")
+        ui_log("UPDATE", f"Lỗi tải Cookie: {e}")
         return []
 
 def find_real_cookie_path(package_name):
@@ -496,10 +537,10 @@ def update_local_config_file(suffix, user_id):
     except Exception: pass
 
 def run_cookie_check_sequence(config):
-    print("\n[COOKIE] === KIỂM TRA COOKIE (SMART PATH) ===")
+    ui_log("UPDATE", "=== KIỂM TRA COOKIE (SMART PATH) ===")
     remote_cookies = get_remote_cookies_list()
     if not remote_cookies:
-        print("[COOKIE] Không lấy được danh sách Cookie -> Dừng kiểm tra.")
+        ui_log("UPDATE", "Không lấy được danh sách Cookie -> Bỏ qua.")
         return
 
     base_pkg = config.get("BASE_PACKAGE_NAME", "com.roblox.clien")
@@ -512,26 +553,25 @@ def run_cookie_check_sequence(config):
         if i < len(remote_cookies): assigned_cookie = remote_cookies[i]
         else: continue
 
-        print(f"[COOKIE] Acc '{suffix}' -> ", end="")
         local_cookie = get_local_cookie_injector(pkg_name)
 
         if local_cookie == assigned_cookie:
-            print("OK (Khớp) -> Skip.")
+            ui_log("UPDATE", f"Acc '{suffix}' -> OK (Khớp)")
         else:
-            if local_cookie is None: print("MISSING (Chưa có/Không tìm thấy file).")
-            else: print("MISMATCH (Khác biệt).")
+            if local_cookie is None: ui_log("UPDATE", f"Acc '{suffix}' -> MISSING")
+            else: ui_log("UPDATE", f"Acc '{suffix}' -> MISMATCH")
             
             success = inject_cookie_process(pkg_name, assigned_cookie)
             if success:
-                print(f"[INFO] Đang lấy ID mới cho '{suffix}'...")
+                ui_log("UPDATE", f"Đang lấy ID mới cho '{suffix}'...")
                 uid = get_roblox_user_id(assigned_cookie)
                 if uid:
-                    print(f"[INFO] ID tìm thấy: {uid}")
+                    ui_log("UPDATE", f"ID tìm thấy: {uid}")
                     update_local_config_file(suffix, uid)
                     acc['id'] = uid 
                 else:
-                    print(f"[INFO] Không lấy được ID từ API.")
-    print("[COOKIE] === HOÀN TẤT ===\n")
+                    ui_log("UPDATE", f"Không lấy được ID từ API.")
+    ui_log("UPDATE", "Hoàn tất kiểm tra và cập nhật.")
 
 # ==============================================================================
 # -- CÁC HÀM KẾT NỐI API (SCANNER/LAUNCHER) --
@@ -656,8 +696,64 @@ def check_roblox_presence_single(account_id, config, thread_name, proxy_list, in
     return False
 
 # ==============================================================================
-# -- DELTA KEY MANAGER & LỖI PHỤ --
+# -- CÁC VÒNG LẶP CHẠY NGẦM (UPDATE, AUTO-CLOSE, DELTA) --
 # ==============================================================================
+
+def update_loop():
+    """Vòng lặp tải lại Cấu hình, Proxy, Cookie từ Github."""
+    thread_name = "UPDATE"
+    while True:
+        try:
+            config = fetch_and_load_config(CONFIG_URL)
+            interval_mins = config.get("UPDATE_INTERVAL_MINUTES", 60)
+            
+            ui_log(thread_name, f"Chờ {interval_mins} phút...")
+            countdown(interval_mins * 60, "UPDATE")
+            
+            ui_log(thread_name, "Đang tải cấu hình & cookie mới...")
+            new_config = fetch_and_load_config(CONFIG_URL)
+            run_cookie_check_sequence(new_config)
+            
+        except Exception as e:
+            ui_log(thread_name, f"Lỗi Update Loop: {e}")
+            time.sleep(60)
+
+def auto_close_loop():
+    thread_name = "AUTO-CLOSE"
+    while True:
+        try:
+            config = fetch_and_load_config(CONFIG_URL)
+            enabled = config.get("AUTO_CLOSE_ENABLED", "off").lower()
+            UI_STATE['AUTO_CLOSE_ENABLED'] = enabled
+            
+            if enabled == "on":
+                hours = config.get("AUTO_CLOSE_HOURS", 1)
+                total_seconds = hours * 3600
+                ui_log(thread_name, f"Auto Close ĐÃ BẬT ({hours} giờ)")
+                
+                while total_seconds > 0:
+                    UI_STATE['AUTO_CLOSE_TIMER'] = total_seconds
+                    time.sleep(1)
+                    total_seconds -= 1
+                    
+                accounts = config.get("ACCOUNT_SUFFIXES", [])
+                base_pkg = config.get("BASE_PACKAGE_NAME", "com.roblox.clien")
+                
+                ui_log(thread_name, "Đã đến giờ. Tiến hành tắt toàn bộ tab (kill)...")
+                for acc in accounts:
+                    suffix = acc['suffix']
+                    pkg_name = f"{base_pkg}{suffix}"
+                    try:
+                        cmd_kill = f"PID=$(ps -ef | grep {pkg_name} | grep -v grep | awk '{{print $2}}'); if [ ! -z \"$PID\" ]; then kill -9 $PID; fi"
+                        subprocess.run(["su", "-c", cmd_kill], capture_output=True, timeout=10)
+                    except: pass
+                ui_log(thread_name, "Đã tắt xong toàn bộ tab. Chờ chu kỳ tiếp theo...")
+            else:
+                UI_STATE['AUTO_CLOSE_TIMER'] = 0
+                time.sleep(3600)
+        except Exception as e:
+            ui_log(thread_name, f"Lỗi Auto Close: {e}")
+            time.sleep(60)
 
 def delta_key_monitor_loop():
     thread_name = "SYS"
@@ -821,47 +917,6 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
                 ui_log(thread_name, f"Đợi {delay}s...")
                 time.sleep(delay)
 
-# ==============================================================================
-# -- VÒNG LẶP & MAIN --
-# ==============================================================================
-
-def auto_close_loop():
-    thread_name = "SYS"
-    while True:
-        try:
-            config = fetch_and_load_config(CONFIG_URL)
-            enabled = config.get("AUTO_CLOSE_ENABLED", "off").lower()
-            UI_STATE['AUTO_CLOSE_ENABLED'] = enabled
-            
-            if enabled == "on":
-                hours = config.get("AUTO_CLOSE_HOURS", 1)
-                total_seconds = hours * 3600
-                ui_log(thread_name, f"Auto Close ĐÃ BẬT ({hours} giờ)")
-                
-                while total_seconds > 0:
-                    UI_STATE['AUTO_CLOSE_TIMER'] = total_seconds
-                    time.sleep(1)
-                    total_seconds -= 1
-                    
-                accounts = config.get("ACCOUNT_SUFFIXES", [])
-                base_pkg = config.get("BASE_PACKAGE_NAME", "com.roblox.clien")
-                
-                ui_log(thread_name, "Đã đến giờ. Tiến hành tắt toàn bộ tab (kill)...")
-                for acc in accounts:
-                    suffix = acc['suffix']
-                    pkg_name = f"{base_pkg}{suffix}"
-                    try:
-                        cmd_kill = f"PID=$(ps -ef | grep {pkg_name} | grep -v grep | awk '{{print $2}}'); if [ ! -z \"$PID\" ]; then kill -9 $PID; fi"
-                        subprocess.run(["su", "-c", cmd_kill], capture_output=True, timeout=10)
-                    except: pass
-                ui_log(thread_name, "Đã tắt xong toàn bộ tab. Chờ chu kỳ tiếp theo...")
-            else:
-                UI_STATE['AUTO_CLOSE_TIMER'] = 0
-                time.sleep(3600)
-        except Exception as e:
-            ui_log(thread_name, f"Lỗi Auto Close: {e}")
-            time.sleep(60)
-
 def scanner_loop():
     ui_log("SCAN", "Bắt đầu Scan Loop.")
     config = fetch_and_load_config(CONFIG_URL)
@@ -891,7 +946,7 @@ if __name__ == "__main__":
     os.system("termux-wake-lock")
     if not check_root_access(): sys.exit(1)
     
-    print("[MAIN] Tải cấu hình & Kiểm tra Cookie (v1.12 Smart Inject + Dashboard)...")
+    print("[MAIN] Tải cấu hình & Kiểm tra Cookie (v1.13 Smart Inject + Update Loop)...")
     initial_config = fetch_and_load_config(CONFIG_URL)
     
     if initial_config.get("WM_RESIZE_ENABLED", "off").lower() == "on":
@@ -914,6 +969,7 @@ if __name__ == "__main__":
     threading.Thread(target=reboot_loop, daemon=True).start()
     threading.Thread(target=delta_key_monitor_loop, daemon=True).start()
     threading.Thread(target=auto_close_loop, daemon=True).start()
+    threading.Thread(target=update_loop, daemon=True).start()
 
     parser = argparse.ArgumentParser()
     subparsers = parser.add_subparsers(dest='command')
