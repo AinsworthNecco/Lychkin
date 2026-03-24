@@ -31,8 +31,12 @@ REBOOT_INTERVAL_MINUTES="240"         # Thời gian khởi động lại (phút)
 AUTO_CLOSE_ENABLED = "on"
 AUTO_CLOSE_HOURS = "6"
 
+# --- SCREEN SIZE ---
 WM_ROTATION_ENABLED = "on"
 WM_RESIZE_ENABLED = "off"
 WM_SIZE = "1000x1000"
 WM_DENSITY = "250"
 Khi muốn tắt, bạn chỉ cần sửa thành `WM_RESIZE_ENABLED = "off"` là script sẽ không chạy 2 lệnh đổi độ phân giải nữa.
+
+# --- UPDATE DATA ---
+UPDATE_INTERVAL_MINUTES = "60"
