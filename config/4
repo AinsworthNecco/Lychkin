@@ -4,8 +4,8 @@
 
 # --- THÔNG TIN TÀI KHOẢN & GAME ---
 PLACE_ID="8737602449"                # ID Game Roblox
-BASE_PACKAGE_NAME="zam.code" # Gói ứng dụng gốc
-ACCOUNT_SUFFIXES="y z w v u t s r q p"         # Hậu tố app clone q p
+BASE_PACKAGE_NAME="neco.code" # Gói ứng dụng gốc
+ACCOUNT_SUFFIXES="1 2 3 4 5 6 7 8 9 10"         # Hậu tố app clone q p
 
 # --- CẤU HÌNH QUÉT SERVER (SCAN) ---
 SCAN_INTERVAL_SECONDS="180"          # Thời gian nghỉ giữa các lần quét (giây)
