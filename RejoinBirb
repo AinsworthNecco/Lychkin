@@ -15,8 +15,8 @@ ENABLE_EXTREME_MODE="ON"      # Bật ép Giảm FPS
 TARGET_FPS=30              # Ép tần số quét/FPS thấp nhất
 
 JOIN_TARGET="https://www.roblox.com/share?code=98a1b858bf53db43b688552818e40748&type=Server"
-BASE_PACKAGE_NAME="com.roblox.clien"  
-ACCOUNT_SUFFIXES="b c d e f"          
+BASE_PACKAGE_NAME="com.roblox.client"  
+ACCOUNT_SUFFIXES="1 2 3 4 5"          
 
 # ==========================================
 # CÁC BIẾN TOÀN CỤC & TRẠNG THÁI UI
