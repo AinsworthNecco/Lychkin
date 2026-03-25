@@ -29,15 +29,6 @@ def check_root_access():
     except Exception:
         return False
 
-def check_process_running(pkg_name):
-    """Kiểm tra xem ứng dụng có đang chạy hay không bằng pidof (siêu nhẹ)"""
-    try:
-        cmd = f"pidof {pkg_name}"
-        result = subprocess.run(["su", "-c", cmd], capture_output=True, text=True, timeout=5)
-        return bool(result.stdout.strip())
-    except Exception:
-        return False
-
 def launch_vip_server(pkg_name, url):
     """Gửi lệnh Intent mở app thẳng vào link VIP"""
     cmd = f"am start -a android.intent.action.VIEW -d '{url}' -p {pkg_name}"
@@ -64,25 +55,20 @@ def main():
     print(f"[*] Link VIP: {VIP_SERVER_URL}\n")
 
     while True:
-        print(f"\n[+] BẮT ĐẦU VÒNG LẶP KIỂM TRA: {time.strftime('%H:%M:%S')}")
+        print(f"\n[+] BẮT ĐẦU VÒNG LẶP AUTO JOIN: {time.strftime('%H:%M:%S')}")
         print("-" * 40)
         
         for suffix in suffixes:
             pkg_name = f"{BASE_PACKAGE_NAME}{suffix}"
             
-            is_running = check_process_running(pkg_name)
+            print(f"[>] Đang gửi lệnh join VIP Server cho app '{pkg_name}'...")
+            launch_vip_server(pkg_name, VIP_SERVER_URL)
             
-            if not is_running:
-                print(f"[>] App '{pkg_name}' đang TẮT -> Đang mở vào VIP Server...")
-                launch_vip_server(pkg_name, VIP_SERVER_URL)
-                
-                print(f"    Đợi {LAUNCH_DELAY_SECONDS} giây...")
-                time.sleep(LAUNCH_DELAY_SECONDS)
-            else:
-                print(f"[=] App '{pkg_name}' đang CHẠY -> Bỏ qua.")
+            print(f"    Đợi {LAUNCH_DELAY_SECONDS} giây...")
+            time.sleep(LAUNCH_DELAY_SECONDS)
                 
         print("-" * 40)
-        print(f"[+] Hoàn tất 1 vòng. Nghỉ {CHECK_INTERVAL_SECONDS} giây trước khi kiểm tra lại...")
+        print(f"[+] Hoàn tất 1 vòng. Nghỉ {CHECK_INTERVAL_SECONDS} giây trước khi chạy lại...")
         time.sleep(CHECK_INTERVAL_SECONDS)
 
 if __name__ == "__main__":
