@@ -41,4 +41,3 @@ Khi muốn tắt, bạn chỉ cần sửa thành `WM_RESIZE_ENABLED = "off"` là
 # --- UPDATE DATA ---
 UPDATE_INTERVAL_MINUTES = "60"
 
-ENABLE_HARDCORE_OPTIMIZE = "on"
