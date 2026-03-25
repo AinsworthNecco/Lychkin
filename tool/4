@@ -71,7 +71,7 @@ def main():
             if is_first_run:
                 print(f"[x] Lần chạy đầu tiên: Đang ép tắt app '{pkg_name}'...")
                 force_stop_app(pkg_name)
-                time.sleep(2) # Đợi 2 giây cho app tắt hẳn
+                time.sleep(5) # Đợi 5 giây cho app tắt hẳn
             
             print(f"[>] Đang gửi lệnh join VIP Server cho app '{pkg_name}'...")
             launch_vip_server(pkg_name, VIP_SERVER_URL)
