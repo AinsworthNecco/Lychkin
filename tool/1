@@ -17,7 +17,7 @@ import urllib.request
 from datetime import datetime
 
 # ==============================================================================
-# SCRIPT: Lychkins's Task Runner v1.14 (Smart Path Injector + Extreme Idle UI)
+# SCRIPT: Lychkins's Task Runner v1.13 (Smart Path Injector + Update Loop UI)
 # ==============================================================================
 
 # ---------------------------------------------------
@@ -55,7 +55,7 @@ UI_STATE = {
 }
 
 # ==============================================================================
-# -- HÀM XỬ LÝ GIAO DIỆN & TỐI ƯU HỆ THỐNG --
+# -- HÀM XỬ LÝ GIAO DIỆN --
 # ==============================================================================
 
 def ui_log(thread_name, msg):
@@ -73,33 +73,6 @@ def ui_log(thread_name, msg):
         UI_STATE['LAUNCH_LOG'] = clean_msg
     elif thread_name in ["UPDATE", "SYS", "AUTO-CLOSE"]:
         UI_STATE['UPDATE_LOG'] = clean_msg
-
-def setup_system_optimizations(config):
-    """Thiết lập các tối ưu sâu cho Android (Hardcore & Extreme Mode)."""
-    if config.get("ENABLE_HARDCORE_OPTIMIZE", "off").lower() == "on":
-        ui_log("SYS", "Bật Tối ưu Hardcore (Giảm sáng, tắt animation...)")
-        # Giảm sáng màn hình tối đa
-        subprocess.run(["su", "-c", "settings put system screen_brightness_mode 0"], capture_output=True)
-        subprocess.run(["su", "-c", "settings put system screen_brightness 1"], capture_output=True)
-        
-        # Tắt hiệu ứng Animation
-        subprocess.run(["su", "-c", "settings put global window_animation_scale 0"], capture_output=True)
-        subprocess.run(["su", "-c", "settings put global transition_animation_scale 0"], capture_output=True)
-        subprocess.run(["su", "-c", "settings put global animator_duration_scale 0"], capture_output=True)
-        
-        # Chống Kill ngầm Termux (Phantom Process)
-        subprocess.run(["su", "-c", "device_config put activity_manager max_phantom_processes 2147483647"], capture_output=True)
-        subprocess.run(["su", "-c", "settings put global settings_enable_monitor_phantom_procs false"], capture_output=True)
-        
-        # Ngăn Doze Mode
-        subprocess.run(["su", "-c", "dumpsys deviceidle disable"], capture_output=True)
-
-    if config.get("ENABLE_EXTREME_MODE", "off").lower() == "on":
-        fps = config.get("TARGET_FPS", 30)
-        ui_log("SYS", f"Bật Extreme Mode (Ép FPS: {fps})")
-        subprocess.run(["su", "-c", f"settings put system min_refresh_rate {fps}"], capture_output=True)
-        subprocess.run(["su", "-c", f"settings put system peak_refresh_rate {fps}"], capture_output=True)
-        subprocess.run(["su", "-c", "setprop debug.hwui.fps_divisor 2"], capture_output=True)
 
 def ui_loop():
     """Luồng chính chuyên vẽ Giao diện."""
@@ -201,7 +174,7 @@ def check_root_access():
 
 def check_process_running(pkg_name):
     try:
-        # TỐI ƯU: Dùng pidof siêu nhẹ thay vì ps -ef | grep tốn tài nguyên
+        # TỐI ƯU 3: Dùng pidof siêu nhẹ thay vì ps -ef | grep tốn tài nguyên
         cmd = f"pidof {pkg_name}"
         result = subprocess.run(["su", "-c", cmd], capture_output=True, text=True, timeout=5)
         if result.stdout.strip():
@@ -706,9 +679,6 @@ def auto_close_loop():
                         cmd_kill = f"PID=$(ps -ef | grep {pkg_name} | grep -v grep | awk '{{print $2}}'); if [ ! -z \"$PID\" ]; then kill -9 $PID; fi"
                         subprocess.run(["su", "-c", cmd_kill], capture_output=True, timeout=10)
                     except: pass
-                
-                # Xả RAM rác sau khi Kill toàn bộ
-                subprocess.run(["su", "-c", "sync && echo 3 > /proc/sys/vm/drop_caches"], capture_output=True)
                 ui_log(thread_name, "Đã tắt xong toàn bộ tab. Chờ chu kỳ tiếp theo...")
             else:
                 UI_STATE['AUTO_CLOSE_TIMER'] = 0
@@ -856,9 +826,6 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
                 try:
                     cmd_kill = f"PID=$(ps -ef | grep {pkg_name} | grep -v grep | awk '{{print $2}}'); if [ ! -z \"$PID\" ]; then kill -9 $PID; fi"
                     subprocess.run(["su", "-c", cmd_kill], capture_output=True, timeout=10)
-                    
-                    # Dọn dẹp RAM rác trước khi mở lại ứng dụng
-                    subprocess.run(["su", "-c", "sync && echo 3 > /proc/sys/vm/drop_caches"], capture_output=True, timeout=5)
                     time.sleep(3) 
                 except: pass
                 should_launch = True
@@ -911,11 +878,8 @@ if __name__ == "__main__":
     os.system("termux-wake-lock")
     if not check_root_access(): sys.exit(1)
     
-    print("[MAIN] Tải cấu hình & Kiểm tra Cookie (v1.14 Smart Inject + Extreme Idle)...")
+    print("[MAIN] Tải cấu hình & Kiểm tra Cookie (v1.13 Smart Inject + Update Loop)...")
     initial_config = fetch_and_load_config(CONFIG_URL)
-    
-    # Thiết lập các tối ưu mạnh tay cho Android
-    setup_system_optimizations(initial_config)
     
     if initial_config.get("WM_RESIZE_ENABLED", "off").lower() == "on":
         wm_size = initial_config.get("WM_SIZE", "600x600")
@@ -958,8 +922,7 @@ if __name__ == "__main__":
             threading.Thread(target=launcher_loop, args=('vip',), daemon=True).start()
             while True: time.sleep(1)
     except KeyboardInterrupt:
-        # Khôi phục độ sáng màn hình khi thoát tool
-        subprocess.run(["su", "-c", "settings put system screen_brightness 100"], capture_output=True)
+        # Áp dụng Tối Ưu 2 cho cả lúc tắt tool
         sys.stdout.write('\033c')
         sys.stdout.flush()
         print("\n[MAIN] Dừng Script. Đang thoát...")
