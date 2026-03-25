@@ -11,7 +11,7 @@ import subprocess
 # ==============================================================================
 
 BASE_PACKAGE_NAME = "com.roblox.client"             # Gói ứng dụng gốc
-ACCOUNT_SUFFIXES = "1 2 3 4 5"              # Hậu tố app clone (cách nhau bởi dấu cách)
+ACCOUNT_SUFFIXES = "2 3 4 5 6"              # Hậu tố app clone (cách nhau bởi dấu cách)
 VIP_SERVER_URL = "https://www.roblox.com/share?code=98a1b858bf53db43b688552818e40748&type=Server" # Link VIP Server
 
 LAUNCH_DELAY_SECONDS = 15     # Thời gian chờ (giây) giữa mỗi lần mở app clone
