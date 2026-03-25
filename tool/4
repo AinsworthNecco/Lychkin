@@ -15,7 +15,7 @@ ACCOUNT_SUFFIXES = "2 3 4 5 6"              # Hậu tố app clone (cách nhau b
 VIP_SERVER_URL = "https://www.roblox.com/share?code=98a1b858bf53db43b688552818e40748&type=Server" # Link VIP Server
 
 LAUNCH_DELAY_SECONDS = 15     # Thời gian chờ (giây) giữa mỗi lần mở app clone
-CHECK_INTERVAL_SECONDS = 300  # Thời gian chờ (giây) để vòng lặp quay lại kiểm tra từ đầu
+CHECK_INTERVAL_SECONDS = 60   # Thời gian chờ (giây) để vòng lặp quay lại kiểm tra từ đầu
 
 # ==============================================================================
 # CODE XỬ LÝ
@@ -28,6 +28,11 @@ def check_root_access():
         return "root" in process.stdout.strip()
     except Exception:
         return False
+
+def force_stop_app(pkg_name):
+    """Ép dừng ứng dụng"""
+    cmd = f"am force-stop {pkg_name}"
+    subprocess.run(["su", "-c", cmd], capture_output=True)
 
 def launch_vip_server(pkg_name, url):
     """Gửi lệnh Intent mở app thẳng vào link VIP"""
@@ -54,6 +59,8 @@ def main():
     print(f"[*] Số lượng Clone: {len(suffixes)}")
     print(f"[*] Link VIP: {VIP_SERVER_URL}\n")
 
+    is_first_run = True
+
     while True:
         print(f"\n[+] BẮT ĐẦU VÒNG LẶP AUTO JOIN: {time.strftime('%H:%M:%S')}")
         print("-" * 40)
@@ -61,12 +68,19 @@ def main():
         for suffix in suffixes:
             pkg_name = f"{BASE_PACKAGE_NAME}{suffix}"
             
+            if is_first_run:
+                print(f"[x] Lần chạy đầu tiên: Đang ép tắt app '{pkg_name}'...")
+                force_stop_app(pkg_name)
+                time.sleep(2) # Đợi 2 giây cho app tắt hẳn
+            
             print(f"[>] Đang gửi lệnh join VIP Server cho app '{pkg_name}'...")
             launch_vip_server(pkg_name, VIP_SERVER_URL)
             
             print(f"    Đợi {LAUNCH_DELAY_SECONDS} giây...")
             time.sleep(LAUNCH_DELAY_SECONDS)
                 
+        is_first_run = False # Tắt cờ first_run sau khi hoàn thành vòng đầu tiên
+        
         print("-" * 40)
         print(f"[+] Hoàn tất 1 vòng. Nghỉ {CHECK_INTERVAL_SECONDS} giây trước khi chạy lại...")
         time.sleep(CHECK_INTERVAL_SECONDS)
