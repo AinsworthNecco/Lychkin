@@ -32,13 +32,11 @@ _|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-
 _|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_CAEaAhADIhwKBGR1aWQSFDE2ODI0ODk1MDIyOTAyODg0NzU3KAM.NXlw-ZvIuJGJIbzSkWE7cfzfUNn3e8jQprfYhDsICSJQt9dhDMvBSY74ve23d0GCrmbbfei0Q5zeKS6bZ7wwTlLXfvUqf3mE2rX0XsvvF1MWriLVGKgf5wqUf5NrvWvy5nC8sQo1cihrPxTdm38EUz3ieNqr4g-nOynF_r8e6puB2jGvL-B4jwYE7sewV6QXZ0MUKhLXYXKdin9EDmyEnY9lcPbWzGzp-oLbK38JuD8MpFcLuJBZQHlB4xgglDYoTbBwnuBfgOEmw6Cz0233gmXf5oQsfOkRxQEbvTYPnmOTHH4MD_wV4uNfUnVqqXNO7iDG6h1ikPtet-SGbN26X-9eecRRpfPP-aARFLAearJFlkPtAuNk6emIVeF8ISzZUH0f4uhcH08llQUDPZix4jhKq9ozUb9QBKAN2ToHEGMbAb0SxpvbsSIUcfAiRRv4f9Nf_34BNo1axWMJ4GZq452udWGnpDNE9JUkAhC6TdpOZ_GGh-VO7j49pBVaqvxZS3Z1JQZSHRvhREh5w46YvQGglFstNWND0S-FqfhN6OPgpR_LC1nGDdjkzNbSuE19Psgdh8HzfHebjfTOz3TRWEw0lIcWPsjERI2KkhnEDMg-Kixq6KcaqKFSNgpCmTyBopqc_HN9uQD_eg5BQaXJfZa05r80cGyJoY3-rzZPLcthYm6C
 """
 
-# DANH SÁCH PROXY (Tuỳ chọn: ip:port hoặc user:pass@ip:port - Để trống nếu dùng IP Gốc)
-RAW_PROXIES = """
-"""
+# LINK TẢI PROXY ONLINE
+PROXY_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/proxy/proxy"
 
 # Tự động chuyển đổi chuỗi thành danh sách chuẩn
 COOKIES = [c.strip() for c in RAW_COOKIES.strip().splitlines() if c.strip()]
-PROXY_LIST = [p.strip() for p in RAW_PROXIES.strip().splitlines() if p.strip()]
 
 # ==============================================================================
 # BIẾN TOÀN CỤC & UI STATE (GIỮ NGUYÊN BẢN GỐC)
@@ -54,7 +52,7 @@ UI_STATE = {
     'LAUNCH_TIMER': 0, 
     'UPDATE_TIMER': 0,
     'LAUNCH_LOG': 'Đang khởi động...', 
-    'UPDATE_LOG': 'Đang chờ...'
+    'UPDATE_LOG': 'Đã nạp Cookie 1 lần đầu'
 }
 
 # ==============================================================================
@@ -470,12 +468,22 @@ def check_roblox_presence_single(account_id, config, thread_name, proxy_list, in
 # -- LOGIC CHÍNH: LAUNCH --
 # ==============================================================================
 
-def launch_roblox_instances(config, thread_name="LAUNCH"):
+def launch_roblox_instances(config, thread_name="LAUNCH", is_first_run=False):
     accounts = config.get("ACCOUNT_SUFFIXES", [])
     base_pkg = config.get("BASE_PACKAGE_NAME", "com.roblox.client")
     formatted_proxies = format_proxies(config.get("PROXY_LIST", []))
     num_proxies = len(formatted_proxies)
     
+    if is_first_run:
+        ui_log(thread_name, "Lần chạy đầu: Đang ép tắt toàn bộ app clone...")
+        for acc in accounts:
+            pkg_name = f"{base_pkg}{acc['suffix']}"
+            subprocess.run(["su", "-c", f"am force-stop {pkg_name}"], capture_output=True)
+            cmd_kill = f"PID=$(ps -ef | grep {pkg_name} | grep -v grep | awk '{{print $2}}'); if [ ! -z \"$PID\" ]; then kill -9 $PID; fi"
+            subprocess.run(["su", "-c", cmd_kill], capture_output=True)
+        time.sleep(3) # Đợi 3 giây cho toàn bộ app đóng hẳn
+        ui_log(thread_name, "Đã tắt toàn bộ. Bắt đầu join VIP...")
+
     for i, acc in enumerate(accounts):
         suffix, uid = acc['suffix'], acc['id']
         pkg_name = f"{base_pkg}{suffix}"
@@ -524,13 +532,26 @@ def launch_roblox_instances(config, thread_name="LAUNCH"):
 
 def build_config():
     """Tạo bộ cấu hình dùng chung tương thích với logic gốc"""
+    
+    # Tải danh sách Proxy từ URL
+    proxy_list = []
+    if PROXY_URL:
+        try:
+            print(f"[MAIN] Đang tải danh sách Proxy từ link...")
+            resp = requests.get(PROXY_URL, timeout=10)
+            if resp.status_code == 200:
+                proxy_list = [p.strip() for p in resp.text.splitlines() if p.strip()]
+                print(f"[MAIN] -> Đã tải thành công {len(proxy_list)} proxy.")
+        except Exception as e:
+            print(f"[MAIN] -> Lỗi tải proxy: {e}")
+
     config = {
         "BASE_PACKAGE_NAME": BASE_PACKAGE_NAME,
         "VIP_SERVER_URL": VIP_SERVER_URL,
         "LAUNCH_DELAY_SECONDS": LAUNCH_DELAY_SECONDS,
         "LAUNCH_INTERVAL_SECONDS": CHECK_INTERVAL_SECONDS,
         "CONNECTION_TIMEOUT": 15,
-        "PROXY_LIST": PROXY_LIST
+        "PROXY_LIST": proxy_list
     }
     
     accounts = []
@@ -546,22 +567,13 @@ def build_config():
     config["ACCOUNT_SUFFIXES"] = accounts
     return config
 
-def update_loop(config):
-    """Vòng lặp duy trì việc kiểm tra Cookie định kỳ (mỗi 30 phút)"""
-    thread_name = "UPDATE"
-    while True:
-        try:
-            run_cookie_check_sequence(config, thread_name)
-            countdown(1800, thread_name) # 30 phút
-        except Exception as e:
-            ui_log(thread_name, f"Lỗi Update Loop: {e}")
-            time.sleep(60)
-
 def launcher_loop(config):
     thread_name = "LAUNCH"
     ui_log(thread_name, f"Bắt đầu Launch Loop (VIP).")
+    first_run = True
     while True:
-        launch_roblox_instances(config, thread_name)
+        launch_roblox_instances(config, thread_name, is_first_run=first_run)
+        first_run = False
         countdown(config.get("LAUNCH_INTERVAL_SECONDS", 60), thread_name)
 
 # ==============================================================================
@@ -575,15 +587,12 @@ if __name__ == "__main__":
     print("[MAIN] Đang khởi tạo cấu hình (Bản cứng)...")
     config = build_config()
     
-    # Kiểm tra Cookie lần đầu
+    # Kiểm tra và nạp Cookie đúng 1 LẦN DUY NHẤT
     run_cookie_check_sequence(config, "MAIN")
     
     # Kích hoạt UI Dashboard
     UI_READY = True
     threading.Thread(target=ui_loop, daemon=True).start()
-    
-    # Kích hoạt vòng lặp Update Cookie ngầm
-    threading.Thread(target=update_loop, args=(config,), daemon=True).start()
 
     try:
         # Chạy vòng lặp Launch chính
