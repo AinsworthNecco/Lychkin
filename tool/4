@@ -5,6 +5,9 @@ import os
 import sys
 import time
 import subprocess
+import sqlite3
+import shutil
+import requests
 
 # ==============================================================================
 # CẤU HÌNH LITE (Sửa trực tiếp tại đây)
@@ -17,33 +20,174 @@ VIP_SERVER_URL = "https://www.roblox.com/share?code=98a1b858bf53db43b688552818e4
 LAUNCH_DELAY_SECONDS = 15     # Thời gian chờ (giây) giữa mỗi lần mở app clone
 CHECK_INTERVAL_SECONDS = 60   # Thời gian chờ (giây) để vòng lặp quay lại kiểm tra từ đầu
 
+# DANH SÁCH COOKIE (Mỗi dòng 1 cookie, thứ tự tương ứng với các acc clone ở ACCOUNT_SUFFIXES)
+# Chỉ cần dán cookie thẳng vào giữa 3 dấu nháy kép bên dưới:
+RAW_COOKIES = """
+_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_CAEaAhADIhsKBGR1aWQSEzUzNTU0MzY2ODQyMDM5MDEwMjMoAw.brxsykTCaLn9HRA73hXKR8JWKXSwYqxPg6ZJf9xHV83DGEBAE1kn8I592AKNNYdbz61mK9hclQDn-D2rcFkM2GGLaKrAzBPEjJ2asbeGz1sYDZdmA5AAB-tKrDjzFsH9tIGw4MZDrrW73G98OlMaK74U28ej4h4metbNjlJBLG2eHyXihJyTjEDJlNIfN4-NHJjqbOzvsg-PyXmEwKnAAMd_Lce8WSoUjh8Xve-KI_fP-7P13waPRWkriXlmOGOCgI-rFwI5ZlF1jeaczGFf_5DPhXRIZl6yDRWCKRtO5W9D8Ia-OBNbpaHTo1uXWvWhTsKzQ2My1_yYYEVWPel5X66U3OS9FBjG9jsdVid2OeuylbtpwNw0PtCXiW07UHdCnQ2GmTB12FN5m8_YDEOmzW0dgrR9mio-k4qVM-dCh7pYVagGgEEzq5j5QE8huXyQYzH3I_j-j_dKG3jrwNkwgpYJ13-JFsm36_btUHER-MZJxsZz_qwCHi9ajhstt_E1xuFARo1Uxm5JjrKjM6DU8nGVyjGRN4ymZCocXd0lG4_qAJLIAjviHBJc0MjCwHe5y5v87HGbg565BuAxiUNeyF7kHD5lzDKgH3L9T0aubY2c_iSjHgowv6BefZMO1fgBbFpUE9FpesQvuD8cw4urq1fbAg5fZs0XRe5SnbzhYdHQnYgcRSd2P0tUpDIs35O03562LEXyW4bXyvSzb-vc8R5bAs57zdbVDsK9CTuCRJ9wotkwTQi7YA15KQUeZZpxmFyYkQWjsE_EZVsDAJNCiKilq3Q-C4RpGvwX6Ewovf8qJoB5
+_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_CAEaAhADIhwKBGR1aWQSFDE0NDc0ODA4ODU2OTQ0MDI4NDEzKAQ.8VOWN1WPCBKavqkgt0pzNS5SZEUr3qdYcLt8xOR7mQl2swPLpqk4iKuZ29zo5Bf7m8a8VZW7y1ext56A_1_a41IRVEQCyYG250QwSrRCU-hv0tExmQDDr98r6ae3tKG6vZn4KSw05mXszw2d5fxH8Yufa_fiBttXEIp_gOjk-03g3ycfozAspHAzcFQUuQt4BL9_HUHZcGCHpgNuUwaxLLrrRItFR0mmhjBD3_XFq37pbAxxTPvLfPumswkKx5g5jBauNhSbyrXHhbs50cmNxTgc_n0wAbNxhyfLmGNqhp-CKalA6XsC9-52pZswYT3f5x2O3EFBTCUqglSI6AOQk2vpSxyUcBQkOv4topHOk3Q9JQFMQ-gXHHxf18ee7nAgnRiAlwm2hNa6oeDj4a3gJr_K22YR9Oaes7Z-nCr9U3vAXTHHgOBdvTJSrusNKlZ3o_9FgYEZ-n4dJeoH81h8N66n9ssdbZFNhc5sR2HjRnFECY7Hr7Eixljbn9YP9acf60C_qgFnQFAbBl25FNXSLOkTxW4Rdjg7SuSSyTekZEuF_yitvxb6dJGi-3M0VnsfdoEvjQiW6eqCMp6U3Pv26AUhNHkDDr7BRJRId-ngQUuk8SAj-CpyL_qf36gcZfq3YD7Mt__WhFtUXy-3np7FYpPHWY0W4G6ufKR7YRm6saIFnAx5
+_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_CAEaAhADIhsKBGR1aWQSEzM1NjUxOTM3Nzc5NDYwOTAwNzgoAw._tbfTnS8I01mB9Zb3V48__gJLScPK8K9TJpU1DG9OhMv-KdKVY9IK0GEwBTQcV-NOYVRhmF7XUAWGLiMSfUJUuba3byT2nwDJeVW3AuZGXNFNCGS0wzHNnvCl_OPOL_M3qYNOcf53qIWEMXIrc6Ah4QJnyiH9SG-QBbljFm_y6TN7CGhHX5j__SX2MVg5orhxvsq75MK4Cd-RKhhALKxeqxIQb88XyIiv5x_5yqAhM9aZOTnrhtxVkpesY39InqL8fPajy0FlVRwphsAzqo29nHP7obCbIWiCd5P6M4QIwN8mobYJkoh6vSZ09238ejwyt4S5y56ACsEO4NEXo7uiN-k59T3HA1YXwGyUyuB-w0rRPQ0cO5YNQL-YsnzKbq6BzJrY0fjUMP-5sZmMUXPuedcYsLZ7tvMyfCjXJ925iE6mC23m5_X5xsFDLZiP3W8cxpt9PXlOiq57ViqLR4rgeA0uJsp_oCo0KCNbEc5DJ7KYj9cMFE6WSFscGVqNwynsqvnuPUyZmgpVDDOB_RijOAesBO9maQw3TZBjCqrryd0FnZExGhZBoxXMK1NDs4_1LhNbv1lfCwvx_WQtwk1-Tijk4OdWYGk0cXl0-4qWIrq2F_vg3FYOUCA_ItodNWRHpvSQL9Bfj9gULkRk-TGOKB3nKkqBAPVLbhANoVMuvxfbwFe
+_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_CAEaAhADIhsKBGR1aWQSEzE0NjE3ODQ1OTk2MzMzMjU2NzYoAw.gke4MePvvabEk0Jp51W0wDutB4MzTwigwnRjwGvXHqnd4USkvspKqjdlpEvY-Hek1CvD-iySJ5fY-2jzJ0U39sJ8M7pCCm4VihrIz1rB1Rbm5OniExSfNbSLBP-m1YFFHRbCZIkNo-8RHk8L-xlY5z1CVwdmZaVCQso8jd7fjCneTmmIh2kpsFc4Ywa23INvTEd0LAOtPEf4d7LuWohJ3XL5Yy88YeV48dLbDeMmBpfuz99vlqaJMvvpZ-4wC2UgwQsr9kQiUoxy3DQzB7GYcuZ9BZ_OrwUJ6mfXgb919hYM03bt5uHePACpWjNwfSOzLGS4207X3pufObmHD3M4__PYoHmG0pzVTSXSO_-o5p1uMfomNJW3bVgG__5S_Ag6A35Ap9Cj0TTl67woiIvxSkp4fab_17c_w2H7MGPJ_9CH6bU1g-85T7_c8vllK0UDt49nFJ_En3veHY-2ctU7_boX8gVky1ntmAwNzuE7Sfd_kr4LtpVkAcVn9WIj5p01Y209nkdo4zIf-m9HJRtQwhuFvZEw3lLfP25AIbauQB5qAIm3A0a7tnDzTZAkUM4rWp_pEpR2c-AOBLviZ6k3s8vfI-_43gIuOhgBZW8yiE3AnO-5o-20xVICQojrnQa86SlryHMt-GuElxyLZpW-ClV9KjiZlJt6PU6jsYH9zs-ahmjM
+_|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_CAEaAhADIhwKBGR1aWQSFDE2ODI0ODk1MDIyOTAyODg0NzU3KAM.NXlw-ZvIuJGJIbzSkWE7cfzfUNn3e8jQprfYhDsICSJQt9dhDMvBSY74ve23d0GCrmbbfei0Q5zeKS6bZ7wwTlLXfvUqf3mE2rX0XsvvF1MWriLVGKgf5wqUf5NrvWvy5nC8sQo1cihrPxTdm38EUz3ieNqr4g-nOynF_r8e6puB2jGvL-B4jwYE7sewV6QXZ0MUKhLXYXKdin9EDmyEnY9lcPbWzGzp-oLbK38JuD8MpFcLuJBZQHlB4xgglDYoTbBwnuBfgOEmw6Cz0233gmXf5oQsfOkRxQEbvTYPnmOTHH4MD_wV4uNfUnVqqXNO7iDG6h1ikPtet-SGbN26X-9eecRRpfPP-aARFLAearJFlkPtAuNk6emIVeF8ISzZUH0f4uhcH08llQUDPZix4jhKq9ozUb9QBKAN2ToHEGMbAb0SxpvbsSIUcfAiRRv4f9Nf_34BNo1axWMJ4GZq452udWGnpDNE9JUkAhC6TdpOZ_GGh-VO7j49pBVaqvxZS3Z1JQZSHRvhREh5w46YvQGglFstNWND0S-FqfhN6OPgpR_LC1nGDdjkzNbSuE19Psgdh8HzfHebjfTOz3TRWEw0lIcWPsjERI2KkhnEDMg-Kixq6KcaqKFSNgpCmTyBopqc_HN9uQD_eg5BQaXJfZa05r80cGyJoY3-rzZPLcthYm6C
+
+"""
+
+# Tự động chuyển đổi chuỗi cookie thành danh sách chuẩn
+COOKIES = [c.strip() for c in RAW_COOKIES.strip().splitlines() if c.strip()]
+
 # ==============================================================================
-# CODE XỬ LÝ
+# CORE LOGIC: HỖ TRỢ HỆ THỐNG
 # ==============================================================================
 
+TEMP_DIR = os.path.join(os.getcwd(), "RobloxInjector_Temp")
+COOKIE_FILENAME = "Cookies"
+ACCOUNT_DATA = {} # Lưu đệm User ID
+
 def check_root_access():
-    """Kiểm tra quyền root của Termux"""
     try:
         process = subprocess.run(["su", "-c", "whoami"], capture_output=True, text=True, timeout=5)
         return "root" in process.stdout.strip()
     except Exception:
         return False
 
+def run_root_cmd(command):
+    try:
+        full_cmd = f"su -c '{command}'"
+        result = subprocess.run(full_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        return result.stdout.strip(), result.stderr.strip(), result.returncode
+    except Exception as e:
+        return None, str(e), -1
+
+def check_process_running(pkg_name):
+    cmd = f"pidof {pkg_name}"
+    out, _, _ = run_root_cmd(cmd)
+    return bool(out.strip())
+
 def force_stop_app(pkg_name):
-    """Ép dừng ứng dụng"""
-    cmd = f"am force-stop {pkg_name}"
-    subprocess.run(["su", "-c", cmd], capture_output=True)
+    run_root_cmd(f"am force-stop {pkg_name}")
 
 def launch_vip_server(pkg_name, url):
-    """Gửi lệnh Intent mở app thẳng vào link VIP"""
     cmd = f"am start -a android.intent.action.VIEW -d '{url}' -p {pkg_name}"
-    subprocess.run(["su", "-c", cmd], capture_output=True)
+    run_root_cmd(cmd)
+
+# ==============================================================================
+# CORE LOGIC: SMART COOKIE INJECTOR
+# ==============================================================================
+
+def find_real_cookie_path(package_name):
+    base_path = f"/data/data/{package_name}/app_webview"
+    possible_paths = [f"{base_path}/Default/Cookies", f"{base_path}/Cookies"]
+    for path in possible_paths:
+        out, _, _ = run_root_cmd(f"[ -f '{path}' ] && echo 'YES' || echo 'NO'")
+        if "YES" in out:
+            return path
+    return None
+
+def prepare_db_injector(db_path, cookie_value):
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='cookies';")
+        if not cursor.fetchone():
+            conn.close()
+            return False
+
+        host_key = ".roblox.com"
+        name = ".ROBLOSECURITY"
+        cursor.execute("DELETE FROM cookies WHERE host_key = ? AND name = ?", (host_key, name))
+        
+        now = int(time.time() * 1000000)
+        expires = 99999999999999999
+        query_full = """
+        INSERT INTO cookies (creation_utc, host_key, name, value, path, expires_utc, is_secure, is_httponly, last_access_utc, has_expires, is_persistent, priority, samesite, source_scheme)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        query_fallback = """
+        INSERT INTO cookies (creation_utc, host_key, name, value, path, expires_utc, is_secure, is_httponly, last_access_utc)
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+        """
+        try:
+            cursor.execute(query_full, (now, host_key, name, cookie_value, "/", expires, 1, 1, now, 1, 1, 1, 0, 1))
+        except sqlite3.OperationalError:
+            cursor.execute(query_fallback, (now, host_key, name, cookie_value, "/", expires, 1, 1, now))
+
+        conn.commit()
+        conn.close()
+        return True
+    except Exception:
+        return False
+
+def inject_cookie_process(package_name, cookie_value):
+    out, _, _ = run_root_cmd(f"pm path {package_name}")
+    if not out: return False
+
+    target_path = find_real_cookie_path(package_name)
+    if not target_path: return False
+
+    force_stop_app(package_name)
+    time.sleep(1)
+
+    if os.path.exists(TEMP_DIR): shutil.rmtree(TEMP_DIR)
+    os.makedirs(TEMP_DIR)
+
+    temp_db_path = f"{TEMP_DIR}/{COOKIE_FILENAME}"
+    _, _, code = run_root_cmd(f"cp {target_path} {temp_db_path}")
+    if code != 0: return False
+
+    run_root_cmd(f"chmod 777 {temp_db_path}")
+
+    if not prepare_db_injector(temp_db_path, cookie_value): return False
+
+    run_root_cmd(f"cp {temp_db_path} {target_path}")
+
+    parent_dir = os.path.dirname(target_path)
+    owner_raw, _, _ = run_root_cmd(f"stat -c '%U:%G' {parent_dir}")
+    owner = owner_raw.strip()
+    if owner:
+        run_root_cmd(f"chown {owner} {target_path}")
+        run_root_cmd(f"chmod 600 {target_path}")
+    
+    if os.path.exists(TEMP_DIR): shutil.rmtree(TEMP_DIR)
+    return True
+
+# ==============================================================================
+# CORE LOGIC: ROBLOX API
+# ==============================================================================
+
+def get_roblox_user_id(cookie):
+    url = "https://users.roblox.com/v1/users/authenticated"
+    try:
+        response = requests.get(url, cookies={'.ROBLOSECURITY': cookie}, timeout=10)
+        if response.status_code == 200:
+            return str(response.json().get('id'))
+    except Exception: pass
+    return None
+
+def check_roblox_presence(account_id):
+    if not account_id: return False
+    url = "https://presence.roblox.com/v1/presence/users"
+    payload = {"userIds": [int(account_id)]}
+    try:
+        response = requests.post(url, json=payload, timeout=10)
+        if response.status_code == 200:
+            data = response.json()
+            if 'userPresences' in data:
+                for p in data['userPresences']:
+                    if p.get('userPresenceType') == 2 and str(p.get('userId')) == str(account_id):
+                        return True
+            return False
+        else:
+            return True # Tránh tắt nhầm khi API bị giới hạn (Rate limit)
+    except Exception:
+        return True # Tránh tắt nhầm khi rớt mạng tạm thời
+
+# ==============================================================================
+# MAIN LOOP
+# ==============================================================================
 
 def main():
-    os.system("termux-wake-lock") # Giữ cho Termux luôn chạy ngầm không bị ru ngủ
-    
+    os.system("termux-wake-lock")
     print("=========================================")
-    print("   LYCHKINS VIP AUTO JOIN (LITE VERSION) ")
+    print(" LYCHKINS VIP AUTO JOIN (INJECTOR + API) ")
     print("=========================================")
     
     if not check_root_access():
@@ -51,38 +195,58 @@ def main():
         sys.exit(1)
 
     suffixes = ACCOUNT_SUFFIXES.split()
-    if not suffixes:
-        print("[LỖI] Chưa điền ACCOUNT_SUFFIXES.")
-        sys.exit(1)
-
-    print(f"[*] Gói gốc: {BASE_PACKAGE_NAME}")
-    print(f"[*] Số lượng Clone: {len(suffixes)}")
-    print(f"[*] Link VIP: {VIP_SERVER_URL}\n")
-
-    is_first_run = True
-
+    print(f"[*] Gói gốc: {BASE_PACKAGE_NAME} | Clone: {len(suffixes)}")
+    
     while True:
-        print(f"\n[+] BẮT ĐẦU VÒNG LẶP AUTO JOIN: {time.strftime('%H:%M:%S')}")
-        print("-" * 40)
+        print(f"\n[+] BẮT ĐẦU VÒNG LẶP CHECK: {time.strftime('%H:%M:%S')}")
+        print("-" * 50)
         
-        for suffix in suffixes:
+        for index, suffix in enumerate(suffixes):
             pkg_name = f"{BASE_PACKAGE_NAME}{suffix}"
+            cookie = COOKIES[index] if index < len(COOKIES) else None
             
-            if is_first_run:
-                print(f"[x] Lần chạy đầu tiên: Đang ép tắt app '{pkg_name}'...")
-                force_stop_app(pkg_name)
-                time.sleep(5) # Đợi 5 giây cho app tắt hẳn
+            if not cookie:
+                print(f"[-] {pkg_name} : Bỏ qua (Chưa điền Cookie)")
+                continue
+
+            # 1. Lấy User ID (Chỉ lấy lần đầu)
+            if pkg_name not in ACCOUNT_DATA:
+                print(f"[*] {pkg_name} : Đang lấy User ID từ Cookie...")
+                uid = get_roblox_user_id(cookie)
+                if uid:
+                    ACCOUNT_DATA[pkg_name] = uid
+                else:
+                    print(f"[!] {pkg_name} : Lỗi lấy ID (Cookie chết hoặc rớt mạng). Bỏ qua.")
+                    continue
             
-            print(f"[>] Đang gửi lệnh join VIP Server cho app '{pkg_name}'...")
-            launch_vip_server(pkg_name, VIP_SERVER_URL)
-            
-            print(f"    Đợi {LAUNCH_DELAY_SECONDS} giây...")
-            time.sleep(LAUNCH_DELAY_SECONDS)
+            uid = ACCOUNT_DATA[pkg_name]
+            is_running = check_process_running(pkg_name)
+
+            # 2. Xử lý logic check App & API
+            if is_running:
+                print(f"[?] {pkg_name} : Đang CHẠY -> Check API Presence (ID: {uid})...")
+                is_online = check_roblox_presence(uid)
+                if is_online:
+                    print(f"    -> ONLINE. Bỏ qua.")
+                    continue
+                else:
+                    print(f"    -> OFFLINE. Đang ép tắt để chèn lại Cookie...")
+                    force_stop_app(pkg_name)
+                    time.sleep(3)
+                    is_running = False # Chuyển sang bước Inject & Mở lại
+
+            if not is_running:
+                print(f"[>] {pkg_name} : Đang TẮT -> Inject Cookie & Join VIP...")
+                success = inject_cookie_process(pkg_name, cookie)
+                if success:
+                    launch_vip_server(pkg_name, VIP_SERVER_URL)
+                    print(f"    -> Đã mở. Đợi {LAUNCH_DELAY_SECONDS} giây...")
+                    time.sleep(LAUNCH_DELAY_SECONDS)
+                else:
+                    print(f"    -> [LỖI] Inject Cookie thất bại. (Chưa mở game lần nào?)")
                 
-        is_first_run = False # Tắt cờ first_run sau khi hoàn thành vòng đầu tiên
-        
-        print("-" * 40)
-        print(f"[+] Hoàn tất 1 vòng. Nghỉ {CHECK_INTERVAL_SECONDS} giây trước khi chạy lại...")
+        print("-" * 50)
+        print(f"[+] Hoàn tất 1 vòng. Nghỉ {CHECK_INTERVAL_SECONDS} giây...")
         time.sleep(CHECK_INTERVAL_SECONDS)
 
 if __name__ == "__main__":
