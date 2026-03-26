@@ -509,7 +509,8 @@ def launch_roblox_instances(config, thread_name="LAUNCH"):
             target_url = config.get('VIP_SERVER_URL', "")
             
             if target_url:
-                subprocess.run(["am", "start", "-a", "android.intent.action.VIEW", "-d", target_url, "-p", pkg_name], capture_output=True)
+                cmd_launch = f"am start -a android.intent.action.VIEW -d '{target_url}' -p {pkg_name}"
+                subprocess.run(["su", "-c", cmd_launch], capture_output=True)
                 ui_log(thread_name, f"Đã start: {pkg_name}")
             
             delay = config.get("LAUNCH_DELAY_SECONDS", 10)
