@@ -8,6 +8,8 @@ import subprocess
 import sqlite3
 import shutil
 import requests
+import threading
+import random
 
 # ==============================================================================
 # CẤU HÌNH LITE (Sửa trực tiếp tại đây)
@@ -28,28 +30,188 @@ _|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-
 _|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_CAEaAhADIhsKBGR1aWQSEzM1NjUxOTM3Nzc5NDYwOTAwNzgoAw._tbfTnS8I01mB9Zb3V48__gJLScPK8K9TJpU1DG9OhMv-KdKVY9IK0GEwBTQcV-NOYVRhmF7XUAWGLiMSfUJUuba3byT2nwDJeVW3AuZGXNFNCGS0wzHNnvCl_OPOL_M3qYNOcf53qIWEMXIrc6Ah4QJnyiH9SG-QBbljFm_y6TN7CGhHX5j__SX2MVg5orhxvsq75MK4Cd-RKhhALKxeqxIQb88XyIiv5x_5yqAhM9aZOTnrhtxVkpesY39InqL8fPajy0FlVRwphsAzqo29nHP7obCbIWiCd5P6M4QIwN8mobYJkoh6vSZ09238ejwyt4S5y56ACsEO4NEXo7uiN-k59T3HA1YXwGyUyuB-w0rRPQ0cO5YNQL-YsnzKbq6BzJrY0fjUMP-5sZmMUXPuedcYsLZ7tvMyfCjXJ925iE6mC23m5_X5xsFDLZiP3W8cxpt9PXlOiq57ViqLR4rgeA0uJsp_oCo0KCNbEc5DJ7KYj9cMFE6WSFscGVqNwynsqvnuPUyZmgpVDDOB_RijOAesBO9maQw3TZBjCqrryd0FnZExGhZBoxXMK1NDs4_1LhNbv1lfCwvx_WQtwk1-Tijk4OdWYGk0cXl0-4qWIrq2F_vg3FYOUCA_ItodNWRHpvSQL9Bfj9gULkRk-TGOKB3nKkqBAPVLbhANoVMuvxfbwFe
 _|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_CAEaAhADIhsKBGR1aWQSEzE0NjE3ODQ1OTk2MzMzMjU2NzYoAw.gke4MePvvabEk0Jp51W0wDutB4MzTwigwnRjwGvXHqnd4USkvspKqjdlpEvY-Hek1CvD-iySJ5fY-2jzJ0U39sJ8M7pCCm4VihrIz1rB1Rbm5OniExSfNbSLBP-m1YFFHRbCZIkNo-8RHk8L-xlY5z1CVwdmZaVCQso8jd7fjCneTmmIh2kpsFc4Ywa23INvTEd0LAOtPEf4d7LuWohJ3XL5Yy88YeV48dLbDeMmBpfuz99vlqaJMvvpZ-4wC2UgwQsr9kQiUoxy3DQzB7GYcuZ9BZ_OrwUJ6mfXgb919hYM03bt5uHePACpWjNwfSOzLGS4207X3pufObmHD3M4__PYoHmG0pzVTSXSO_-o5p1uMfomNJW3bVgG__5S_Ag6A35Ap9Cj0TTl67woiIvxSkp4fab_17c_w2H7MGPJ_9CH6bU1g-85T7_c8vllK0UDt49nFJ_En3veHY-2ctU7_boX8gVky1ntmAwNzuE7Sfd_kr4LtpVkAcVn9WIj5p01Y209nkdo4zIf-m9HJRtQwhuFvZEw3lLfP25AIbauQB5qAIm3A0a7tnDzTZAkUM4rWp_pEpR2c-AOBLviZ6k3s8vfI-_43gIuOhgBZW8yiE3AnO-5o-20xVICQojrnQa86SlryHMt-GuElxyLZpW-ClV9KjiZlJt6PU6jsYH9zs-ahmjM
 _|WARNING:-DO-NOT-SHARE-THIS.--Sharing-this-will-allow-someone-to-log-in-as-you-and-to-steal-your-ROBUX-and-items.|_CAEaAhADIhwKBGR1aWQSFDE2ODI0ODk1MDIyOTAyODg0NzU3KAM.NXlw-ZvIuJGJIbzSkWE7cfzfUNn3e8jQprfYhDsICSJQt9dhDMvBSY74ve23d0GCrmbbfei0Q5zeKS6bZ7wwTlLXfvUqf3mE2rX0XsvvF1MWriLVGKgf5wqUf5NrvWvy5nC8sQo1cihrPxTdm38EUz3ieNqr4g-nOynF_r8e6puB2jGvL-B4jwYE7sewV6QXZ0MUKhLXYXKdin9EDmyEnY9lcPbWzGzp-oLbK38JuD8MpFcLuJBZQHlB4xgglDYoTbBwnuBfgOEmw6Cz0233gmXf5oQsfOkRxQEbvTYPnmOTHH4MD_wV4uNfUnVqqXNO7iDG6h1ikPtet-SGbN26X-9eecRRpfPP-aARFLAearJFlkPtAuNk6emIVeF8ISzZUH0f4uhcH08llQUDPZix4jhKq9ozUb9QBKAN2ToHEGMbAb0SxpvbsSIUcfAiRRv4f9Nf_34BNo1axWMJ4GZq452udWGnpDNE9JUkAhC6TdpOZ_GGh-VO7j49pBVaqvxZS3Z1JQZSHRvhREh5w46YvQGglFstNWND0S-FqfhN6OPgpR_LC1nGDdjkzNbSuE19Psgdh8HzfHebjfTOz3TRWEw0lIcWPsjERI2KkhnEDMg-Kixq6KcaqKFSNgpCmTyBopqc_HN9uQD_eg5BQaXJfZa05r80cGyJoY3-rzZPLcthYm6C
-
 """
 
-# Tự động chuyển đổi chuỗi cookie thành danh sách chuẩn
+# DANH SÁCH PROXY (Tuỳ chọn: ip:port hoặc user:pass@ip:port - Để trống nếu dùng IP Gốc)
+RAW_PROXIES = """
+"""
+
+# Tự động chuyển đổi chuỗi thành danh sách chuẩn
 COOKIES = [c.strip() for c in RAW_COOKIES.strip().splitlines() if c.strip()]
+PROXY_LIST = [p.strip() for p in RAW_PROXIES.strip().splitlines() if p.strip()]
 
 # ==============================================================================
-# CORE LOGIC: HỖ TRỢ HỆ THỐNG
+# BIẾN TOÀN CỤC & UI STATE (GIỮ NGUYÊN BẢN GỐC)
 # ==============================================================================
 
-TEMP_DIR = os.path.join(os.getcwd(), "RobloxInjector_Temp")
+LAST_INJECTED_COOKIES = {}
+TEMP_DIR = os.path.join(os.getcwd(), "RobloxInjector_Temp") 
 COOKIE_FILENAME = "Cookies"
-ACCOUNT_DATA = {} # Lưu đệm User ID
+LOCAL_CONFIG_FILE = "config.txt" # File cache User ID tĩnh trên máy
+
+UI_READY = False
+UI_STATE = {
+    'LAUNCH_TIMER': 0, 
+    'UPDATE_TIMER': 0,
+    'LAUNCH_LOG': 'Đang khởi động...', 
+    'UPDATE_LOG': 'Đang chờ...'
+}
+
+# ==============================================================================
+# -- HÀM XỬ LÝ GIAO DIỆN --
+# ==============================================================================
+
+def ui_log(thread_name, msg):
+    global UI_READY, UI_STATE
+    clean_msg = msg.replace('\r', '').replace('\n', '').strip()
+    
+    if not UI_READY:
+        print(f"[{thread_name}] {clean_msg}")
+        return
+        
+    if thread_name == "LAUNCH":
+        UI_STATE['LAUNCH_LOG'] = clean_msg
+    elif thread_name in ["UPDATE", "MAIN"]:
+        UI_STATE['UPDATE_LOG'] = clean_msg
+
+def ui_loop():
+    global UI_READY, UI_STATE
+    while True:
+        if not UI_READY:
+            time.sleep(0.5)
+            continue
+            
+        sys.stdout.write('\033c')
+        sys.stdout.flush()
+        
+        print("\033[38;5;208m")
+        print("██╗     ██╗   ██╗ ██████╗██╗  ██╗██╗  ██╗██╗███╗   ██╗")
+        print("██║     ╚██╗ ██╔╝██╔════╝██║  ██║██║ ██╔╝██║████╗  ██║")
+        print("██║      ╚████╔╝ ██║     ███████║█████═╝ ██║██╔██╗ ██║")
+        print("██║       ╚██╔╝  ██║     ██╔══██║██╔═██╗ ██║██║╚██╗██║")
+        print("███████╗   ██║   ╚██████╗██║  ██║██║  ██╗██║██║ ╚████║")
+        print("╚══════╝   ╚═╝    ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝")
+        print("\033[0m")
+        
+        launch_timer = f"{UI_STATE.get('LAUNCH_TIMER', 0)}s"
+        upd_timer = f"{UI_STATE.get('UPDATE_TIMER', 0)}s"
+        
+        launch_log = UI_STATE.get('LAUNCH_LOG', '')
+        upd_log = UI_STATE.get('UPDATE_LOG', '')
+
+        def fmt_color(text, color_code, width):
+            text = str(text)[:width]
+            padded = text + ' ' * max(0, width - len(text))
+            return f"\033[{color_code}m{padded}\033[0m"
+
+        def make_row(name, timer, log, c_name, c_time, c_log):
+            n = fmt_color(name, c_name, 10)
+            t = fmt_color(timer, c_time, 6)
+            l = fmt_color(log, c_log, 25) 
+            return f"| {n} | {t} | {l} |"
+
+        # Bỏ đi row Scan, chỉ giữ lại Launch và Update (Cookie)
+        launch_row = make_row("Launch", launch_timer, launch_log, "36", "36", "36")
+        update_row = make_row("Cookie", upd_timer, upd_log, "33", "33", "33")
+        
+        print("+-------------------------------------------------+")
+        print(launch_row)
+        print(update_row)
+        print("+-------------------------------------------------+")
+        
+        time.sleep(2)
+
+def countdown(seconds, thread_name="MAIN"):
+    timer_key = f"{thread_name}_TIMER"
+    for i in range(seconds, 0, -1):
+        if timer_key in UI_STATE:
+            UI_STATE[timer_key] = i
+        time.sleep(1)
+    
+    if timer_key in UI_STATE:
+        UI_STATE[timer_key] = 0
+
+# ==============================================================================
+# -- CÁC HÀM TIỆN ÍCH CƠ BẢN --
+# ==============================================================================
 
 def check_root_access():
+    print("[MAIN] Đang kiểm tra quyền root...")
     try:
-        process = subprocess.run(["su", "-c", "whoami"], capture_output=True, text=True, timeout=5)
-        return "root" in process.stdout.strip()
+        process = subprocess.run(["su", "-c", "whoami"], capture_output=True, text=True, timeout=10)
+        if process.stdout.strip() == "root":
+            print("[MAIN] -> Quyền root: OK.")
+            return True
+        else:
+            print(f"[MAIN] -> Lỗi: Không có quyền root.")
+            return False
+    except Exception as e:
+        print(f"[MAIN] -> Lỗi kiểm tra root: {e}")
+        return False
+
+def check_process_running(pkg_name):
+    try:
+        cmd = f"pidof {pkg_name}"
+        result = subprocess.run(["su", "-c", cmd], capture_output=True, text=True, timeout=5)
+        if result.stdout.strip():
+            return True
+        return False
     except Exception:
         return False
 
-def run_root_cmd(command):
+def load_local_ids_from_file():
+    local_map = {}
+    if os.path.exists(LOCAL_CONFIG_FILE):
+        try:
+            with open(LOCAL_CONFIG_FILE, "r") as f:
+                for line in f:
+                    line = line.strip()
+                    if ":" in line:
+                        parts = line.split(":", 1)
+                        suf = parts[0].strip()
+                        uid = parts[1].strip()
+                        if uid.isdigit():
+                            local_map[suf] = uid
+        except Exception:
+            pass
+    return local_map
+
+def update_local_config_file(suffix, user_id):
+    lines = []
+    if os.path.exists(LOCAL_CONFIG_FILE):
+        try:
+            with open(LOCAL_CONFIG_FILE, "r") as f:
+                lines = f.readlines()
+        except: pass
+    
+    new_entry = f"{suffix}:{user_id}\n"
+    updated = False
+    new_content = []
+    for line in lines:
+        if line.strip().startswith(f"{suffix}:"):
+            new_content.append(new_entry)
+            updated = True
+        elif line.strip():
+            new_content.append(line)
+            
+    if not updated: new_content.append(new_entry)
+    try:
+        with open(LOCAL_CONFIG_FILE, "w") as f: f.writelines(new_content)
+    except Exception: pass
+
+def format_proxies(proxy_list):
+    formatted = []
+    if not proxy_list: return []
+    for proxy_string in proxy_list:
+        if not proxy_string: continue
+        parts = proxy_string.split(':')
+        proxy_url = ""
+        if len(parts) == 2: proxy_url = f"http://{parts[0]}:{parts[1]}"
+        elif len(parts) == 4: proxy_url = f"http://{parts[2]}:{parts[3]}@{parts[0]}:{parts[1]}"
+        if proxy_url: formatted.append({"http": proxy_url, "https": proxy_url})
+    return formatted
+
+def run_root_cmd_injector(command):
     try:
         full_cmd = f"su -c '{command}'"
         result = subprocess.run(full_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
@@ -57,32 +219,51 @@ def run_root_cmd(command):
     except Exception as e:
         return None, str(e), -1
 
-def check_process_running(pkg_name):
-    cmd = f"pidof {pkg_name}"
-    out, _, _ = run_root_cmd(cmd)
-    return bool(out.strip())
-
-def force_stop_app(pkg_name):
-    run_root_cmd(f"am force-stop {pkg_name}")
-
-def launch_vip_server(pkg_name, url):
-    cmd = f"am start -a android.intent.action.VIEW -d '{url}' -p {pkg_name}"
-    run_root_cmd(cmd)
-
 # ==============================================================================
-# CORE LOGIC: SMART COOKIE INJECTOR
+# -- CÁC HÀM INJECTOR LOGIC (SMART PATH DETECT) --
 # ==============================================================================
 
 def find_real_cookie_path(package_name):
     base_path = f"/data/data/{package_name}/app_webview"
-    possible_paths = [f"{base_path}/Default/Cookies", f"{base_path}/Cookies"]
+    possible_paths = [
+        f"{base_path}/Default/Cookies",
+        f"{base_path}/Cookies"
+    ]
     for path in possible_paths:
-        out, _, _ = run_root_cmd(f"[ -f '{path}' ] && echo 'YES' || echo 'NO'")
+        check_cmd = f"[ -f '{path}' ] && echo 'YES' || echo 'NO'"
+        out, _, _ = run_root_cmd_injector(check_cmd)
         if "YES" in out:
             return path
     return None
 
-def prepare_db_injector(db_path, cookie_value):
+def get_local_cookie_injector(package_name):
+    target_path = find_real_cookie_path(package_name)
+    if not target_path:
+        return None
+
+    temp_check_path = os.path.join(TEMP_DIR, "Cookies_Check")
+    if not os.path.exists(TEMP_DIR): os.makedirs(TEMP_DIR)
+
+    run_root_cmd_injector(f"cp {target_path} {temp_check_path}")
+    run_root_cmd_injector(f"chmod 777 {temp_check_path}")
+
+    local_cookie_value = None
+    try:
+        conn = sqlite3.connect(temp_check_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM cookies WHERE name = '.ROBLOSECURITY'")
+        result = cursor.fetchone()
+        if result: local_cookie_value = result[0]
+        conn.close()
+    except Exception: pass
+    
+    if os.path.exists(temp_check_path): os.remove(temp_check_path)
+    return local_cookie_value
+
+def prepare_db_injector(cookie_value):
+    db_path = os.path.join(TEMP_DIR, COOKIE_FILENAME)
+    if not os.path.exists(db_path): 
+        return False
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
@@ -113,145 +294,301 @@ def prepare_db_injector(db_path, cookie_value):
         conn.commit()
         conn.close()
         return True
-    except Exception:
+    except Exception as e:
         return False
 
 def inject_cookie_process(package_name, cookie_value):
-    out, _, _ = run_root_cmd(f"pm path {package_name}")
-    if not out: return False
+    check_pkg, _, _ = run_root_cmd_injector(f"pm path {package_name}")
+    if not check_pkg:
+        return False
 
     target_path = find_real_cookie_path(package_name)
-    if not target_path: return False
+    if not target_path:
+        return False
 
-    force_stop_app(package_name)
+    run_root_cmd_injector(f"am force-stop {package_name}")
     time.sleep(1)
 
     if os.path.exists(TEMP_DIR): shutil.rmtree(TEMP_DIR)
     os.makedirs(TEMP_DIR)
 
-    temp_db_path = f"{TEMP_DIR}/{COOKIE_FILENAME}"
-    _, _, code = run_root_cmd(f"cp {target_path} {temp_db_path}")
+    cmd_cp_out = f"cp {target_path} {TEMP_DIR}/{COOKIE_FILENAME}"
+    _, err, code = run_root_cmd_injector(cmd_cp_out)
     if code != 0: return False
 
-    run_root_cmd(f"chmod 777 {temp_db_path}")
+    run_root_cmd_injector(f"chmod 777 {TEMP_DIR}/{COOKIE_FILENAME}")
 
-    if not prepare_db_injector(temp_db_path, cookie_value): return False
+    if not prepare_db_injector(cookie_value): return False
 
-    run_root_cmd(f"cp {temp_db_path} {target_path}")
+    cmd_cp_in = f"cp {TEMP_DIR}/{COOKIE_FILENAME} {target_path}"
+    run_root_cmd_injector(cmd_cp_in)
 
     parent_dir = os.path.dirname(target_path)
-    owner_raw, _, _ = run_root_cmd(f"stat -c '%U:%G' {parent_dir}")
+    owner_raw, _, _ = run_root_cmd_injector(f"stat -c '%U:%G' {parent_dir}")
     owner = owner_raw.strip()
     if owner:
-        run_root_cmd(f"chown {owner} {target_path}")
-        run_root_cmd(f"chmod 600 {target_path}")
+        run_root_cmd_injector(f"chown {owner} {target_path}")
+        run_root_cmd_injector(f"chmod 600 {target_path}")
     
     if os.path.exists(TEMP_DIR): shutil.rmtree(TEMP_DIR)
     return True
 
-# ==============================================================================
-# CORE LOGIC: ROBLOX API
-# ==============================================================================
-
 def get_roblox_user_id(cookie):
-    url = "https://users.roblox.com/v1/users/authenticated"
     try:
-        response = requests.get(url, cookies={'.ROBLOSECURITY': cookie}, timeout=10)
+        url = "https://users.roblox.com/v1/users/authenticated"
+        cookies = {'.ROBLOSECURITY': cookie}
+        response = requests.get(url, cookies=cookies, timeout=10)
         if response.status_code == 200:
-            return str(response.json().get('id'))
+            data = response.json()
+            return str(data.get('id'))
     except Exception: pass
     return None
 
-def check_roblox_presence(account_id):
-    if not account_id: return False
-    url = "https://presence.roblox.com/v1/presence/users"
-    payload = {"userIds": [int(account_id)]}
-    try:
-        response = requests.post(url, json=payload, timeout=10)
-        if response.status_code == 200:
-            data = response.json()
-            if 'userPresences' in data:
-                for p in data['userPresences']:
-                    if p.get('userPresenceType') == 2 and str(p.get('userId')) == str(account_id):
-                        return True
-            return False
-        else:
-            return True # Tránh tắt nhầm khi API bị giới hạn (Rate limit)
-    except Exception:
-        return True # Tránh tắt nhầm khi rớt mạng tạm thời
+def run_cookie_check_sequence(config, thread_name="UPDATE"):
+    global LAST_INJECTED_COOKIES
+    ui_log(thread_name, "=== KIỂM TRA COOKIE (SMART PATH) ===")
 
-# ==============================================================================
-# MAIN LOOP
-# ==============================================================================
+    base_pkg = config.get("BASE_PACKAGE_NAME", "com.roblox.client")
+    accounts = config.get("ACCOUNT_SUFFIXES", []) 
 
-def main():
-    os.system("termux-wake-lock")
-    print("=========================================")
-    print(" LYCHKINS VIP AUTO JOIN (INJECTOR + API) ")
-    print("=========================================")
-    
-    if not check_root_access():
-        print("[LỖI] Không có quyền Root! Vui lòng cấp quyền Root cho Termux.")
-        sys.exit(1)
-
-    suffixes = ACCOUNT_SUFFIXES.split()
-    print(f"[*] Gói gốc: {BASE_PACKAGE_NAME} | Clone: {len(suffixes)}")
-    
-    while True:
-        print(f"\n[+] BẮT ĐẦU VÒNG LẶP CHECK: {time.strftime('%H:%M:%S')}")
-        print("-" * 50)
+    for acc in accounts:
+        suffix = acc['suffix']
+        pkg_name = f"{base_pkg}{suffix}"
+        assigned_cookie = acc.get('cookie')
         
-        for index, suffix in enumerate(suffixes):
-            pkg_name = f"{BASE_PACKAGE_NAME}{suffix}"
-            cookie = COOKIES[index] if index < len(COOKIES) else None
-            
-            if not cookie:
-                print(f"[-] {pkg_name} : Bỏ qua (Chưa điền Cookie)")
-                continue
+        if not assigned_cookie:
+            continue
 
-            # 1. Lấy User ID (Chỉ lấy lần đầu)
-            if pkg_name not in ACCOUNT_DATA:
-                print(f"[*] {pkg_name} : Đang lấy User ID từ Cookie...")
-                uid = get_roblox_user_id(cookie)
+        if assigned_cookie == LAST_INJECTED_COOKIES.get(pkg_name):
+            continue
+
+        local_cookie = get_local_cookie_injector(pkg_name)
+
+        if local_cookie == assigned_cookie:
+            ui_log(thread_name, f"Acc '{suffix}' -> OK (Khớp)")
+            LAST_INJECTED_COOKIES[pkg_name] = assigned_cookie
+        else:
+            if local_cookie is None: ui_log(thread_name, f"Acc '{suffix}' -> MISSING")
+            else: ui_log(thread_name, f"Acc '{suffix}' -> MISMATCH")
+            
+            success = inject_cookie_process(pkg_name, assigned_cookie)
+            if success:
+                LAST_INJECTED_COOKIES[pkg_name] = assigned_cookie
+                ui_log(thread_name, f"Đang lấy ID mới cho '{suffix}'...")
+                uid = get_roblox_user_id(assigned_cookie)
                 if uid:
-                    ACCOUNT_DATA[pkg_name] = uid
+                    ui_log(thread_name, f"ID tìm thấy: {uid}")
+                    update_local_config_file(suffix, uid)
+                    acc['id'] = uid 
                 else:
-                    print(f"[!] {pkg_name} : Lỗi lấy ID (Cookie chết hoặc rớt mạng). Bỏ qua.")
-                    continue
+                    ui_log(thread_name, f"Không lấy được ID từ API.")
+    ui_log(thread_name, "Hoàn tất kiểm tra cookie.")
+
+# ==============================================================================
+# -- CÁC HÀM KẾT NỐI API --
+# ==============================================================================
+
+def execute_api_request_simple(method, url, config, thread_name, json_data=None, proxy=None):
+    timeout = config.get("CONNECTION_TIMEOUT", 15)
+    proxies = proxy if proxy else None
+    try:
+        if method.upper() == 'GET': response = requests.get(url, proxies=proxies, timeout=timeout)
+        elif method.upper() == 'POST': response = requests.post(url, json=json_data, proxies=proxies, timeout=timeout)
+        if response.status_code == 200: return response.json()
+    except Exception: pass 
+    return None
+
+def check_roblox_presence_single(account_id, config, thread_name, proxy_list, initial_proxy_index):
+    if not account_id or str(account_id) == "0":
+        ui_log(thread_name, f"⚠️ Không có ID. Bỏ qua.")
+        return False
+
+    user_ids = [int(account_id)]
+    api_url = "https://presence.roblox.com/v1/presence/users"
+    payload = {"userIds": user_ids}
+    
+    formatted_proxies = proxy_list
+    num_proxies = len(formatted_proxies)
+    REQUIRED_VALID_CHECKS = 3
+    valid_checks_count = 0
+    current_idx = initial_proxy_index if initial_proxy_index >= 0 else 0
+    consecutive_network_failures = 0
+    MAX_CONSECUTIVE_FAILURES = 50 
+
+    while valid_checks_count < REQUIRED_VALID_CHECKS:
+        response = None
+        while response is None:
+            proxy = None
+            proxy_info = "IP Gốc"
+            if num_proxies > 0:
+                current_idx = current_idx % num_proxies
+                proxy = formatted_proxies[current_idx]
+                proxy_info = f"Proxy #{current_idx + 1}"
             
-            uid = ACCOUNT_DATA[pkg_name]
-            is_running = check_process_running(pkg_name)
+            ui_log(thread_name, f"[{account_id}] Check {valid_checks_count + 1}/{REQUIRED_VALID_CHECKS} | {proxy_info}...")
 
-            # 2. Xử lý logic check App & API
-            if is_running:
-                print(f"[?] {pkg_name} : Đang CHẠY -> Check API Presence (ID: {uid})...")
-                is_online = check_roblox_presence(uid)
-                if is_online:
-                    print(f"    -> ONLINE. Bỏ qua.")
-                    continue
-                else:
-                    print(f"    -> OFFLINE. Đang ép tắt để chèn lại Cookie...")
-                    force_stop_app(pkg_name)
-                    time.sleep(3)
-                    is_running = False # Chuyển sang bước Inject & Mở lại
+            response = execute_api_request_simple('POST', api_url, config, thread_name, json_data=payload, proxy=proxy)
 
-            if not is_running:
-                print(f"[>] {pkg_name} : Đang TẮT -> Inject Cookie & Join VIP...")
-                success = inject_cookie_process(pkg_name, cookie)
-                if success:
-                    launch_vip_server(pkg_name, VIP_SERVER_URL)
-                    print(f"    -> Đã mở. Đợi {LAUNCH_DELAY_SECONDS} giây...")
-                    time.sleep(LAUNCH_DELAY_SECONDS)
-                else:
-                    print(f"    -> [LỖI] Inject Cookie thất bại. (Chưa mở game lần nào?)")
+            if response is None:
+                consecutive_network_failures += 1
+                ui_log(thread_name, f"[{account_id}] {proxy_info} Lỗi mạng -> Retry...")
+                time.sleep(1)
+                if num_proxies > 1:
+                    new_idx = current_idx
+                    while new_idx == current_idx: new_idx = random.randint(0, num_proxies - 1)
+                    current_idx = new_idx
+                else: time.sleep(2)
                 
-        print("-" * 50)
-        print(f"[+] Hoàn tất 1 vòng. Nghỉ {CHECK_INTERVAL_SECONDS} giây...")
-        time.sleep(CHECK_INTERVAL_SECONDS)
+                if consecutive_network_failures > MAX_CONSECUTIVE_FAILURES:
+                    ui_log(thread_name, f"[{account_id}] QUÁ NHIỀU LỖI. Hủy check.")
+                    return False
+            else:
+                consecutive_network_failures = 0
+
+        is_online = False
+        if 'userPresences' in response:
+            for p in response['userPresences']:
+                if p.get('userPresenceType') == 2 and str(p.get('userId')) == str(account_id):
+                    is_online = True
+        
+        if is_online:
+            ui_log(thread_name, f"[{account_id}] {proxy_info}: ONLINE! (Dừng check)")
+            return True
+        else:
+            ui_log(thread_name, f"[{account_id}] {proxy_info}: OFFLINE (OK {valid_checks_count + 1})")
+            valid_checks_count += 1
+            if num_proxies > 1:
+                new_idx = current_idx
+                while new_idx == current_idx: new_idx = random.randint(0, num_proxies - 1)
+                current_idx = new_idx
+            time.sleep(0.5)
+
+    ui_log(thread_name, f"[{account_id}] XÁC NHẬN OFFLINE.")
+    return False
+
+# ==============================================================================
+# -- LOGIC CHÍNH: LAUNCH --
+# ==============================================================================
+
+def launch_roblox_instances(config, thread_name="LAUNCH"):
+    accounts = config.get("ACCOUNT_SUFFIXES", [])
+    base_pkg = config.get("BASE_PACKAGE_NAME", "com.roblox.client")
+    formatted_proxies = format_proxies(config.get("PROXY_LIST", []))
+    num_proxies = len(formatted_proxies)
+    
+    for i, acc in enumerate(accounts):
+        suffix, uid = acc['suffix'], acc['id']
+        pkg_name = f"{base_pkg}{suffix}"
+        
+        ui_log(thread_name, f"---- CHECK ACCOUNT: {suffix} (ID: {uid}) ----")
+        
+        is_process_active = check_process_running(pkg_name)
+        should_launch = False
+        
+        if not is_process_active:
+            ui_log(thread_name, f"App '{suffix}' đang TẮT -> START.")
+            should_launch = True
+        else:
+            ui_log(thread_name, f"App '{suffix}' đang CHẠY -> Check API...")
+            start_idx = random.randint(0, num_proxies - 1) if num_proxies > 0 else -1
+            is_online = check_roblox_presence_single(uid, config, thread_name, formatted_proxies, start_idx)
+            
+            if is_online:
+                ui_log(thread_name, f"'{suffix}' ONLINE -> Skip.")
+                continue 
+            else:
+                ui_log(thread_name, f"'{suffix}' OFFLINE -> Kill & Restart.")
+                try:
+                    cmd_kill = f"PID=$(ps -ef | grep {pkg_name} | grep -v grep | awk '{{print $2}}'); if [ ! -z \"$PID\" ]; then kill -9 $PID; fi"
+                    subprocess.run(["su", "-c", cmd_kill], capture_output=True, timeout=10)
+                    time.sleep(3) 
+                except: pass
+                should_launch = True
+
+        if should_launch:
+            target_url = config.get('VIP_SERVER_URL', "")
+            
+            if target_url:
+                subprocess.run(["am", "start", "-a", "android.intent.action.VIEW", "-d", target_url, "-p", pkg_name], capture_output=True)
+                ui_log(thread_name, f"Đã start: {pkg_name}")
+            
+            delay = config.get("LAUNCH_DELAY_SECONDS", 10)
+            if i < len(accounts) - 1:
+                ui_log(thread_name, f"Đợi {delay}s...")
+                time.sleep(delay)
+
+# ==============================================================================
+# -- CÁC VÒNG LẶP CHẠY NGẦM --
+# ==============================================================================
+
+def build_config():
+    """Tạo bộ cấu hình dùng chung tương thích với logic gốc"""
+    config = {
+        "BASE_PACKAGE_NAME": BASE_PACKAGE_NAME,
+        "VIP_SERVER_URL": VIP_SERVER_URL,
+        "LAUNCH_DELAY_SECONDS": LAUNCH_DELAY_SECONDS,
+        "LAUNCH_INTERVAL_SECONDS": CHECK_INTERVAL_SECONDS,
+        "CONNECTION_TIMEOUT": 15,
+        "PROXY_LIST": PROXY_LIST
+    }
+    
+    accounts = []
+    local_ids = load_local_ids_from_file()
+    suffixes = ACCOUNT_SUFFIXES.split()
+    for i, s in enumerate(suffixes):
+        s = s.strip()
+        if s:
+            uid = local_ids.get(s, "0")
+            cookie = COOKIES[i] if i < len(COOKIES) else None
+            accounts.append({'suffix': s, 'id': uid, 'cookie': cookie})
+            
+    config["ACCOUNT_SUFFIXES"] = accounts
+    return config
+
+def update_loop(config):
+    """Vòng lặp duy trì việc kiểm tra Cookie định kỳ (mỗi 30 phút)"""
+    thread_name = "UPDATE"
+    while True:
+        try:
+            run_cookie_check_sequence(config, thread_name)
+            countdown(1800, thread_name) # 30 phút
+        except Exception as e:
+            ui_log(thread_name, f"Lỗi Update Loop: {e}")
+            time.sleep(60)
+
+def launcher_loop(config):
+    thread_name = "LAUNCH"
+    ui_log(thread_name, f"Bắt đầu Launch Loop (VIP).")
+    while True:
+        launch_roblox_instances(config, thread_name)
+        countdown(config.get("LAUNCH_INTERVAL_SECONDS", 60), thread_name)
+
+# ==============================================================================
+# -- MAIN SCRIPT --
+# ==============================================================================
 
 if __name__ == "__main__":
+    os.system("termux-wake-lock")
+    if not check_root_access(): sys.exit(1)
+    
+    print("[MAIN] Đang khởi tạo cấu hình (Bản cứng)...")
+    config = build_config()
+    
+    # Kiểm tra Cookie lần đầu
+    run_cookie_check_sequence(config, "MAIN")
+    
+    # Kích hoạt UI Dashboard
+    UI_READY = True
+    threading.Thread(target=ui_loop, daemon=True).start()
+    
+    # Kích hoạt vòng lặp Update Cookie ngầm
+    threading.Thread(target=update_loop, args=(config,), daemon=True).start()
+
     try:
-        main()
+        # Chạy vòng lặp Launch chính
+        launcher_loop(config)
     except KeyboardInterrupt:
-        print("\n[!] Đã ép dừng script.")
+        sys.stdout.write('\033c')
+        sys.stdout.flush()
+        print("\n[MAIN] Dừng Script. Đang thoát...")
         sys.exit(0)
