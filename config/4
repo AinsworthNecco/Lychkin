@@ -3,9 +3,9 @@
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 # --- THÔNG TIN TÀI KHOẢN & GAME ---
-PLACE_ID="8737602449"                # ID Game Roblox
-BASE_PACKAGE_NAME="neco.code" # Gói ứng dụng gốc
-ACCOUNT_SUFFIXES="1 2 3 4 5"         # Hậu tố app clone q p
+PLACE_ID=""                # ID Game Roblox
+BASE_PACKAGE_NAME = "com.roblox.client"             # Gói ứng dụng gốc
+ACCOUNT_SUFFIXES = "2 3 4 5 6"  
 
 # --- CẤU HÌNH QUÉT SERVER (SCAN) ---
 SCAN_INTERVAL_SECONDS="180"          # Thời gian nghỉ giữa các lần quét (giây)
@@ -15,7 +15,7 @@ MAX_PLAYER_PERCENTAGE="90"           # % người chơi tối đa
 # --- CẤU HÌNH MỞ APP (LAUNCH) ---
 LAUNCH_INTERVAL_SECONDS="60"        # Thời gian vòng lặp kiểm tra app (giây)
 LAUNCH_DELAY_SECONDS="15"            # Độ trễ mở giữa 2 tài khoản (giây)
-VIP_SERVER_URL="roblox://placeId=8737602449" # Link VIP Server
+VIP_SERVER_URL="https://www.roblox.com/share?code=98a1b858bf53db43b688552818e40748&type=Server" # Link VIP Server
 
 # --- EXECUTOR & DELTA KEY ---
 SELECTED_EXECUTOR="2"
@@ -28,7 +28,7 @@ KEY_CHECK_INTERVAL_MINUTES="15"      # Chu kỳ check cập nhật Key (phút)
 CONNECTION_TIMEOUT="15"              # Timeout khi gọi API (giây)
 REBOOT_ENABLED="off"                  # Tự động khởi động lại máy (on/off)
 REBOOT_INTERVAL_MINUTES="240"         # Thời gian khởi động lại (phút)
-AUTO_CLOSE_ENABLED = "on"
+AUTO_CLOSE_ENABLED = "off"
 AUTO_CLOSE_HOURS = "6"
 
 # --- SCREEN SIZE ---
