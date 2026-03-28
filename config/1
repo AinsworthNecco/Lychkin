@@ -29,7 +29,7 @@ CONNECTION_TIMEOUT="15"              # Timeout khi gọi API (giây)
 REBOOT_ENABLED="off"                  # Tự động khởi động lại máy (on/off)
 REBOOT_INTERVAL_MINUTES="240"         # Thời gian khởi động lại (phút)
 AUTO_CLOSE_ENABLED = "on"
-AUTO_CLOSE_HOURS = "6"
+AUTO_CLOSE_HOURS = "3"
 
 # --- SCREEN SIZE ---
 WM_ROTATION_ENABLED = "on"
