@@ -33,7 +33,7 @@ AUTO_CLOSE_HOURS = "3"
 
 # --- SCREEN SIZE ---
 WM_ROTATION_ENABLED = "on"
-WM_RESIZE_ENABLED = "on"
+WM_RESIZE_ENABLED = "off"
 WM_SIZE = "480×320"
 WM_DENSITY = "150"
 Khi muốn tắt, bạn chỉ cần sửa thành `WM_RESIZE_ENABLED = "off"` là script sẽ không chạy 2 lệnh đổi độ phân giải nữa.
