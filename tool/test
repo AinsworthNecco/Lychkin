@@ -18,7 +18,31 @@ import base64
 from datetime import datetime
 
 # ==============================================================================
-# SCRIPT: Lychkins's Task Runner v1.13 (Smart Path Injector + Update Loop UI)
+# SCRIPT: Lychkins's Task Runner v1.14 (Smart Path Injector + Update Loop UI)
+# ==============================================================================
+# CÁC TÍNH NĂNG CHÍNH CỦA SCRIPT:
+# 1. Quản lý Cookie Tự Động (Auto Claim): Quét app clone, tự động xí chỗ cookie 
+#    chưa ai dùng (gắn Android ID & Timestamp), tự động đồng bộ lên Github.
+# 2. Mã Hóa Cookie An Toàn: Chèn/Xóa chuỗi ẩn "neco" tại vị trí 170 của cookie để 
+#    tránh bị các công cụ quét trộm trên Github nhận diện.
+# 3. Inject Cookie Thông Minh: Ghi trực tiếp vào file SQLite (app_webview),
+#    bypass hoàn toàn các cơ chế chống giả mạo của Roblox.
+# 4. Bảo Mật Token Cục Bộ: Yêu cầu Github Token 1 lần, lưu an toàn tại máy
+#    (trong thư mục Download), không bao giờ lộ lên file config mạng.
+# 5. Cập Nhật Động Đa Luồng (Update Loop): Tải lại config và proxy liên tục,
+#    áp dụng ngay lập tức mà không cần khởi động lại toàn bộ script.
+# 6. Giám Sát & Mở Game (Launch Loop): Tự động check Presence API, nếu account
+#    offline hoặc bị văng sẽ tự động kill app và bật lại ngay lập tức.
+# 7. Quét Server (Scan Loop): Tự động lấy danh sách server theo PlaceID thỏa 
+#    mãn điều kiện % player (min/max), luân chuyển đều cho các tài khoản.
+# 8. Quản Lý Proxy Nâng Cao: Tự động đổi proxy khi lỗi (Rate Limit/Network), 
+#    vòng lặp proxy thông minh tránh bị chặn.
+# 9. Bảo Vệ RAM (Auto-Close): Tự động kill toàn bộ clone định kỳ (theo giờ) 
+#    để giải phóng RAM, Launch Loop sẽ tự động mở lại sau đó.
+# 10. Tự Động Reboot (Sys Loop): Hẹn giờ khởi động lại toàn bộ thiết bị.
+# 11. Bảng Điều Khiển Giao Diện (Dashboard UI): Hiển thị timer, trạng thái 
+#     của các luồng trực quan liên tục trên cửa sổ Terminal.
+# 12. Tiện Ích Phụ: Tự động xoay màn hình chuẩn và giữ máy chống ngủ (Wake-lock).
 # ==============================================================================
 
 # ---------------------------------------------------
@@ -27,8 +51,6 @@ from datetime import datetime
 # Chỉ cần thiết lập duy nhất Link Config tại đây.
 # COOKIE_URL và PROXY_URL sẽ được tự động tải về từ nội dung file Config.
 CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/config/4"
-COOKIE_URL = ""
-PROXY_URL = ""
 
 # ---------------------------------------------------
 # -- BIẾN TOÀN CỤC & UI STATE --
@@ -131,7 +153,7 @@ def ui_loop():
         update_row = make_row("Update", upd_timer, upd_log, "33", "33", "33")
         
         print("+-------------------------------------------------+")
-        print("| \033[1;36m          LYCHKINS TASK RUNNER v1.13           \033[0m |")
+        print("| \033[1;36m          LYCHKINS TASK RUNNER v1.14           \033[0m |")
         print("+-------------------------------------------------+")
         print(ac_str)
         print(scan_row)
@@ -258,7 +280,8 @@ def fetch_and_load_config(url):
             elif key != "ACCOUNT_SUFFIXES": 
                 config[key] = value
         
-        if PROXY_URL:
+        # Nếu url proxy đã được đọc từ cấu hình thì fetch list proxy
+        if 'PROXY_URL' in globals() and PROXY_URL:
             config["PROXY_LIST"] = fetch_proxies_from_url(PROXY_URL)
         else:
             config["PROXY_LIST"] = []
@@ -381,7 +404,7 @@ def update_github_cookie_file(config, new_content):
 
 def manage_remote_cookies(config, needed_count, android_id):
     ui_log("UPDATE", f"Đang quản lý danh sách Cookie... (Cần {needed_count})")
-    if not COOKIE_URL:
+    if 'COOKIE_URL' not in globals() or not COOKIE_URL:
         ui_log("UPDATE", "Lỗi: COOKIE_URL chưa được thêm vào file config!")
         return []
         
@@ -414,9 +437,9 @@ def manage_remote_cookies(config, needed_count, android_id):
                     updated_lines.append(line)
                     continue
                 
-                # BƯỚC 1: Giải mã hóa (loại bỏ chữ 'neco' ở vị trí 130 tính từ đầu cookie)
-                if len(line) >= idx + 134 and line[idx + 130 : idx + 134] == "neco":
-                    line = line[:idx + 130] + line[idx + 134:]
+                # BƯỚC 1: Giải mã hóa (loại bỏ chữ 'neco' ở vị trí 170 tính từ đầu cookie)
+                if len(line) >= idx + 174 and line[idx + 170 : idx + 174] == "neco":
+                    line = line[:idx + 170] + line[idx + 174:]
                 
                 # BƯỚC 2: Tách thông tin an toàn qua Regex (Tránh lỗi do Cookie chứa dấu :)
                 # Tìm chuỗi :[claimer_id]:[timestamp_15_số] ở CUỐI dòng
@@ -512,11 +535,11 @@ def manage_remote_cookies(config, needed_count, android_id):
             # Nếu có thay đổi, mới gọi hàm push lên Github
             if changed:
                 final_lines_to_push = []
-                # BƯỚC 3: Mã hóa lại các line Cookie trước khi lên Github (vị trí 130 của cookie)
+                # BƯỚC 3: Mã hóa lại các line Cookie trước khi lên Github (vị trí 170 của cookie)
                 for l in updated_lines:
                     idx = l.find("_|WARNING:-DO-NOT-SHARE")
-                    if idx != -1 and len(l) >= idx + 130:
-                        l = l[:idx + 130] + "neco" + l[idx + 130:]
+                    if idx != -1 and len(l) >= idx + 170:
+                        l = l[:idx + 170] + "neco" + l[idx + 170:]
                     final_lines_to_push.append(l)
                     
                 new_file_content = "\n".join(final_lines_to_push)
@@ -1067,7 +1090,7 @@ if __name__ == "__main__":
         print("=> YÊU CẦU: Vui lòng tạo file token.txt chứa Github Token (có quyền repo) rồi chạy lại script.")
         sys.exit(1)
         
-    print("[MAIN] Tải cấu hình & Kiểm tra Cookie (v1.13 Smart Inject + Update Loop)...")
+    print("[MAIN] Tải cấu hình & Kiểm tra Cookie (v1.14 Smart Inject + Update Loop)...")
     initial_config = fetch_and_load_config(CONFIG_URL)
     
     if initial_config.get("WM_ROTATION_ENABLED", "off").lower() == "on":
