@@ -13,7 +13,7 @@ PROXY_URL="https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/m
 
 # --- CẤU HÌNH QUÉT SERVER (SCAN) ---
 SCAN_INTERVAL_SECONDS="180"          # Thời gian nghỉ giữa các lần quét (giây)
-MIN_PLAYER_PERCENTAGE="75"           # % người chơi tối thiểu
+MIN_PLAYER_PERCENTAGE="70"           # % người chơi tối thiểu
 MAX_PLAYER_PERCENTAGE="95"           # % người chơi tối đa
 
 # --- CẤU HÌNH MỞ APP (LAUNCH) ---
