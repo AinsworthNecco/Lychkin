@@ -8,7 +8,7 @@ BASE_PACKAGE_NAME="com.roblox.client" # Gói ứng dụng gốc
 ACCOUNT_NUMBER="10" 
 
 # --- URL CẤU HÌNH ---
-COOKIE_URL="https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie/test1"
+COOKIE_URL="https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie/cookie"
 PROXY_URL="https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/proxy/proxy"
 
 # --- CẤU HÌNH QUÉT SERVER (SCAN) ---
@@ -36,4 +36,4 @@ AUTO_CLOSE_HOURS = "6"
 WM_ROTATION_ENABLED = "on"
 
 # --- UPDATE DATA ---
-UPDATE_INTERVAL_MINUTES = "10" 
+UPDATE_INTERVAL_MINUTES = "120" 
