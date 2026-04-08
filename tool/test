@@ -459,23 +459,27 @@ def manage_remote_cookies(config, needed_count, android_id):
                 is_unclaimed = False
                 
                 if claimer_id == android_id:
-                    # Máy này đang giữ
-                    owned_cookies.append(cookie_val)
-                    needs_time_update = True
-                    if timestamp_str:
-                        try:
-                            last_time = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
-                            # Đã qua 12 tiếng mới cần update time, tránh spam Github API
-                            if (now - last_time).total_seconds() < 43200: 
-                                needs_time_update = False
-                        except Exception: pass
-                        
-                    if needs_time_update:
-                        new_line = f"{prefix}{cookie_val}:{android_id}:{now_str}"
-                        updated_lines.append(new_line)
-                        changed = True
+                    # ĐÂY LÀ PHẦN ƯU TIÊN: Quét tìm tất cả các cookie máy này đã claim
+                    if len(owned_cookies) < needed_count:
+                        owned_cookies.append(cookie_val)
+                        needs_time_update = True
+                        if timestamp_str:
+                            try:
+                                last_time = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
+                                # Đã qua 12 tiếng mới cần update time, tránh spam Github API
+                                if (now - last_time).total_seconds() < 43200: 
+                                    needs_time_update = False
+                            except Exception: pass
+                            
+                        if needs_time_update:
+                            new_line = f"{prefix}{cookie_val}:{android_id}:{now_str}"
+                            updated_lines.append(new_line)
+                            changed = True
+                        else:
+                            updated_lines.append(line) # Giữ nguyên mộc mạc
                     else:
-                        updated_lines.append(line) # Giữ nguyên mộc mạc
+                        # TÍNH NĂNG MỚI: Nếu số lượng clone giảm đi, máy cầm dư cookie -> Nhả (release) lại thành cookie sạch
+                        is_unclaimed = True
 
                 elif claimer_id:
                     # Máy khác đang giữ -> Kiểm tra thời hạn 24 tiếng
@@ -508,7 +512,7 @@ def manage_remote_cookies(config, needed_count, android_id):
                 ui_log("UPDATE", f"Thiếu {shortfall} cookie. Đang tìm cookie trống/chết...")
                 for item in unclaimed_cookies:
                     if shortfall <= 0:
-                        # Dư thừa, khôi phục lại dạng sạch (xóa ID/time của máy đã chết)
+                        # Dư thừa, khôi phục lại dạng sạch (xóa ID/time của máy đã chết hoặc do chính máy nhả ra)
                         clean_line = f"{item['prefix']}{item['cookie_val']}"
                         updated_lines.append(clean_line)
                         if item['original_line'] != clean_line:
@@ -721,8 +725,14 @@ def run_cookie_check_sequence(config):
         suffix = acc['suffix']
         pkg_name = f"{base_pkg}{suffix}"
         
-        if i < len(remote_cookies): assigned_cookie = remote_cookies[i]
-        else: continue
+        # --- BẢO VỆ: Chỉ cấp phát nếu kho Cookie trên mạng còn đủ cho Tab này ---
+        if i < len(remote_cookies): 
+            assigned_cookie = remote_cookies[i]
+        else: 
+            ui_log("UPDATE", f"Acc '{suffix}' thiếu Cookie (Kho hết) -> Tạm ngưng.")
+            acc['id'] = "0"
+            update_local_config_file(suffix, "0")
+            continue
 
         local_cookie = get_local_cookie_injector(pkg_name)
 
@@ -1014,6 +1024,18 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
         ui_log(thread_name, f"---- CHECK ACCOUNT: {suffix} (ID: {uid}) ----")
         
         is_process_active = check_process_running(pkg_name)
+        
+        # --- BẢO VỆ: Nếu thiếu Cookie (hết slot) -> Kill & Bỏ qua (không mở app) ---
+        if not uid or str(uid) == "0":
+            ui_log(thread_name, f"⚠️ '{suffix}' không có Cookie -> BỎ QUA.")
+            if is_process_active:
+                ui_log(thread_name, f"Đang tắt '{suffix}' lén chạy để giải phóng RAM...")
+                try:
+                    cmd_kill = f"PID=$(ps -ef | grep {pkg_name} | grep -v grep | awk '{{print $2}}'); if [ ! -z \"$PID\" ]; then kill -9 $PID; fi"
+                    subprocess.run(["su", "-c", cmd_kill], capture_output=True, timeout=10)
+                except: pass
+            continue
+
         should_launch = False
         
         if not is_process_active:
