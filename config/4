@@ -8,7 +8,7 @@ BASE_PACKAGE_NAME="com.roblox.client" # Gói ứng dụng gốc
 ACCOUNT_NUMBER="10" 
 
 # --- URL CẤU HÌNH ---
-COOKIE_URL="https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie/1"
+COOKIE_URL="https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie/test1"
 PROXY_URL="https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/proxy/proxy"
 
 # --- CẤU HÌNH QUÉT SERVER (SCAN) ---
