@@ -26,7 +26,9 @@ from datetime import datetime
 # ---------------------------------------------------
 # Chỉ cần thiết lập duy nhất Link Config tại đây.
 # COOKIE_URL và PROXY_URL sẽ được tự động tải về từ nội dung file Config.
-CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/config/4"
+CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/config/test1"
+COOKIE_URL = ""
+PROXY_URL = ""
 
 # ---------------------------------------------------
 # -- BIẾN TOÀN CỤC & UI STATE --
@@ -37,9 +39,11 @@ current_proxies = []
 file_lock = threading.Lock()
 current_executor_id = None 
 
-TEMP_DIR = os.path.join(os.getcwd(), "RobloxInjector_Temp") 
+# Toàn bộ file lưu trữ cục bộ sẽ được gom chung vào thư mục Download
+DOWNLOAD_DIR = "/storage/emulated/0/Download"
+TEMP_DIR = os.path.join(DOWNLOAD_DIR, "RobloxInjector_Temp") 
 COOKIE_FILENAME = "Cookies"
-LOCAL_CONFIG_FILE = "config.txt"
+LOCAL_CONFIG_FILE = os.path.join(DOWNLOAD_DIR, "lychkins_config.txt")
 
 # Biến dùng cho Giao Diện Dashboard
 UI_READY = False
@@ -331,7 +335,7 @@ def extract_github_info(url):
 
 def get_local_github_token():
     """Đọc file lưu trữ Github Token cục bộ an toàn trong thư mục Download."""
-    token_file = "/storage/emulated/0/Download/token.txt"
+    token_file = os.path.join(DOWNLOAD_DIR, "token.txt")
     if os.path.exists(token_file):
         with open(token_file, "r") as f:
             return f.read().strip()
@@ -398,26 +402,36 @@ def manage_remote_cookies(config, needed_count, android_id):
             now = datetime.now()
             now_str = now.strftime("%Y%m%d_%H%M%S")
             
-            # Quét từng dòng cookie
-            for line in lines:
-                line = line.strip()
-                if not line:
-                    updated_lines.append(line)
+            for raw_line in lines:
+                raw_line = raw_line.strip()
+                if not raw_line:
+                    updated_lines.append(raw_line)
                     continue
-                    
+                
+                line = raw_line
                 idx = line.find("_|WARNING:-DO-NOT-SHARE")
                 if idx == -1:
                     updated_lines.append(line)
                     continue
                 
-                # Tách phần Prefix (user:pass:) và phần Cookie (kèm data)
-                prefix = line[:idx]
-                rest = line[idx:]
-                parts = rest.split(":")
+                # BƯỚC 1: Giải mã hóa (loại bỏ chữ 'neco' ở vị trí 130 tính từ đầu cookie)
+                if len(line) >= idx + 134 and line[idx + 130 : idx + 134] == "neco":
+                    line = line[:idx + 130] + line[idx + 134:]
                 
-                cookie_val = parts[0]
-                claimer_id = parts[1] if len(parts) > 1 else None
-                timestamp_str = parts[2] if len(parts) > 2 else None
+                # BƯỚC 2: Tách thông tin an toàn qua Regex (Tránh lỗi do Cookie chứa dấu :)
+                # Tìm chuỗi :[claimer_id]:[timestamp_15_số] ở CUỐI dòng
+                m = re.search(r':([^:]+):(\d{8}_\d{6})$', line)
+                if m:
+                    claimer_id = m.group(1)
+                    timestamp_str = m.group(2)
+                    cookie_and_prefix = line[:m.start()] # Phần còn lại chắc chắn là prefix + cookie
+                else:
+                    claimer_id = None
+                    timestamp_str = None
+                    cookie_and_prefix = line
+                
+                prefix = cookie_and_prefix[:cookie_and_prefix.find("_|WARNING:-DO-NOT-SHARE")]
+                cookie_val = cookie_and_prefix[cookie_and_prefix.find("_|WARNING:-DO-NOT-SHARE"):]
                 
                 is_unclaimed = False
                 
@@ -438,7 +452,7 @@ def manage_remote_cookies(config, needed_count, android_id):
                         updated_lines.append(new_line)
                         changed = True
                     else:
-                        updated_lines.append(line) # Giữ nguyên gốc
+                        updated_lines.append(line) # Giữ nguyên mộc mạc
 
                 elif claimer_id:
                     # Máy khác đang giữ -> Kiểm tra thời hạn 24 tiếng
@@ -497,7 +511,15 @@ def manage_remote_cookies(config, needed_count, android_id):
             
             # Nếu có thay đổi, mới gọi hàm push lên Github
             if changed:
-                new_file_content = "\n".join(updated_lines)
+                final_lines_to_push = []
+                # BƯỚC 3: Mã hóa lại các line Cookie trước khi lên Github (vị trí 130 của cookie)
+                for l in updated_lines:
+                    idx = l.find("_|WARNING:-DO-NOT-SHARE")
+                    if idx != -1 and len(l) >= idx + 130:
+                        l = l[:idx + 130] + "neco" + l[idx + 130:]
+                    final_lines_to_push.append(l)
+                    
+                new_file_content = "\n".join(final_lines_to_push)
                 ui_log("UPDATE", "Đang đồng bộ Cookie lên Github...")
                 update_github_cookie_file(config, new_file_content)
 
@@ -525,8 +547,8 @@ def get_local_cookie_injector(package_name):
     if not target_path:
         return None
 
-    temp_check_path = os.path.join(TEMP_DIR, "Cookies_Check")
     if not os.path.exists(TEMP_DIR): os.makedirs(TEMP_DIR)
+    temp_check_path = os.path.join(TEMP_DIR, "Cookies_Check")
 
     run_root_cmd_injector(f"cp {target_path} {temp_check_path}")
     run_root_cmd_injector(f"chmod 777 {temp_check_path}")
@@ -1039,7 +1061,7 @@ if __name__ == "__main__":
     os.system("termux-wake-lock")
     if not check_root_access(): sys.exit(1)
     
-    token_file = "/storage/emulated/0/Download/token.txt"
+    token_file = os.path.join(DOWNLOAD_DIR, "token.txt")
     if not os.path.exists(token_file):
         print(f"\n[LỖI BẢO MẬT] Không tìm thấy file token tại: {token_file}")
         print("=> YÊU CẦU: Vui lòng tạo file token.txt chứa Github Token (có quyền repo) rồi chạy lại script.")
