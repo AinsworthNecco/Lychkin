@@ -50,8 +50,8 @@ from datetime import datetime
 # ---------------------------------------------------
 # Chỉ cần thiết lập duy nhất Link Config tại đây.
 # COOKIE_URL và PROXY_URL sẽ được tự động tải về từ nội dung file Config.
-CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/config/fold2"
-COOKIE_URL="https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie/Fold2"
+CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/config/fold"
+COOKIE_URL="https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie/cookie"
 PROXY_URL="https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/proxy/proxy"
 
 # ---------------------------------------------------
