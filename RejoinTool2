@@ -60,7 +60,7 @@ PROXY_URL="https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/m
 # Điền Token Github đã được mã hóa vào đây. 
 # Cách mã hóa: Bỏ "ghp_" ở đầu, thêm "neco" vào đầu và cuối. 
 # Ví dụ: ghp_abc123 -> necoabc123neco
-OBFUSCATED_GITHUB_TOKEN = ""
+OBFUSCATED_GITHUB_TOKEN = "necovhK8R9Kw2c7z7u3yNx2j4kQso74vrX1S1vYZneco"
 
 proxy_index = 0
 failed_proxy_count = 0
