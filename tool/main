@@ -50,7 +50,7 @@ from datetime import datetime
 # ---------------------------------------------------
 # Chỉ cần thiết lập duy nhất Link Config tại đây.
 # COOKIE_URL và PROXY_URL sẽ được tự động tải về từ nội dung file Config.
-CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/config/1"
+CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/config/main"
 
 # ---------------------------------------------------
 # -- BIẾN TOÀN CỤC & UI STATE --
@@ -141,26 +141,25 @@ def ui_loop():
         def make_row(name, timer, log, c_name, c_time, c_log):
             n = fmt_color(name, c_name, 10)
             t = fmt_color(timer, c_time, 6)
-            l = fmt_color(log, c_log, 56) # Đã tăng độ rộng log lên 56 ký tự
+            l = fmt_color(log, c_log, 25) 
             return f"| {n} | {t} | {l} |"
 
         ac_status = f"Auto Close : {ac_enabled}"
         ac_time   = f"Time : {ac_time_str}"
-        ac_str = f"| \033[32m{ac_status:<25}\033[0m | \033[33m{ac_time:<50}\033[0m |"
+        ac_str = f"| \033[32m{ac_status:<17}\033[0m | \033[33m{ac_time:<27}\033[0m |"
 
         scan_row = make_row("Scan", scan_timer, scan_log, "36", "36", "36")
         launch_row = make_row("Launch", launch_timer, launch_log, "36", "36", "36")
         update_row = make_row("Update", upd_timer, upd_log, "33", "33", "33")
         
-        # Khung viền được kéo dài ra 80 ký tự cho rộng rãi
-        print("+------------------------------------------------------------------------------+")
-        print("| \033[1;36m                          LYCHKINS TASK RUNNER v1.14                          \033[0m |")
-        print("+------------------------------------------------------------------------------+")
+        print("+-------------------------------------------------+")
+        print("| \033[1;36m          LYCHKINS TASK RUNNER v1.14           \033[0m |")
+        print("+-------------------------------------------------+")
         print(ac_str)
         print(scan_row)
         print(launch_row)
         print(update_row)
-        print("+------------------------------------------------------------------------------+")
+        print("+-------------------------------------------------+")
         
         time.sleep(1)
 
@@ -224,15 +223,9 @@ def check_root_access():
 
 def check_process_running(pkg_name):
     try:
-        # Sử dụng pidof để tránh bị trùng lặp với các tiến trình rác/crash
-        cmd = f"pidof {pkg_name}"
+        cmd = f"ps -ef | grep {pkg_name} | grep -v grep"
         result = subprocess.run(["su", "-c", cmd], capture_output=True, text=True, timeout=5)
         if result.stdout.strip():
-            return True
-        # Fallback nếu pidof không hoạt động
-        cmd_fallback = f"ps -ef | grep {pkg_name} | grep -v grep"
-        result_fallback = subprocess.run(["su", "-c", cmd_fallback], capture_output=True, text=True, timeout=5)
-        if result_fallback.stdout.strip():
             return True
         return False
     except Exception:
@@ -489,12 +482,12 @@ def manage_remote_cookies(config, needed_count, android_id):
                         is_unclaimed = True
 
                 elif claimer_id:
-                    # Máy khác đang giữ -> Kiểm tra thời hạn 48 tiếng
+                    # Máy khác đang giữ -> Kiểm tra thời hạn 24 tiếng
                     is_expired = True
                     if timestamp_str:
                         try:
                             last_time = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
-                            if (now - last_time).total_seconds() <= 172800: # Vẫn còn sống (dưới 48h)
+                            if (now - last_time).total_seconds() <= 86400: # Vẫn còn sống (dưới 24h)
                                 is_expired = False
                         except Exception: pass
                         
@@ -932,8 +925,8 @@ def auto_close_loop():
                     suffix = acc['suffix']
                     pkg_name = f"{base_pkg}{suffix}"
                     try:
-                        # Sử dụng am force-stop để kill app triệt để
-                        subprocess.run(["su", "-c", f"am force-stop {pkg_name}"], capture_output=True, timeout=10)
+                        cmd_kill = f"PID=$(ps -ef | grep {pkg_name} | grep -v grep | awk '{{print $2}}'); if [ ! -z \"$PID\" ]; then kill -9 $PID; fi"
+                        subprocess.run(["su", "-c", cmd_kill], capture_output=True, timeout=10)
                     except: pass
                 ui_log(thread_name, "Đã tắt xong toàn bộ tab. Chờ chu kỳ tiếp theo...")
             else:
@@ -1038,7 +1031,8 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
             if is_process_active:
                 ui_log(thread_name, f"Đang tắt '{suffix}' lén chạy để giải phóng RAM...")
                 try:
-                    subprocess.run(["su", "-c", f"am force-stop {pkg_name}"], capture_output=True, timeout=10)
+                    cmd_kill = f"PID=$(ps -ef | grep {pkg_name} | grep -v grep | awk '{{print $2}}'); if [ ! -z \"$PID\" ]; then kill -9 $PID; fi"
+                    subprocess.run(["su", "-c", cmd_kill], capture_output=True, timeout=10)
                 except: pass
             continue
 
@@ -1058,8 +1052,8 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
             else:
                 ui_log(thread_name, f"'{suffix}' OFFLINE -> Kill & Restart.")
                 try:
-                    # Sử dụng am force-stop nguyên bản để tiêu diệt triệt để cả hộp thoại crash
-                    subprocess.run(["su", "-c", f"am force-stop {pkg_name}"], capture_output=True, timeout=10)
+                    cmd_kill = f"PID=$(ps -ef | grep {pkg_name} | grep -v grep | awk '{{print $2}}'); if [ ! -z \"$PID\" ]; then kill -9 $PID; fi"
+                    subprocess.run(["su", "-c", cmd_kill], capture_output=True, timeout=10)
                     time.sleep(3) 
                 except: pass
                 should_launch = True
