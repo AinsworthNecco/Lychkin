@@ -141,25 +141,25 @@ def ui_loop():
         def make_row(name, timer, log, c_name, c_time, c_log):
             n = fmt_color(name, c_name, 14)
             t = fmt_color(timer, c_time, 10)
-            l = fmt_color(log, c_log, 65) 
+            l = fmt_color(log, c_log, 50) 
             return f"| {n} | {t} | {l} |"
 
         ac_status = f"Auto Close : {ac_enabled}"
         ac_time   = f"Time : {ac_time_str}"
-        ac_str = f"| \033[32m{ac_status:<25}\033[0m | \033[33m{ac_time:<67}\033[0m |"
+        ac_str = f"| \033[32m{ac_status:<25}\033[0m | \033[33m{ac_time:<52}\033[0m |"
 
         scan_row = make_row("Scan", scan_timer, scan_log, "36", "36", "36")
         launch_row = make_row("Launch", launch_timer, launch_log, "36", "36", "36")
         update_row = make_row("Update", upd_timer, upd_log, "33", "33", "33")
         
-        print("+-------------------------------------------------------------------------------------------------+")
-        print("| \033[1;36m                                   LYCHKINS TASK RUNNER v1.15                                   \033[0m |")
-        print("+-------------------------------------------------------------------------------------------------+")
+        print("+----------------------------------------------------------------------------------+")
+        print("| \033[1;36m                           LYCHKINS TASK RUNNER v1.15                           \033[0m |")
+        print("+----------------------------------------------------------------------------------+")
         print(ac_str)
         print(scan_row)
         print(launch_row)
         print(update_row)
-        print("+-------------------------------------------------------------------------------------------------+")
+        print("+----------------------------------------------------------------------------------+")
         
         time.sleep(1)
 
@@ -1133,7 +1133,7 @@ if __name__ == "__main__":
         print("=> YÊU CẦU: Vui lòng tạo file token.txt chứa Github Token (có quyền repo) rồi chạy lại script.")
         sys.exit(1)
         
-    print("[MAIN] Tải cấu hình & Kiểm tra Cookie (v1.14 Smart Inject + Update Loop)...")
+    print("[MAIN] Tải cấu hình & Kiểm tra Cookie (v1.15 Smart Inject + Update Loop)...")
     initial_config = fetch_and_load_config(CONFIG_URL)
     
     if initial_config.get("WM_ROTATION_ENABLED", "off").lower() == "on":
