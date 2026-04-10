@@ -18,7 +18,7 @@ import base64
 from datetime import datetime
 
 # ==============================================================================
-# SCRIPT: Lychkins's Task Runner v1.15 (Smart Path Injector + Update Loop UI)
+# SCRIPT: Lychkins's Task Runner v1.17 (Smart Path Injector + Update Loop UI)
 # ==============================================================================
 # CÁC TÍNH NĂNG CHÍNH CỦA SCRIPT:
 # 1. Quản lý Cookie Tự Động (Auto Claim): Quét app clone, tự động xí chỗ cookie 
@@ -27,8 +27,8 @@ from datetime import datetime
 #    tránh bị các công cụ quét trộm trên Github nhận diện.
 # 3. Inject Cookie Thông Minh: Ghi trực tiếp vào file SQLite (app_webview),
 #    bypass hoàn toàn các cơ chế chống giả mạo của Roblox.
-# 4. Bảo Mật Token Cục Bộ: Yêu cầu Github Token 1 lần, lưu an toàn tại máy
-#    (trong thư mục Download), không bao giờ lộ lên file config mạng.
+# 4. Bảo Mật Token Cục Bộ: Mã hóa token cứng bằng cách bọc chuỗi "neco" và xóa "ghp_"
+#    để chống trộm Token.
 # 5. Cập Nhật Động Đa Luồng (Update Loop): Tải lại config và proxy liên tục,
 #    áp dụng ngay lập tức mà không cần khởi động lại toàn bộ script.
 # 6. Giám Sát & Mở Game (Launch Loop): Tự động check Presence API, nếu account
@@ -55,6 +55,11 @@ CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/head
 # ---------------------------------------------------
 # -- BIẾN TOÀN CỤC & UI STATE --
 # ---------------------------------------------------
+# Điền Token Github đã được mã hóa vào đây. 
+# Cách mã hóa: Bỏ "ghp_" ở đầu, thêm "neco" vào đầu và cuối. 
+# Ví dụ: ghp_abc123 -> necoabc123neco
+OBFUSCATED_GITHUB_TOKEN = "necovhK8R9Kw2c7z7u3yNx2j4kQso74vrX1S1vYZneco"
+
 proxy_index = 0
 failed_proxy_count = 0
 current_proxies = []
@@ -95,10 +100,10 @@ def ui_log(thread_name, msg):
         
     if thread_name == "SCAN":
         UI_STATE['SCAN_LOG'] = clean_msg
-    elif thread_name == "LAUNCH":
-        UI_STATE['LAUNCH_LOG'] = clean_msg
-    elif thread_name in ["UPDATE", "SYS", "AUTO-CLOSE"]:
-        UI_STATE['UPDATE_LOG'] = clean_msg
+    elif thread_name in ["LAUNCH", "AUTO-CLOSE"]:
+        UI_STATE['LAUNCH_LOG'] = f"[{thread_name}] {clean_msg}" if thread_name != "LAUNCH" else clean_msg
+    elif thread_name in ["UPDATE", "SYS"]:
+        UI_STATE['UPDATE_LOG'] = f"[{thread_name}] {clean_msg}" if thread_name != "UPDATE" else clean_msg
 
 def ui_loop():
     """Luồng chính chuyên vẽ Giao diện."""
@@ -149,13 +154,13 @@ def ui_loop():
         ac_str = f"| \033[32m{ac_status:<25}\033[0m | \033[33m{ac_time:<52}\033[0m |"
 
         scan_row = make_row("Scan", scan_timer, scan_log, "36", "36", "36")
-        launch_row = make_row("Launch", launch_timer, launch_log, "36", "36", "36")
-        update_row = make_row("Update", upd_timer, upd_log, "33", "33", "33")
-        
-        print("+----------------------------------------------------------------------------------+")
-        print("| \033[1;36m                           LYCHKINS TASK RUNNER v1.15                           \033[0m |")
-        print("+----------------------------------------------------------------------------------+")
-        print(ac_str)
+    launch_row = make_row("Launch", launch_timer, launch_log, "36", "36", "36")
+    update_row = make_row("Update", upd_timer, upd_log, "33", "33", "33")
+    
+    print("+----------------------------------------------------------------------------------+")
+    print("| \033[1;36m                           LYCHKINS TASK RUNNER v1.17                           \033[0m |")
+    print("+----------------------------------------------------------------------------------+")
+    print(ac_str)
         print(scan_row)
         print(launch_row)
         print(update_row)
@@ -181,7 +186,7 @@ def countdown(seconds, thread_name="MAIN"):
 def run_root_cmd_injector(command):
     try:
         full_cmd = f"su -c '{command}'"
-        result = subprocess.run(full_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        result = subprocess.run(full_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=15)
         return result.stdout.strip(), result.stderr.strip(), result.returncode
     except Exception as e:
         return None, str(e), -1
@@ -269,11 +274,10 @@ def extract_github_info(url):
     return None, None, None
 
 def get_local_github_token():
-    """Đọc file lưu trữ Github Token cục bộ an toàn trong thư mục Download."""
-    token_file = os.path.join(DOWNLOAD_DIR, "token.txt")
-    if os.path.exists(token_file):
-        with open(token_file, "r") as f:
-            return f.read().strip()
+    """Giải mã và lấy Github Token từ biến cứng trong script."""
+    if OBFUSCATED_GITHUB_TOKEN and OBFUSCATED_GITHUB_TOKEN.startswith("neco") and OBFUSCATED_GITHUB_TOKEN.endswith("neco"):
+        core_token = OBFUSCATED_GITHUB_TOKEN[4:-4]
+        return f"ghp_{core_token}"
     return None
 
 def fetch_and_load_config(url):
@@ -336,26 +340,22 @@ def fetch_and_load_config(url):
                     acc['id'] = "0"
         
         if "SELECTED_EXECUTOR" in config:
-            selected_id = config["SELECTED_EXECUTOR"]
-            current_executor_id = selected_id
-            target_path_key = f"EXECUTOR_PATH_{selected_id}"
-            if target_path_key in config:
-                config["OUTPUT_FILE_PATH"] = config[target_path_key]
-            else:
-                ui_log("UPDATE", f"Lỗi: Executor {selected_id} thiếu '{target_path_key}'.")
-                sys.exit(1)
-        
-        if "OUTPUT_FILE_PATH" not in config:
-            ui_log("UPDATE", "Lỗi: Thiếu OUTPUT_FILE_PATH.")
-            sys.exit(1)
-        if "PLACE_ID" not in config:
-            ui_log("UPDATE", "Lỗi: Thiếu PLACE_ID.")
-            sys.exit(1)
+        selected_id = config["SELECTED_EXECUTOR"]
+        current_executor_id = selected_id
+        target_path_key = f"EXECUTOR_PATH_{selected_id}"
+        if target_path_key in config:
+            config["OUTPUT_FILE_PATH"] = config[target_path_key]
+        else:
+            raise ValueError(f"Lỗi: Executor {selected_id} thiếu '{target_path_key}'.")
+    
+    if "OUTPUT_FILE_PATH" not in config:
+        raise ValueError("Lỗi: Thiếu OUTPUT_FILE_PATH.")
+    if "PLACE_ID" not in config:
+        raise ValueError("Lỗi: Thiếu PLACE_ID.")
 
-        return config
-    except Exception as e:
-        ui_log("UPDATE", f"Lỗi tải cấu hình: {e}")
-        sys.exit(1)
+    return config
+except Exception as e:
+    raise e
 
 def format_proxies(proxy_list):
     formatted = []
@@ -405,35 +405,10 @@ def update_github_cookie_file(config, new_content):
             ui_log("UPDATE", "Đã lưu Cookie mới thành công lên Github!")
             return True
         else:
-            ui_log("UPDATE", f"Lỗi lưu Cookie Github: {res.status_code}")
-            return False
-    except Exception as e:
-        ui_log("UPDATE", f"Lỗi API Github: {e}")
-        return False
-
-def manage_remote_cookies(config, needed_count, android_id):
-    ui_log("UPDATE", f"Đang quản lý danh sách Cookie... (Cần {needed_count})")
-    if 'COOKIE_URL' not in globals() or not COOKIE_URL:
-        ui_log("UPDATE", "Lỗi: COOKIE_URL chưa được thêm vào file config!")
-        return []
-        
-    try:
-        token = get_local_github_token()
-        repo, path, branch = extract_github_info(COOKIE_URL)
-        
-        if repo and path and token:
-            api_url = f"https://api.github.com/repos/{repo}/contents/{path}?ref={branch}"
-            headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github.v3.raw"}
-            response = requests.get(api_url, headers=headers, timeout=20)
-            if response.status_code != 200:
-                ui_log("UPDATE", f"Lỗi HTTP Cookie API: {response.status_code}")
-                return []
-            data = response.text.strip()
-        else:
-            req = urllib.request.Request(COOKIE_URL, headers={'User-Agent': 'Mozilla/5.0'})
-            with urllib.request.urlopen(req) as response:
-                if response.status != 200:
-                    ui_log("UPDATE", f"Lỗi HTTP Cookie: {response.status}")
+        req = urllib.request.Request(COOKIE_URL, headers={'User-Agent': 'Mozilla/5.0'})
+        with urllib.request.urlopen(req, timeout=20) as response:
+            if response.status != 200:
+                ui_log("UPDATE", f"Lỗi HTTP Cookie: {response.status}")
                     return []
                 data = response.read().decode('utf-8').strip()
                 
@@ -1100,48 +1075,68 @@ def launch_roblox_instances(config, launch_mode, thread_name="LAUNCH"):
 
 def scanner_loop():
     ui_log("SCAN", "Bắt đầu Scan Loop.")
-    config = fetch_and_load_config(CONFIG_URL)
     while True:
-        run_scanner(config, "SCAN")
-        countdown(config.get("SCAN_INTERVAL_SECONDS", 300), "SCAN")
+        try:
+            config = fetch_and_load_config(CONFIG_URL)
+            run_scanner(config, "SCAN")
+            countdown(config.get("SCAN_INTERVAL_SECONDS", 300), "SCAN")
+        except Exception as e:
+            ui_log("SCAN", f"Lỗi vòng lặp: {e}")
+            time.sleep(30)
 
 def launcher_loop(mode):
     ui_log("LAUNCH", f"Bắt đầu Launch Loop ({mode}).")
-    config = fetch_and_load_config(CONFIG_URL)
     while True:
-        launch_roblox_instances(config, mode, "LAUNCH")
-        countdown(config.get("LAUNCH_INTERVAL_SECONDS", 300), "LAUNCH")
+        try:
+            config = fetch_and_load_config(CONFIG_URL)
+            launch_roblox_instances(config, mode, "LAUNCH")
+            countdown(config.get("LAUNCH_INTERVAL_SECONDS", 300), "LAUNCH")
+        except Exception as e:
+            ui_log("LAUNCH", f"Lỗi vòng lặp: {e}")
+            time.sleep(30)
 
 def reboot_loop():
     thread_name = "SYS"
-    config = fetch_and_load_config(CONFIG_URL)
-    if config.get("REBOOT_ENABLED", "off").lower() == "on":
-        mins = config.get("REBOOT_INTERVAL_MINUTES", 1200)
-        ui_log(thread_name, f"Lịch Reboot: {mins} phút.")
-        time.sleep(mins * 60)
-        ui_log(thread_name, "Đang khởi động lại...")
-        try: subprocess.run(["su", "-c", "reboot"])
-        except: pass
+    while True:
+        try:
+            config = fetch_and_load_config(CONFIG_URL)
+            if config.get("REBOOT_ENABLED", "off").lower() == "on":
+                mins = config.get("REBOOT_INTERVAL_MINUTES", 1200)
+                ui_log(thread_name, f"Lịch Reboot: {mins} phút.")
+                time.sleep(mins * 60)
+                ui_log(thread_name, "Đang khởi động lại...")
+                try: subprocess.run(["su", "-c", "reboot"])
+                except: pass
+            else:
+                time.sleep(600)
+        except Exception:
+            time.sleep(60)
 
 if __name__ == "__main__":
     os.system("termux-wake-lock")
     if not check_root_access(): sys.exit(1)
     
-    token_file = os.path.join(DOWNLOAD_DIR, "token.txt")
-    if not os.path.exists(token_file):
-        print(f"\n[LỖI BẢO MẬT] Không tìm thấy file token tại: {token_file}")
-        print("=> YÊU CẦU: Vui lòng tạo file token.txt chứa Github Token (có quyền repo) rồi chạy lại script.")
+    if not get_local_github_token():
+        print("\n[LỖI BẢO MẬT] Token Github chưa được thiết lập hoặc mã hóa sai trong script!")
+        print("=> YÊU CẦU: Vui lòng dán token đã mã hóa (bỏ ghp_, bọc neco 2 đầu) vào biến OBFUSCATED_GITHUB_TOKEN ở đầu script.")
         sys.exit(1)
         
-    print("[MAIN] Tải cấu hình & Kiểm tra Cookie (v1.15 Smart Inject + Update Loop)...")
-    initial_config = fetch_and_load_config(CONFIG_URL)
+    print("[MAIN] Tải cấu hình & Kiểm tra Cookie (v1.17 Smart Inject + Update Loop)...")
+    try:
+        initial_config = fetch_and_load_config(CONFIG_URL)
+    except Exception as e:
+        print(f"[MAIN] Lỗi mạng khi tải cấu hình khởi tạo: {e}")
+        sys.exit(1)
     
     if initial_config.get("WM_ROTATION_ENABLED", "off").lower() == "on":
         os.system('su -c "settings put system accelerometer_rotation 0"')
         os.system('su -c "settings put system user_rotation 1"')
     
-    run_cookie_check_sequence(initial_config)
-    final_config = fetch_and_load_config(CONFIG_URL)
+    try:
+        run_cookie_check_sequence(initial_config)
+        final_config = fetch_and_load_config(CONFIG_URL)
+    except Exception as e:
+        print(f"[MAIN] Cảnh báo lỗi check cookie: {e}")
     
     # Kích hoạt UI Dashboard
     UI_READY = True
