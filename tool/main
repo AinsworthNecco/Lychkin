@@ -58,7 +58,7 @@ CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/head
 # Điền Token Github đã được mã hóa vào đây. 
 # Cách mã hóa: Bỏ "ghp_" ở đầu, thêm "neco" vào đầu và cuối. 
 # Ví dụ: ghp_abc123 -> necoabc123neco
-OBFUSCATED_GITHUB_TOKEN = "necovhK8R9Kw2c7z7u3yNx2j4kQso74vrX1S1vYZneco"
+
 
 proxy_index = 0
 failed_proxy_count = 0
@@ -154,13 +154,13 @@ def ui_loop():
         ac_str = f"| \033[32m{ac_status:<25}\033[0m | \033[33m{ac_time:<52}\033[0m |"
 
         scan_row = make_row("Scan", scan_timer, scan_log, "36", "36", "36")
-    launch_row = make_row("Launch", launch_timer, launch_log, "36", "36", "36")
-    update_row = make_row("Update", upd_timer, upd_log, "33", "33", "33")
-    
-    print("+----------------------------------------------------------------------------------+")
-    print("| \033[1;36m                           LYCHKINS TASK RUNNER v1.17                           \033[0m |")
-    print("+----------------------------------------------------------------------------------+")
-    print(ac_str)
+        launch_row = make_row("Launch", launch_timer, launch_log, "36", "36", "36")
+        update_row = make_row("Update", upd_timer, upd_log, "33", "33", "33")
+        
+        print("+----------------------------------------------------------------------------------+")
+        print("| \033[1;36m                           LYCHKINS TASK RUNNER v1.17                           \033[0m |")
+        print("+----------------------------------------------------------------------------------+")
+        print(ac_str)
         print(scan_row)
         print(launch_row)
         print(update_row)
@@ -340,22 +340,22 @@ def fetch_and_load_config(url):
                     acc['id'] = "0"
         
         if "SELECTED_EXECUTOR" in config:
-        selected_id = config["SELECTED_EXECUTOR"]
-        current_executor_id = selected_id
-        target_path_key = f"EXECUTOR_PATH_{selected_id}"
-        if target_path_key in config:
-            config["OUTPUT_FILE_PATH"] = config[target_path_key]
-        else:
-            raise ValueError(f"Lỗi: Executor {selected_id} thiếu '{target_path_key}'.")
-    
-    if "OUTPUT_FILE_PATH" not in config:
-        raise ValueError("Lỗi: Thiếu OUTPUT_FILE_PATH.")
-    if "PLACE_ID" not in config:
-        raise ValueError("Lỗi: Thiếu PLACE_ID.")
+            selected_id = config["SELECTED_EXECUTOR"]
+            current_executor_id = selected_id
+            target_path_key = f"EXECUTOR_PATH_{selected_id}"
+            if target_path_key in config:
+                config["OUTPUT_FILE_PATH"] = config[target_path_key]
+            else:
+                raise ValueError(f"Lỗi: Executor {selected_id} thiếu '{target_path_key}'.")
+        
+        if "OUTPUT_FILE_PATH" not in config:
+            raise ValueError("Lỗi: Thiếu OUTPUT_FILE_PATH.")
+        if "PLACE_ID" not in config:
+            raise ValueError("Lỗi: Thiếu PLACE_ID.")
 
-    return config
-except Exception as e:
-    raise e
+        return config
+    except Exception as e:
+        raise e
 
 def format_proxies(proxy_list):
     formatted = []
@@ -405,10 +405,35 @@ def update_github_cookie_file(config, new_content):
             ui_log("UPDATE", "Đã lưu Cookie mới thành công lên Github!")
             return True
         else:
-        req = urllib.request.Request(COOKIE_URL, headers={'User-Agent': 'Mozilla/5.0'})
-        with urllib.request.urlopen(req, timeout=20) as response:
-            if response.status != 200:
-                ui_log("UPDATE", f"Lỗi HTTP Cookie: {response.status}")
+            ui_log("UPDATE", f"Lỗi lưu Cookie Github: {res.status_code}")
+            return False
+    except Exception as e:
+        ui_log("UPDATE", f"Lỗi API Github: {e}")
+        return False
+
+def manage_remote_cookies(config, needed_count, android_id):
+    ui_log("UPDATE", f"Đang quản lý danh sách Cookie... (Cần {needed_count})")
+    if 'COOKIE_URL' not in globals() or not COOKIE_URL:
+        ui_log("UPDATE", "Lỗi: COOKIE_URL chưa được thêm vào file config!")
+        return []
+        
+    try:
+        token = get_local_github_token()
+        repo, path, branch = extract_github_info(COOKIE_URL)
+        
+        if repo and path and token:
+            api_url = f"https://api.github.com/repos/{repo}/contents/{path}?ref={branch}"
+            headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github.v3.raw"}
+            response = requests.get(api_url, headers=headers, timeout=20)
+            if response.status_code != 200:
+                ui_log("UPDATE", f"Lỗi HTTP Cookie API: {response.status_code}")
+                return []
+            data = response.text.strip()
+        else:
+            req = urllib.request.Request(COOKIE_URL, headers={'User-Agent': 'Mozilla/5.0'})
+            with urllib.request.urlopen(req, timeout=20) as response:
+                if response.status != 200:
+                    ui_log("UPDATE", f"Lỗi HTTP Cookie: {response.status}")
                     return []
                 data = response.read().decode('utf-8').strip()
                 
