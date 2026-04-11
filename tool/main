@@ -18,48 +18,34 @@ import base64
 from datetime import datetime
 
 # ==============================================================================
-# SCRIPT: Lychkins's Task Runner v1.20 (Smart Path Injector + Update Loop UI)
+# SCRIPT: Lychkins's Task Runner v1.21 (Smart Path Injector + Update Loop UI)
 # ==============================================================================
 # CÁC TÍNH NĂNG CHÍNH CỦA SCRIPT:
 # 1. Quản lý Cookie Tự Động (Auto Claim): Quét app clone, tự động xí chỗ cookie 
 #    chưa ai dùng. Định danh độc lập (Android ID + Suffix tab) chống tranh chấp.
-# 2. Mã Hóa Cookie An Toàn: Chèn/Xóa chuỗi ẩn "neco" tại vị trí 170 của cookie để 
+# 2. Ưu tiên Cookie: Nhận diện và ưu tiên tái sử dụng Cookie >24h trước Cookie trắng.
+# 3. Cache Local: File JSON đối chiếu cục bộ, chống lỗi MISMATCH ép khởi động lại app.
+# 4. Mã Hóa Cookie An Toàn: Chèn/Xóa chuỗi ẩn "neco" tại vị trí 170 của cookie để 
 #    tránh bị các công cụ quét trộm trên Github nhận diện.
-# 3. Inject Cookie Thông Minh: Ghi trực tiếp vào file SQLite (app_webview),
+# 5. Inject Cookie Thông Minh: Ghi trực tiếp vào file SQLite (app_webview),
 #    bypass hoàn toàn các cơ chế chống giả mạo của Roblox.
-# 4. Bảo Mật Token Cục Bộ: Mã hóa token cứng bằng cách bọc chuỗi "neco" và xóa "ghp_"
-#    để chống trộm Token.
-# 5. Cập Nhật Động Đa Luồng (Update Loop): Tải lại config và proxy liên tục,
-#    áp dụng ngay lập tức mà không cần khởi động lại toàn bộ script.
-# 6. Giám Sát & Mở Game (Launch Loop): Tự động check Presence API, nếu account
-#    offline hoặc bị văng sẽ tự động kill app và bật lại ngay lập tức.
-# 7. Quét Server (Scan Loop): Tự động lấy danh sách server theo PlaceID thỏa 
-#    mãn điều kiện % player (min/max), luân chuyển đều cho các tài khoản.
-# 8. Quản Lý Proxy Nâng Cao: Tự động đổi proxy khi lỗi (Rate Limit/Network), 
-#    vòng lặp proxy thông minh tránh bị chặn.
-# 9. Bảo Vệ RAM (Auto-Close): Tự động kill toàn bộ clone định kỳ (theo giờ) 
-#    để giải phóng RAM, Launch Loop sẽ tự động mở lại sau đó.
-# 10. Tự Động Reboot (Sys Loop): Hẹn giờ khởi động lại toàn bộ thiết bị.
-# 11. Bảng Điều Khiển Giao Diện (Dashboard UI): Hiển thị timer, trạng thái 
-#     của các luồng trực quan liên tục trên cửa sổ Terminal.
-# 12. Tiện Ích Phụ: Tự động xoay màn hình chuẩn và giữ máy chống ngủ (Wake-lock).
+# 6. Bảo Mật Token: Đọc token mã hóa từ Config mạng, tự động giải mã chữ "neco".
+# 7. Cập Nhật Động Đa Luồng (Update Loop): Tải lại config và proxy liên tục.
+# 8. Giám Sát & Mở Game (Launch Loop): Tự động check Presence API.
+# 9. Quét Server (Scan Loop): Tự động lấy danh sách server theo PlaceID.
+# 10. Quản Lý Proxy Nâng Cao: Tự động đổi proxy khi lỗi, vòng lặp thông minh.
+# 11. Bảo Vệ RAM (Auto-Close): Tự động kill toàn bộ clone định kỳ theo giờ.
+# 12. Bảng Điều Khiển UI: Giao diện timer trực quan, log module không đè nhau.
 # ==============================================================================
 
 # ---------------------------------------------------
 # -- URL CẤU HÌNH --
 # ---------------------------------------------------
-# Chỉ cần thiết lập duy nhất Link Config tại đây.
-# COOKIE_URL và PROXY_URL sẽ được tự động tải về từ nội dung file Config.
 CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/config/main"
 
 # ---------------------------------------------------
 # -- BIẾN TOÀN CỤC & UI STATE --
 # ---------------------------------------------------
-# Điền Token Github đã được mã hóa vào đây. 
-# Cách mã hóa: Bỏ "ghp_" ở đầu, thêm "neco" vào đầu và cuối. 
-# Ví dụ: ghp_abc123 -> necoabc123neco
-OBFUSCATED_GITHUB_TOKEN = "necovhK8R9Kw2c7z7u3yNx2j4kQso74vrX1S1vYZneco"
-
 proxy_index = 0
 failed_proxy_count = 0
 current_proxies = []
@@ -71,6 +57,7 @@ DOWNLOAD_DIR = "/storage/emulated/0/Download"
 TEMP_DIR = os.path.join(DOWNLOAD_DIR, "RobloxInjector_Temp") 
 COOKIE_FILENAME = "Cookies"
 LOCAL_CONFIG_FILE = os.path.join(DOWNLOAD_DIR, "lychkins_config.txt")
+COOKIE_CACHE_FILE = os.path.join(DOWNLOAD_DIR, "lychkins_cookie_cache.json")
 
 # Biến dùng cho Giao Diện Dashboard
 UI_READY = False
@@ -139,7 +126,7 @@ def ui_loop():
         launch_log = UI_STATE.get('LAUNCH_LOG', '')
         upd_log = UI_STATE.get('UPDATE_LOG', '')
 
-        print(f"\033[1;36mVersion     |\033[0m Lychkins Task Runner v1.20")
+        print(f"\033[1;36mVersion     |\033[0m Lychkins Task Runner v1.21")
         print(f"\033[1;35mAndroid ID  |\033[0m {device_android_id}")
         print(f"\033[1;32mAuto close  |\033[0m {ac_time_str:<8} | {ac_enabled}")
         print(f"\033[1;33mUpdate      |\033[0m {upd_timer:<8} |")
@@ -164,7 +151,7 @@ def countdown(seconds, thread_name="MAIN"):
         UI_STATE[timer_key] = 0
 
 # ==============================================================================
-# -- CÁC HÀM TIỆN ÍCH CƠ BẢN --
+# -- CÁC HÀM TIỆN ÍCH CƠ BẢN & CACHE --
 # ==============================================================================
 
 def run_root_cmd_injector(command):
@@ -233,9 +220,22 @@ def load_local_ids_from_file():
                         uid = parts[1].strip()
                         if uid.isdigit():
                             local_map[suf] = uid
-        except Exception as e:
-            pass
+        except Exception: pass
     return local_map
+
+def load_cookie_cache():
+    if os.path.exists(COOKIE_CACHE_FILE):
+        try:
+            with open(COOKIE_CACHE_FILE, "r") as f:
+                return json.load(f)
+        except Exception: pass
+    return {}
+
+def save_cookie_cache(cache_dict):
+    try:
+        with open(COOKIE_CACHE_FILE, "w") as f:
+            json.dump(cache_dict, f)
+    except Exception: pass
 
 def fetch_proxies_from_url(url):
     try:
@@ -246,37 +246,19 @@ def fetch_proxies_from_url(url):
         ui_log("UPDATE", f"Lỗi tải proxy: {e}")
     return []
 
-def extract_github_info(url):
-    """Tự động trích xuất Repo, Path và Branch từ link Raw Github."""
-    match = re.search(r'raw\.githubusercontent\.com/([^/]+)/([^/]+)/(?:refs/heads/)?([^/]+)/(.*)', url)
-    if match:
-        owner = match.group(1)
-        repo = match.group(2)
-        branch = match.group(3)
-        path = match.group(4)
-        return f"{owner}/{repo}", path, branch
-    return None, None, None
-
-def get_local_github_token():
-    """Giải mã và lấy Github Token từ biến cứng trong script."""
-    if OBFUSCATED_GITHUB_TOKEN and OBFUSCATED_GITHUB_TOKEN.startswith("neco") and OBFUSCATED_GITHUB_TOKEN.endswith("neco"):
-        core_token = OBFUSCATED_GITHUB_TOKEN[4:-4]
+def get_local_github_token(config):
+    """Giải mã và lấy Github Token từ biến trong Config."""
+    token_str = config.get("OBFUSCATED_GITHUB_TOKEN", "")
+    if token_str and token_str.startswith("neco") and token_str.endswith("neco"):
+        core_token = token_str[4:-4]
         return f"ghp_{core_token}"
     return None
 
 def fetch_and_load_config(url):
     global current_executor_id, COOKIE_URL, PROXY_URL
     try:
-        token = get_local_github_token()
-        repo, path, branch = extract_github_info(url)
-        
-        if repo and path and token:
-            api_url = f"https://api.github.com/repos/{repo}/contents/{path}?ref={branch}"
-            headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github.v3.raw"}
-            response = requests.get(api_url, headers=headers, timeout=20)
-        else:
-            response = requests.get(url, timeout=20)
-            
+        # Link config được giả định là raw url hoặc đã mã hóa bypass, fetch trực tiếp.
+        response = requests.get(url, timeout=20)
         response.raise_for_status()
         
         config = {}
@@ -284,7 +266,6 @@ def fetch_and_load_config(url):
         
         for key, _, value in pattern.findall(response.text):
             value = value.strip()
-            # Cập nhật URLs tự động từ Github Config
             if key == "COOKIE_URL":
                 COOKIE_URL = value
             elif key == "PROXY_URL":
@@ -296,17 +277,14 @@ def fetch_and_load_config(url):
             elif key != "ACCOUNT_SUFFIXES": 
                 config[key] = value
         
-        # Nếu url proxy đã được đọc từ cấu hình thì fetch list proxy
         if 'PROXY_URL' in globals() and PROXY_URL:
             config["PROXY_LIST"] = fetch_proxies_from_url(PROXY_URL)
         else:
             config["PROXY_LIST"] = []
         
-        # Tự động nhận diện bản clone cài trên máy
         base_pkg = config.get("BASE_PACKAGE_NAME", "com.roblox.client")
         detected_accounts = auto_detect_roblox_packages(base_pkg)
         
-        # Áp dụng cơ chế cắt số lượng clone theo yêu cầu của ACCOUNT_NUMBER
         if "ACCOUNT_NUMBER" in config:
             limit = config["ACCOUNT_NUMBER"]
             if limit > 0:
@@ -357,26 +335,33 @@ def format_proxies(proxy_list):
 # -- CÁC HÀM INJECTOR LOGIC & SMART COOKIE CLAIMING --
 # ==============================================================================
 
+def extract_github_info(url):
+    match = re.search(r'raw\.githubusercontent\.com/([^/]+)/([^/]+)/(?:refs/heads/)?([^/]+)/(.*)', url)
+    if match:
+        owner = match.group(1)
+        repo = match.group(2)
+        branch = match.group(3)
+        path = match.group(4)
+        return f"{owner}/{repo}", path, branch
+    return None, None, None
+
 def update_github_cookie_file(config, new_content):
-    """Cập nhật nội dung file cookie mới lên Github thông qua Github API."""
-    token = get_local_github_token()
+    token = get_local_github_token(config)
     repo, path, branch = extract_github_info(COOKIE_URL)
     
     if not token or not repo or not path:
-        ui_log("UPDATE", "Lỗi: Không thể trích xuất Repo/Path từ COOKIE_URL hoặc thiếu Token.")
+        ui_log("UPDATE", "Lỗi: Không thể trích xuất Repo/Path hoặc thiếu Token Github.")
         return False
         
     url = f"https://api.github.com/repos/{repo}/contents/{path}"
     headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"}
     
     try:
-        # Lấy SHA hiện tại của file
         r = requests.get(url, headers=headers)
         if r.status_code != 200:
             return False
         sha = r.json().get("sha")
         
-        # Cập nhật file
         encoded = base64.b64encode(new_content.encode('utf-8')).decode('utf-8')
         data = {
             "message": "Auto-claim cookies by Lychkins Runner",
@@ -404,7 +389,7 @@ def manage_remote_cookies(config, accounts, android_id):
         return {}
         
     try:
-        token = get_local_github_token()
+        token = get_local_github_token(config)
         repo, path, branch = extract_github_info(COOKIE_URL)
         
         if repo and path and token:
@@ -426,7 +411,8 @@ def manage_remote_cookies(config, accounts, android_id):
         lines = data.splitlines()
         
         owned_cookies_dict = {}
-        unclaimed_cookies = []
+        expired_cookies = []
+        empty_cookies = []
         updated_lines = []
         changed = False
         now = datetime.now()
@@ -464,11 +450,8 @@ def manage_remote_cookies(config, accounts, android_id):
             
             is_unclaimed = False
             
-            # Kiểm tra xem Cookie này thuộc về Tab nào của máy này
             if claimer_id and claimer_id.startswith(f"{android_id}-"):
                 suffix_part = claimer_id[len(f"{android_id}-"):]
-                
-                # Nếu Tab này hiện đang được chạy và chưa có cookie nào
                 if suffix_part in needed_suffixes and suffix_part not in owned_cookies_dict:
                     owned_cookies_dict[suffix_part] = cookie_val
                     needs_time_update = True
@@ -486,12 +469,12 @@ def manage_remote_cookies(config, accounts, android_id):
                     else:
                         updated_lines.append(line) # Vẫn còn hạn, giữ nguyên
                 else:
-                    # Tab này đã có cookie rồi (trùng lặp) hoặc Tab này không còn chạy nữa -> Xả ra
-                    is_unclaimed = True
+                    # Tab này đã bị xóa hoặc dư thừa -> Đẩy vào list Expired để nhường cho Tab khác xài
+                    expired_cookies.append({'prefix': prefix, 'cookie_val': cookie_val, 'original_line': line})
                     
             elif claimer_id and claimer_id == android_id:
-                # Tương thích ngược: Xả Cookie của bản v1.17 cũ để tự động claim lại theo định dạng Suffix mới
-                is_unclaimed = True
+                # Tương thích ngược: Coi như Expired để xả Suffix mới đè lên
+                expired_cookies.append({'prefix': prefix, 'cookie_val': cookie_val, 'original_line': line})
                 
             elif claimer_id:
                 # Thuộc về máy khác -> Check hạn 24h
@@ -504,28 +487,26 @@ def manage_remote_cookies(config, accounts, android_id):
                     except Exception: pass
                     
                 if is_expired:
-                    is_unclaimed = True
+                    expired_cookies.append({'prefix': prefix, 'cookie_val': cookie_val, 'original_line': line})
                 else:
                     updated_lines.append(line)
             else:
                 # Trắng hoàn toàn
-                is_unclaimed = True
+                empty_cookies.append({'prefix': prefix, 'cookie_val': cookie_val, 'original_line': line})
 
-            if is_unclaimed:
-                unclaimed_cookies.append({
-                    'prefix': prefix,
-                    'cookie_val': cookie_val,
-                    'original_line': line
-                })
-
-        # BƯỚC 3: Cấp phát Cookie trống cho các Tab chưa có
+        # BƯỚC 3: Cấp phát Cookie cho các Tab chưa có (Ưu tiên: >24h trước, Trống sau)
         missing_suffixes = [s for s in needed_suffixes if s not in owned_cookies_dict]
         
         if missing_suffixes:
-            ui_log("UPDATE", f"Đang lấy Cookie trống cho {len(missing_suffixes)} Tab...")
+            ui_log("UPDATE", f"Đang lấy Cookie thay thế cho {len(missing_suffixes)} Tab...")
             for suffix in missing_suffixes:
-                if unclaimed_cookies:
-                    item = unclaimed_cookies.pop(0) # Lấy 1 cookie ra khỏi kho trống
+                item = None
+                if expired_cookies:
+                    item = expired_cookies.pop(0)
+                elif empty_cookies:
+                    item = empty_cookies.pop(0)
+
+                if item:
                     new_line = f"{item['prefix']}{item['cookie_val']}:{android_id}-{suffix}:{now_str}"
                     updated_lines.append(new_line)
                     owned_cookies_dict[suffix] = item['cookie_val']
@@ -537,7 +518,7 @@ def manage_remote_cookies(config, accounts, android_id):
             ui_log("UPDATE", f"Tuyệt vời. Đã gắn đủ {len(needed_suffixes)} Cookie / {len(needed_suffixes)} Tab.")
             
         # Dọn dẹp trả lại nguyên bản cho các cookie còn ế / hoặc do máy nhả ra
-        for item in unclaimed_cookies:
+        for item in expired_cookies + empty_cookies:
             clean_line = f"{item['prefix']}{item['cookie_val']}"
             updated_lines.append(clean_line)
             if item['original_line'] != clean_line:
@@ -717,19 +698,20 @@ def run_cookie_check_sequence(config):
         ui_log("UPDATE", "Không tìm thấy bản Roblox clone nào. Bỏ qua.")
         return
 
-    # Dictionary Map: Trả về chính xác Cookie nào thuộc về Hậu Tố (Suffix) nào
+    # Mảng map: Trả về Cookie của từng Tab trên Github
     remote_cookies_dict = manage_remote_cookies(config, accounts, android_id)
     if not remote_cookies_dict:
         ui_log("UPDATE", "Lỗi hoặc không có Cookie hợp lệ -> Bỏ qua.")
         return
 
     base_pkg = config.get("BASE_PACKAGE_NAME", "com.roblox.client")
+    
+    # Load lại Cache tĩnh dưới máy
+    cookie_cache = load_cookie_cache()
 
     for acc in accounts:
         suffix = acc['suffix']
         pkg_name = f"{base_pkg}{suffix}"
-        
-        # Gọi chính xác Cookie đã xí cho Tab này
         assigned_cookie = remote_cookies_dict.get(suffix)
         
         if not assigned_cookie: 
@@ -737,26 +719,40 @@ def run_cookie_check_sequence(config):
             acc['id'] = "0"
             update_local_config_file(suffix, "0")
             continue
-
-        local_cookie = get_local_cookie_injector(pkg_name)
-
-        if local_cookie == assigned_cookie:
-            ui_log("UPDATE", f"Acc '{suffix}' -> OK (Khớp)")
-        else:
-            if local_cookie is None: ui_log("UPDATE", f"Acc '{suffix}' -> MISSING")
-            else: ui_log("UPDATE", f"Acc '{suffix}' -> MISMATCH")
             
-            # Chỉ inject (tắt) riêng cái app clone bị lỗi
-            success = inject_cookie_process(pkg_name, assigned_cookie)
-            if success:
-                ui_log("UPDATE", f"Đang lấy ID mới cho '{suffix}'...")
-                uid = get_roblox_user_id(assigned_cookie)
-                if uid:
-                    ui_log("UPDATE", f"ID tìm thấy: {uid}")
-                    update_local_config_file(suffix, uid)
-                    acc['id'] = uid 
-                else:
-                    ui_log("UPDATE", f"Không lấy được ID từ API.")
+        # 1. Check Cache tĩnh (Tuyệt đối không bị khóa)
+        if cookie_cache.get(suffix) == assigned_cookie:
+            ui_log("UPDATE", f"Acc '{suffix}' -> OK (Khớp Cache)")
+            continue
+
+        # 2. Check Database SQLite (Nếu Cache không có hoặc bị thay đổi)
+        local_cookie = get_local_cookie_injector(pkg_name)
+        if local_cookie == assigned_cookie:
+            ui_log("UPDATE", f"Acc '{suffix}' -> OK (Khớp DB)")
+            cookie_cache[suffix] = assigned_cookie
+            save_cookie_cache(cookie_cache)
+            continue
+
+        # 3. Bị Mất hoặc Sai -> Force-Stop đúng Tab này và Inject lại
+        if local_cookie is None: ui_log("UPDATE", f"Acc '{suffix}' -> MISSING")
+        else: ui_log("UPDATE", f"Acc '{suffix}' -> MISMATCH")
+        
+        success = inject_cookie_process(pkg_name, assigned_cookie)
+        if success:
+            ui_log("UPDATE", f"Đang lấy ID mới cho '{suffix}'...")
+            
+            # Cập nhật thành công thì lưu ngay vào Cache
+            cookie_cache[suffix] = assigned_cookie
+            save_cookie_cache(cookie_cache)
+            
+            uid = get_roblox_user_id(assigned_cookie)
+            if uid:
+                ui_log("UPDATE", f"ID tìm thấy: {uid}")
+                update_local_config_file(suffix, uid)
+                acc['id'] = uid 
+            else:
+                ui_log("UPDATE", f"Không lấy được ID từ API.")
+                
     ui_log("UPDATE", "Hoàn tất kiểm tra và cập nhật.")
 
 # ==============================================================================
@@ -1124,17 +1120,17 @@ def reboot_loop():
 if __name__ == "__main__":
     os.system("termux-wake-lock")
     if not check_root_access(): sys.exit(1)
-    
-    if not get_local_github_token():
-        print("\n[LỖI BẢO MẬT] Token Github chưa được thiết lập hoặc mã hóa sai trong script!")
-        print("=> YÊU CẦU: Vui lòng dán token đã mã hóa (bỏ ghp_, bọc neco 2 đầu) vào biến OBFUSCATED_GITHUB_TOKEN ở đầu script.")
-        sys.exit(1)
         
-    print("[MAIN] Tải cấu hình & Kiểm tra Cookie (v1.20 Smart Inject + Update Loop)...")
+    print("[MAIN] Tải cấu hình & Kiểm tra Cookie (v1.21 Smart Inject + Update Loop)...")
     try:
         initial_config = fetch_and_load_config(CONFIG_URL)
     except Exception as e:
         print(f"[MAIN] Lỗi mạng khi tải cấu hình khởi tạo: {e}")
+        sys.exit(1)
+        
+    if not get_local_github_token(initial_config):
+        print("\n[LỖI BẢO MẬT] Token Github chưa được thiết lập hoặc mã hóa sai trong file Config!")
+        print("=> YÊU CẦU: Vui lòng dán token đã mã hóa vào biến OBFUSCATED_GITHUB_TOKEN trong file cấu hình mạng.")
         sys.exit(1)
     
     if initial_config.get("WM_ROTATION_ENABLED", "off").lower() == "on":
