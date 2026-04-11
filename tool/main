@@ -18,7 +18,7 @@ import base64
 from datetime import datetime
 
 # ==============================================================================
-# SCRIPT: Lychkins's Task Runner v1.18 (Smart Path Injector + Update Loop UI)
+# SCRIPT: Lychkins's Task Runner v1.19 (Smart Path Injector + Update Loop UI)
 # ==============================================================================
 # CÁC TÍNH NĂNG CHÍNH CỦA SCRIPT:
 # 1. Quản lý Cookie Tự Động (Auto Claim): Quét app clone, tự động xí chỗ cookie 
@@ -58,7 +58,7 @@ CONFIG_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/head
 # Điền Token Github đã được mã hóa vào đây. 
 # Cách mã hóa: Bỏ "ghp_" ở đầu, thêm "neco" vào đầu và cuối. 
 # Ví dụ: ghp_abc123 -> necoabc123neco
-OBFUSCATED_GITHUB_TOKEN = "necovhK8R9Kw2c7z7u3yNx2j4kQso74vrX1S1vYZneco"
+OBFUSCATED_GITHUB_TOKEN = ""
 
 proxy_index = 0
 failed_proxy_count = 0
@@ -138,33 +138,15 @@ def ui_loop():
         launch_log = UI_STATE.get('LAUNCH_LOG', '')
         upd_log = UI_STATE.get('UPDATE_LOG', '')
 
-        def fmt_color(text, color_code, width):
-            text = str(text)[:width]
-            padded = text + ' ' * max(0, width - len(text))
-            return f"\033[{color_code}m{padded}\033[0m"
-
-        def make_row(name, timer, log, c_name, c_time, c_log):
-            n = fmt_color(name, c_name, 14)
-            t = fmt_color(timer, c_time, 10)
-            l = fmt_color(log, c_log, 50) 
-            return f"| {n} | {t} | {l} |"
-
-        ac_status = f"Auto Close : {ac_enabled}"
-        ac_time   = f"Time : {ac_time_str}"
-        ac_str = f"| \033[32m{ac_status:<25}\033[0m | \033[33m{ac_time:<52}\033[0m |"
-
-        scan_row = make_row("Scan", scan_timer, scan_log, "36", "36", "36")
-        launch_row = make_row("Launch", launch_timer, launch_log, "36", "36", "36")
-        update_row = make_row("Update", upd_timer, upd_log, "33", "33", "33")
+        print(f"\033[1;36mVersion     |\033[0m Lychkins Task Runner v1.19")
+        print(f"\033[1;32mAuto close  |\033[0m {ac_time_str:<6} | {ac_enabled}")
+        print(f"\033[1;33mUpdate      |\033[0m {upd_timer:<6} |")
+        print(f"\033[1;36mScan        |\033[0m {scan_timer:<6} |")
+        print(f"\033[1;36mLaunch      |\033[0m {launch_timer:<6} |\n")
         
-        print("+----------------------------------------------------------------------------------+")
-        print("| \033[1;36m                           LYCHKINS TASK RUNNER v1.18                           \033[0m |")
-        print("+----------------------------------------------------------------------------------+")
-        print(ac_str)
-        print(scan_row)
-        print(launch_row)
-        print(update_row)
-        print("+----------------------------------------------------------------------------------+")
+        print(f"\033[1;33mLOG update:\033[0m\n{upd_log}\n\n\n")
+        print(f"\033[1;36mLOG scan:\033[0m\n{scan_log}\n\n\n")
+        print(f"\033[1;36mLOG launch:\033[0m\n{launch_log}\n")
         
         time.sleep(1)
 
@@ -1146,7 +1128,7 @@ if __name__ == "__main__":
         print("=> YÊU CẦU: Vui lòng dán token đã mã hóa (bỏ ghp_, bọc neco 2 đầu) vào biến OBFUSCATED_GITHUB_TOKEN ở đầu script.")
         sys.exit(1)
         
-    print("[MAIN] Tải cấu hình & Kiểm tra Cookie (v1.18 Smart Inject + Update Loop)...")
+    print("[MAIN] Tải cấu hình & Kiểm tra Cookie (v1.19 Smart Inject + Update Loop)...")
     try:
         initial_config = fetch_and_load_config(CONFIG_URL)
     except Exception as e:
