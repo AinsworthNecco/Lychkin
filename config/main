@@ -4,7 +4,7 @@
 
 # --- THÔNG TIN TÀI KHOẢN & GAME ---
 PLACE_ID="8737602449"                # ID Game Roblox
-BASE_PACKAGE_NAME="com.roblox.client" # Gói ứng dụng gốc
+BASE_PACKAGE_NAME="com.roblox.clien" # Gói ứng dụng gốc
 ACCOUNT_NUMBER="10" 
 
 # --- URL CẤU HÌNH ---
