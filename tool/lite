@@ -1,0 +1,403 @@
+#!/data/data/com.termux/files/usr/bin/python
+# -*- coding: utf-8 -*-
+
+import subprocess
+import time
+import requests
+import os
+import sys
+import re
+import threading
+import sqlite3
+import shutil
+import base64
+from datetime import datetime
+
+# ==============================================================================
+# SCRIPT: Lychkins's Task Runner - LITE VERSION
+# ==============================================================================
+# - Chức năng 1: Khởi động mù (Blind Launch) các tab mỗi 15 giây.
+# - Chức năng 2: Lắng nghe link command. Nếu == "yes" -> Moi cookie dưới máy 
+#   push ngược lên Github.
+# - Không mã hóa (Raw), Không UI, Không tối ưu, Không check Presence API.
+# ==============================================================================
+
+# Điền Token Github đã được mã hóa vào đây (Bỏ ghp_, bọc neco 2 đầu)
+OBFUSCATED_GITHUB_TOKEN = ""
+
+BASE_PACKAGE_NAME = "com.roblox.client"
+COOKIE_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie/test"
+COMMAND_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie/command"
+
+DOWNLOAD_DIR = "/storage/emulated/0/Download"
+TEMP_DIR = os.path.join(DOWNLOAD_DIR, "RobloxInjector_Temp_Lite") 
+COOKIE_FILENAME = "Cookies"
+
+last_command_state = "" # Biến cờ để tránh spam push Github nếu command cứ giữ là "yes"
+
+def print_log(prefix, msg):
+    now = datetime.now().strftime("%H:%M:%S")
+    print(f"[{now}] [{prefix}] {msg}")
+
+# ==============================================================================
+# -- CÁC HÀM TIỆN ÍCH CƠ BẢN --
+# ==============================================================================
+
+def run_root_cmd(command):
+    try:
+        full_cmd = f"su -c '{command}'"
+        result = subprocess.run(full_cmd, shell=True, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True, timeout=10)
+        return result.stdout.strip(), result.returncode
+    except Exception:
+        return None, -1
+
+def get_android_id():
+    out, _ = run_root_cmd("settings get secure android_id")
+    if out and len(out) > 5:
+        return out.strip()
+    return "UNKNOWN_DEVICE_ID"
+
+def auto_detect_roblox_packages():
+    out, _ = run_root_cmd(f"pm list packages | grep {BASE_PACKAGE_NAME}")
+    accounts = []
+    if out:
+        for line in out.splitlines():
+            pkg = line.replace("package:", "").strip()
+            if pkg.startswith(BASE_PACKAGE_NAME):
+                suffix = pkg[len(BASE_PACKAGE_NAME):]
+                accounts.append({'suffix': suffix, 'pkg': pkg})
+    return sorted(accounts, key=lambda x: x['suffix'])
+
+def check_root_access():
+    out, _ = run_root_cmd("whoami")
+    return out == "root"
+
+def get_local_github_token():
+    if OBFUSCATED_GITHUB_TOKEN and OBFUSCATED_GITHUB_TOKEN.startswith("neco") and OBFUSCATED_GITHUB_TOKEN.endswith("neco"):
+        core_token = OBFUSCATED_GITHUB_TOKEN[4:-4]
+        return f"ghp_{core_token}"
+    return None
+
+def extract_github_info(url):
+    match = re.search(r'raw\.githubusercontent\.com/([^/]+)/([^/]+)/(?:refs/heads/)?([^/]+)/(.*)', url)
+    if match:
+        owner, repo, branch, path = match.groups()
+        return f"{owner}/{repo}", path, branch
+    return None, None, None
+
+# ==============================================================================
+# -- CÁC HÀM XỬ LÝ COOKIE & SQLITE --
+# ==============================================================================
+
+def find_real_cookie_path(package_name):
+    base_path = f"/data/data/{package_name}/app_webview"
+    possible_paths = [f"{base_path}/Default/Cookies", f"{base_path}/Cookies"]
+    for path in possible_paths:
+        out, _ = run_root_cmd(f"[ -f '{path}' ] && echo 'YES' || echo 'NO'")
+        if "YES" in out: return path
+    return None
+
+def get_local_cookie(package_name):
+    target_path = find_real_cookie_path(package_name)
+    if not target_path: return None
+
+    if not os.path.exists(TEMP_DIR): os.makedirs(TEMP_DIR)
+    temp_check_path = os.path.join(TEMP_DIR, "Cookies_Check")
+
+    run_root_cmd(f"cp {target_path} {temp_check_path}")
+    run_root_cmd(f"chmod 777 {temp_check_path}")
+
+    local_cookie_value = None
+    try:
+        conn = sqlite3.connect(temp_check_path)
+        cursor = conn.cursor()
+        cursor.execute("SELECT value FROM cookies WHERE name = '.ROBLOSECURITY'")
+        result = cursor.fetchone()
+        if result: local_cookie_value = result[0]
+        conn.close()
+    except Exception: pass
+    
+    if os.path.exists(temp_check_path): os.remove(temp_check_path)
+    return local_cookie_value
+
+def inject_cookie_process(package_name, cookie_value):
+    target_path = find_real_cookie_path(package_name)
+    if not target_path: return False
+
+    run_root_cmd(f"am force-stop {package_name}")
+    time.sleep(1)
+
+    if os.path.exists(TEMP_DIR): shutil.rmtree(TEMP_DIR)
+    os.makedirs(TEMP_DIR)
+
+    run_root_cmd(f"cp {target_path} {TEMP_DIR}/{COOKIE_FILENAME}")
+    run_root_cmd(f"chmod 777 {TEMP_DIR}/{COOKIE_FILENAME}")
+
+    db_path = os.path.join(TEMP_DIR, COOKIE_FILENAME)
+    try:
+        conn = sqlite3.connect(db_path)
+        cursor = conn.cursor()
+        cursor.execute("DELETE FROM cookies WHERE host_key = '.roblox.com' AND name = '.ROBLOSECURITY'")
+        
+        now = int(time.time() * 1000000)
+        expires = 99999999999999999
+        query = "INSERT INTO cookies (creation_utc, host_key, name, value, path, expires_utc, is_secure, is_httponly, last_access_utc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        cursor.execute(query, (now, ".roblox.com", ".ROBLOSECURITY", cookie_value, "/", expires, 1, 1, now))
+        conn.commit()
+        conn.close()
+    except Exception: return False
+
+    run_root_cmd(f"cp {TEMP_DIR}/{COOKIE_FILENAME} {target_path}")
+    
+    parent_dir = os.path.dirname(target_path)
+    owner, _ = run_root_cmd(f"stat -c '%U:%G' {parent_dir}")
+    if owner:
+        run_root_cmd(f"chown {owner} {target_path}")
+        run_root_cmd(f"chmod 600 {target_path}")
+    
+    shutil.rmtree(TEMP_DIR)
+    return True
+
+# ==============================================================================
+# -- CÁC HÀM GITHUB API --
+# ==============================================================================
+
+def fetch_github_file(url):
+    try:
+        token = get_local_github_token()
+        repo, path, branch = extract_github_info(url)
+        if repo and path and token:
+            api_url = f"https://api.github.com/repos/{repo}/contents/{path}?ref={branch}"
+            headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github.v3.raw"}
+            res = requests.get(api_url, headers=headers, timeout=10)
+            if res.status_code == 200: return res.text
+        else:
+            res = requests.get(url, timeout=10)
+            if res.status_code == 200: return res.text
+    except Exception: pass
+    return None
+
+def update_github_file(url, new_content):
+    token = get_local_github_token()
+    repo, path, branch = extract_github_info(url)
+    if not token or not repo or not path: return False
+        
+    api_url = f"https://api.github.com/repos/{repo}/contents/{path}"
+    headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"}
+    
+    try:
+        r = requests.get(api_url, headers=headers)
+        if r.status_code != 200: return False
+        sha = r.json().get("sha")
+        
+        encoded = base64.b64encode(new_content.encode('utf-8')).decode('utf-8')
+        data = {"message": "Lychkins Lite: Sync Cookies", "content": encoded, "sha": sha, "branch": branch}
+        res = requests.put(api_url, headers=headers, json=data)
+        return res.status_code in [200, 201]
+    except Exception: return False
+
+# ==============================================================================
+# -- LOGIC HOẠT ĐỘNG CHÍNH --
+# ==============================================================================
+
+def initial_setup_and_claim(accounts, android_id):
+    print_log("SETUP", "Tiến hành quét và xí chỗ Cookie (Dạng Raw, không mã hóa)...")
+    data = fetch_github_file(COOKIE_URL)
+    if not data:
+        print_log("SETUP", "Lỗi tải danh sách Cookie!")
+        return {}
+
+    lines = data.splitlines()
+    needed_suffixes = [acc['suffix'] for acc in accounts]
+    owned_cookies_dict = {}
+    unclaimed_cookies = []
+    updated_lines = []
+    changed = False
+    now_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+
+    for raw_line in lines:
+        line = raw_line.strip()
+        if not line:
+            updated_lines.append(line)
+            continue
+
+        # Dạng Raw không mã hóa. Cắt thẳng bằng Regex.
+        m = re.search(r':([^:]+):(\d{8}_\d{6})$', line)
+        if m:
+            claimer_id = m.group(1)
+            cookie_and_prefix = line[:m.start()]
+        else:
+            claimer_id = None
+            cookie_and_prefix = line
+
+        idx = cookie_and_prefix.find("_|WARNING:-DO-NOT-SHARE")
+        if idx == -1:
+            updated_lines.append(line)
+            continue
+
+        prefix = cookie_and_prefix[:idx]
+        cookie_val = cookie_and_prefix[idx:]
+        is_unclaimed = False
+
+        if claimer_id and claimer_id.startswith(f"{android_id}-"):
+            suffix_part = claimer_id[len(f"{android_id}-"):]
+            if suffix_part in needed_suffixes and suffix_part not in owned_cookies_dict:
+                owned_cookies_dict[suffix_part] = cookie_val
+                updated_lines.append(line) # Giữ nguyên mộc mạc
+            else:
+                is_unclaimed = True
+        elif claimer_id:
+            # File test nên ta mặc định bỏ qua check thời gian 24h, cứ của máy khác là giữ nguyên
+            updated_lines.append(line)
+        else:
+            is_unclaimed = True
+
+        if is_unclaimed:
+            unclaimed_cookies.append({'prefix': prefix, 'cookie_val': cookie_val, 'line': line})
+
+    # Cấp phát cho các Tab còn thiếu
+    missing_suffixes = [s for s in needed_suffixes if s not in owned_cookies_dict]
+    for suffix in missing_suffixes:
+        if unclaimed_cookies:
+            item = unclaimed_cookies.pop(0)
+            new_line = f"{item['prefix']}{item['cookie_val']}:{android_id}-{suffix}:{now_str}"
+            updated_lines.append(new_line)
+            owned_cookies_dict[suffix] = item['cookie_val']
+            changed = True
+
+    # Trả lại cookie thừa
+    for item in unclaimed_cookies:
+        clean_line = f"{item['prefix']}{item['cookie_val']}"
+        updated_lines.append(clean_line)
+        if item['line'] != clean_line: changed = True
+
+    if changed:
+        print_log("SETUP", "Phát hiện Cookie thay đổi, đang Push lên Github...")
+        new_content = "\n".join(updated_lines)
+        if update_github_file(COOKIE_URL, new_content):
+            print_log("SETUP", "Push thành công!")
+
+    # Bơm vào máy
+    for acc in accounts:
+        suffix = acc['suffix']
+        assigned = owned_cookies_dict.get(suffix)
+        if assigned:
+            local = get_local_cookie(acc['pkg'])
+            if local != assigned:
+                print_log("INJECT", f"Đang bơm Cookie cho tab '{suffix}'...")
+                inject_cookie_process(acc['pkg'], assigned)
+            else:
+                print_log("INJECT", f"Tab '{suffix}' đã khớp Cookie.")
+
+    return owned_cookies_dict
+
+def sync_cookies_to_github(accounts, android_id):
+    """Moi Cookie dưới máy lên đè vào Github (Chỉ đè vào dòng của mình)."""
+    print_log("SYNC", "Nhận lệnh YES! Tiến hành moi Cookie dưới máy đẩy lên mạng...")
+    data = fetch_github_file(COOKIE_URL)
+    if not data: return
+    
+    lines = data.splitlines()
+    updated_lines = []
+    now_str = datetime.now().strftime("%Y%m%d_%H%M%S")
+    changed = False
+    
+    # Lấy toàn bộ cookie thực tế dưới máy
+    local_cookies = {}
+    for acc in accounts:
+        local_val = get_local_cookie(acc['pkg'])
+        if local_val: local_cookies[acc['suffix']] = local_val
+
+    for line in lines:
+        line = line.strip()
+        m = re.search(r':([^:]+):(\d{8}_\d{6})$', line)
+        if m:
+            claimer_id = m.group(1)
+            cookie_and_prefix = line[:m.start()]
+            
+            # Nếu dòng này thuộc về Tab của máy này
+            if claimer_id.startswith(f"{android_id}-"):
+                suffix = claimer_id[len(f"{android_id}-"):]
+                if suffix in local_cookies:
+                    prefix = cookie_and_prefix[:cookie_and_prefix.find("_|WARNING:-DO-NOT-SHARE")]
+                    new_cookie_val = local_cookies[suffix]
+                    
+                    new_line = f"{prefix}{new_cookie_val}:{claimer_id}:{now_str}"
+                    updated_lines.append(new_line)
+                    if new_line != line: changed = True
+                    continue
+        
+        # Nếu không phải của mình hoặc không match, giữ nguyên
+        updated_lines.append(line)
+        
+    if changed:
+        new_content = "\n".join(updated_lines)
+        if update_github_file(COOKIE_URL, new_content):
+            print_log("SYNC", "Đã cập nhật toàn bộ Cookie mới nhất lên Github thành công!")
+        else:
+            print_log("SYNC", "Lỗi: Không thể Push lên Github.")
+    else:
+        print_log("SYNC", "Cookie dưới máy không có gì mới so với trên Github. Bỏ qua push.")
+
+def command_poller_loop(accounts, android_id):
+    global last_command_state
+    print_log("POLLER", "Bắt đầu luồng lắng nghe lệnh (15s/lần)...")
+    while True:
+        try:
+            cmd_text = fetch_github_file(COMMAND_URL)
+            if cmd_text:
+                cmd_text = cmd_text.strip().lower()
+                if cmd_text == "yes":
+                    if last_command_state != "yes":
+                        # Chỉ Sync khi chuyển từ trạng thái khác sang "yes" để tránh spam
+                        sync_cookies_to_github(accounts, android_id)
+                        last_command_state = "yes"
+                else:
+                    last_command_state = cmd_text
+            time.sleep(15)
+        except Exception as e:
+            time.sleep(15)
+
+def blind_launch_loop(accounts):
+    print_log("LAUNCH", "Bắt đầu luồng Blind Launch (Mở app mù) mỗi 15s...")
+    while True:
+        for acc in accounts:
+            pkg = acc['pkg']
+            print_log("LAUNCH", f"Đang ra lệnh mở app: {pkg}")
+            # Lệnh mở thẳng app ra màn hình chính, bỏ qua join game
+            run_root_cmd(f"am start -n {pkg}/com.roblox.client.Activity")
+            time.sleep(15)
+
+# ==============================================================================
+# -- MAIN --
+# ==============================================================================
+
+if __name__ == "__main__":
+    os.system("termux-wake-lock")
+    print_log("MAIN", "Khởi động Lychkins Task Runner - LITE VERSION")
+    
+    if not check_root_access():
+        print_log("MAIN", "LỖI: Chưa cấp quyền Root cho Termux!")
+        sys.exit(1)
+        
+    if not get_local_github_token():
+        print_log("MAIN", "LỖI BẢO MẬT: Chưa điền hoặc mã hóa sai OBFUSCATED_GITHUB_TOKEN!")
+        sys.exit(1)
+
+    android_id = get_android_id()
+    accounts = auto_detect_roblox_packages()
+    
+    if not accounts:
+        print_log("MAIN", "LỖI: Không tìm thấy bản Roblox clone nào (com.roblox.client...).")
+        sys.exit(1)
+
+    print_log("MAIN", f"Phát hiện {len(accounts)} Tab. Android ID: {android_id}")
+
+    # BƯỚC 1: Xí chỗ và bơm Cookie 1 lần lúc khởi động
+    initial_setup_and_claim(accounts, android_id)
+    
+    # BƯỚC 2: Khởi chạy 2 luồng ngầm độc lập
+    threading.Thread(target=command_poller_loop, args=(accounts, android_id), daemon=True).start()
+    
+    # BƯỚC 3: Luồng chính đóng vai trò Launch liên tục
+    blind_launch_loop(accounts)
