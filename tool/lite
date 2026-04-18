@@ -15,12 +15,12 @@ import random
 from datetime import datetime
 
 # ==============================================================================
-# SCRIPT: Lychkins's Task Runner - LITE VERSION (SMART LAUNCH)
+# SCRIPT: Lychkins's Task Runner - LITE VERSION (SMART LAUNCH & SYNC)
 # ==============================================================================
-# - Khởi động thông minh: Check API Presence. Nếu Online -> Bỏ qua. 
-#   Nếu Offline/Văng -> Tắt đi (Force-stop) và bật lại.
-# - Lắng nghe link command. Nếu == "yes" -> Moi cookie dưới máy push lên Github.
-# - Dạng Raw (không mã hóa chữ neco trong Cookie).
+# - Logic mở App: Bơm Cookie -> Tắt toàn bộ -> Mở toàn bộ -> Check API & Proxy.
+# - Lắng nghe lệnh: Nếu "yes" -> Moi cookie đẩy lên Github -> TỰ ĐỘNG DỪNG SCRIPT.
+# - Giao diện UI được thêm lại để theo dõi Timer.
+# - Sử dụng lệnh "monkey" để mở App mù chính xác 100%.
 # ==============================================================================
 
 # Điền Token Github đã được mã hóa vào đây (Bỏ ghp_, bọc neco 2 đầu)
@@ -45,9 +45,77 @@ COOKIE_FILENAME = "Cookies"
 
 last_command_state = "" # Biến cờ tránh spam push Github
 
-def print_log(prefix, msg):
-    now = datetime.now().strftime("%H:%M:%S")
-    print(f"[{now}] [{prefix}] {msg}")
+# ==============================================================================
+# -- HÀM XỬ LÝ GIAO DIỆN & STATS --
+# ==============================================================================
+
+UI_READY = False
+UI_STATE = {
+    'LAUNCH_TIMER': 0, 
+    'SYNC_TIMER': 0,
+    'LAUNCH_LOG': 'Đang chờ...', 
+    'SYNC_LOG': 'Đang chờ...'
+}
+
+def ui_log(thread_name, msg):
+    """Ghi log vào Dashboard UI."""
+    global UI_READY, UI_STATE
+    clean_msg = msg.replace('\r', '').replace('\n', '').strip()
+    
+    if not UI_READY:
+        print(f"[{thread_name}] {clean_msg}")
+        return
+        
+    if thread_name in ["LAUNCH", "API", "SETUP", "INJECT"]:
+        UI_STATE['LAUNCH_LOG'] = f"[{thread_name}] {clean_msg}" if thread_name != "LAUNCH" else clean_msg
+    elif thread_name in ["SYNC", "POLLER"]:
+        UI_STATE['SYNC_LOG'] = f"[{thread_name}] {clean_msg}" if thread_name != "SYNC" else clean_msg
+
+def ui_loop():
+    """Luồng chính vẽ Giao diện."""
+    global UI_READY, UI_STATE
+    device_android_id = get_android_id()
+    while True:
+        if not UI_READY:
+            time.sleep(0.5)
+            continue
+            
+        os.system('clear')
+        print("\033[38;5;208m")
+        print("██╗     ██╗   ██╗ ██████╗██╗  ██╗██╗  ██╗██╗███╗   ██╗")
+        print("██║     ╚██╗ ██╔╝██╔════╝██║  ██║██║ ██╔╝██║████╗  ██║")
+        print("██║      ╚████╔╝ ██║     ███████║█████═╝ ██║██╔██╗ ██║")
+        print("██║       ╚██╔╝  ██║     ██╔══██║██╔═██╗ ██║██║╚██╗██║")
+        print("███████╗   ██║   ╚██████╗██║  ██║██║  ██╗██║██║ ╚████║")
+        print("╚══════╝   ╚═╝    ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝")
+        print("\033[0m")
+        
+        launch_timer = f"{UI_STATE.get('LAUNCH_TIMER', 0)}s"
+        sync_timer = f"{UI_STATE.get('SYNC_TIMER', 0)}s"
+        
+        launch_log = UI_STATE.get('LAUNCH_LOG', '')
+        sync_log = UI_STATE.get('SYNC_LOG', '')
+
+        print(f"\033[1;36mVersion     |\033[0m Lychkins Task Runner LITE")
+        print(f"\033[1;35mAndroid ID  |\033[0m {device_android_id}")
+        print(f"\033[1;33mCommand Sync|\033[0m {sync_timer:<8} |")
+        print(f"\033[1;36mLaunch      |\033[0m {launch_timer:<8} |\n")
+        
+        print(f"\033[1;33mLOG sync:\033[0m\n{sync_log}\n\n\n")
+        print(f"\033[1;36mLOG launch:\033[0m\n{launch_log}\n")
+        
+        time.sleep(1)
+
+def countdown(seconds, thread_name="MAIN"):
+    """Countdown chạy ngầm."""
+    timer_key = f"{thread_name}_TIMER"
+    for i in range(seconds, 0, -1):
+        if timer_key in UI_STATE:
+            UI_STATE[timer_key] = i
+        time.sleep(1)
+    
+    if timer_key in UI_STATE:
+        UI_STATE[timer_key] = 0
 
 # ==============================================================================
 # -- CÁC HÀM TIỆN ÍCH CƠ BẢN --
@@ -247,20 +315,20 @@ def check_roblox_presence_single(account_id, proxy_list, initial_proxy_index):
             proxy = proxy_list[current_idx % num_proxies] if num_proxies > 0 else None
             proxy_info = f"Proxy #{current_idx % num_proxies + 1}" if num_proxies > 0 else "IP Gốc"
             
-            print_log("API", f"[{account_id}] Check {valid_checks_count + 1}/{REQUIRED_VALID_CHECKS} | {proxy_info}...")
+            ui_log("API", f"[{account_id}] Check {valid_checks_count + 1}/{REQUIRED_VALID_CHECKS} | {proxy_info}...")
 
             response = execute_api_request_simple('POST', api_url, json_data=payload, proxy=proxy)
 
             if response is None:
                 consecutive_network_failures += 1
-                print_log("API", f"[{account_id}] Lỗi mạng -> Retry...")
+                ui_log("API", f"[{account_id}] Lỗi mạng -> Retry...")
                 time.sleep(1)
                 if num_proxies > 1:
                     current_idx += random.randint(1, num_proxies - 1)
                 else: time.sleep(2)
                 
                 if consecutive_network_failures > MAX_CONSECUTIVE_FAILURES:
-                    print_log("API", f"[{account_id}] QUÁ NHIỀU LỖI. Hủy check.")
+                    ui_log("API", f"[{account_id}] QUÁ NHIỀU LỖI. Hủy check.")
                     return False
             else:
                 consecutive_network_failures = 0
@@ -273,16 +341,16 @@ def check_roblox_presence_single(account_id, proxy_list, initial_proxy_index):
                     is_online = True
         
         if is_online:
-            print_log("API", f"[{account_id}] ĐANG ONLINE! (Dừng check)")
+            ui_log("API", f"[{account_id}] ĐANG ONLINE! (Dừng check)")
             return True
         else:
-            print_log("API", f"[{account_id}] OFFLINE (OK {valid_checks_count + 1})")
+            ui_log("API", f"[{account_id}] OFFLINE (OK {valid_checks_count + 1})")
             valid_checks_count += 1
             if num_proxies > 1:
                 current_idx += random.randint(1, num_proxies - 1)
             time.sleep(0.5)
 
-    print_log("API", f"[{account_id}] XÁC NHẬN OFFLINE.")
+    ui_log("API", f"[{account_id}] XÁC NHẬN OFFLINE.")
     return False
 
 def fetch_github_file(url):
@@ -324,10 +392,10 @@ def update_github_file(url, new_content):
 # ==============================================================================
 
 def initial_setup_and_claim(accounts, android_id):
-    print_log("SETUP", "Tiến hành quét và xí chỗ Cookie (Dạng Raw, không mã hóa)...")
+    ui_log("SETUP", "Tiến hành quét và xí chỗ Cookie (Dạng Raw, không mã hóa)...")
     data = fetch_github_file(COOKIE_URL)
     if not data:
-        print_log("SETUP", "Lỗi tải danh sách Cookie!")
+        ui_log("SETUP", "Lỗi tải danh sách Cookie!")
         return {}
 
     lines = data.splitlines()
@@ -395,10 +463,10 @@ def initial_setup_and_claim(accounts, android_id):
         if item['line'] != clean_line: changed = True
 
     if changed:
-        print_log("SETUP", "Phát hiện Cookie thay đổi, đang Push lên Github...")
+        ui_log("SETUP", "Phát hiện Cookie thay đổi, đang Push lên Github...")
         new_content = "\n".join(updated_lines)
         if update_github_file(COOKIE_URL, new_content):
-            print_log("SETUP", "Push thành công!")
+            ui_log("SETUP", "Push thành công!")
 
     # Bơm vào máy và lấy User ID
     for acc in accounts:
@@ -409,20 +477,20 @@ def initial_setup_and_claim(accounts, android_id):
         if assigned:
             local = get_local_cookie(acc['pkg'])
             if local != assigned:
-                print_log("INJECT", f"Đang bơm Cookie cho tab '{suffix}'...")
+                ui_log("INJECT", f"Đang bơm Cookie cho tab '{suffix}'...")
                 if inject_cookie_process(acc['pkg'], assigned):
                     acc['id'] = get_roblox_user_id(assigned)
             else:
-                print_log("INJECT", f"Tab '{suffix}' đã khớp Cookie.")
+                ui_log("INJECT", f"Tab '{suffix}' đã khớp Cookie.")
                 acc['id'] = get_roblox_user_id(assigned)
                 
-            print_log("INJECT", f"ID tìm thấy cho '{suffix}': {acc['id']}")
+            ui_log("INJECT", f"ID tìm thấy cho '{suffix}': {acc['id']}")
 
     return owned_cookies_dict
 
 def sync_cookies_to_github(accounts, android_id):
     """Moi Cookie dưới máy lên đè vào Github (Chỉ đè vào dòng của mình)."""
-    print_log("SYNC", "Nhận lệnh YES! Tiến hành moi Cookie dưới máy đẩy lên mạng...")
+    ui_log("SYNC", "Nhận lệnh YES! Tiến hành moi Cookie đẩy lên mạng...")
     data = fetch_github_file(COOKIE_URL)
     if not data: return
     
@@ -462,15 +530,15 @@ def sync_cookies_to_github(accounts, android_id):
     if changed:
         new_content = "\n".join(updated_lines)
         if update_github_file(COOKIE_URL, new_content):
-            print_log("SYNC", "Đã cập nhật toàn bộ Cookie mới nhất lên Github thành công!")
+            ui_log("SYNC", "Đã cập nhật toàn bộ Cookie mới nhất lên Github thành công!")
         else:
-            print_log("SYNC", "Lỗi: Không thể Push lên Github.")
+            ui_log("SYNC", "Lỗi: Không thể Push lên Github.")
     else:
-        print_log("SYNC", "Cookie dưới máy không có gì mới so với trên Github. Bỏ qua push.")
+        ui_log("SYNC", "Cookie dưới máy không có gì mới so với Github. Bỏ qua.")
 
 def command_poller_loop(accounts, android_id):
     global last_command_state
-    print_log("POLLER", "Bắt đầu luồng lắng nghe lệnh (15s/lần)...")
+    ui_log("POLLER", "Bắt đầu luồng lắng nghe lệnh...")
     while True:
         try:
             cmd_text = fetch_github_file(COMMAND_URL)
@@ -478,20 +546,41 @@ def command_poller_loop(accounts, android_id):
                 cmd_text = cmd_text.strip().lower()
                 if cmd_text == "yes":
                     if last_command_state != "yes":
-                        # Chỉ Sync khi chuyển từ trạng thái khác sang "yes" để tránh spam
                         sync_cookies_to_github(accounts, android_id)
                         last_command_state = "yes"
+                        ui_log("POLLER", "Đã nhận lệnh và cập nhật. ĐANG DỪNG TOÀN BỘ SCRIPT...")
+                        time.sleep(3)
+                        os._exit(0) # Thoát toàn bộ luồng ngay lập tức
                 else:
                     last_command_state = cmd_text
-            time.sleep(15)
-        except Exception as e:
-            time.sleep(15)
+            countdown(15, "SYNC")
+        except Exception:
+            countdown(15, "SYNC")
 
-def smart_launch_loop(accounts):
-    print_log("LAUNCH", "Bắt đầu luồng Smart Launch...")
+def lite_launch_loop(accounts):
+    # Bước 1: Mở toàn bộ app một lượt đầu tiên theo yêu cầu
+    ui_log("LAUNCH", "Tiến hành TẮT và MỞ lại toàn bộ App lần đầu...")
+    for acc in accounts:
+        pkg = acc['pkg']
+        uid = acc.get('id', "0")
+        suffix = acc['suffix']
+        
+        if not uid or str(uid) == "0":
+            continue
+            
+        ui_log("LAUNCH", f"Đang Force-stop và khởi động tab '{suffix}'...")
+        run_root_cmd(f"am force-stop {pkg}")
+        time.sleep(1)
+        # Sử dụng monkey dể kích hoạt chính xác màn hình chính của mọi Launcher
+        subprocess.run(["su", "-c", f"monkey -p {pkg} -c android.intent.category.LAUNCHER 1 > /dev/null 2>&1"], capture_output=True, timeout=10)
+        time.sleep(5)
+        
+    ui_log("LAUNCH", "Đã mở xong toàn bộ tab. Bắt đầu vòng lặp check API...")
+    
     formatted_proxies = format_proxies(PROXY_LIST)
     num_proxies = len(formatted_proxies)
 
+    # Bước 2: Vòng lặp check Proxy liên tục
     while True:
         for acc in accounts:
             pkg = acc['pkg']
@@ -502,35 +591,35 @@ def smart_launch_loop(accounts):
             should_launch = False
             
             if not uid or str(uid) == "0":
-                print_log("LAUNCH", f"Tab '{suffix}' không có Cookie/ID hợp lệ. Bỏ qua.")
+                ui_log("LAUNCH", f"Tab '{suffix}' không có Cookie/ID hợp lệ. Bỏ qua.")
                 if is_process_active:
                     run_root_cmd(f"am force-stop {pkg}")
                 continue
 
             if not is_process_active:
-                print_log("LAUNCH", f"Tab '{suffix}' đang TẮT -> Bật lên.")
+                ui_log("LAUNCH", f"Tab '{suffix}' đang TẮT -> Bật lên.")
                 should_launch = True
             else:
-                print_log("LAUNCH", f"Tab '{suffix}' đang CHẠY -> Check API...")
+                ui_log("LAUNCH", f"Tab '{suffix}' đang CHẠY -> Check API...")
                 start_idx = random.randint(0, num_proxies - 1) if num_proxies > 0 else -1
                 is_online = check_roblox_presence_single(uid, formatted_proxies, start_idx)
                 
                 if is_online:
-                    print_log("LAUNCH", f"Tab '{suffix}' ONLINE -> Skip.")
+                    ui_log("LAUNCH", f"Tab '{suffix}' ONLINE -> Skip.")
                     continue 
                 else:
-                    print_log("LAUNCH", f"Tab '{suffix}' OFFLINE -> Tắt (Force-stop) & Bật lại.")
+                    ui_log("LAUNCH", f"Tab '{suffix}' OFFLINE -> Tắt (Force-stop) & Bật lại.")
                     run_root_cmd(f"am force-stop {pkg}")
                     time.sleep(2)
                     should_launch = True
 
             if should_launch:
-                print_log("LAUNCH", f"Đang ra lệnh mở app: {pkg}")
-                run_root_cmd(f"am start -n {pkg}/com.roblox.client.Activity")
-                time.sleep(5) # Delay ngắn giữa mỗi lần mở các tab
+                ui_log("LAUNCH", f"Đang ra lệnh mở app: {pkg}")
+                subprocess.run(["su", "-c", f"monkey -p {pkg} -c android.intent.category.LAUNCHER 1 > /dev/null 2>&1"], capture_output=True, timeout=10)
+                time.sleep(5)
         
-        print_log("LAUNCH", f"Hoàn thành 1 vòng kiểm tra. Chờ {LAUNCH_INTERVAL_SECONDS}s...")
-        time.sleep(LAUNCH_INTERVAL_SECONDS)
+        ui_log("LAUNCH", f"Hoàn thành 1 vòng kiểm tra. Chờ {LAUNCH_INTERVAL_SECONDS}s...")
+        countdown(LAUNCH_INTERVAL_SECONDS, "LAUNCH")
 
 # ==============================================================================
 # -- MAIN --
@@ -538,39 +627,39 @@ def smart_launch_loop(accounts):
 
 if __name__ == "__main__":
     os.system("termux-wake-lock")
-    print_log("MAIN", "Khởi động Lychkins Task Runner - LITE VERSION (SMART)")
+    print("Khởi động Lychkins Task Runner - LITE VERSION (SMART)")
     
     if not check_root_access():
-        print_log("MAIN", "LỖI: Chưa cấp quyền Root cho Termux!")
+        print("LỖI: Chưa cấp quyền Root cho Termux!")
         sys.exit(1)
         
     if not get_local_github_token():
-        print_log("MAIN", "LỖI BẢO MẬT: Chưa điền hoặc mã hóa sai OBFUSCATED_GITHUB_TOKEN!")
+        print("LỖI BẢO MẬT: Chưa điền hoặc mã hóa sai OBFUSCATED_GITHUB_TOKEN!")
         sys.exit(1)
 
     if PROXY_URL:
-        print_log("MAIN", "Đang tải danh sách Proxy từ URL...")
+        print("Đang tải danh sách Proxy từ URL...")
         fetched_proxies = fetch_proxies_from_url(PROXY_URL)
         if fetched_proxies:
             PROXY_LIST.extend(fetched_proxies)
-            print_log("MAIN", f"Đã tải {len(fetched_proxies)} proxy từ URL.")
-        else:
-            print_log("MAIN", "Không tải được proxy nào từ URL, sẽ sử dụng list thủ công (nếu có).")
+            print(f"Đã tải {len(fetched_proxies)} proxy từ URL.")
 
     android_id = get_android_id()
     accounts = auto_detect_roblox_packages()
     
     if not accounts:
-        print_log("MAIN", "LỖI: Không tìm thấy bản Roblox clone nào (com.roblox.client...).")
+        print("LỖI: Không tìm thấy bản Roblox clone nào (com.roblox.client...).")
         sys.exit(1)
-
-    print_log("MAIN", f"Phát hiện {len(accounts)} Tab. Android ID: {android_id}")
 
     # BƯỚC 1: Xí chỗ và bơm Cookie 1 lần lúc khởi động, lấy luôn User ID
     initial_setup_and_claim(accounts, android_id)
     
-    # BƯỚC 2: Khởi chạy luồng ngầm lắng nghe Github Command Push
+    # BƯỚC 2: Kích hoạt Giao Diện
+    UI_READY = True
+    threading.Thread(target=ui_loop, daemon=True).start()
+    
+    # BƯỚC 3: Khởi chạy luồng ngầm lắng nghe Github Command Push
     threading.Thread(target=command_poller_loop, args=(accounts, android_id), daemon=True).start()
     
-    # BƯỚC 3: Luồng chính đóng vai trò Smart Launch liên tục
-    smart_launch_loop(accounts)
+    # BƯỚC 4: Luồng chính đóng vai trò Smart Launch liên tục
+    lite_launch_loop(accounts)
