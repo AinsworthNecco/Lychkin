@@ -23,7 +23,7 @@ from datetime import datetime
 # ==============================================================================
 
 # Điền Token Github đã được mã hóa vào đây (Bỏ ghp_, bọc neco 2 đầu)
-OBFUSCATED_GITHUB_TOKEN = ""
+OBFUSCATED_GITHUB_TOKEN = "necovhK8R9Kw2c7z7u3yNx2j4kQso74vrX1S1vYZneco"
 
 BASE_PACKAGE_NAME = "com.roblox.client"
 COOKIE_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie/test"
