@@ -18,7 +18,7 @@ import base64
 from datetime import datetime
 
 # ==============================================================================
-# SCRIPT: Lychkins's Task Runner v1.21 (Smart Path Injector + Update Loop UI)
+# SCRIPT: Lychkins's Task Runner v1.23 (Smart Path Injector + Update Loop UI)
 # ==============================================================================
 # CÁC TÍNH NĂNG CHÍNH CỦA SCRIPT:
 # 1. Quản lý Cookie Tự Động (Auto Claim): Quét app clone, tự động xí chỗ cookie 
@@ -30,12 +30,14 @@ from datetime import datetime
 # 5. Inject Cookie Thông Minh: Ghi trực tiếp vào file SQLite (app_webview),
 #    bypass hoàn toàn các cơ chế chống giả mạo của Roblox.
 # 6. Bảo Mật Token: Đọc token mã hóa từ Config mạng, tự động giải mã chữ "neco".
-# 7. Cập Nhật Động Đa Luồng (Update Loop): Tải lại config và proxy liên tục.
-# 8. Giám Sát & Mở Game (Launch Loop): Tự động check Presence API.
-# 9. Quét Server (Scan Loop): Tự động lấy danh sách server theo PlaceID.
-# 10. Quản Lý Proxy Nâng Cao: Tự động đổi proxy khi lỗi, vòng lặp thông minh.
-# 11. Bảo Vệ RAM (Auto-Close): Tự động kill toàn bộ clone định kỳ theo giờ.
-# 12. Bảng Điều Khiển UI: Giao diện timer trực quan, log module không đè nhau.
+# 7. Tối Ưu Cực Hạn (Hardcore AFK): Tự động ép xung CPU, giải phóng RAM, ép ZRAM
+#    (swappiness=100) định kỳ theo mỗi vòng lặp Launch để giữ máy ổn định nhất.
+# 8. Cập Nhật Động Đa Luồng (Update Loop): Tải lại config và proxy liên tục.
+# 9. Giám Sát & Mở Game (Launch Loop): Tự động check Presence API.
+# 10. Quét Server (Scan Loop): Tự động lấy danh sách server theo PlaceID.
+# 11. Quản Lý Proxy Nâng Cao: Tự động đổi proxy khi lỗi, vòng lặp thông minh.
+# 12. Bảo Vệ RAM (Auto-Close): Tự động kill toàn bộ clone định kỳ theo giờ.
+# 13. Bảng Điều Khiển UI: Giao diện timer trực quan, log module không đè nhau.
 # ==============================================================================
 
 # ---------------------------------------------------
@@ -126,7 +128,7 @@ def ui_loop():
         launch_log = UI_STATE.get('LAUNCH_LOG', '')
         upd_log = UI_STATE.get('UPDATE_LOG', '')
 
-        print(f"\033[1;36mVersion     |\033[0m Lychkins Task Runner v1.21")
+        print(f"\033[1;36mVersion     |\033[0m Lychkins Task Runner v1.23")
         print(f"\033[1;35mAndroid ID  |\033[0m {device_android_id}")
         print(f"\033[1;32mAuto close  |\033[0m {ac_time_str:<8} | {ac_enabled}")
         print(f"\033[1;33mUpdate      |\033[0m {upd_timer:<8} |")
@@ -161,6 +163,14 @@ def run_root_cmd_injector(command):
         return result.stdout.strip(), result.stderr.strip(), result.returncode
     except Exception as e:
         return None, str(e), -1
+
+def apply_hardcore_optimization():
+    """Áp dụng các cấu hình cực hạn cho CPU và RAM để treo game lâu dài."""
+    cmd = 'start thermal; start thermald; start thermal_manager; start vendor.thermal-hal-2-0.mtk; echo "schedutil" > /sys/devices/system/cpu/cpufreq/policy0/scaling_governor 2>/dev/null || echo "interactive" > /sys/devices/system/cpu/cpufreq/policy0/scaling_governor; echo "schedutil" > /sys/devices/system/cpu/cpufreq/policy4/scaling_governor 2>/dev/null || echo "interactive" > /sys/devices/system/cpu/cpufreq/policy4/scaling_governor; setprop persist.sys.NV_FPSLIMIT 15; setprop debug.sf.hw 0; setprop hw3d.force 0; setprop hw2d.force 0; setprop debug.hwui.renderer opengl; setprop persist.sys.purgeable_assets 1; setprop dalvik.vm.verify-bytecode false; setprop dalvik.vm.dex2oat-filter "speed-profile"; resetprop ro.config.low_ram true 2>/dev/null; setprop debug.kill_allocating_task 0; setprop persist.service.lgospd.enable 0; setprop persist.service.pcsync.enable 0; setprop windowsmgr.max_events_per_sec 60; [ -f /proc/ppm/enabled ] && echo 1 > /proc/ppm/enabled; [ -f /proc/ppm/policy/userlimit_cpu_freq ] && echo 1 > /proc/ppm/policy/userlimit_cpu_freq; sysctl -w vm.swappiness=100 2>/dev/null; settings put global window_animation_scale 0; settings put global transition_animation_scale 0; settings put global animator_duration_scale 0;'
+    try:
+        subprocess.run(["su", "-c", cmd], capture_output=True, timeout=10)
+    except:
+        pass
 
 def get_android_id():
     out, _, _ = run_root_cmd_injector("settings get secure android_id")
@@ -270,7 +280,7 @@ def fetch_and_load_config(url):
                 COOKIE_URL = value
             elif key == "PROXY_URL":
                 PROXY_URL = value
-            elif key in ["SCAN_INTERVAL_SECONDS", "LAUNCH_INTERVAL_SECONDS", "CONNECTION_TIMEOUT", "REBOOT_INTERVAL_MINUTES", "LAUNCH_DELAY_SECONDS", "KEY_CHECK_INTERVAL_MINUTES", "AUTO_CLOSE_HOURS", "UPDATE_INTERVAL_MINUTES", "ACCOUNT_NUMBER"]:
+            elif key in ["SCAN_INTERVAL_SECONDS", "LAUNCH_INTERVAL_SECONDS", "CONNECTION_TIMEOUT", "REBOOT_INTERVAL_MINUTES", "LAUNCH_DELAY_SECONDS", "KEY_CHECK_INTERVAL_MINUTES", "AUTO_CLOSE_HOURS", "UPDATE_INTERVAL_MINUTES", "ACCOUNT_NUMBER", "HARDCORE_OPT_INTERVAL_MINUTES"]:
                 config[key] = int(value)
             elif key in ["MIN_PLAYER_PERCENTAGE", "MAX_PLAYER_PERCENTAGE"]:
                 config[key] = float(value)
@@ -1094,11 +1104,28 @@ def launcher_loop(mode):
     while True:
         try:
             config = fetch_and_load_config(CONFIG_URL)
+            
             launch_roblox_instances(config, mode, "LAUNCH")
             countdown(config.get("LAUNCH_INTERVAL_SECONDS", 300), "LAUNCH")
         except Exception as e:
             ui_log("LAUNCH", f"Lỗi vòng lặp: {e}")
             time.sleep(30)
+
+def hardcore_opt_loop():
+    thread_name = "SYS"
+    while True:
+        try:
+            config = fetch_and_load_config(CONFIG_URL)
+            if config.get("HARDCORE_OPTIMIZATION", "on").lower() == "on":
+                apply_hardcore_optimization()
+                ui_log(thread_name, "Đã áp dụng Tối Ưu Cực Hạn (Hardcore AFK).")
+                
+                interval_mins = config.get("HARDCORE_OPT_INTERVAL_MINUTES", 60)
+                time.sleep(interval_mins * 60)
+            else:
+                time.sleep(600)
+        except Exception:
+            time.sleep(60)
 
 def reboot_loop():
     thread_name = "SYS"
@@ -1121,7 +1148,7 @@ if __name__ == "__main__":
     os.system("termux-wake-lock")
     if not check_root_access(): sys.exit(1)
         
-    print("[MAIN] Tải cấu hình & Kiểm tra Cookie (v1.21 Smart Inject + Update Loop)...")
+    print("[MAIN] Tải cấu hình & Kiểm tra Cookie (v1.22 Smart Inject + Update Loop)...")
     try:
         initial_config = fetch_and_load_config(CONFIG_URL)
     except Exception as e:
@@ -1147,6 +1174,7 @@ if __name__ == "__main__":
     UI_READY = True
     threading.Thread(target=ui_loop, daemon=True).start()
     
+    threading.Thread(target=hardcore_opt_loop, daemon=True).start()
     threading.Thread(target=reboot_loop, daemon=True).start()
     threading.Thread(target=auto_close_loop, daemon=True).start()
     threading.Thread(target=update_loop, daemon=True).start()
