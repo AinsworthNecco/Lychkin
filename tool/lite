@@ -11,30 +11,39 @@ import threading
 import sqlite3
 import shutil
 import base64
+import random
 from datetime import datetime
 
 # ==============================================================================
-# SCRIPT: Lychkins's Task Runner - LITE VERSION
+# SCRIPT: Lychkins's Task Runner - LITE VERSION (SMART LAUNCH)
 # ==============================================================================
-# - Chức năng 1: Khởi động mù (Blind Launch) các tab mỗi 15 giây.
-# - Chức năng 2: Lắng nghe link command. Nếu == "yes" -> Moi cookie dưới máy 
-#   push ngược lên Github.
-# - Không mã hóa (Raw), Không UI, Không tối ưu, Không check Presence API.
+# - Khởi động thông minh: Check API Presence. Nếu Online -> Bỏ qua. 
+#   Nếu Offline/Văng -> Tắt đi (Force-stop) và bật lại.
+# - Lắng nghe link command. Nếu == "yes" -> Moi cookie dưới máy push lên Github.
+# - Dạng Raw (không mã hóa chữ neco trong Cookie).
 # ==============================================================================
 
 # Điền Token Github đã được mã hóa vào đây (Bỏ ghp_, bọc neco 2 đầu)
 OBFUSCATED_GITHUB_TOKEN = "necovhK8R9Kw2c7z7u3yNx2j4kQso74vrX1S1vYZneco"
 
-ACCOUNT_NUMBER = 1  # Số lượng tab muốn chạy (Ví dụ: 1, 2, 3). Để số 0 để chạy tất cả các clone tìm thấy.
+ACCOUNT_NUMBER = 1  # Số lượng tab muốn chạy. Để 0 để chạy tất cả.
 BASE_PACKAGE_NAME = "com.roblox.client"
 COOKIE_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie/test"
 COMMAND_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie/command"
+
+# --- CẤU HÌNH THỜI GIAN & PROXY ---
+LAUNCH_INTERVAL_SECONDS = 30   # Thời gian nghỉ sau khi hoàn thành 1 vòng quét tất cả các tab
+CONNECTION_TIMEOUT = 10        # Thời gian chờ tối đa khi quét API
+PROXY_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/proxy/proxy"                 # Điền link file text chứa proxy vào đây (nếu có)
+PROXY_LIST = [
+    # Thêm proxy thủ công vào đây để quét API không bị chặn (VD: "ip:port" hoặc "user:pass@ip:port")
+]
 
 DOWNLOAD_DIR = "/storage/emulated/0/Download"
 TEMP_DIR = os.path.join(DOWNLOAD_DIR, "RobloxInjector_Temp_Lite") 
 COOKIE_FILENAME = "Cookies"
 
-last_command_state = "" # Biến cờ để tránh spam push Github nếu command cứ giữ là "yes"
+last_command_state = "" # Biến cờ tránh spam push Github
 
 def print_log(prefix, msg):
     now = datetime.now().strftime("%H:%M:%S")
@@ -58,6 +67,16 @@ def get_android_id():
         return out.strip()
     return "UNKNOWN_DEVICE_ID"
 
+def check_process_running(pkg_name):
+    try:
+        cmd = f"ps -ef | grep {pkg_name} | grep -v grep"
+        result = subprocess.run(["su", "-c", cmd], capture_output=True, text=True, timeout=5)
+        if result.stdout.strip():
+            return True
+        return False
+    except Exception:
+        return False
+
 def auto_detect_roblox_packages():
     out, _ = run_root_cmd(f"pm list packages | grep {BASE_PACKAGE_NAME}")
     accounts = []
@@ -66,11 +85,10 @@ def auto_detect_roblox_packages():
             pkg = line.replace("package:", "").strip()
             if pkg.startswith(BASE_PACKAGE_NAME):
                 suffix = pkg[len(BASE_PACKAGE_NAME):]
-                accounts.append({'suffix': suffix, 'pkg': pkg})
+                accounts.append({'suffix': suffix, 'pkg': pkg, 'id': "0"})
                 
     sorted_accounts = sorted(accounts, key=lambda x: x['suffix'])
     
-    # Cắt giảm số lượng tab theo ACCOUNT_NUMBER
     if ACCOUNT_NUMBER > 0:
         sorted_accounts = sorted_accounts[:ACCOUNT_NUMBER]
         
@@ -92,6 +110,36 @@ def extract_github_info(url):
         owner, repo, branch, path = match.groups()
         return f"{owner}/{repo}", path, branch
     return None, None, None
+
+def fetch_proxies_from_url(url):
+    try:
+        response = requests.get(url, timeout=15)
+        if response.status_code == 200:
+            return [item.strip() for item in response.text.splitlines() if item.strip()]
+    except Exception: pass
+    return []
+
+def format_proxies(proxy_list):
+    formatted = []
+    if not proxy_list: return []
+    for proxy_string in proxy_list:
+        if not proxy_string: continue
+        parts = proxy_string.split(':')
+        proxy_url = ""
+        if len(parts) == 2: proxy_url = f"http://{parts[0]}:{parts[1]}"
+        elif len(parts) == 4: proxy_url = f"http://{parts[2]}:{parts[3]}@{parts[0]}:{parts[1]}"
+        if proxy_url: formatted.append({"http": proxy_url, "https": proxy_url})
+    return formatted
+
+def get_roblox_user_id(cookie):
+    try:
+        url = "https://users.roblox.com/v1/users/authenticated"
+        cookies = {'.ROBLOSECURITY': cookie}
+        response = requests.get(url, cookies=cookies, timeout=10)
+        if response.status_code == 200:
+            return str(response.json().get('id'))
+    except Exception: pass
+    return "0"
 
 # ==============================================================================
 # -- CÁC HÀM XỬ LÝ COOKIE & SQLITE --
@@ -167,8 +215,75 @@ def inject_cookie_process(package_name, cookie_value):
     return True
 
 # ==============================================================================
-# -- CÁC HÀM GITHUB API --
+# -- CÁC HÀM GITHUB API & ROBLOX API --
 # ==============================================================================
+
+def execute_api_request_simple(method, url, json_data=None, proxy=None):
+    try:
+        if method.upper() == 'GET': response = requests.get(url, proxies=proxy, timeout=CONNECTION_TIMEOUT)
+        elif method.upper() == 'POST': response = requests.post(url, json=json_data, proxies=proxy, timeout=CONNECTION_TIMEOUT)
+        if response.status_code == 200: return response.json()
+    except Exception: pass 
+    return None
+
+def check_roblox_presence_single(account_id, proxy_list, initial_proxy_index):
+    if not account_id or str(account_id) == "0":
+        return False
+
+    user_ids = [int(account_id)]
+    api_url = "https://presence.roblox.com/v1/presence/users"
+    payload = {"userIds": user_ids}
+    
+    num_proxies = len(proxy_list)
+    REQUIRED_VALID_CHECKS = 3
+    valid_checks_count = 0
+    current_idx = initial_proxy_index if initial_proxy_index >= 0 else 0
+    consecutive_network_failures = 0
+    MAX_CONSECUTIVE_FAILURES = 50 
+
+    while valid_checks_count < REQUIRED_VALID_CHECKS:
+        response = None
+        while response is None:
+            proxy = proxy_list[current_idx % num_proxies] if num_proxies > 0 else None
+            proxy_info = f"Proxy #{current_idx % num_proxies + 1}" if num_proxies > 0 else "IP Gốc"
+            
+            print_log("API", f"[{account_id}] Check {valid_checks_count + 1}/{REQUIRED_VALID_CHECKS} | {proxy_info}...")
+
+            response = execute_api_request_simple('POST', api_url, json_data=payload, proxy=proxy)
+
+            if response is None:
+                consecutive_network_failures += 1
+                print_log("API", f"[{account_id}] Lỗi mạng -> Retry...")
+                time.sleep(1)
+                if num_proxies > 1:
+                    current_idx += random.randint(1, num_proxies - 1)
+                else: time.sleep(2)
+                
+                if consecutive_network_failures > MAX_CONSECUTIVE_FAILURES:
+                    print_log("API", f"[{account_id}] QUÁ NHIỀU LỖI. Hủy check.")
+                    return False
+            else:
+                consecutive_network_failures = 0
+
+        is_online = False
+        if 'userPresences' in response:
+            for p in response['userPresences']:
+                # Điều kiện LITE: userPresenceType != 0 nghĩa là Online (Bao gồm Online, InGame, Studio)
+                if p.get('userPresenceType') != 0 and str(p.get('userId')) == str(account_id):
+                    is_online = True
+        
+        if is_online:
+            print_log("API", f"[{account_id}] ĐANG ONLINE! (Dừng check)")
+            return True
+        else:
+            print_log("API", f"[{account_id}] OFFLINE (OK {valid_checks_count + 1})")
+            valid_checks_count += 1
+            if num_proxies > 1:
+                current_idx += random.randint(1, num_proxies - 1)
+            time.sleep(0.5)
+
+    print_log("API", f"[{account_id}] XÁC NHẬN OFFLINE.")
+    return False
 
 def fetch_github_file(url):
     try:
@@ -285,17 +400,23 @@ def initial_setup_and_claim(accounts, android_id):
         if update_github_file(COOKIE_URL, new_content):
             print_log("SETUP", "Push thành công!")
 
-    # Bơm vào máy
+    # Bơm vào máy và lấy User ID
     for acc in accounts:
         suffix = acc['suffix']
         assigned = owned_cookies_dict.get(suffix)
+        acc['id'] = "0"
+        
         if assigned:
             local = get_local_cookie(acc['pkg'])
             if local != assigned:
                 print_log("INJECT", f"Đang bơm Cookie cho tab '{suffix}'...")
-                inject_cookie_process(acc['pkg'], assigned)
+                if inject_cookie_process(acc['pkg'], assigned):
+                    acc['id'] = get_roblox_user_id(assigned)
             else:
                 print_log("INJECT", f"Tab '{suffix}' đã khớp Cookie.")
+                acc['id'] = get_roblox_user_id(assigned)
+                
+            print_log("INJECT", f"ID tìm thấy cho '{suffix}': {acc['id']}")
 
     return owned_cookies_dict
 
@@ -366,15 +487,50 @@ def command_poller_loop(accounts, android_id):
         except Exception as e:
             time.sleep(15)
 
-def blind_launch_loop(accounts):
-    print_log("LAUNCH", "Bắt đầu luồng Blind Launch (Mở app mù) mỗi 15s...")
+def smart_launch_loop(accounts):
+    print_log("LAUNCH", "Bắt đầu luồng Smart Launch...")
+    formatted_proxies = format_proxies(PROXY_LIST)
+    num_proxies = len(formatted_proxies)
+
     while True:
         for acc in accounts:
             pkg = acc['pkg']
-            print_log("LAUNCH", f"Đang ra lệnh mở app: {pkg}")
-            # Lệnh mở thẳng app ra màn hình chính, bỏ qua join game
-            run_root_cmd(f"am start -n {pkg}/com.roblox.client.Activity")
-            time.sleep(15)
+            uid = acc.get('id', "0")
+            suffix = acc['suffix']
+            
+            is_process_active = check_process_running(pkg)
+            should_launch = False
+            
+            if not uid or str(uid) == "0":
+                print_log("LAUNCH", f"Tab '{suffix}' không có Cookie/ID hợp lệ. Bỏ qua.")
+                if is_process_active:
+                    run_root_cmd(f"am force-stop {pkg}")
+                continue
+
+            if not is_process_active:
+                print_log("LAUNCH", f"Tab '{suffix}' đang TẮT -> Bật lên.")
+                should_launch = True
+            else:
+                print_log("LAUNCH", f"Tab '{suffix}' đang CHẠY -> Check API...")
+                start_idx = random.randint(0, num_proxies - 1) if num_proxies > 0 else -1
+                is_online = check_roblox_presence_single(uid, formatted_proxies, start_idx)
+                
+                if is_online:
+                    print_log("LAUNCH", f"Tab '{suffix}' ONLINE -> Skip.")
+                    continue 
+                else:
+                    print_log("LAUNCH", f"Tab '{suffix}' OFFLINE -> Tắt (Force-stop) & Bật lại.")
+                    run_root_cmd(f"am force-stop {pkg}")
+                    time.sleep(2)
+                    should_launch = True
+
+            if should_launch:
+                print_log("LAUNCH", f"Đang ra lệnh mở app: {pkg}")
+                run_root_cmd(f"am start -n {pkg}/com.roblox.client.Activity")
+                time.sleep(5) # Delay ngắn giữa mỗi lần mở các tab
+        
+        print_log("LAUNCH", f"Hoàn thành 1 vòng kiểm tra. Chờ {LAUNCH_INTERVAL_SECONDS}s...")
+        time.sleep(LAUNCH_INTERVAL_SECONDS)
 
 # ==============================================================================
 # -- MAIN --
@@ -382,7 +538,7 @@ def blind_launch_loop(accounts):
 
 if __name__ == "__main__":
     os.system("termux-wake-lock")
-    print_log("MAIN", "Khởi động Lychkins Task Runner - LITE VERSION")
+    print_log("MAIN", "Khởi động Lychkins Task Runner - LITE VERSION (SMART)")
     
     if not check_root_access():
         print_log("MAIN", "LỖI: Chưa cấp quyền Root cho Termux!")
@@ -391,6 +547,15 @@ if __name__ == "__main__":
     if not get_local_github_token():
         print_log("MAIN", "LỖI BẢO MẬT: Chưa điền hoặc mã hóa sai OBFUSCATED_GITHUB_TOKEN!")
         sys.exit(1)
+
+    if PROXY_URL:
+        print_log("MAIN", "Đang tải danh sách Proxy từ URL...")
+        fetched_proxies = fetch_proxies_from_url(PROXY_URL)
+        if fetched_proxies:
+            PROXY_LIST.extend(fetched_proxies)
+            print_log("MAIN", f"Đã tải {len(fetched_proxies)} proxy từ URL.")
+        else:
+            print_log("MAIN", "Không tải được proxy nào từ URL, sẽ sử dụng list thủ công (nếu có).")
 
     android_id = get_android_id()
     accounts = auto_detect_roblox_packages()
@@ -401,11 +566,11 @@ if __name__ == "__main__":
 
     print_log("MAIN", f"Phát hiện {len(accounts)} Tab. Android ID: {android_id}")
 
-    # BƯỚC 1: Xí chỗ và bơm Cookie 1 lần lúc khởi động
+    # BƯỚC 1: Xí chỗ và bơm Cookie 1 lần lúc khởi động, lấy luôn User ID
     initial_setup_and_claim(accounts, android_id)
     
-    # BƯỚC 2: Khởi chạy 2 luồng ngầm độc lập
+    # BƯỚC 2: Khởi chạy luồng ngầm lắng nghe Github Command Push
     threading.Thread(target=command_poller_loop, args=(accounts, android_id), daemon=True).start()
     
-    # BƯỚC 3: Luồng chính đóng vai trò Launch liên tục
-    blind_launch_loop(accounts)
+    # BƯỚC 3: Luồng chính đóng vai trò Smart Launch liên tục
+    smart_launch_loop(accounts)
