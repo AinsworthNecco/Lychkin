@@ -25,6 +25,7 @@ from datetime import datetime
 # Điền Token Github đã được mã hóa vào đây (Bỏ ghp_, bọc neco 2 đầu)
 OBFUSCATED_GITHUB_TOKEN = "necovhK8R9Kw2c7z7u3yNx2j4kQso74vrX1S1vYZneco"
 
+ACCOUNT_NUMBER = 1  # Số lượng tab muốn chạy (Ví dụ: 1, 2, 3). Để số 0 để chạy tất cả các clone tìm thấy.
 BASE_PACKAGE_NAME = "com.roblox.client"
 COOKIE_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie/test"
 COMMAND_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie/command"
@@ -66,7 +67,14 @@ def auto_detect_roblox_packages():
             if pkg.startswith(BASE_PACKAGE_NAME):
                 suffix = pkg[len(BASE_PACKAGE_NAME):]
                 accounts.append({'suffix': suffix, 'pkg': pkg})
-    return sorted(accounts, key=lambda x: x['suffix'])
+                
+    sorted_accounts = sorted(accounts, key=lambda x: x['suffix'])
+    
+    # Cắt giảm số lượng tab theo ACCOUNT_NUMBER
+    if ACCOUNT_NUMBER > 0:
+        sorted_accounts = sorted_accounts[:ACCOUNT_NUMBER]
+        
+    return sorted_accounts
 
 def check_root_access():
     out, _ = run_root_cmd("whoami")
