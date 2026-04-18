@@ -20,7 +20,7 @@ from datetime import datetime
 # - Logic mở App: Bơm Cookie -> Tắt toàn bộ -> Mở toàn bộ -> Check API & Proxy.
 # - Lắng nghe lệnh: Nếu "yes" -> Moi cookie đẩy lên Github -> TỰ ĐỘNG DỪNG SCRIPT.
 # - Giao diện UI được thêm lại để theo dõi Timer.
-# - Sử dụng lệnh "monkey" để mở App mù chính xác 100%.
+# - Mở app chính xác theo logic bản gốc bằng Deep Link "roblox://".
 # ==============================================================================
 
 # Điền Token Github đã được mã hóa vào đây (Bỏ ghp_, bọc neco 2 đầu)
@@ -43,7 +43,7 @@ DOWNLOAD_DIR = "/storage/emulated/0/Download"
 TEMP_DIR = os.path.join(DOWNLOAD_DIR, "RobloxInjector_Temp_Lite") 
 COOKIE_FILENAME = "Cookies"
 
-last_command_state = "" # Biến cờ tránh spam push Github
+last_command_state = ""
 
 # ==============================================================================
 # -- HÀM XỬ LÝ GIAO DIỆN & STATS --
@@ -412,7 +412,6 @@ def initial_setup_and_claim(accounts, android_id):
             updated_lines.append(line)
             continue
 
-        # Dạng Raw không mã hóa. Cắt thẳng bằng Regex.
         m = re.search(r':([^:]+):(\d{8}_\d{6})$', line)
         if m:
             claimer_id = m.group(1)
@@ -438,7 +437,6 @@ def initial_setup_and_claim(accounts, android_id):
             else:
                 is_unclaimed = True
         elif claimer_id:
-            # File test nên ta mặc định bỏ qua check thời gian 24h, cứ của máy khác là giữ nguyên
             updated_lines.append(line)
         else:
             is_unclaimed = True
@@ -558,8 +556,8 @@ def command_poller_loop(accounts, android_id):
             countdown(15, "SYNC")
 
 def lite_launch_loop(accounts):
-    # Bước 1: Mở toàn bộ app một lượt đầu tiên theo yêu cầu
-    ui_log("LAUNCH", "Tiến hành TẮT và MỞ lại toàn bộ App lần đầu...")
+    # Bước 1: Tắt toàn bộ trước, rồi Mở toàn bộ app một lượt đầu tiên theo yêu cầu
+    ui_log("LAUNCH", "Tiến hành TẮT sạch và MỞ lại toàn bộ App lần đầu...")
     for acc in accounts:
         pkg = acc['pkg']
         uid = acc.get('id', "0")
@@ -571,11 +569,13 @@ def lite_launch_loop(accounts):
         ui_log("LAUNCH", f"Đang Force-stop và khởi động tab '{suffix}'...")
         run_root_cmd(f"am force-stop {pkg}")
         time.sleep(1)
-        # Sử dụng monkey dể kích hoạt chính xác màn hình chính của mọi Launcher
-        subprocess.run(["su", "-c", f"monkey -p {pkg} -c android.intent.category.LAUNCHER 1 > /dev/null 2>&1"], capture_output=True, timeout=10)
+        
+        # Dùng logic nguyên bản: Dùng deep link "roblox://" thay vì monkey để khởi động chính xác
+        target_url = "roblox://"
+        subprocess.run(["su", "-c", f"am start -a android.intent.action.VIEW -d {target_url} -p {pkg}"], capture_output=True)
         time.sleep(5)
         
-    ui_log("LAUNCH", "Đã mở xong toàn bộ tab. Bắt đầu vòng lặp check API...")
+    ui_log("LAUNCH", "Đã mở xong toàn bộ tab. Bắt đầu vòng lặp check API Proxy...")
     
     formatted_proxies = format_proxies(PROXY_LIST)
     num_proxies = len(formatted_proxies)
@@ -615,7 +615,8 @@ def lite_launch_loop(accounts):
 
             if should_launch:
                 ui_log("LAUNCH", f"Đang ra lệnh mở app: {pkg}")
-                subprocess.run(["su", "-c", f"monkey -p {pkg} -c android.intent.category.LAUNCHER 1 > /dev/null 2>&1"], capture_output=True, timeout=10)
+                target_url = "roblox://"
+                subprocess.run(["su", "-c", f"am start -a android.intent.action.VIEW -d {target_url} -p {pkg}"], capture_output=True)
                 time.sleep(5)
         
         ui_log("LAUNCH", f"Hoàn thành 1 vòng kiểm tra. Chờ {LAUNCH_INTERVAL_SECONDS}s...")
