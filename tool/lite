@@ -27,7 +27,7 @@ from datetime import datetime
 OBFUSCATED_GITHUB_TOKEN = "necovhK8R9Kw2c7z7u3yNx2j4kQso74vrX1S1vYZneco"
 
 ACCOUNT_NUMBER = 1  # Số lượng tab muốn chạy. Để 0 để chạy tất cả.
-BASE_PACKAGE_NAME = "com.roblox.client"
+BASE_PACKAGE_NAME = "com.roblox.client.vnggame"
 COOKIE_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie/test"
 COMMAND_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie/command"
 
