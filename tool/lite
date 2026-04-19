@@ -25,17 +25,18 @@ OBFUSCATED_GITHUB_TOKEN = "necovhK8R9Kw2c7z7u3yNx2j4kQso74vrX1S1vYZneco"
 GITHUB_URL_A = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie/a"      # Link file chứa data (user:pass:cookie)
 GITHUB_URL_B = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie/b" # Link file để đẩy data mới lên
 
-VERSION = "1.0.3" # Phiên bản hiện tại để dễ theo dõi
+VERSION = "1.0.4" # Phiên bản hiện tại để dễ theo dõi
 BASE_PACKAGE_NAME = "com.roblox.client"
 CONNECTION_TIMEOUT = 10 
 
 # --- CẤU HÌNH THỜI GIAN (ĐƠN VỊ: GIÂY) ---
 # Tùy chỉnh các thông số này để phù hợp với tốc độ máy/mạng của bạn
 WAIT_BEFORE_NEXT_ACCOUNT = 6   # Thời gian chờ trước khi chuyển sang Account tiếp theo (Bạn yêu cầu là 6s)
+WAIT_BEFORE_SECOND_OPEN = 5    # Thời gian chờ ở lần mở app đầu tiên để refresh cookie
 TIMEOUT_UIAUTOMATOR = 20       # Thời gian tối đa quét tìm nút Điều khoản trước khi xài Kế hoạch B
 WAIT_AFTER_AGREE = 5           # Thời gian chờ sau khi bấm nút Agree để App kịp load và tạo Cookie
-WAIT_AFTER_FORCE_STOP = 2      # Thời gian chờ sau khi đóng App (force-stop) để hệ thống dọn dẹp bộ nhớ
-WAIT_BEFORE_INJECT = 4         # Thời gian chờ sau khi đóng App trước khi bơm Cookie mới
+WAIT_AFTER_FORCE_STOP = 3      # Thời gian chờ sau khi đóng App (force-stop) để hệ thống dọn dẹp bộ nhớ
+WAIT_BEFORE_INJECT = 3         # Thời gian chờ sau khi đóng App trước khi bơm Cookie mới
 
 # ĐỔI THƯ MỤC TẠM SANG /data/local/tmp ĐỂ TRÁNH LỖI QUYỀN STORAGE CỦA TERMUX
 TEMP_DIR = "/data/local/tmp/RobloxInjector_Temp_Lite"
@@ -430,8 +431,21 @@ def auto_batch_loop(app_package):
             print("[-] Bơm cookie thất bại, bỏ qua account này.")
             continue
 
-        print(f"[*] Đang mở ứng dụng ({app_package})...")
         target_url = "roblox://"
+
+        # Mở app lần 1 để làm sạch dữ liệu cũ đọng trong RAM
+        print(f"[*] Đang mở ứng dụng ({app_package}) lần 1 để làm sạch dữ liệu cũ...")
+        subprocess.run(["su", "-c", f"am start -a android.intent.action.VIEW -d {target_url} -p {app_package}"], capture_output=True)
+
+        print(f"[*] Đang chờ {WAIT_BEFORE_SECOND_OPEN} giây trước khi khởi động lại App...")
+        time.sleep(WAIT_BEFORE_SECOND_OPEN)
+
+        print("[*] Đang tắt App để khởi động lại...")
+        run_root_cmd(f"am force-stop {app_package}")
+        time.sleep(WAIT_AFTER_FORCE_STOP)
+
+        # Mở app lần 2 chính thức
+        print(f"[*] Đang mở ứng dụng ({app_package}) lần 2 (Chính thức)...")
         subprocess.run(["su", "-c", f"am start -a android.intent.action.VIEW -d {target_url} -p {app_package}"], capture_output=True)
 
         # -- TIẾN HÀNH AUTO CLICK ĐIỀU KHOẢN HOẶC CHỜ TIMEOUT --
