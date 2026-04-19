@@ -28,12 +28,12 @@ GITHUB_URL_B = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/he
 BASE_PACKAGE_NAME = "com.roblox.client"
 CONNECTION_TIMEOUT = 10 
 
-DOWNLOAD_DIR = "/storage/emulated/0/Download"
-TEMP_DIR = os.path.join(DOWNLOAD_DIR, "RobloxInjector_Temp_Lite") 
+# ĐỔI THƯ MỤC TẠM SANG /data/local/tmp ĐỂ TRÁNH LỖI QUYỀN STORAGE CỦA TERMUX
+TEMP_DIR = "/data/local/tmp/RobloxInjector_Temp_Lite"
 COOKIE_FILENAME = "Cookies"
 
 # ==============================================================================
-# -- CÁC HÀM TIỆN ÍCH CƠ BẢN (GIỮ NGUYÊN TỪ BẢN GỐC) --
+# -- CÁC HÀM TIỆN ÍCH CƠ BẢN --
 # ==============================================================================
 
 def run_root_cmd(command):
@@ -81,80 +81,125 @@ def extract_github_info(url):
     return None, None, None
 
 # ==============================================================================
-# -- CÁC HÀM XỬ LÝ COOKIE & SQLITE (GIỮ NGUYÊN TỪ BẢN GỐC) --
+# -- CÁC HÀM XỬ LÝ COOKIE & SQLITE --
 # ==============================================================================
 
 def find_real_cookie_path(package_name):
     base_path = f"/data/data/{package_name}/app_webview"
-    possible_paths = [f"{base_path}/Default/Cookies", f"{base_path}/Cookies"]
+    # Bổ sung thêm các path của WebView đời mới (thường gặp trên giả lập/Android cao)
+    possible_paths = [
+        f"{base_path}/Default/Network/Cookies",
+        f"{base_path}/Default/Cookies",
+        f"{base_path}/Network/Cookies",
+        f"{base_path}/Cookies"
+    ]
     for path in possible_paths:
         out, _ = run_root_cmd(f"[ -f '{path}' ] && echo 'YES' || echo 'NO'")
-        if "YES" in out: return path
+        if "YES" in out: 
+            return path
     return None
 
 def get_local_cookie(package_name):
     target_path = find_real_cookie_path(package_name)
     if not target_path: return None
 
-    if not os.path.exists(TEMP_DIR): os.makedirs(TEMP_DIR)
-    temp_check_path = os.path.join(TEMP_DIR, "Cookies_Check")
+    # Dọn dẹp thư mục tạm
+    run_root_cmd(f"rm -rf {TEMP_DIR}")
+    run_root_cmd(f"mkdir -p {TEMP_DIR}")
 
-    run_root_cmd(f"cp {target_path} {temp_check_path}")
-    run_root_cmd(f"chmod 777 {temp_check_path}")
+    # FIX TỐI QUAN TRỌNG: Phải copy TẤT CẢ các file có chữ Cookies (bao gồm Cookies-journal, Cookies-wal) 
+    # Nếu không copy các file journal, DB sẽ bị hỏng trong mắt python sqlite3.
+    run_root_cmd(f"cp {target_path}* {TEMP_DIR}/")
+    run_root_cmd(f"chmod 777 {TEMP_DIR}/*")
 
     local_cookie_value = None
+    db_path = f"{TEMP_DIR}/Cookies"
+    
     try:
-        conn = sqlite3.connect(temp_check_path)
+        conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
         cursor.execute("SELECT value FROM cookies WHERE name = '.ROBLOSECURITY'")
         result = cursor.fetchone()
         if result: local_cookie_value = result[0]
         conn.close()
-    except Exception: pass
+    except Exception as e: 
+        print(f"\033[1;31m[-] DEBUG: Lỗi khi đọc Cookie từ máy: {e}\033[0m")
     
-    if os.path.exists(temp_check_path): os.remove(temp_check_path)
+    run_root_cmd(f"rm -rf {TEMP_DIR}")
     return local_cookie_value
 
 def inject_cookie_process(package_name, cookie_value):
     target_path = find_real_cookie_path(package_name)
-    if not target_path: return False
+    if not target_path: 
+        print(f"\033[1;31m[-] DEBUG LỖI 1: Không tìm thấy file Cookies gốc ở các đường dẫn chuẩn.\033[0m")
+        return False
 
     run_root_cmd(f"am force-stop {package_name}")
     time.sleep(1)
 
-    if os.path.exists(TEMP_DIR): shutil.rmtree(TEMP_DIR)
-    os.makedirs(TEMP_DIR)
+    # Dọn dẹp và tạo thư mục tạm bằng quyền root
+    run_root_cmd(f"rm -rf {TEMP_DIR}")
+    run_root_cmd(f"mkdir -p {TEMP_DIR}")
 
-    run_root_cmd(f"cp {target_path} {TEMP_DIR}/{COOKIE_FILENAME}")
-    run_root_cmd(f"chmod 777 {TEMP_DIR}/{COOKIE_FILENAME}")
+    # FIX TỐI QUAN TRỌNG: Lấy toàn bộ các file đi kèm Cookies
+    run_root_cmd(f"cp {target_path}* {TEMP_DIR}/")
+    run_root_cmd(f"chmod 777 {TEMP_DIR}/*")
 
-    db_path = os.path.join(TEMP_DIR, COOKIE_FILENAME)
+    # Kiểm tra xem file đã copy thành công chưa
+    check_cp, _ = run_root_cmd(f"[ -f '{TEMP_DIR}/Cookies' ] && echo 'OK' || echo 'FAIL'")
+    if "FAIL" in check_cp:
+        print(f"\033[1;31m[-] DEBUG LỖI 2: Lệnh copy file từ {target_path} ra {TEMP_DIR} thất bại!\033[0m")
+        return False
+
+    db_path = f"{TEMP_DIR}/Cookies"
     try:
+        # Mở kết nối SQLite
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-        cursor.execute("DELETE FROM cookies WHERE host_key = '.roblox.com' AND name = '.ROBLOSECURITY'")
+        
+        # Xóa cookie cũ (xóa tất cả .ROBLOSECURITY bất kể host)
+        cursor.execute("DELETE FROM cookies WHERE name = '.ROBLOSECURITY'")
         
         now = int(time.time() * 1000000)
         expires = 99999999999999999
         query = "INSERT INTO cookies (creation_utc, host_key, name, value, path, expires_utc, is_secure, is_httponly, last_access_utc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        
+        # Insert cho .roblox.com
         cursor.execute(query, (now, ".roblox.com", ".ROBLOSECURITY", cookie_value, "/", expires, 1, 1, now))
+        
+        # Insert dự phòng cho bản VNG nếu chúng dùng host khác
+        cursor.execute(query, (now, ".roblox.vnggames.vn", ".ROBLOSECURITY", cookie_value, "/", expires, 1, 1, now))
+        cursor.execute(query, (now, "roblox.vnggames.vn", ".ROBLOSECURITY", cookie_value, "/", expires, 1, 1, now))
+        
         conn.commit()
         conn.close()
-    except Exception: return False
+    except Exception as e: 
+        print(f"\033[1;31m[-] DEBUG LỖI 3: Thao tác Database SQLite thất bại. Chi tiết lỗi: {e}\033[0m")
+        return False
 
-    run_root_cmd(f"cp {TEMP_DIR}/{COOKIE_FILENAME} {target_path}")
-    
     parent_dir = os.path.dirname(target_path)
+    
+    # XÓA FILE JOURNAL Ở THƯ MỤC GỐC ĐỂ TRÁNH BỊ ĐÈ LẠI DỮ LIỆU CŨ
+    run_root_cmd(f"rm -f {parent_dir}/Cookies-journal")
+    run_root_cmd(f"rm -f {parent_dir}/Cookies-wal")
+    run_root_cmd(f"rm -f {parent_dir}/Cookies-shm")
+
+    # Copy file Cookies đã chỉnh sửa ngược lại
+    run_root_cmd(f"cp {TEMP_DIR}/Cookies {target_path}")
+    
+    # Cấp lại quyền (chown) đúng với chủ thư mục
     owner, _ = run_root_cmd(f"stat -c '%U:%G' {parent_dir}")
     if owner:
         run_root_cmd(f"chown {owner} {target_path}")
         run_root_cmd(f"chmod 600 {target_path}")
+    else:
+        print(f"\033[1;33m[!] CẢNH BÁO: Lệnh 'stat' không hoạt động trên thiết bị này, file có thể sai quyền (permission).\033[0m")
     
-    shutil.rmtree(TEMP_DIR)
+    run_root_cmd(f"rm -rf {TEMP_DIR}")
     return True
 
 # ==============================================================================
-# -- CÁC HÀM GITHUB API (GIỮ NGUYÊN TỪ BẢN GỐC) --
+# -- CÁC HÀM GITHUB API --
 # ==============================================================================
 
 def fetch_github_file(url):
@@ -183,7 +228,6 @@ def update_github_file(url, new_content):
     try:
         r = requests.get(api_url, headers=headers)
         if r.status_code != 200: 
-            # File có thể chưa tồn tại, thử tạo mới
             sha = None
         else:
             sha = r.json().get("sha")
@@ -198,7 +242,7 @@ def update_github_file(url, new_content):
     except Exception: return False
 
 # ==============================================================================
-# -- KỊCH BẢN CHÍNH THỦ CÔNG (TẠO MỚI DỰA TRÊN YÊU CẦU) --
+# -- KỊCH BẢN CHÍNH THỦ CÔNG --
 # ==============================================================================
 
 def manual_interactive_loop(app_package):
