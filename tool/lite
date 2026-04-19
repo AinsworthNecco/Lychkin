@@ -25,9 +25,17 @@ OBFUSCATED_GITHUB_TOKEN = "necovhK8R9Kw2c7z7u3yNx2j4kQso74vrX1S1vYZneco"
 GITHUB_URL_A = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie/a"      # Link file chứa data (user:pass:cookie)
 GITHUB_URL_B = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie/b" # Link file để đẩy data mới lên
 
-VERSION = "1.0.2" # Phiên bản hiện tại để dễ theo dõi
+VERSION = "1.0.3" # Phiên bản hiện tại để dễ theo dõi
 BASE_PACKAGE_NAME = "com.roblox.client"
 CONNECTION_TIMEOUT = 10 
+
+# --- CẤU HÌNH THỜI GIAN (ĐƠN VỊ: GIÂY) ---
+# Tùy chỉnh các thông số này để phù hợp với tốc độ máy/mạng của bạn
+WAIT_BEFORE_NEXT_ACCOUNT = 6   # Thời gian chờ trước khi chuyển sang Account tiếp theo (Bạn yêu cầu là 6s)
+TIMEOUT_UIAUTOMATOR = 20       # Thời gian tối đa quét tìm nút Điều khoản trước khi xài Kế hoạch B
+WAIT_AFTER_AGREE = 5           # Thời gian chờ sau khi bấm nút Agree để App kịp load và tạo Cookie
+WAIT_AFTER_FORCE_STOP = 2      # Thời gian chờ sau khi đóng App (force-stop) để hệ thống dọn dẹp bộ nhớ
+WAIT_BEFORE_INJECT = 4         # Thời gian chờ sau khi đóng App trước khi bơm Cookie mới
 
 # ĐỔI THƯ MỤC TẠM SANG /data/local/tmp ĐỂ TRÁNH LỖI QUYỀN STORAGE CỦA TERMUX
 TEMP_DIR = "/data/local/tmp/RobloxInjector_Temp_Lite"
@@ -134,12 +142,12 @@ def click_text_on_screen(target_text, partial_match=False):
 
 def auto_bypass_terms_screen():
     """Chờ và tự động vượt qua màn hình Điều khoản Roblox VNG (Có Fallback tọa độ)."""
-    print("[*] Đang phân tích màn hình để xử lý Điều khoản (Timeout: 20s)...")
+    print(f"[*] Đang phân tích màn hình để xử lý Điều khoản (Timeout: {TIMEOUT_UIAUTOMATOR}s)...")
     agreed_checkbox = False
     agreed_button = False
     start_time = time.time()
 
-    while time.time() - start_time < 20:
+    while time.time() - start_time < TIMEOUT_UIAUTOMATOR:
         if not agreed_checkbox:
             # Rút gọn từ khóa để dễ bắt trúng hơn
             if click_text_on_screen("I agree", partial_match=True):
@@ -157,8 +165,8 @@ def auto_bypass_terms_screen():
         time.sleep(2) # Nghỉ 2s trước khi quét màn hình lần nữa
 
     if agreed_button:
-        print("[*] Hoàn tất vượt qua Điều khoản! Đang chờ 5s cho App tải Cookie mới...")
-        time.sleep(5)
+        print(f"[*] Hoàn tất vượt qua Điều khoản! Đang chờ {WAIT_AFTER_AGREE}s cho App tải Cookie mới...")
+        time.sleep(WAIT_AFTER_AGREE)
     else:
         print("\033[1;33m[-] UIAutomator bị che mắt. Kích hoạt Kế hoạch B: Bấm theo Tọa độ tĩnh...\033[0m")
         # --- KẾ HOẠCH B: BẤM MÙ THEO TỌA ĐỘ TĨNH CỐ ĐỊNH (CHUẨN OCD) ---
@@ -171,7 +179,7 @@ def auto_bypass_terms_screen():
         
         print(f"[*] Phát lệnh bấm Agree tại ({btn_x}, {btn_y})")
         run_root_cmd(f"input tap {btn_x} {btn_y}")
-        time.sleep(5)
+        time.sleep(WAIT_AFTER_AGREE)
 
 # ==============================================================================
 # -- CÁC HÀM XỬ LÝ COOKIE & SQLITE --
@@ -233,7 +241,7 @@ def inject_cookie_process(package_name, cookie_value):
         return False
 
     run_root_cmd(f"am force-stop {package_name}")
-    time.sleep(1)
+    time.sleep(WAIT_BEFORE_INJECT)
 
     run_root_cmd(f"rm -rf {TEMP_DIR}")
     run_root_cmd(f"mkdir -p {TEMP_DIR}")
@@ -431,7 +439,7 @@ def auto_batch_loop(app_package):
 
         print("\n[*] Đang tắt App...")
         run_root_cmd(f"am force-stop {app_package}")
-        time.sleep(2)
+        time.sleep(WAIT_AFTER_FORCE_STOP)
 
         print("[*] Đang kiểm tra Cookie mới từ App...")
         new_cookie = get_local_cookie(app_package, old_cookie)
@@ -463,8 +471,8 @@ def auto_batch_loop(app_package):
 
         # Chuyển sang Account tiếp theo mà không cần hỏi
         if idx < len(lines) - 1:
-            print(f"[*] Đang chuyển sang Account tiếp theo sau 3 giây...")
-            time.sleep(3)
+            print(f"[*] Đang chuyển sang Account tiếp theo sau {WAIT_BEFORE_NEXT_ACCOUNT} giây...")
+            time.sleep(WAIT_BEFORE_NEXT_ACCOUNT)
         else:
             print("\n=======================================================")
             print("[*] HOÀN TẤT: Đã duyệt xong toàn bộ danh sách tài khoản!")
