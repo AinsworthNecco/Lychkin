@@ -31,7 +31,7 @@ ACCOUNT_NUMBER = 1  # Số lượng tab muốn chạy. Để 0 để chạy tấ
 BASE_PACKAGE_NAME = "com.roblox.client"
 GITHUB_URL_A = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie/a"      # Link file chứa data (user:pass:cookie)
 GITHUB_URL_B = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie/b" # Link file để đẩy data mới lên
-COMMAND_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie/command"
+COMMAND_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/config/startcommand"
 
 # --- CẤU HÌNH THỜI GIAN & PROXY ---
 LAUNCH_INTERVAL_SECONDS = 30   # Thời gian nghỉ sau khi hoàn thành 1 vòng quét tất cả các tab
