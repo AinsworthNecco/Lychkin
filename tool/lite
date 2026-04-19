@@ -171,8 +171,8 @@ def auto_bypass_terms_screen():
     else:
         print("\033[1;33m[-] UIAutomator bị che mắt. Kích hoạt Kế hoạch B: Bấm theo Tọa độ tĩnh...\033[0m")
         # --- KẾ HOẠCH B: BẤM MÙ THEO TỌA ĐỘ TĨNH CỐ ĐỊNH (CHUẨN OCD) ---
-        cb_x, cb_y = 55, 480
-        btn_x, btn_y = 345, 1140
+        cb_x, cb_y = 270, 250
+        btn_x, btn_y = 485, 475
         
         print(f"[*] Phát lệnh bấm Checkbox tại ({cb_x}, {cb_y})")
         run_root_cmd(f"input tap {cb_x} {cb_y}")
