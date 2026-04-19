@@ -80,6 +80,21 @@ def extract_github_info(url):
         return f"{owner}/{repo}", path, branch
     return None, None, None
 
+def get_user_input(prompt_text):
+    """
+    Hàm ép buộc lấy input từ Terminal thật kể cả khi người dùng
+    copy/paste toàn bộ code dán trực tiếp vào Python REPL.
+    """
+    try:
+        return input(prompt_text)
+    except EOFError:
+        try:
+            with open('/dev/tty', 'r') as tty:
+                print(prompt_text, end='', flush=True)
+                return tty.readline().strip()
+        except Exception:
+            return ""
+
 # ==============================================================================
 # -- CÁC HÀM XỬ LÝ COOKIE & SQLITE --
 # ==============================================================================
@@ -329,7 +344,7 @@ def manual_interactive_loop(app_package):
 
         # Chờ lệnh từ console
         print("\n\033[1;33m[ACTION REQUIRE]\033[0m App đã được mở lên màn hình.")
-        wait_y = input(">>> Nhập chữ 'y' (rồi Enter) khi hoàn thành để Tắt App, Lưu Cookie Mới -> Github B: ")
+        wait_y = get_user_input(">>> Nhập chữ 'y' (rồi Enter) khi hoàn thành để Tắt App, Lưu Cookie Mới -> Github B: ")
 
         if wait_y.strip().lower() == 'y':
             print("\n[*] Đang tắt App...")
@@ -365,7 +380,7 @@ def manual_interactive_loop(app_package):
 
         # Hỏi tiếp tục hay không
         if idx < len(lines) - 1:
-            cont = input("\n>>> Bạn có muốn TÍẾP TỤC xử lý Account tiếp theo không? (y/n): ")
+            cont = get_user_input("\n>>> Bạn có muốn TÍẾP TỤC xử lý Account tiếp theo không? (y/n): ")
             if cont.strip().lower() != 'y':
                 print("[*] Đã DỪNG theo yêu cầu của bạn.")
                 break
