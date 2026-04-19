@@ -191,6 +191,7 @@ def inject_cookie_process(package_name, cookie_value):
                 'source_port': -1,
                 'is_same_party': 0,
                 'source_type': 0,
+                'last_update_utc': now,       # FIX CHO LỖI NOT NULL constraint: cookies.last_update_utc
             }
             
             # Chỉ inject dữ liệu vào những cột mà Database của máy thực sự có
