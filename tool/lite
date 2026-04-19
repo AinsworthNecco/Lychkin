@@ -85,33 +85,45 @@ def extract_github_info(url):
 # ==============================================================================
 
 def click_text_on_screen(target_text, partial_match=False):
-    """Quét màn hình và click vào tọa độ chứa văn bản chỉ định."""
+    """Quét màn hình và click vào tọa độ chứa văn bản (Bất chấp thứ tự XML)."""
     dump_file = "/data/local/tmp/uidump.xml"
+    run_root_cmd(f"rm -f {dump_file}")
+    
     # Dump giao diện UI hiện tại ra file XML
-    run_root_cmd(f"uiautomator dump {dump_file}")
+    out, _ = run_root_cmd(f"uiautomator dump {dump_file}")
+    if "dumped" not in out and "UI" not in out:
+        time.sleep(0.5)
+        return False
+        
     dump_content, _ = run_root_cmd(f"cat {dump_file}")
     
     if dump_content:
-        # Sử dụng biểu thức chính quy để trích xuất text và bounds (tọa độ 4 góc)
-        pattern = r'<node[^>]*text="([^"]*)"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"[^>]*>'
+        target_lower = target_text.lower()
+        # Bắt toàn bộ thẻ node
+        pattern = r'<node(.*?)>'
         for match in re.finditer(pattern, dump_content):
-            text = match.group(1)
+            node_attrs = match.group(1)
             
-            # Kiểm tra xem text trên màn hình có khớp với mục tiêu không
-            if (partial_match and target_text.lower() in text.lower()) or (not partial_match and target_text == text):
-                x1, y1, x2, y2 = map(int, match.group(2, 3, 4, 5))
-                # Tính toán điểm chính giữa của phần tử để giả lập chạm (tap)
-                center_x = (x1 + x2) // 2
-                center_y = (y1 + y2) // 2
-                run_root_cmd(f"input tap {center_x} {center_y}")
-                return True
+            # Tìm thuộc tính riêng lẻ, giải quyết triệt để lỗi thứ tự đảo lộn trên MuMu
+            text_m = re.search(r'text="([^"]*)"', node_attrs)
+            desc_m = re.search(r'content-desc="([^"]*)"', node_attrs)
+            bounds_m = re.search(r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', node_attrs)
+            
+            text = text_m.group(1) if text_m else ""
+            desc = desc_m.group(1) if desc_m else ""
+            content = (text + " " + desc).lower()
+            
+            if not content.strip():
+                continue
                 
-        # Dự phòng: Quét luôn thuộc tính content-desc nếu text bị ẩn
-        pattern_desc = r'<node[^>]*content-desc="([^"]*)"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"[^>]*>'
-        for match in re.finditer(pattern_desc, dump_content):
-            text = match.group(1)
-            if (partial_match and target_text.lower() in text.lower()) or (not partial_match and target_text == text):
-                x1, y1, x2, y2 = map(int, match.group(2, 3, 4, 5))
+            is_match = False
+            if partial_match and target_lower in content:
+                is_match = True
+            elif not partial_match and (target_lower == text.lower() or target_lower == desc.lower()):
+                is_match = True
+                
+            if is_match and bounds_m:
+                x1, y1, x2, y2 = map(int, bounds_m.groups())
                 center_x = (x1 + x2) // 2
                 center_y = (y1 + y2) // 2
                 run_root_cmd(f"input tap {center_x} {center_y}")
@@ -120,7 +132,7 @@ def click_text_on_screen(target_text, partial_match=False):
     return False
 
 def auto_bypass_terms_screen():
-    """Chờ và tự động vượt qua màn hình Điều khoản Roblox VNG."""
+    """Chờ và tự động vượt qua màn hình Điều khoản Roblox VNG (Có Fallback tọa độ)."""
     print("[*] Đang phân tích màn hình để xử lý Điều khoản (Timeout: 20s)...")
     agreed_checkbox = False
     agreed_button = False
@@ -128,16 +140,15 @@ def auto_bypass_terms_screen():
 
     while time.time() - start_time < 20:
         if not agreed_checkbox:
-            # Tìm dòng chữ "I agree to all terms and conditions below"
-            if click_text_on_screen("I agree to all terms", partial_match=True):
+            # Rút gọn từ khóa để dễ bắt trúng hơn
+            if click_text_on_screen("I agree", partial_match=True):
                 print("[+] Đã tự động nhận diện và Check vào ô 'I agree...'")
                 agreed_checkbox = True
                 time.sleep(1.5) # Đợi một nhịp để nút Agree sáng lên
                 continue
 
         if agreed_checkbox and not agreed_button:
-            # Tìm và click nút "Agree"
-            if click_text_on_screen("Agree", partial_match=False):
+            if click_text_on_screen("Agree", partial_match=False) or click_text_on_screen("agree", partial_match=True):
                 print("\033[1;32m[+] Đã tự động click nút 'Agree' thành công!\033[0m")
                 agreed_button = True
                 break
@@ -148,8 +159,25 @@ def auto_bypass_terms_screen():
         print("[*] Hoàn tất vượt qua Điều khoản! Đang chờ 5s cho App tải Cookie mới...")
         time.sleep(5)
     else:
-        print("[-] Hết thời gian phân tích hoặc không có màn hình Điều khoản. (Bỏ qua)")
-        time.sleep(2)
+        print("\033[1;33m[-] UIAutomator bị che mắt. Kích hoạt Kế hoạch B: Bấm theo Tọa độ Dự đoán...\033[0m")
+        # --- KẾ HOẠCH B: TÍNH TỌA ĐỘ VÀ BẤM MÙ ---
+        out, _ = run_root_cmd("wm size")
+        match = re.search(r'size:\s*(\d+)x(\d+)', out)
+        if match:
+            w, h = map(int, match.groups())
+            # Tính toán vị trí tương đối của Checkbox và Nút Agree
+            cb_x, cb_y = int(w * 0.15), int(h * 0.40)
+            btn_x, btn_y = int(w * 0.50), int(h * 0.90)
+            
+            print(f"[*] Phát lệnh bấm Checkbox tại ({cb_x}, {cb_y})")
+            run_root_cmd(f"input tap {cb_x} {cb_y}")
+            time.sleep(1)
+            
+            print(f"[*] Phát lệnh bấm Agree tại ({btn_x}, {btn_y})")
+            run_root_cmd(f"input tap {btn_x} {btn_y}")
+            time.sleep(5)
+        else:
+            print("[-] Không thể lấy độ phân giải. Bỏ qua.")
 
 # ==============================================================================
 # -- CÁC HÀM XỬ LÝ COOKIE & SQLITE --
