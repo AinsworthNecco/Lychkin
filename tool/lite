@@ -25,7 +25,7 @@ OBFUSCATED_GITHUB_TOKEN = "necovhK8R9Kw2c7z7u3yNx2j4kQso74vrX1S1vYZneco"
 GITHUB_URL_A = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie/a"      # Link file chứa data (user:pass:cookie)
 GITHUB_URL_B = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie/b" # Link file để đẩy data mới lên
 
-VERSION = "1.0.1" # Phiên bản hiện tại để dễ theo dõi
+VERSION = "1.0.2" # Phiên bản hiện tại để dễ theo dõi
 BASE_PACKAGE_NAME = "com.roblox.client"
 CONNECTION_TIMEOUT = 10 
 
@@ -380,8 +380,23 @@ def auto_batch_loop(app_package):
         print("[LỖI] Không thể lấy dữ liệu từ Github A hoặc file trống.")
         return
 
+    # --- LỌC TRÙNG VỚI GITHUB B ---
+    print(f"[INFO] Đang đồng bộ với Github B để lọc tài khoản đã xử lý...")
+    data_B_initial = fetch_github_file(GITHUB_URL_B)
+    processed_usernames = set()
+    
+    if data_B_initial:
+        for line in data_B_initial.splitlines():
+            line = line.strip()
+            if line:
+                parts = line.split(':', 2)
+                if len(parts) >= 1:
+                    processed_usernames.add(parts[0])
+                    
+    print(f"[INFO] Đã tìm thấy {len(processed_usernames)} tài khoản đã tồn tại ở Github B.")
+
     lines = [line.strip() for line in data_A.splitlines() if line.strip()]
-    print(f"[INFO] Tìm thấy {len(lines)} tài khoản trong danh sách.\n")
+    print(f"[INFO] Tổng số tài khoản ở Github A: {len(lines)}\n")
 
     for idx, line in enumerate(lines):
         parts = line.split(':', 2)
@@ -396,6 +411,11 @@ def auto_batch_loop(app_package):
         print(f"[ACCOUNT {idx+1}/{len(lines)}] Đang xử lý Username: \033[1;36m{username}\033[0m")
         print(f"=======================================================")
 
+        # Kiểm tra trùng lặp
+        if username in processed_usernames:
+            print(f"\033[1;33m[*] Account '{username}' đã có trong Github B. BỎ QUA!\033[0m")
+            continue
+
         print("[*] Đang tiến hành bơm Cookie vào App...")
         success = inject_cookie_process(app_package, old_cookie)
         if not success:
@@ -406,24 +426,25 @@ def auto_batch_loop(app_package):
         target_url = "roblox://"
         subprocess.run(["su", "-c", f"am start -a android.intent.action.VIEW -d {target_url} -p {app_package}"], capture_output=True)
 
-        # -- TIẾN HÀNH AUTO CLICK ĐIỀU KHOẢN --
+        # -- TIẾN HÀNH AUTO CLICK ĐIỀU KHOẢN HOẶC CHỜ TIMEOUT --
         auto_bypass_terms_screen()
 
         print("\n[*] Đang tắt App...")
         run_root_cmd(f"am force-stop {app_package}")
         time.sleep(2)
 
-        print("[*] Đang rút Cookie mới từ App...")
+        print("[*] Đang kiểm tra Cookie mới từ App...")
         new_cookie = get_local_cookie(app_package, old_cookie)
 
         if new_cookie:
             if new_cookie == old_cookie:
-                print("\033[1;33m[!] CẢNH BÁO: Cookie rút ra GIỐNG HỆT Cookie cũ. App chưa tạo session mới!\033[0m")
+                print("\033[1;31m[-] LỖI: Cookie không đổi (App không load / Cookie chết). BỎ QUA ACCOUNT NÀY!\033[0m")
             else:
                 print("\033[1;32m[*] Rút Cookie MỚI thành công!\033[0m")
                 
                 new_line_data = f"{username}:{password}:{new_cookie}"
 
+                # Lấy bản ghi mới nhất trước khi push
                 data_B = fetch_github_file(GITHUB_URL_B)
                 if data_B is None:
                     data_B = ""
@@ -434,6 +455,7 @@ def auto_batch_loop(app_package):
 
                 if update_github_file(GITHUB_URL_B, new_content_B):
                     print("\033[1;32m[+] THÀNH CÔNG: Đã lưu dữ liệu lên Github B!\033[0m")
+                    processed_usernames.add(username) # Ghi nhận vào bộ nhớ tạm
                 else:
                     print("\033[1;31m[-] THẤT BẠI: Không thể push nội dung lên Github B.\033[0m")
         else:
