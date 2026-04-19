@@ -114,7 +114,7 @@ def find_real_cookie_path(package_name):
             return path
     return None
 
-def get_local_cookie(package_name):
+def get_local_cookie(package_name, old_cookie=""):
     target_path = find_real_cookie_path(package_name)
     if not target_path: return None
 
@@ -133,9 +133,21 @@ def get_local_cookie(package_name):
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-        cursor.execute("SELECT value FROM cookies WHERE name = '.ROBLOSECURITY'")
-        result = cursor.fetchone()
-        if result: local_cookie_value = result[0]
+        # Sắp xếp theo thời gian truy cập để lấy bản ghi được cập nhật gần nhất
+        cursor.execute("SELECT value FROM cookies WHERE name = '.ROBLOSECURITY' ORDER BY last_access_utc DESC")
+        rows = cursor.fetchall()
+        
+        # Lọc tìm cookie mới (khác với cookie cũ đã bơm vào)
+        for row in rows:
+            val = row[0]
+            if val != old_cookie and len(val) > 10:
+                local_cookie_value = val
+                break
+        
+        # Nếu không có cái nào khác, đành lấy cái mới nhất (trường hợp user ko đổi acc)
+        if not local_cookie_value and rows:
+            local_cookie_value = rows[0][0]
+            
         conn.close()
     except Exception as e: 
         print(f"\033[1;31m[-] DEBUG: Lỗi khi đọc Cookie từ máy: {e}\033[0m")
@@ -352,10 +364,15 @@ def manual_interactive_loop(app_package):
             time.sleep(2)
 
             print("[*] Đang rút Cookie mới từ App...")
-            new_cookie = get_local_cookie(app_package)
+            # TRUYỀN COOKIE CŨ VÀO ĐỂ SCRIPT BIẾT ĐƯỜNG MÀ NÉ NÓ RA
+            new_cookie = get_local_cookie(app_package, old_cookie)
 
             if new_cookie:
-                print("[*] Rút Cookie thành công! Đang ghép dữ liệu và đẩy lên Github B...")
+                if new_cookie == old_cookie:
+                    print("\033[1;33m[!] CẢNH BÁO: Cookie rút ra GIỐNG HỆT Cookie cũ. Có vẻ App chưa tạo session/cookie mới!\033[0m")
+                else:
+                    print("[*] Rút Cookie MỚI thành công!")
+                
                 new_line_data = f"{username}:{password}:{new_cookie}"
 
                 # Lấy data cũ từ Github B để append (nối tiếp)
