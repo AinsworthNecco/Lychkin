@@ -15,7 +15,7 @@ import random
 from datetime import datetime
 
 # ==============================================================================
-# SCRIPT: Lychkins's Task Runner - MANUAL CONSOLE VERSION
+# SCRIPT: Lychkins's Task Runner - FULLY AUTO UI DUMP VERSION
 # ==============================================================================
 
 # Điền Token Github đã được mã hóa vào đây (Bỏ ghp_, bọc neco 2 đầu)
@@ -80,20 +80,76 @@ def extract_github_info(url):
         return f"{owner}/{repo}", path, branch
     return None, None, None
 
-def get_user_input(prompt_text):
-    """
-    Hàm ép buộc lấy input từ Terminal thật kể cả khi người dùng
-    copy/paste toàn bộ code dán trực tiếp vào Python REPL.
-    """
-    try:
-        return input(prompt_text)
-    except EOFError:
-        try:
-            with open('/dev/tty', 'r') as tty:
-                print(prompt_text, end='', flush=True)
-                return tty.readline().strip()
-        except Exception:
-            return ""
+# ==============================================================================
+# -- CÁC HÀM UI AUTOMATOR (QUÉT VÀ BẤM TỰ ĐỘNG) --
+# ==============================================================================
+
+def click_text_on_screen(target_text, partial_match=False):
+    """Quét màn hình và click vào tọa độ chứa văn bản chỉ định."""
+    dump_file = "/data/local/tmp/uidump.xml"
+    # Dump giao diện UI hiện tại ra file XML
+    run_root_cmd(f"uiautomator dump {dump_file}")
+    dump_content, _ = run_root_cmd(f"cat {dump_file}")
+    
+    if dump_content:
+        # Sử dụng biểu thức chính quy để trích xuất text và bounds (tọa độ 4 góc)
+        pattern = r'<node[^>]*text="([^"]*)"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"[^>]*>'
+        for match in re.finditer(pattern, dump_content):
+            text = match.group(1)
+            
+            # Kiểm tra xem text trên màn hình có khớp với mục tiêu không
+            if (partial_match and target_text.lower() in text.lower()) or (not partial_match and target_text == text):
+                x1, y1, x2, y2 = map(int, match.group(2, 3, 4, 5))
+                # Tính toán điểm chính giữa của phần tử để giả lập chạm (tap)
+                center_x = (x1 + x2) // 2
+                center_y = (y1 + y2) // 2
+                run_root_cmd(f"input tap {center_x} {center_y}")
+                return True
+                
+        # Dự phòng: Quét luôn thuộc tính content-desc nếu text bị ẩn
+        pattern_desc = r'<node[^>]*content-desc="([^"]*)"[^>]*bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"[^>]*>'
+        for match in re.finditer(pattern_desc, dump_content):
+            text = match.group(1)
+            if (partial_match and target_text.lower() in text.lower()) or (not partial_match and target_text == text):
+                x1, y1, x2, y2 = map(int, match.group(2, 3, 4, 5))
+                center_x = (x1 + x2) // 2
+                center_y = (y1 + y2) // 2
+                run_root_cmd(f"input tap {center_x} {center_y}")
+                return True
+                
+    return False
+
+def auto_bypass_terms_screen():
+    """Chờ và tự động vượt qua màn hình Điều khoản Roblox VNG."""
+    print("[*] Đang phân tích màn hình để xử lý Điều khoản (Timeout: 20s)...")
+    agreed_checkbox = False
+    agreed_button = False
+    start_time = time.time()
+
+    while time.time() - start_time < 20:
+        if not agreed_checkbox:
+            # Tìm dòng chữ "I agree to all terms and conditions below"
+            if click_text_on_screen("I agree to all terms", partial_match=True):
+                print("[+] Đã tự động nhận diện và Check vào ô 'I agree...'")
+                agreed_checkbox = True
+                time.sleep(1.5) # Đợi một nhịp để nút Agree sáng lên
+                continue
+
+        if agreed_checkbox and not agreed_button:
+            # Tìm và click nút "Agree"
+            if click_text_on_screen("Agree", partial_match=False):
+                print("\033[1;32m[+] Đã tự động click nút 'Agree' thành công!\033[0m")
+                agreed_button = True
+                break
+
+        time.sleep(2) # Nghỉ 2s trước khi quét màn hình lần nữa
+
+    if agreed_button:
+        print("[*] Hoàn tất vượt qua Điều khoản! Đang chờ 5s cho App tải Cookie mới...")
+        time.sleep(5)
+    else:
+        print("[-] Hết thời gian phân tích hoặc không có màn hình Điều khoản. (Bỏ qua)")
+        time.sleep(2)
 
 # ==============================================================================
 # -- CÁC HÀM XỬ LÝ COOKIE & SQLITE --
@@ -101,7 +157,6 @@ def get_user_input(prompt_text):
 
 def find_real_cookie_path(package_name):
     base_path = f"/data/data/{package_name}/app_webview"
-    # Bổ sung thêm các path của WebView đời mới (thường gặp trên giả lập/Android cao)
     possible_paths = [
         f"{base_path}/Default/Network/Cookies",
         f"{base_path}/Default/Cookies",
@@ -118,12 +173,9 @@ def get_local_cookie(package_name, old_cookie=""):
     target_path = find_real_cookie_path(package_name)
     if not target_path: return None
 
-    # Dọn dẹp thư mục tạm
     run_root_cmd(f"rm -rf {TEMP_DIR}")
     run_root_cmd(f"mkdir -p {TEMP_DIR}")
 
-    # FIX TỐI QUAN TRỌNG: Phải copy TẤT CẢ các file có chữ Cookies (bao gồm Cookies-journal, Cookies-wal) 
-    # Nếu không copy các file journal, DB sẽ bị hỏng trong mắt python sqlite3.
     run_root_cmd(f"cp {target_path}* {TEMP_DIR}/")
     run_root_cmd(f"chmod 777 {TEMP_DIR}/*")
 
@@ -133,18 +185,15 @@ def get_local_cookie(package_name, old_cookie=""):
     try:
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-        # Sắp xếp theo thời gian truy cập để lấy bản ghi được cập nhật gần nhất
         cursor.execute("SELECT value FROM cookies WHERE name = '.ROBLOSECURITY' ORDER BY last_access_utc DESC")
         rows = cursor.fetchall()
         
-        # Lọc tìm cookie mới (khác với cookie cũ đã bơm vào)
         for row in rows:
             val = row[0]
             if val != old_cookie and len(val) > 10:
                 local_cookie_value = val
                 break
         
-        # Nếu không có cái nào khác, đành lấy cái mới nhất (trường hợp user ko đổi acc)
         if not local_cookie_value and rows:
             local_cookie_value = rows[0][0]
             
@@ -164,15 +213,12 @@ def inject_cookie_process(package_name, cookie_value):
     run_root_cmd(f"am force-stop {package_name}")
     time.sleep(1)
 
-    # Dọn dẹp và tạo thư mục tạm bằng quyền root
     run_root_cmd(f"rm -rf {TEMP_DIR}")
     run_root_cmd(f"mkdir -p {TEMP_DIR}")
 
-    # FIX TỐI QUAN TRỌNG: Lấy toàn bộ các file đi kèm Cookies
     run_root_cmd(f"cp {target_path}* {TEMP_DIR}/")
     run_root_cmd(f"chmod 777 {TEMP_DIR}/*")
 
-    # Kiểm tra xem file đã copy thành công chưa
     check_cp, _ = run_root_cmd(f"[ -f '{TEMP_DIR}/Cookies' ] && echo 'OK' || echo 'FAIL'")
     if "FAIL" in check_cp:
         print(f"\033[1;31m[-] DEBUG LỖI 2: Lệnh copy file từ {target_path} ra {TEMP_DIR} thất bại!\033[0m")
@@ -180,17 +226,13 @@ def inject_cookie_process(package_name, cookie_value):
 
     db_path = f"{TEMP_DIR}/Cookies"
     try:
-        # Mở kết nối SQLite
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-        
-        # Xóa cookie cũ (xóa tất cả .ROBLOSECURITY bất kể host)
         cursor.execute("DELETE FROM cookies WHERE name = '.ROBLOSECURITY'")
         
         now = int(time.time() * 1000000)
         expires = 99999999999999999
         
-        # CƠ CHẾ BẤT BẠI: Lấy danh sách TOÀN BỘ các cột hiện có trong bảng cookies trên thiết bị này
         cursor.execute("PRAGMA table_info(cookies)")
         table_info = cursor.fetchall()
         
@@ -204,7 +246,6 @@ def inject_cookie_process(package_name, cookie_value):
                 col_name = row[1]
                 col_type = row[2].upper() if row[2] else "TEXT"
                 
-                # Ánh xạ giá trị chuẩn của Chromium
                 if col_name == 'creation_utc': val = now
                 elif col_name == 'host_key': val = host
                 elif col_name == 'top_frame_site_key': val = ""
@@ -226,7 +267,6 @@ def inject_cookie_process(package_name, cookie_value):
                 elif col_name == 'source_type': val = 0
                 elif col_name == 'last_update_utc': val = now
                 else:
-                    # BẤT BẠI: Nếu Chromium thêm cột mới lạ hoắc, tự động đoán kiểu dữ liệu và điền giá trị rỗng để bypass NOT NULL
                     if "INT" in col_type: val = 0
                     elif "TEXT" in col_type or "CHAR" in col_type: val = ""
                     elif "BLOB" in col_type: val = b""
@@ -236,7 +276,6 @@ def inject_cookie_process(package_name, cookie_value):
                 insert_cols.append(col_name)
                 insert_vals.append(val)
             
-            # Khâu thành lệnh SQL hoàn chỉnh động
             cols_str = ", ".join(insert_cols)
             placeholders = ", ".join(["?"] * len(insert_vals))
             query = f"INSERT INTO cookies ({cols_str}) VALUES ({placeholders})"
@@ -250,22 +289,16 @@ def inject_cookie_process(package_name, cookie_value):
         return False
 
     parent_dir = os.path.dirname(target_path)
-    
-    # XÓA FILE JOURNAL Ở THƯ MỤC GỐC ĐỂ TRÁNH BỊ ĐÈ LẠI DỮ LIỆU CŨ
     run_root_cmd(f"rm -f {parent_dir}/Cookies-journal")
     run_root_cmd(f"rm -f {parent_dir}/Cookies-wal")
     run_root_cmd(f"rm -f {parent_dir}/Cookies-shm")
 
-    # Copy file Cookies đã chỉnh sửa ngược lại
     run_root_cmd(f"cp {TEMP_DIR}/Cookies {target_path}")
     
-    # Cấp lại quyền (chown) đúng với chủ thư mục
     owner, _ = run_root_cmd(f"stat -c '%U:%G' {parent_dir}")
     if owner:
         run_root_cmd(f"chown {owner} {target_path}")
         run_root_cmd(f"chmod 600 {target_path}")
-    else:
-        print(f"\033[1;33m[!] CẢNH BÁO: Lệnh 'stat' không hoạt động trên thiết bị này, file có thể sai quyền (permission).\033[0m")
     
     run_root_cmd(f"rm -rf {TEMP_DIR}")
     return True
@@ -305,7 +338,7 @@ def update_github_file(url, new_content):
             sha = r.json().get("sha")
         
         encoded = base64.b64encode(new_content.encode('utf-8')).decode('utf-8')
-        data = {"message": "Lychkins Manual: Add new updated cookie", "content": encoded, "branch": branch}
+        data = {"message": "Lychkins Auto: Push new session cookie", "content": encoded, "branch": branch}
         if sha:
             data["sha"] = sha
             
@@ -314,10 +347,10 @@ def update_github_file(url, new_content):
     except Exception: return False
 
 # ==============================================================================
-# -- KỊCH BẢN CHÍNH THỦ CÔNG --
+# -- KỊCH BẢN TỰ ĐỘNG HÀNG LOẠT (BATCH PROCESSING) --
 # ==============================================================================
 
-def manual_interactive_loop(app_package):
+def auto_batch_loop(app_package):
     print(f"\n[INFO] Đang tải danh sách tài khoản từ Github A...")
     data_A = fetch_github_file(GITHUB_URL_A)
     
@@ -325,15 +358,12 @@ def manual_interactive_loop(app_package):
         print("[LỖI] Không thể lấy dữ liệu từ Github A hoặc file trống.")
         return
 
-    # Tách dòng, lọc các dòng trống
     lines = [line.strip() for line in data_A.splitlines() if line.strip()]
     print(f"[INFO] Tìm thấy {len(lines)} tài khoản trong danh sách.\n")
 
     for idx, line in enumerate(lines):
-        # Yêu cầu định dạng: username:pass:cookie
         parts = line.split(':', 2)
         if len(parts) < 3:
-            print(f"[CẢNH BÁO] Dòng {idx+1} không đúng định dạng 'user:pass:cookie'. Bỏ qua.")
             continue
 
         username = parts[0]
@@ -354,28 +384,24 @@ def manual_interactive_loop(app_package):
         target_url = "roblox://"
         subprocess.run(["su", "-c", f"am start -a android.intent.action.VIEW -d {target_url} -p {app_package}"], capture_output=True)
 
-        # Chờ lệnh từ console
-        print("\n\033[1;33m[ACTION REQUIRE]\033[0m App đã được mở lên màn hình.")
-        wait_y = get_user_input(">>> Nhập chữ 'y' (rồi Enter) khi hoàn thành để Tắt App, Lưu Cookie Mới -> Github B: ")
+        # -- TIẾN HÀNH AUTO CLICK ĐIỀU KHOẢN --
+        auto_bypass_terms_screen()
 
-        if wait_y.strip().lower() == 'y':
-            print("\n[*] Đang tắt App...")
-            run_root_cmd(f"am force-stop {app_package}")
-            time.sleep(2)
+        print("\n[*] Đang tắt App...")
+        run_root_cmd(f"am force-stop {app_package}")
+        time.sleep(2)
 
-            print("[*] Đang rút Cookie mới từ App...")
-            # TRUYỀN COOKIE CŨ VÀO ĐỂ SCRIPT BIẾT ĐƯỜNG MÀ NÉ NÓ RA
-            new_cookie = get_local_cookie(app_package, old_cookie)
+        print("[*] Đang rút Cookie mới từ App...")
+        new_cookie = get_local_cookie(app_package, old_cookie)
 
-            if new_cookie:
-                if new_cookie == old_cookie:
-                    print("\033[1;33m[!] CẢNH BÁO: Cookie rút ra GIỐNG HỆT Cookie cũ. Có vẻ App chưa tạo session/cookie mới!\033[0m")
-                else:
-                    print("[*] Rút Cookie MỚI thành công!")
+        if new_cookie:
+            if new_cookie == old_cookie:
+                print("\033[1;33m[!] CẢNH BÁO: Cookie rút ra GIỐNG HỆT Cookie cũ. App chưa tạo session mới!\033[0m")
+            else:
+                print("\033[1;32m[*] Rút Cookie MỚI thành công!\033[0m")
                 
                 new_line_data = f"{username}:{password}:{new_cookie}"
 
-                # Lấy data cũ từ Github B để append (nối tiếp)
                 data_B = fetch_github_file(GITHUB_URL_B)
                 if data_B is None:
                     data_B = ""
@@ -384,26 +410,21 @@ def manual_interactive_loop(app_package):
                 b_lines.append(new_line_data)
                 new_content_B = "\n".join(b_lines)
 
-                # Push lên
                 if update_github_file(GITHUB_URL_B, new_content_B):
                     print("\033[1;32m[+] THÀNH CÔNG: Đã lưu dữ liệu lên Github B!\033[0m")
                 else:
                     print("\033[1;31m[-] THẤT BẠI: Không thể push nội dung lên Github B.\033[0m")
-            else:
-                print("\033[1;31m[-] LỖI: Không tìm thấy Cookie mới trong App (Có thể bạn đã đăng xuất).\033[0m")
         else:
-            print("\n[*] Bạn đã nhập phím khác. Hủy bỏ thao tác lưu account này.")
-            run_root_cmd(f"am force-stop {app_package}")
+            print("\033[1;31m[-] LỖI: Không tìm thấy Cookie mới trong App.\033[0m")
 
-        # Hỏi tiếp tục hay không
+        # Chuyển sang Account tiếp theo mà không cần hỏi
         if idx < len(lines) - 1:
-            cont = get_user_input("\n>>> Bạn có muốn TÍẾP TỤC xử lý Account tiếp theo không? (y/n): ")
-            if cont.strip().lower() != 'y':
-                print("[*] Đã DỪNG theo yêu cầu của bạn.")
-                break
+            print(f"[*] Đang chuyển sang Account tiếp theo sau 3 giây...")
+            time.sleep(3)
         else:
-            print("\n[*] HOÀN TẤT: Đã duyệt hết danh sách tài khoản trong Github A.")
-
+            print("\n=======================================================")
+            print("[*] HOÀN TẤT: Đã duyệt xong toàn bộ danh sách tài khoản!")
+            print("=======================================================")
 
 # ==============================================================================
 # -- MAIN --
@@ -412,7 +433,7 @@ def manual_interactive_loop(app_package):
 if __name__ == "__main__":
     os.system("termux-wake-lock")
     print("==========================================================")
-    print(" KHỞI ĐỘNG: Lychkins Task Runner - MANUAL CONSOLE VERSION ")
+    print(" KHỞI ĐỘNG: Lychkins Task Runner - FULLY AUTO VERSION ")
     print("==========================================================")
     
     if not check_root_access():
@@ -429,10 +450,8 @@ if __name__ == "__main__":
         print("LỖI: Không tìm thấy ứng dụng Roblox nào (com.roblox.client...).")
         sys.exit(1)
 
-    # Dùng App Roblox đầu tiên tìm thấy để thực hiện xử lý (vì chạy tay từng account)
     primary_app_package = accounts[0]['pkg']
-    print(f"[*] Sẽ sử dụng App: {primary_app_package} làm công cụ xử lý.")
+    print(f"[*] Sẽ sử dụng App: {primary_app_package} làm công cụ xử lý tự động.")
 
-    # Chạy thẳng vào kịch bản thủ công, vô hiệu hóa các luồng ngầm cũ (UI, Poller) 
-    # để không bị xung đột lệnh input() trên màn hình console.
-    manual_interactive_loop(primary_app_package)
+    # Chạy vòng lặp tự động hàng loạt
+    auto_batch_loop(primary_app_package)
