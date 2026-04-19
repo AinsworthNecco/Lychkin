@@ -15,22 +15,109 @@ import random
 from datetime import datetime
 
 # ==============================================================================
-# SCRIPT: Lychkins's Task Runner - MANUAL CONSOLE VERSION
+# SCRIPT: Lychkins's Task Runner - LITE VERSION (SMART LAUNCH & SYNC A-B)
+# ==============================================================================
+# - Nạp Data (A): Đọc file A dạng "user:pass:cookie", tự giải mã "neco" nếu có.
+# - Xuất Data (B): Nhận lệnh "yes", lấy cookie mới dưới máy xuất lên file B 
+#   dạng raw không mã hóa. Ghi nối tiếp cách 1 dòng. TỰ ĐỘNG DỪNG SCRIPT.
+# - Logic mở App: Bơm Cookie -> Tắt toàn bộ -> Mở toàn bộ -> Check API & Proxy.
+# - Mở app chính xác theo logic bản gốc bằng Deep Link "roblox://".
 # ==============================================================================
 
 # Điền Token Github đã được mã hóa vào đây (Bỏ ghp_, bọc neco 2 đầu)
 OBFUSCATED_GITHUB_TOKEN = "necovhK8R9Kw2c7z7u3yNx2j4kQso74vrX1S1vYZneco"
 
-# --- CẤU HÌNH GITHUB NGUỒN VÀ ĐÍCH ---
+ACCOUNT_NUMBER = 1  # Số lượng tab muốn chạy. Để 0 để chạy tất cả.
+BASE_PACKAGE_NAME = "com.roblox.client"
 GITHUB_URL_A = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie/a"      # Link file chứa data (user:pass:cookie)
 GITHUB_URL_B = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie/b" # Link file để đẩy data mới lên
+COMMAND_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie/command"
 
-BASE_PACKAGE_NAME = "com.roblox.client"
-CONNECTION_TIMEOUT = 10 
+# --- CẤU HÌNH THỜI GIAN & PROXY ---
+LAUNCH_INTERVAL_SECONDS = 30   # Thời gian nghỉ sau khi hoàn thành 1 vòng quét tất cả các tab
+CONNECTION_TIMEOUT = 10        # Thời gian chờ tối đa khi quét API
+PROXY_URL = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/proxy/proxy"                 # Điền link file text chứa proxy vào đây (nếu có)
+PROXY_LIST = [
+    # Thêm proxy thủ công vào đây để quét API không bị chặn (VD: "ip:port" hoặc "user:pass@ip:port")
+]
 
-# ĐỔI THƯ MỤC TẠM SANG /data/local/tmp ĐỂ TRÁNH LỖI QUYỀN STORAGE CỦA TERMUX
-TEMP_DIR = "/data/local/tmp/RobloxInjector_Temp_Lite"
+DOWNLOAD_DIR = "/storage/emulated/0/Download"
+TEMP_DIR = os.path.join(DOWNLOAD_DIR, "RobloxInjector_Temp_Lite") 
 COOKIE_FILENAME = "Cookies"
+
+last_command_state = ""
+
+# ==============================================================================
+# -- HÀM XỬ LÝ GIAO DIỆN & STATS --
+# ==============================================================================
+
+UI_READY = False
+UI_STATE = {
+    'LAUNCH_TIMER': 0, 
+    'SYNC_TIMER': 0,
+    'LAUNCH_LOG': 'Đang chờ...', 
+    'SYNC_LOG': 'Đang chờ...'
+}
+
+def ui_log(thread_name, msg):
+    """Ghi log vào Dashboard UI."""
+    global UI_READY, UI_STATE
+    clean_msg = msg.replace('\r', '').replace('\n', '').strip()
+    
+    if not UI_READY:
+        print(f"[{thread_name}] {clean_msg}")
+        return
+        
+    if thread_name in ["LAUNCH", "API", "SETUP", "INJECT"]:
+        UI_STATE['LAUNCH_LOG'] = f"[{thread_name}] {clean_msg}" if thread_name != "LAUNCH" else clean_msg
+    elif thread_name in ["SYNC", "POLLER"]:
+        UI_STATE['SYNC_LOG'] = f"[{thread_name}] {clean_msg}" if thread_name != "SYNC" else clean_msg
+
+def ui_loop():
+    """Luồng chính vẽ Giao diện."""
+    global UI_READY, UI_STATE
+    device_android_id = get_android_id()
+    while True:
+        if not UI_READY:
+            time.sleep(0.5)
+            continue
+            
+        os.system('clear')
+        print("\033[38;5;208m")
+        print("██╗     ██╗   ██╗ ██████╗██╗  ██╗██╗  ██╗██╗███╗   ██╗")
+        print("██║     ╚██╗ ██╔╝██╔════╝██║  ██║██║ ██╔╝██║████╗  ██║")
+        print("██║      ╚████╔╝ ██║     ███████║█████═╝ ██║██╔██╗ ██║")
+        print("██║       ╚██╔╝  ██║     ██╔══██║██╔═██╗ ██║██║╚██╗██║")
+        print("███████╗   ██║   ╚██████╗██║  ██║██║  ██╗██║██║ ╚████║")
+        print("╚══════╝   ╚═╝    ╚═════╝╚═╝  ╚═╝╚═╝  ╚═╝╚═╝╚═╝  ╚═══╝")
+        print("\033[0m")
+        
+        launch_timer = f"{UI_STATE.get('LAUNCH_TIMER', 0)}s"
+        sync_timer = f"{UI_STATE.get('SYNC_TIMER', 0)}s"
+        
+        launch_log = UI_STATE.get('LAUNCH_LOG', '')
+        sync_log = UI_STATE.get('SYNC_LOG', '')
+
+        print(f"\033[1;36mVersion     |\033[0m Lychkins Task Runner LITE (A-B Sync)")
+        print(f"\033[1;35mAndroid ID  |\033[0m {device_android_id}")
+        print(f"\033[1;33mCommand Sync|\033[0m {sync_timer:<8} |")
+        print(f"\033[1;36mLaunch      |\033[0m {launch_timer:<8} |\n")
+        
+        print(f"\033[1;33mLOG sync:\033[0m\n{sync_log}\n\n\n")
+        print(f"\033[1;36mLOG launch:\033[0m\n{launch_log}\n")
+        
+        time.sleep(1)
+
+def countdown(seconds, thread_name="MAIN"):
+    """Countdown chạy ngầm."""
+    timer_key = f"{thread_name}_TIMER"
+    for i in range(seconds, 0, -1):
+        if timer_key in UI_STATE:
+            UI_STATE[timer_key] = i
+        time.sleep(1)
+    
+    if timer_key in UI_STATE:
+        UI_STATE[timer_key] = 0
 
 # ==============================================================================
 # -- CÁC HÀM TIỆN ÍCH CƠ BẢN --
@@ -50,6 +137,16 @@ def get_android_id():
         return out.strip()
     return "UNKNOWN_DEVICE_ID"
 
+def check_process_running(pkg_name):
+    try:
+        cmd = f"ps -ef | grep {pkg_name} | grep -v grep"
+        result = subprocess.run(["su", "-c", cmd], capture_output=True, text=True, timeout=5)
+        if result.stdout.strip():
+            return True
+        return False
+    except Exception:
+        return False
+
 def auto_detect_roblox_packages():
     out, _ = run_root_cmd(f"pm list packages | grep {BASE_PACKAGE_NAME}")
     accounts = []
@@ -61,6 +158,10 @@ def auto_detect_roblox_packages():
                 accounts.append({'suffix': suffix, 'pkg': pkg, 'id': "0"})
                 
     sorted_accounts = sorted(accounts, key=lambda x: x['suffix'])
+    
+    if ACCOUNT_NUMBER > 0:
+        sorted_accounts = sorted_accounts[:ACCOUNT_NUMBER]
+        
     return sorted_accounts
 
 def check_root_access():
@@ -80,164 +181,179 @@ def extract_github_info(url):
         return f"{owner}/{repo}", path, branch
     return None, None, None
 
+def fetch_proxies_from_url(url):
+    try:
+        response = requests.get(url, timeout=15)
+        if response.status_code == 200:
+            return [item.strip() for item in response.text.splitlines() if item.strip()]
+    except Exception: pass
+    return []
+
+def format_proxies(proxy_list):
+    formatted = []
+    if not proxy_list: return []
+    for proxy_string in proxy_list:
+        if not proxy_string: continue
+        parts = proxy_string.split(':')
+        proxy_url = ""
+        if len(parts) == 2: proxy_url = f"http://{parts[0]}:{parts[1]}"
+        elif len(parts) == 4: proxy_url = f"http://{parts[2]}:{parts[3]}@{parts[0]}:{parts[1]}"
+        if proxy_url: formatted.append({"http": proxy_url, "https": proxy_url})
+    return formatted
+
+def get_roblox_user_id(cookie):
+    try:
+        url = "https://users.roblox.com/v1/users/authenticated"
+        cookies = {'.ROBLOSECURITY': cookie}
+        response = requests.get(url, cookies=cookies, timeout=10)
+        if response.status_code == 200:
+            return str(response.json().get('id'))
+    except Exception: pass
+    return "0"
+
 # ==============================================================================
 # -- CÁC HÀM XỬ LÝ COOKIE & SQLITE --
 # ==============================================================================
 
 def find_real_cookie_path(package_name):
     base_path = f"/data/data/{package_name}/app_webview"
-    # Bổ sung thêm các path của WebView đời mới (thường gặp trên giả lập/Android cao)
-    possible_paths = [
-        f"{base_path}/Default/Network/Cookies",
-        f"{base_path}/Default/Cookies",
-        f"{base_path}/Network/Cookies",
-        f"{base_path}/Cookies"
-    ]
+    possible_paths = [f"{base_path}/Default/Cookies", f"{base_path}/Cookies"]
     for path in possible_paths:
         out, _ = run_root_cmd(f"[ -f '{path}' ] && echo 'YES' || echo 'NO'")
-        if "YES" in out: 
-            return path
+        if "YES" in out: return path
     return None
 
 def get_local_cookie(package_name):
     target_path = find_real_cookie_path(package_name)
     if not target_path: return None
 
-    # Dọn dẹp thư mục tạm
-    run_root_cmd(f"rm -rf {TEMP_DIR}")
-    run_root_cmd(f"mkdir -p {TEMP_DIR}")
+    if not os.path.exists(TEMP_DIR): os.makedirs(TEMP_DIR)
+    temp_check_path = os.path.join(TEMP_DIR, "Cookies_Check")
 
-    # FIX TỐI QUAN TRỌNG: Phải copy TẤT CẢ các file có chữ Cookies (bao gồm Cookies-journal, Cookies-wal) 
-    # Nếu không copy các file journal, DB sẽ bị hỏng trong mắt python sqlite3.
-    run_root_cmd(f"cp {target_path}* {TEMP_DIR}/")
-    run_root_cmd(f"chmod 777 {TEMP_DIR}/*")
+    run_root_cmd(f"cp {target_path} {temp_check_path}")
+    run_root_cmd(f"chmod 777 {temp_check_path}")
 
     local_cookie_value = None
-    db_path = f"{TEMP_DIR}/Cookies"
-    
     try:
-        conn = sqlite3.connect(db_path)
+        conn = sqlite3.connect(temp_check_path)
         cursor = conn.cursor()
         cursor.execute("SELECT value FROM cookies WHERE name = '.ROBLOSECURITY'")
         result = cursor.fetchone()
         if result: local_cookie_value = result[0]
         conn.close()
-    except Exception as e: 
-        print(f"\033[1;31m[-] DEBUG: Lỗi khi đọc Cookie từ máy: {e}\033[0m")
+    except Exception: pass
     
-    run_root_cmd(f"rm -rf {TEMP_DIR}")
+    if os.path.exists(temp_check_path): os.remove(temp_check_path)
     return local_cookie_value
 
 def inject_cookie_process(package_name, cookie_value):
     target_path = find_real_cookie_path(package_name)
-    if not target_path: 
-        print(f"\033[1;31m[-] DEBUG LỖI 1: Không tìm thấy file Cookies gốc ở các đường dẫn chuẩn.\033[0m")
-        return False
+    if not target_path: return False
 
     run_root_cmd(f"am force-stop {package_name}")
     time.sleep(1)
 
-    # Dọn dẹp và tạo thư mục tạm bằng quyền root
-    run_root_cmd(f"rm -rf {TEMP_DIR}")
-    run_root_cmd(f"mkdir -p {TEMP_DIR}")
+    if os.path.exists(TEMP_DIR): shutil.rmtree(TEMP_DIR)
+    os.makedirs(TEMP_DIR)
 
-    # FIX TỐI QUAN TRỌNG: Lấy toàn bộ các file đi kèm Cookies
-    run_root_cmd(f"cp {target_path}* {TEMP_DIR}/")
-    run_root_cmd(f"chmod 777 {TEMP_DIR}/*")
+    run_root_cmd(f"cp {target_path} {TEMP_DIR}/{COOKIE_FILENAME}")
+    run_root_cmd(f"chmod 777 {TEMP_DIR}/{COOKIE_FILENAME}")
 
-    # Kiểm tra xem file đã copy thành công chưa
-    check_cp, _ = run_root_cmd(f"[ -f '{TEMP_DIR}/Cookies' ] && echo 'OK' || echo 'FAIL'")
-    if "FAIL" in check_cp:
-        print(f"\033[1;31m[-] DEBUG LỖI 2: Lệnh copy file từ {target_path} ra {TEMP_DIR} thất bại!\033[0m")
-        return False
-
-    db_path = f"{TEMP_DIR}/Cookies"
+    db_path = os.path.join(TEMP_DIR, COOKIE_FILENAME)
     try:
-        # Mở kết nối SQLite
         conn = sqlite3.connect(db_path)
         cursor = conn.cursor()
-        
-        # Xóa cookie cũ (xóa tất cả .ROBLOSECURITY bất kể host)
-        cursor.execute("DELETE FROM cookies WHERE name = '.ROBLOSECURITY'")
+        cursor.execute("DELETE FROM cookies WHERE host_key = '.roblox.com' AND name = '.ROBLOSECURITY'")
         
         now = int(time.time() * 1000000)
         expires = 99999999999999999
-        
-        # Lấy danh sách các cột hiện có trong bảng cookies trên thiết bị này
-        cursor.execute("PRAGMA table_info(cookies)")
-        columns = [row[1] for row in cursor.fetchall()]
-        
-        hosts_to_inject = [".roblox.com", ".roblox.vnggames.vn", "roblox.vnggames.vn"]
-        
-        for host in hosts_to_inject:
-            # Từ điển chứa các giá trị default tương thích cho mọi phiên bản WebView
-            default_values = {
-                'creation_utc': now,
-                'host_key': host,
-                'top_frame_site_key': "",     # FIX CHO LỖI NOT NULL constraint
-                'name': ".ROBLOSECURITY",
-                'value': cookie_value,
-                'encrypted_value': b"",
-                'path': "/",
-                'expires_utc': expires,
-                'is_secure': 1,
-                'is_httponly': 1,
-                'last_access_utc': now,
-                'has_expires': 1,
-                'is_persistent': 1,
-                'priority': 1,
-                'samesite': -1,
-                'source_scheme': 2,
-                'source_port': -1,
-                'is_same_party': 0,
-                'source_type': 0,
-                'last_update_utc': now,       # FIX CHO LỖI NOT NULL constraint: cookies.last_update_utc
-            }
-            
-            # Chỉ inject dữ liệu vào những cột mà Database của máy thực sự có
-            insert_cols = []
-            insert_vals = []
-            for col in columns:
-                if col in default_values:
-                    insert_cols.append(col)
-                    insert_vals.append(default_values[col])
-            
-            cols_str = ", ".join(insert_cols)
-            placeholders = ", ".join(["?"] * len(insert_vals))
-            query = f"INSERT INTO cookies ({cols_str}) VALUES ({placeholders})"
-            
-            cursor.execute(query, tuple(insert_vals))
-        
+        query = "INSERT INTO cookies (creation_utc, host_key, name, value, path, expires_utc, is_secure, is_httponly, last_access_utc) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+        cursor.execute(query, (now, ".roblox.com", ".ROBLOSECURITY", cookie_value, "/", expires, 1, 1, now))
         conn.commit()
         conn.close()
-    except Exception as e: 
-        print(f"\033[1;31m[-] DEBUG LỖI 3: Thao tác Database SQLite thất bại. Chi tiết lỗi: {e}\033[0m")
-        return False
+    except Exception: return False
 
+    run_root_cmd(f"cp {TEMP_DIR}/{COOKIE_FILENAME} {target_path}")
+    
     parent_dir = os.path.dirname(target_path)
-    
-    # XÓA FILE JOURNAL Ở THƯ MỤC GỐC ĐỂ TRÁNH BỊ ĐÈ LẠI DỮ LIỆU CŨ
-    run_root_cmd(f"rm -f {parent_dir}/Cookies-journal")
-    run_root_cmd(f"rm -f {parent_dir}/Cookies-wal")
-    run_root_cmd(f"rm -f {parent_dir}/Cookies-shm")
-
-    # Copy file Cookies đã chỉnh sửa ngược lại
-    run_root_cmd(f"cp {TEMP_DIR}/Cookies {target_path}")
-    
-    # Cấp lại quyền (chown) đúng với chủ thư mục
     owner, _ = run_root_cmd(f"stat -c '%U:%G' {parent_dir}")
     if owner:
         run_root_cmd(f"chown {owner} {target_path}")
         run_root_cmd(f"chmod 600 {target_path}")
-    else:
-        print(f"\033[1;33m[!] CẢNH BÁO: Lệnh 'stat' không hoạt động trên thiết bị này, file có thể sai quyền (permission).\033[0m")
     
-    run_root_cmd(f"rm -rf {TEMP_DIR}")
+    shutil.rmtree(TEMP_DIR)
     return True
 
 # ==============================================================================
-# -- CÁC HÀM GITHUB API --
+# -- CÁC HÀM GITHUB API & ROBLOX API --
 # ==============================================================================
+
+def execute_api_request_simple(method, url, json_data=None, proxy=None):
+    try:
+        if method.upper() == 'GET': response = requests.get(url, proxies=proxy, timeout=CONNECTION_TIMEOUT)
+        elif method.upper() == 'POST': response = requests.post(url, json=json_data, proxies=proxy, timeout=CONNECTION_TIMEOUT)
+        if response.status_code == 200: return response.json()
+    except Exception: pass 
+    return None
+
+def check_roblox_presence_single(account_id, proxy_list, initial_proxy_index):
+    if not account_id or str(account_id) == "0":
+        return False
+
+    user_ids = [int(account_id)]
+    api_url = "https://presence.roblox.com/v1/presence/users"
+    payload = {"userIds": user_ids}
+    
+    num_proxies = len(proxy_list)
+    REQUIRED_VALID_CHECKS = 3
+    valid_checks_count = 0
+    current_idx = initial_proxy_index if initial_proxy_index >= 0 else 0
+    consecutive_network_failures = 0
+    MAX_CONSECUTIVE_FAILURES = 50 
+
+    while valid_checks_count < REQUIRED_VALID_CHECKS:
+        response = None
+        while response is None:
+            proxy = proxy_list[current_idx % num_proxies] if num_proxies > 0 else None
+            proxy_info = f"Proxy #{current_idx % num_proxies + 1}" if num_proxies > 0 else "IP Gốc"
+            
+            ui_log("API", f"[{account_id}] Check {valid_checks_count + 1}/{REQUIRED_VALID_CHECKS} | {proxy_info}...")
+
+            response = execute_api_request_simple('POST', api_url, json_data=payload, proxy=proxy)
+
+            if response is None:
+                consecutive_network_failures += 1
+                ui_log("API", f"[{account_id}] Lỗi mạng -> Retry...")
+                time.sleep(1)
+                if num_proxies > 1:
+                    current_idx += random.randint(1, num_proxies - 1)
+                else: time.sleep(2)
+                
+                if consecutive_network_failures > MAX_CONSECUTIVE_FAILURES:
+                    ui_log("API", f"[{account_id}] QUÁ NHIỀU LỖI. Hủy check.")
+                    return False
+            else:
+                consecutive_network_failures = 0
+
+        is_online = False
+        if 'userPresences' in response:
+            for p in response['userPresences']:
+                # Điều kiện LITE: userPresenceType != 0 nghĩa là Online (Bao gồm Online, InGame, Studio)
+                if p.get('userPresenceType') != 0 and str(p.get('userId')) == str(account_id):
+                    is_online = True
+        
+        if is_online:
+            ui_log("API", f"[{account_id}] ĐANG ONLINE! (Dừng check)")
+            return True
+        else:
+            ui_log("API", f"[{account_id}] OFFLINE (OK {valid_checks_count + 1})")
+            valid_checks_count += 1
+            if num_proxies > 1:
+                current_idx += random.randint(1, num_proxies - 1)
+            time.sleep(0.5)
+
+    ui_log("API", f"[{account_id}] XÁC NHẬN OFFLINE.")
+    return False
 
 def fetch_github_file(url):
     try:
@@ -263,107 +379,198 @@ def update_github_file(url, new_content):
     headers = {"Authorization": f"token {token}", "Accept": "application/vnd.github.v3+json"}
     
     try:
+        # Get existing sha if file exists
         r = requests.get(api_url, headers=headers)
-        if r.status_code != 200: 
-            sha = None
-        else:
-            sha = r.json().get("sha")
-        
-        encoded = base64.b64encode(new_content.encode('utf-8')).decode('utf-8')
-        data = {"message": "Lychkins Manual: Add new updated cookie", "content": encoded, "branch": branch}
-        if sha:
-            data["sha"] = sha
+        data = {
+            "message": "Lychkins Lite: Sync Cookies",
+            "content": base64.b64encode(new_content.encode('utf-8')).decode('utf-8'),
+            "branch": branch
+        }
+        if r.status_code == 200:
+            data["sha"] = r.json().get("sha")
             
         res = requests.put(api_url, headers=headers, json=data)
         return res.status_code in [200, 201]
     except Exception: return False
 
 # ==============================================================================
-# -- KỊCH BẢN CHÍNH THỦ CÔNG --
+# -- LOGIC HOẠT ĐỘNG CHÍNH (NẠP A & XUẤT B) --
 # ==============================================================================
 
-def manual_interactive_loop(app_package):
-    print(f"\n[INFO] Đang tải danh sách tài khoản từ Github A...")
-    data_A = fetch_github_file(GITHUB_URL_A)
-    
-    if not data_A:
-        print("[LỖI] Không thể lấy dữ liệu từ Github A hoặc file trống.")
+def initial_setup(accounts):
+    ui_log("SETUP", "Tiến hành tải danh sách Cookie từ GITHUB_URL_A...")
+    data = fetch_github_file(GITHUB_URL_A)
+    if not data:
+        ui_log("SETUP", "Lỗi tải data từ A! Không có data để thiết lập.")
         return
 
-    # Tách dòng, lọc các dòng trống
-    lines = [line.strip() for line in data_A.splitlines() if line.strip()]
-    print(f"[INFO] Tìm thấy {len(lines)} tài khoản trong danh sách.\n")
-
-    for idx, line in enumerate(lines):
-        # Yêu cầu định dạng: username:pass:cookie
-        parts = line.split(':', 2)
-        if len(parts) < 3:
-            print(f"[CẢNH BÁO] Dòng {idx+1} không đúng định dạng 'user:pass:cookie'. Bỏ qua.")
+    lines = [l.strip() for l in data.splitlines() if l.strip()]
+    
+    for i, acc in enumerate(accounts):
+        if i >= len(lines):
+            ui_log("SETUP", f"Cảnh báo: File A đã hết data. Tab '{acc['suffix']}' không có cookie!")
             continue
-
-        username = parts[0]
-        password = parts[1]
-        old_cookie = parts[2]
-
-        print(f"\n=======================================================")
-        print(f"[ACCOUNT {idx+1}/{len(lines)}] Đang xử lý Username: \033[1;36m{username}\033[0m")
-        print(f"=======================================================")
-
-        print("[*] Đang tiến hành bơm Cookie vào App...")
-        success = inject_cookie_process(app_package, old_cookie)
-        if not success:
-            print("[-] Bơm cookie thất bại, bỏ qua account này.")
-            continue
-
-        print(f"[*] Đang mở ứng dụng ({app_package})...")
-        target_url = "roblox://"
-        subprocess.run(["su", "-c", f"am start -a android.intent.action.VIEW -d {target_url} -p {app_package}"], capture_output=True)
-
-        # Chờ lệnh từ console
-        print("\n\033[1;33m[ACTION REQUIRE]\033[0m App đã được mở lên màn hình.")
-        wait_y = input(">>> Nhập chữ 'y' (rồi Enter) khi hoàn thành để Tắt App, Lưu Cookie Mới -> Github B: ")
-
-        if wait_y.strip().lower() == 'y':
-            print("\n[*] Đang tắt App...")
-            run_root_cmd(f"am force-stop {app_package}")
-            time.sleep(2)
-
-            print("[*] Đang rút Cookie mới từ App...")
-            new_cookie = get_local_cookie(app_package)
-
-            if new_cookie:
-                print("[*] Rút Cookie thành công! Đang ghép dữ liệu và đẩy lên Github B...")
-                new_line_data = f"{username}:{password}:{new_cookie}"
-
-                # Lấy data cũ từ Github B để append (nối tiếp)
-                data_B = fetch_github_file(GITHUB_URL_B)
-                if data_B is None:
-                    data_B = ""
-                
-                b_lines = [l.strip() for l in data_B.splitlines() if l.strip()]
-                b_lines.append(new_line_data)
-                new_content_B = "\n".join(b_lines)
-
-                # Push lên
-                if update_github_file(GITHUB_URL_B, new_content_B):
-                    print("\033[1;32m[+] THÀNH CÔNG: Đã lưu dữ liệu lên Github B!\033[0m")
-                else:
-                    print("\033[1;31m[-] THẤT BẠI: Không thể push nội dung lên Github B.\033[0m")
+            
+        line = lines[i]
+        parts = line.split(":", 2)
+        if len(parts) == 3:
+            user, pwd, raw_cookie = parts
+            
+            # Tự động giải mã "neco" nếu cookie bị mã hóa
+            idx = raw_cookie.find("_|WARNING:-DO-NOT-SHARE")
+            if idx != -1 and len(raw_cookie) >= idx + 174 and raw_cookie[idx+170:idx+174] == "neco":
+                decoded_cookie = raw_cookie[:idx+170] + raw_cookie[idx+174:]
             else:
-                print("\033[1;31m[-] LỖI: Không tìm thấy Cookie mới trong App (Có thể bạn đã đăng xuất).\033[0m")
+                decoded_cookie = raw_cookie
+                
+            # Lưu user:pass vào bộ nhớ đệm của acc để tí nữa xuất ra B
+            acc['user'] = user
+            acc['pass'] = pwd
+            
+            local = get_local_cookie(acc['pkg'])
+            if local != decoded_cookie:
+                ui_log("INJECT", f"Đang bơm Cookie A cho tab '{acc['suffix']}'...")
+                if inject_cookie_process(acc['pkg'], decoded_cookie):
+                    acc['id'] = get_roblox_user_id(decoded_cookie)
+            else:
+                ui_log("INJECT", f"Tab '{acc['suffix']}' đã khớp Cookie A.")
+                acc['id'] = get_roblox_user_id(decoded_cookie)
+                
+            ui_log("INJECT", f"ID tìm thấy cho '{acc['suffix']}': {acc.get('id', '0')}")
         else:
-            print("\n[*] Bạn đã nhập phím khác. Hủy bỏ thao tác lưu account này.")
-            run_root_cmd(f"am force-stop {app_package}")
+            ui_log("SETUP", f"Lỗi định dạng dòng {i+1} ở A. Yêu cầu dạng (user:pass:cookie).")
 
-        # Hỏi tiếp tục hay không
-        if idx < len(lines) - 1:
-            cont = input("\n>>> Bạn có muốn TÍẾP TỤC xử lý Account tiếp theo không? (y/n): ")
-            if cont.strip().lower() != 'y':
-                print("[*] Đã DỪNG theo yêu cầu của bạn.")
-                break
-        else:
-            print("\n[*] HOÀN TẤT: Đã duyệt hết danh sách tài khoản trong Github A.")
+def sync_cookies_to_github_B(accounts):
+    """Lấy cookie dưới máy đẩy lên Github B (Giữ user:pass). Ghi nối tiếp."""
+    ui_log("SYNC", "Nhận lệnh YES! Đang xuất data lên Github_URL_B...")
+    
+    # Lấy data cũ từ B để ghi nối tiếp (Append)
+    data_b = fetch_github_file(GITHUB_URL_B)
+    if data_b is None:
+        data_b = ""
+        
+    new_batch_lines = []
+    for acc in accounts:
+        # Chỉ đẩy lên B nếu account này đã có user và pass từ file A
+        if 'user' in acc and 'pass' in acc:
+            local_val = get_local_cookie(acc['pkg'])
+            if local_val:
+                # Định dạng Raw, không bọc neco
+                new_batch_lines.append(f"{acc['user']}:{acc['pass']}:{local_val}")
+                
+    if not new_batch_lines:
+        ui_log("SYNC", "Không có Cookie hợp lệ nào dưới máy để xuất!")
+        return
+        
+    new_batch_str = "\n".join(new_batch_lines)
+    
+    # Ghi đè vào B: Nếu B đã có chữ thì cách ra 1 dòng trống (\n\n) trước khi ghi batch mới
+    if data_b.strip():
+        final_content = data_b.rstrip() + "\n\n" + new_batch_str
+    else:
+        final_content = new_batch_str
+        
+    if update_github_file(GITHUB_URL_B, final_content):
+        ui_log("SYNC", "Đã xuất data mới nhất nối tiếp vào Github B thành công!")
+    else:
+        ui_log("SYNC", "Lỗi: Không thể Push lên Github B.")
 
+def command_poller_loop(accounts):
+    global last_command_state
+    ui_log("POLLER", "Bắt đầu luồng lắng nghe lệnh...")
+    while True:
+        try:
+            cmd_text = fetch_github_file(COMMAND_URL)
+            if cmd_text:
+                cmd_text = cmd_text.strip().lower()
+                if cmd_text == "yes":
+                    if last_command_state != "yes":
+                        sync_cookies_to_github_B(accounts)
+                        last_command_state = "yes"
+                        ui_log("POLLER", "Đã hoàn thành đồng bộ B. ĐANG DỪNG TOÀN BỘ SCRIPT...")
+                        time.sleep(3)
+                        os._exit(0) # Thoát toàn bộ luồng ngay lập tức
+                else:
+                    last_command_state = cmd_text
+            countdown(15, "SYNC")
+        except Exception:
+            countdown(15, "SYNC")
+
+def lite_launch_loop(accounts):
+    # Bước 1: Tắt toàn bộ trước, rồi Mở toàn bộ app một lượt đầu tiên theo yêu cầu
+    ui_log("LAUNCH", "Tiến hành TẮT sạch và MỞ lại toàn bộ App lần đầu...")
+    for acc in accounts:
+        pkg = acc['pkg']
+        uid = acc.get('id', "0")
+        suffix = acc['suffix']
+        
+        if not uid or str(uid) == "0":
+            continue
+            
+        ui_log("LAUNCH", f"Đang Force-stop tab '{suffix}'...")
+        run_root_cmd(f"am force-stop {pkg}")
+        time.sleep(1)
+        
+    for acc in accounts:
+        pkg = acc['pkg']
+        uid = acc.get('id', "0")
+        suffix = acc['suffix']
+        
+        if not uid or str(uid) == "0":
+            continue
+            
+        ui_log("LAUNCH", f"Đang khởi động tab '{suffix}'...")
+        # Dùng deep link "roblox://" để khởi động thẳng vào màn hình chính chính xác
+        target_url = "roblox://"
+        subprocess.run(["su", "-c", f"am start -a android.intent.action.VIEW -d {target_url} -p {pkg}"], capture_output=True)
+        time.sleep(5)
+        
+    ui_log("LAUNCH", "Đã mở xong toàn bộ tab. Bắt đầu vòng lặp check API Proxy...")
+    
+    formatted_proxies = format_proxies(PROXY_LIST)
+    num_proxies = len(formatted_proxies)
+
+    # Bước 2: Vòng lặp check Proxy liên tục
+    while True:
+        for acc in accounts:
+            pkg = acc['pkg']
+            uid = acc.get('id', "0")
+            suffix = acc['suffix']
+            
+            is_process_active = check_process_running(pkg)
+            should_launch = False
+            
+            if not uid or str(uid) == "0":
+                ui_log("LAUNCH", f"Tab '{suffix}' không có Cookie/ID hợp lệ. Bỏ qua.")
+                if is_process_active:
+                    run_root_cmd(f"am force-stop {pkg}")
+                continue
+
+            if not is_process_active:
+                ui_log("LAUNCH", f"Tab '{suffix}' đang TẮT -> Bật lên.")
+                should_launch = True
+            else:
+                ui_log("LAUNCH", f"Tab '{suffix}' đang CHẠY -> Check API...")
+                start_idx = random.randint(0, num_proxies - 1) if num_proxies > 0 else -1
+                is_online = check_roblox_presence_single(uid, formatted_proxies, start_idx)
+                
+                if is_online:
+                    ui_log("LAUNCH", f"Tab '{suffix}' ONLINE -> Skip.")
+                    continue 
+                else:
+                    ui_log("LAUNCH", f"Tab '{suffix}' OFFLINE -> Tắt (Force-stop) & Bật lại.")
+                    run_root_cmd(f"am force-stop {pkg}")
+                    time.sleep(2)
+                    should_launch = True
+
+            if should_launch:
+                ui_log("LAUNCH", f"Đang ra lệnh mở app: {pkg}")
+                target_url = "roblox://"
+                subprocess.run(["su", "-c", f"am start -a android.intent.action.VIEW -d {target_url} -p {pkg}"], capture_output=True)
+                time.sleep(5)
+        
+        ui_log("LAUNCH", f"Hoàn thành 1 vòng kiểm tra. Chờ {LAUNCH_INTERVAL_SECONDS}s...")
+        countdown(LAUNCH_INTERVAL_SECONDS, "LAUNCH")
 
 # ==============================================================================
 # -- MAIN --
@@ -371,9 +578,7 @@ def manual_interactive_loop(app_package):
 
 if __name__ == "__main__":
     os.system("termux-wake-lock")
-    print("==========================================================")
-    print(" KHỞI ĐỘNG: Lychkins Task Runner - MANUAL CONSOLE VERSION ")
-    print("==========================================================")
+    print("Khởi động Lychkins Task Runner - LITE VERSION (A-B SYNC)")
     
     if not check_root_access():
         print("LỖI: Chưa cấp quyền Root cho Termux!")
@@ -383,16 +588,29 @@ if __name__ == "__main__":
         print("LỖI BẢO MẬT: Chưa điền hoặc mã hóa sai OBFUSCATED_GITHUB_TOKEN!")
         sys.exit(1)
 
+    if PROXY_URL:
+        print("Đang tải danh sách Proxy từ URL...")
+        fetched_proxies = fetch_proxies_from_url(PROXY_URL)
+        if fetched_proxies:
+            PROXY_LIST.extend(fetched_proxies)
+            print(f"Đã tải {len(fetched_proxies)} proxy từ URL.")
+
+    device_android_id = get_android_id()
     accounts = auto_detect_roblox_packages()
     
     if not accounts:
-        print("LỖI: Không tìm thấy ứng dụng Roblox nào (com.roblox.client...).")
+        print("LỖI: Không tìm thấy bản Roblox clone nào (com.roblox.client...).")
         sys.exit(1)
 
-    # Dùng App Roblox đầu tiên tìm thấy để thực hiện xử lý (vì chạy tay từng account)
-    primary_app_package = accounts[0]['pkg']
-    print(f"[*] Sẽ sử dụng App: {primary_app_package} làm công cụ xử lý.")
-
-    # Chạy thẳng vào kịch bản thủ công, vô hiệu hóa các luồng ngầm cũ (UI, Poller) 
-    # để không bị xung đột lệnh input() trên màn hình console.
-    manual_interactive_loop(primary_app_package)
+    # BƯỚC 1: Tải Cookie từ URL A và Bơm vào thiết bị
+    initial_setup(accounts)
+    
+    # BƯỚC 2: Kích hoạt Giao Diện
+    UI_READY = True
+    threading.Thread(target=ui_loop, daemon=True).start()
+    
+    # BƯỚC 3: Khởi chạy luồng ngầm lắng nghe Lệnh để xuất lên URL B
+    threading.Thread(target=command_poller_loop, args=(accounts,), daemon=True).start()
+    
+    # BƯỚC 4: Luồng chính đóng vai trò Smart Launch liên tục
+    lite_launch_loop(accounts)
