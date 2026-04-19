@@ -25,6 +25,7 @@ OBFUSCATED_GITHUB_TOKEN = "necovhK8R9Kw2c7z7u3yNx2j4kQso74vrX1S1vYZneco"
 GITHUB_URL_A = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie/a"      # Link file chứa data (user:pass:cookie)
 GITHUB_URL_B = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie/b" # Link file để đẩy data mới lên
 
+VERSION = "1.0.1" # Phiên bản hiện tại để dễ theo dõi
 BASE_PACKAGE_NAME = "com.roblox.client"
 CONNECTION_TIMEOUT = 10 
 
@@ -159,25 +160,18 @@ def auto_bypass_terms_screen():
         print("[*] Hoàn tất vượt qua Điều khoản! Đang chờ 5s cho App tải Cookie mới...")
         time.sleep(5)
     else:
-        print("\033[1;33m[-] UIAutomator bị che mắt. Kích hoạt Kế hoạch B: Bấm theo Tọa độ Dự đoán...\033[0m")
-        # --- KẾ HOẠCH B: TÍNH TỌA ĐỘ VÀ BẤM MÙ ---
-        out, _ = run_root_cmd("wm size")
-        match = re.search(r'size:\s*(\d+)x(\d+)', out)
-        if match:
-            w, h = map(int, match.groups())
-            # Tính toán vị trí tương đối của Checkbox và Nút Agree
-            cb_x, cb_y = int(w * 0.15), int(h * 0.40)
-            btn_x, btn_y = int(w * 0.50), int(h * 0.90)
-            
-            print(f"[*] Phát lệnh bấm Checkbox tại ({cb_x}, {cb_y})")
-            run_root_cmd(f"input tap {cb_x} {cb_y}")
-            time.sleep(1)
-            
-            print(f"[*] Phát lệnh bấm Agree tại ({btn_x}, {btn_y})")
-            run_root_cmd(f"input tap {btn_x} {btn_y}")
-            time.sleep(5)
-        else:
-            print("[-] Không thể lấy độ phân giải. Bỏ qua.")
+        print("\033[1;33m[-] UIAutomator bị che mắt. Kích hoạt Kế hoạch B: Bấm theo Tọa độ tĩnh...\033[0m")
+        # --- KẾ HOẠCH B: BẤM MÙ THEO TỌA ĐỘ TĨNH CỐ ĐỊNH (CHUẨN OCD) ---
+        cb_x, cb_y = 55, 480
+        btn_x, btn_y = 345, 1140
+        
+        print(f"[*] Phát lệnh bấm Checkbox tại ({cb_x}, {cb_y})")
+        run_root_cmd(f"input tap {cb_x} {cb_y}")
+        time.sleep(1)
+        
+        print(f"[*] Phát lệnh bấm Agree tại ({btn_x}, {btn_y})")
+        run_root_cmd(f"input tap {btn_x} {btn_y}")
+        time.sleep(5)
 
 # ==============================================================================
 # -- CÁC HÀM XỬ LÝ COOKIE & SQLITE --
@@ -461,7 +455,7 @@ def auto_batch_loop(app_package):
 if __name__ == "__main__":
     os.system("termux-wake-lock")
     print("==========================================================")
-    print(" KHỞI ĐỘNG: Lychkins Task Runner - FULLY AUTO VERSION ")
+    print(f" KHỞI ĐỘNG: Lychkins Task Runner - FULLY AUTO VERSION (v{VERSION}) ")
     print("==========================================================")
     
     if not check_root_access():
