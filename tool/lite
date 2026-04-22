@@ -40,8 +40,8 @@ WAIT_BEFORE_INJECT = 3         # Thời gian chờ sau khi đóng App trước k
 
 # --- CẤU HÌNH TỌA ĐỘ BẤM MÙ (KẾ HOẠCH B) ---
 # Tọa độ X, Y của các nút trên giả lập (chuẩn OCD)
-COORD_CHECKBOX_X = 316
-COORD_CHECKBOX_Y = 244
+COORD_CHECKBOX_X = 315
+COORD_CHECKBOX_Y = 245
 COORD_AGREE_X = 455
 COORD_AGREE_Y = 400
 
