@@ -40,10 +40,10 @@ WAIT_BEFORE_INJECT = 3         # Thời gian chờ sau khi đóng App trước k
 
 # --- CẤU HÌNH TỌA ĐỘ BẤM MÙ (KẾ HOẠCH B) ---
 # Tọa độ X, Y của các nút trên giả lập (chuẩn OCD)
-COORD_CHECKBOX_X = 270
-COORD_CHECKBOX_Y = 250
-COORD_AGREE_X = 485
-COORD_AGREE_Y = 475
+COORD_CHECKBOX_X = 315
+COORD_CHECKBOX_Y = 255
+COORD_AGREE_X = 469
+COORD_AGREE_Y = 400
 
 # ĐỔI THƯ MỤC TẠM SANG /data/local/tmp ĐỂ TRÁNH LỖI QUYỀN STORAGE CỦA TERMUX
 TEMP_DIR = "/data/local/tmp/RobloxInjector_Temp_Lite"
