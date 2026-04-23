@@ -28,13 +28,13 @@ GITHUB_URL_B = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/he
 # --- CẤU HÌNH DISCORD WEBHOOK ---
 DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1397368466947969147/HbncMuT0ETe6_5q_kKGzkdd7guLfiGqvewr3WuBFfHAxKBJo3TA7R6ad2ex31YkBHo75"
 
-VERSION = "1.0.6" # Phiên bản hiện tại để dễ theo dõi
+VERSION = "1.0.7" # Phiên bản hiện tại để dễ theo dõi
 BASE_PACKAGE_NAME = "com.roblox.client"
 CONNECTION_TIMEOUT = 10 
 
 # --- CẤU HÌNH THỜI GIAN (ĐƠN VỊ: GIÂY) ---
 # Tùy chỉnh các thông số này để phù hợp với tốc độ máy/mạng của bạn
-WAIT_BEFORE_NEXT_ACCOUNT = 5   # Thời gian chờ trước khi chuyển sang Account tiếp theo
+WAIT_BEFORE_NEXT_ACCOUNT = 3   # Thời gian chờ trước khi chuyển sang Account tiếp theo
 WAIT_BEFORE_SECOND_OPEN = 15   # Thời gian chờ ở lần mở app đầu tiên để refresh cookie
 TIMEOUT_UIAUTOMATOR = 18       # Thời gian tối đa quét tìm nút Điều khoản trước khi xài Kế hoạch B
 WAIT_AFTER_AGREE = 10           # Thời gian chờ sau khi bấm nút Agree để App kịp load và tạo Cookie
@@ -111,6 +111,18 @@ def extract_github_info(url):
         owner, repo, branch, path = match.groups()
         return f"{owner}/{repo}", path, branch
     return None, None, None
+
+def check_cookie_live(cookie_value):
+    """Kiểm tra xem Cookie còn sống hay đã chết qua API của Roblox."""
+    try:
+        url = "https://users.roblox.com/v1/users/authenticated"
+        cookies = {".ROBLOSECURITY": cookie_value}
+        res = requests.get(url, cookies=cookies, timeout=10)
+        if res.status_code == 200 and "id" in res.json():
+            return True
+    except Exception:
+        pass
+    return False
 
 # ==============================================================================
 # -- CÁC HÀM UI AUTOMATOR (QUÉT VÀ BẤM TỰ ĐỘNG) --
@@ -388,13 +400,35 @@ def update_github_file(url, new_content):
             sha = r.json().get("sha")
         
         encoded = base64.b64encode(new_content.encode('utf-8')).decode('utf-8')
-        data = {"message": "Lychkins Auto: Push new session cookie", "content": encoded, "branch": branch}
+        data = {"message": "Lychkins Auto: Update cookies list", "content": encoded, "branch": branch}
         if sha:
             data["sha"] = sha
             
         res = requests.put(api_url, headers=headers, json=data)
         return res.status_code in [200, 201]
     except Exception: return False
+
+def remove_account_from_github_a(target_username):
+    """Đọc file Github A, xóa dòng chứa username, và push lại."""
+    data_A = fetch_github_file(GITHUB_URL_A)
+    if not data_A: return False
+    
+    lines = data_A.splitlines()
+    new_lines = []
+    changed = False
+    
+    for line in lines:
+        if not line.strip(): continue
+        parts = line.split(':', 2)
+        if len(parts) >= 1 and parts[0] == target_username:
+            changed = True
+            continue # Bỏ qua không append dòng này vào list mới (Xóa)
+        new_lines.append(line)
+        
+    if changed:
+        new_content = "\n".join(new_lines)
+        return update_github_file(GITHUB_URL_A, new_content)
+    return True
 
 # ==============================================================================
 # -- KỊCH BẢN TỰ ĐỘNG HÀNG LOẠT (BATCH PROCESSING VỚI QUEUE) --
@@ -455,9 +489,10 @@ def auto_batch_loop(app_package):
         print(f"[ACCOUNT {disp_idx}/{total_accounts}] Đang xử lý Username: \033[1;36m{username}\033[0m (Thử lại: {retries}/{MAX_RETRIES})")
         print(f"=======================================================")
 
-        # Kiểm tra trùng lặp
+        # Kiểm tra trùng lặp và Xóa khỏi A
         if username in processed_usernames:
-            print(f"\033[1;33m[*] Account '{username}' đã có trong Github B. BỎ QUA!\033[0m")
+            print(f"\033[1;33m[*] Account '{username}' đã có trong Github B. BỎ QUA VÀ XÓA KHỎI A!\033[0m")
+            remove_account_from_github_a(username)
             continue
 
         print("[*] Đang tiến hành bơm Cookie vào App...")
@@ -524,23 +559,36 @@ def auto_batch_loop(app_package):
 
             if update_github_file(GITHUB_URL_B, new_content_B):
                 print("\033[1;32m[+] THÀNH CÔNG: Đã lưu dữ liệu lên Github B!\033[0m")
-                processed_usernames.add(username) 
+                processed_usernames.add(username)
                 send_discord_webhook(f"{disp_idx}/{total_accounts} - success ✅")
+                
+                # Dọn rác khỏi Github A sau khi đã xong
+                print("[*] Đang dọn dẹp account này khỏi Github A...")
+                remove_account_from_github_a(username)
             else:
                 print("\033[1;31m[-] THẤT BẠI: Không thể push nội dung lên Github B.\033[0m")
                 send_discord_webhook(f"{disp_idx}/{total_accounts} - failed (Github Push Error) ❌")
         else:
             print(f"\033[1;31m[-] LỖI: {fail_reason}\033[0m")
+            print("[*] Đang kiểm tra tình trạng Cookie cũ...")
             
-            # Cơ chế nhét lại vào cuối hàng đợi
-            if retries < MAX_RETRIES:
-                print(f"\033[1;33m[*] Sẽ NHÉT LẠI account này xuống CUỐI DANH SÁCH để thử lại sau!\033[0m")
-                account['retries'] += 1
-                queue.append(account)
-                send_discord_webhook(f"{disp_idx}/{total_accounts} - cookie not match requirement - retry 🔄")
+            is_live = check_cookie_live(old_cookie)
+            
+            if is_live:
+                # Cookie còn sống, tiến hành giữ lại và retry
+                if retries < MAX_RETRIES:
+                    print(f"\033[1;33m[*] Cookie VẪN SỐNG. Sẽ NHÉT LẠI account này xuống CUỐI DANH SÁCH để thử lại sau!\033[0m")
+                    account['retries'] += 1
+                    queue.append(account)
+                    send_discord_webhook(f"{disp_idx}/{total_accounts} - cookie not match requirement - retry 🔄")
+                else:
+                    print("\033[1;31m[-] Đã hết số lần thử lại nhưng Cookie vẫn sống. Bỏ qua (Không xóa khỏi A).\033[0m")
+                    send_discord_webhook(f"{disp_idx}/{total_accounts} - failed (Max Retries) ❌")
             else:
-                print("\033[1;31m[-] Đã hết số lần thử lại. BỎ QUA HOÀN TOÀN!\033[0m")
-                send_discord_webhook(f"{disp_idx}/{total_accounts} - failed ❌")
+                # Cookie đã chết ngắc, xóa sổ
+                print("\033[1;31m[-] Cookie ĐÃ CHẾT. XÓA SỔ account khỏi Github A!\033[0m")
+                remove_account_from_github_a(username)
+                send_discord_webhook(f"{disp_idx}/{total_accounts} - failed (Dead Cookie) ❌")
 
         if len(queue) > 0:
             print(f"[*] Đang chuẩn bị thao tác tiếp theo sau {WAIT_BEFORE_NEXT_ACCOUNT} giây...")
