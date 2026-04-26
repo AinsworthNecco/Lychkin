@@ -28,7 +28,7 @@ GITHUB_URL_B = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/he
 # --- CẤU HÌNH DISCORD WEBHOOK ---
 DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1397368466947969147/HbncMuT0ETe6_5q_kKGzkdd7guLfiGqvewr3WuBFfHAxKBJo3TA7R6ad2ex31YkBHo75"
 
-VERSION = "1.0.8" # Phiên bản hiện tại để dễ theo dõi
+VERSION = "1.0.9" # Phiên bản hiện tại để dễ theo dõi
 BASE_PACKAGE_NAME = "com.roblox.client"
 CONNECTION_TIMEOUT = 10 
 
@@ -37,7 +37,7 @@ CONNECTION_TIMEOUT = 10
 WAIT_BEFORE_NEXT_ACCOUNT = 3   # Thời gian chờ trước khi chuyển sang Account tiếp theo
 WAIT_BEFORE_SECOND_OPEN = 15   # Thời gian chờ ở lần mở app đầu tiên để refresh cookie
 TIMEOUT_UIAUTOMATOR = 18       # Thời gian tối đa quét tìm nút Điều khoản trước khi xài Kế hoạch B
-WAIT_AFTER_AGREE = 10           # Thời gian chờ sau khi bấm nút Agree để App kịp load và tạo Cookie
+WAIT_AFTER_AGREE = 10          # Thời gian chờ sau khi bấm nút Agree để App kịp load và tạo Cookie
 WAIT_AFTER_FORCE_STOP = 3      # Thời gian chờ sau khi đóng App (force-stop) để hệ thống dọn dẹp bộ nhớ
 WAIT_BEFORE_INJECT = 3         # Thời gian chờ sau khi đóng App trước khi bơm Cookie mới
 
@@ -184,7 +184,10 @@ def click_text_on_screen(target_text, partial_match=False):
                 x1, y1, x2, y2 = map(int, bounds_m.groups())
                 center_x = (x1 + x2) // 2
                 center_y = (y1 + y2) // 2
-                run_root_cmd(f"input tap {center_x} {center_y}")
+                
+                # DÙNG SWIPE 100ms ĐỂ HIỂN THỊ RÕ CHẤM CHẠM VÀ TRÁNH BỊ MISS TAP
+                print(f"    -> Đang click (UIAutomator) tại: ({center_x}, {center_y})")
+                run_root_cmd(f"input swipe {center_x} {center_y} {center_x} {center_y} 100")
                 return True
                 
     return False
@@ -219,12 +222,13 @@ def auto_bypass_terms_screen():
     else:
         print("\033[1;33m[-] UIAutomator bị che mắt. Kích hoạt Kế hoạch B: Bấm theo Tọa độ tĩnh...\033[0m")
         # --- KẾ HOẠCH B: BẤM MÙ THEO TỌA ĐỘ TĨNH CỐ ĐỊNH (CHUẨN OCD) ---
+        # DÙNG SWIPE 100ms ĐỂ HIỂN THỊ RÕ CHẤM CHẠM VÀ TRÁNH BỊ MISS TAP TRÊN GIẢ LẬP
         print(f"[*] Phát lệnh bấm Checkbox tại ({COORD_CHECKBOX_X}, {COORD_CHECKBOX_Y})")
-        run_root_cmd(f"input tap {COORD_CHECKBOX_X} {COORD_CHECKBOX_Y}")
+        run_root_cmd(f"input swipe {COORD_CHECKBOX_X} {COORD_CHECKBOX_Y} {COORD_CHECKBOX_X} {COORD_CHECKBOX_Y} 100")
         time.sleep(1)
         
         print(f"[*] Phát lệnh bấm Agree tại ({COORD_AGREE_X}, {COORD_AGREE_Y})")
-        run_root_cmd(f"input tap {COORD_AGREE_X} {COORD_AGREE_Y}")
+        run_root_cmd(f"input swipe {COORD_AGREE_X} {COORD_AGREE_Y} {COORD_AGREE_X} {COORD_AGREE_Y} 100")
         time.sleep(WAIT_AFTER_AGREE)
 
 # ==============================================================================
@@ -629,6 +633,9 @@ if __name__ == "__main__":
     if not get_local_github_token():
         print("LỖI BẢO MẬT: Chưa điền hoặc mã hóa sai OBFUSCATED_GITHUB_TOKEN!")
         sys.exit(1)
+        
+    print("[*] Đang bật hiển thị điểm chạm trên màn hình (Show Touches)...")
+    run_root_cmd("settings put system show_touches 1")
 
     accounts = auto_detect_roblox_packages()
     
