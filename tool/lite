@@ -28,7 +28,7 @@ GITHUB_URL_B = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/he
 # --- CẤU HÌNH DISCORD WEBHOOK ---
 DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1397368466947969147/HbncMuT0ETe6_5q_kKGzkdd7guLfiGqvewr3WuBFfHAxKBJo3TA7R6ad2ex31YkBHo75"
 
-VERSION = "1.0.7" # Phiên bản hiện tại để dễ theo dõi
+VERSION = "1.0.8" # Phiên bản hiện tại để dễ theo dõi
 BASE_PACKAGE_NAME = "com.roblox.client"
 CONNECTION_TIMEOUT = 10 
 
@@ -43,10 +43,10 @@ WAIT_BEFORE_INJECT = 3         # Thời gian chờ sau khi đóng App trước k
 
 # --- CẤU HÌNH TỌA ĐỘ BẤM MÙ (KẾ HOẠCH B) ---
 # Tọa độ X, Y của các nút trên giả lập (chuẩn OCD)
-COORD_CHECKBOX_X = 315
-COORD_CHECKBOX_Y = 245
-COORD_AGREE_X = 455
-COORD_AGREE_Y = 400
+COORD_CHECKBOX_X = 55
+COORD_CHECKBOX_Y = 480
+COORD_AGREE_X = 345
+COORD_AGREE_Y = 1140
 
 # --- CẤU HÌNH LOGIC LẶP LẠI (RETRY) ---
 MAX_RETRIES = 1 # Số lần cho phép thử lại sau cùng nếu lấy sai định dạng cookie
@@ -122,6 +122,20 @@ def check_cookie_live(cookie_value):
             return True
     except Exception:
         pass
+    return False
+
+def check_cookie_country(cookie_value):
+    """Kiểm tra xem Cookie đã được chuyển sang Vietnam thành công hay chưa."""
+    try:
+        url = "https://accountsettings.roblox.com/v1/account/settings/account-country"
+        cookies = {".ROBLOSECURITY": cookie_value}
+        res = requests.get(url, cookies=cookies, timeout=10)
+        if res.status_code == 200:
+            data = res.json()
+            if data.get("value", {}).get("countryName") == "Vietnam":
+                return True
+    except Exception as e:
+        print(f"\033[1;33m[-] Lỗi khi call API check country: {e}\033[0m")
     return False
 
 # ==============================================================================
@@ -532,22 +546,22 @@ def auto_batch_loop(app_package):
         is_success = False
         fail_reason = ""
 
-        # --- BỘ LỌC ĐIỀU KIỆN COOKIE ---
+        # --- BỘ LỌC ĐIỀU KIỆN COOKIE BẰNG API QUỐC GIA ---
         if new_cookie:
             if new_cookie == old_cookie:
                 fail_reason = "Cookie không đổi (App chưa load/Cookie chết)"
             else:
-                cookie_length = len(new_cookie)
-                if cookie_length in [1134, 1112]:
+                print("[*] Đang kiểm tra quốc gia của Cookie mới qua API...")
+                if check_cookie_country(new_cookie):
                     is_success = True
                 else:
-                    fail_reason = f"Độ dài Cookie không hợp lệ ({cookie_length})"
+                    fail_reason = "Quốc gia của Cookie chưa được chuyển sang Vietnam"
         else:
             fail_reason = "Không tìm thấy Cookie"
 
         # --- XỬ LÝ KẾT QUẢ VÀ WEBHOOK ---
         if is_success:
-            print("\033[1;32m[*] Rút Cookie MỚI đúng chuẩn thành công!\033[0m")
+            print("\033[1;32m[*] Rút Cookie MỚI (Vietnam) thành công!\033[0m")
             new_line_data = f"{username}:{password}:{new_cookie}"
 
             data_B = fetch_github_file(GITHUB_URL_B)
