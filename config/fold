@@ -4,8 +4,12 @@
 
 # --- THÔNG TIN TÀI KHOẢN & GAME ---
 PLACE_ID="8737602449"                # ID Game Roblox
-BASE_PACKAGE_NAME="zam.code" # Gói ứng dụng gốc
-ACCOUNT_NUMBER="5" 
+BASE_PACKAGE_NAME="com.roblox.client" # Gói ứng dụng gốc
+ACCOUNT_NUMBER="11" 
+
+# --- URL CẤU HÌNH ---
+COOKIE_URL="https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie/cookie"
+PROXY_URL="https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/proxy/proxy"
 
 # --- CẤU HÌNH QUÉT SERVER (SCAN) ---
 SCAN_INTERVAL_SECONDS="180"          # Thời gian nghỉ giữa các lần quét (giây)
@@ -18,18 +22,26 @@ LAUNCH_DELAY_SECONDS="15"            # Độ trễ mở giữa 2 tài khoản (g
 VIP_SERVER_URL="roblox://placeId=8737602449" # Link VIP Server
 
 # --- EXECUTOR & DELTA KEY ---
-SELECTED_EXECUTOR="1"
-EXECUTOR_PATH_1="/storage/emulated/0/Codex/Workspace/neco.txt"
+SELECTED_EXECUTOR="3"
+EXECUTOR_PATH_1="/storage/emulated/0/Delta/Workspace/neco.txt"
+EXECUTOR_PATH_2="/storage/emulated/0/Codex/Workspace/neco.txt"
+EXECUTOR_PATH_3="/storage/emulated/0/Arceus X/Workspace/neco.txt"
 
 # --- MẠNG & HỆ THỐNG ---
 CONNECTION_TIMEOUT="15"              # Timeout khi gọi API (giây)
-REBOOT_ENABLED="on"                  # Tự động khởi động lại máy (on/off)
-REBOOT_INTERVAL_MINUTES="120"         # Thời gian khởi động lại (phút)
-AUTO_CLOSE_ENABLED = "off"
+REBOOT_ENABLED="off"                  # Tự động khởi động lại máy (on/off)
+REBOOT_INTERVAL_MINUTES="240"         # Thời gian khởi động lại (phút)
+AUTO_CLOSE_ENABLED = "on"
 AUTO_CLOSE_HOURS = "6"
 
 # --- SCREEN ROTATION ---
-WM_ROTATION_ENABLED = "off"
+WM_ROTATION_ENABLED = "1"
 
 # --- UPDATE DATA ---
-UPDATE_INTERVAL_MINUTES = "120" 
+UPDATE_INTERVAL_MINUTES = "15" 
+
+HARDCORE_OPTIMIZATION = "ON"
+HARDCORE_OPT_INTERVAL_MINUTES = 30
+
+
+OBFUSCATED_GITHUB_TOKEN = "necovhK8R9Kw2c7z7u3yNx2j4kQso74vrX1S1vYZneco"
