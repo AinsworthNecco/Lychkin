@@ -5,5 +5,5 @@ if q then
 end
 if getgenv().neco_ran then return end
 getgenv().neco_ran = true
-loadstring(game:HttpGet("https://gist.githubusercontent.com/AinsworthNecco/2582fc470f4594f789b3441605d3a442/raw/a623f99f5e64f5b4d5d8687c71b8b8bbf398b1b2/PlsDonate"))()
+loadstring(game:HttpGet("https://gist.githubusercontent.com/AinsworthNecco/2582fc470f4594f789b3441605d3a442/raw/bbe82ac92eedb930baf1a2755b038f0056d65bce/PlsDonate"))()
 loadstring(game:HttpGet("https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/Main1"))()
