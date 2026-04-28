@@ -29,7 +29,7 @@ EXECUTOR_PATH_3="/storage/emulated/0/Arceus X/Workspace/neco.txt"
 
 # --- MẠNG & HỆ THỐNG ---
 CONNECTION_TIMEOUT="15"              # Timeout khi gọi API (giây)
-REBOOT_ENABLED="off"                  # Tự động khởi động lại máy (on/off)
+REBOOT_ENABLED="on"                  # Tự động khởi động lại máy (on/off)
 REBOOT_INTERVAL_MINUTES="240"         # Thời gian khởi động lại (phút)
 AUTO_CLOSE_ENABLED = "on"
 AUTO_CLOSE_HOURS = "6"
