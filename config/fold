@@ -5,7 +5,7 @@
 # --- THÔNG TIN TÀI KHOẢN & GAME ---
 PLACE_ID="8737602449"                # ID Game Roblox
 BASE_PACKAGE_NAME="com.roblox.client" # Gói ứng dụng gốc
-ACCOUNT_NUMBER="5" 
+ACCOUNT_NUMBER="4" 
 
 # --- URL CẤU HÌNH ---
 COOKIE_URL="https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie/cookie"
