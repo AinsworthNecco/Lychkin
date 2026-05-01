@@ -23,7 +23,7 @@ OBFUSCATED_GITHUB_TOKEN = "necovhK8R9Kw2c7z7u3yNx2j4kQso74vrX1S1vYZneco"
 
 # --- CẤU HÌNH GITHUB NGUỒN VÀ ĐÍCH ---
 GITHUB_URL_A = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie/global"      # Link file chứa data (user:pass:cookie)
-GITHUB_URL_B = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie/vng" # Link file để đẩy data mới lên
+GITHUB_URL_B = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/cookie/vng_not_bypassed" # Link file để đẩy data mới lên
 
 # --- CẤU HÌNH DISCORD WEBHOOK ---
 DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1397368466947969147/HbncMuT0ETe6_5q_kKGzkdd7guLfiGqvewr3WuBFfHAxKBJo3TA7R6ad2ex31YkBHo75"
