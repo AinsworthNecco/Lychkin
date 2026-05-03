@@ -29,7 +29,7 @@ GITHUB_URL_B = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/he
 DISCORD_WEBHOOK_URL = "https://discord.com/api/webhooks/1397368466947969147/HbncMuT0ETe6_5q_kKGzkdd7guLfiGqvewr3WuBFfHAxKBJo3TA7R6ad2ex31YkBHo75"
 
 VERSION = "1.0.9" # Phiên bản hiện tại để dễ theo dõi
-BASE_PACKAGE_NAME = "zam.delta.vnh"
+BASE_PACKAGE_NAME = "com.roblox.client.vnggames"
 CONNECTION_TIMEOUT = 10 
 
 # --- CẤU HÌNH THỜI GIAN (ĐƠN VỊ: GIÂY) ---
