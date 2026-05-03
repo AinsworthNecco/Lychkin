@@ -43,10 +43,10 @@ WAIT_BEFORE_INJECT = 3         # Thời gian chờ sau khi đóng App trước k
 
 # --- CẤU HÌNH TỌA ĐỘ BẤM MÙ (KẾ HOẠCH B) ---
 # Tọa độ X, Y của các nút trên giả lập (chuẩn OCD)
-COORD_CHECKBOX_X = 140
-COORD_CHECKBOX_Y = 440
+COORD_CHECKBOX_X = 251
+COORD_CHECKBOX_Y = 460
 COORD_AGREE_X = 450
-COORD_AGREE_Y = 785
+COORD_AGREE_Y = 690
 
 # --- CẤU HÌNH LOGIC LẶP LẠI (RETRY) ---
 MAX_RETRIES = 1 # Số lần cho phép thử lại sau cùng nếu lấy sai định dạng cookie
