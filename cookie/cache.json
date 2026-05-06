@@ -1055,7 +1055,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043583.9958537
     },
-    "Mckinley_Jayleen156": {},
+    "Mckinley_Jayleen156": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475591.3076723,
+        "has_triggered_cd": true,
+        "last_update": 1778043591.3076737
+    },
     "Devin_Huynh81944": {},
     "Sofia_Armstrong38705": {},
     "ShadowKendrickIce999": {},
