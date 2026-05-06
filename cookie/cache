@@ -394,5 +394,13 @@
         "end_cooldown": 1778474651.2666202,
         "has_triggered_cd": true,
         "last_update": 1778042651.266622
+    },
+    "StricklandSmith579": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778474658.522886,
+        "has_triggered_cd": true,
+        "last_update": 1778042658.5228872
     }
 }
