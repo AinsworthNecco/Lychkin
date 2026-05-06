@@ -1185,7 +1185,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043701.0218236
     },
-    "LeoJames20361": {},
+    "LeoJames20361": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475708.3572123,
+        "has_triggered_cd": true,
+        "last_update": 1778043708.3572147
+    },
     "LouisNicholas29029": {},
     "OscarRebecca17540": {},
     "EvaEdward88932": {},
