@@ -1063,7 +1063,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043591.3076737
     },
-    "Devin_Huynh81944": {},
+    "Devin_Huynh81944": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475598.5650246,
+        "has_triggered_cd": true,
+        "last_update": 1778043598.5650253
+    },
     "Sofia_Armstrong38705": {},
     "ShadowKendrickIce999": {},
     "LightPayton629": {},
