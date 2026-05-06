@@ -1023,7 +1023,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043555.0305567
     },
-    "EliteHardy508": {},
+    "EliteHardy508": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475562.4244483,
+        "has_triggered_cd": true,
+        "last_update": 1778043562.4244494
+    },
     "Arthur_9v0f": {},
     "Ember_Primal4806": {},
     "Real_Alaina2288": {},
