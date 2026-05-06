@@ -815,7 +815,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043366.2362745
     },
-    "OG_Lewis4180": {},
+    "OG_Lewis4180": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475373.576913,
+        "has_triggered_cd": true,
+        "last_update": 1778043373.5769145
+    },
     "JackI0n8142": {},
     "ThorntonStudio6330": {},
     "Cooper_wtc": {},
