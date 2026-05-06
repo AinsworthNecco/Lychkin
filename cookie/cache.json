@@ -919,7 +919,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043460.918714
     },
-    "RebeccaEve57761": {},
+    "RebeccaEve57761": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475468.359202,
+        "has_triggered_cd": true,
+        "last_update": 1778043468.3592038
+    },
     "ZaraNicole79442": {},
     "LaurenceJames09837": {},
     "JuliaCharles17072": {},
