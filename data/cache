@@ -3711,38 +3711,262 @@
         "has_triggered_cd": true,
         "last_update": 1778048823.1277206
     },
-    "AidanDaniel50798": {},
-    "IsaacBlake71074": {},
-    "VictoriaJohn03472": {},
-    "DianaJoan99019": {},
-    "BarryAndy90883": {},
-    "JasmineEva34802": {},
-    "ZoePatrick18667": {},
-    "LauraZachary63955": {},
-    "EzekielKiera33154": {},
-    "ZaraRachel73386": {},
-    "VioletBlake84477": {},
-    "MaryOscar35748": {},
-    "SharonCarl84102": {},
-    "JamesSophia66660": {},
-    "GeraldSarah11613": {},
-    "ChristineLuke07902": {},
-    "Ryder80234": {},
-    "PhamBlade81460": {},
-    "OmariCoraline3t0": {},
-    "Kath3rin3_Fr0stbit32": {},
-    "Shaw_Brixton05727": {},
-    "DarkRodriguezHero142": {},
-    "OGNayeliBlade8996": {},
-    "Louise_Jayceon80444": {},
-    "SavageAubree2904": {},
-    "JuliaIrene92551": {},
-    "IreneMia37359": {},
-    "KevinMartha03583": {},
-    "BiancaBrian43082": {},
-    "HannahLily96123": {},
-    "DianaMartha43670": {},
-    "CallieQueen7057": {},
+    "AidanDaniel50798": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778480829.1608171,
+        "has_triggered_cd": true,
+        "last_update": 1778048829.160819
+    },
+    "IsaacBlake71074": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778480835.1069925,
+        "has_triggered_cd": true,
+        "last_update": 1778048835.1069932
+    },
+    "VictoriaJohn03472": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778480841.144139,
+        "has_triggered_cd": true,
+        "last_update": 1778048841.14414
+    },
+    "DianaJoan99019": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778480846.7283413,
+        "has_triggered_cd": true,
+        "last_update": 1778048846.7283425
+    },
+    "BarryAndy90883": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778480852.4727354,
+        "has_triggered_cd": true,
+        "last_update": 1778048852.4727368
+    },
+    "JasmineEva34802": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778480858.406164,
+        "has_triggered_cd": true,
+        "last_update": 1778048858.406165
+    },
+    "ZoePatrick18667": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778480864.2394798,
+        "has_triggered_cd": true,
+        "last_update": 1778048864.2394814
+    },
+    "LauraZachary63955": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778480869.8746204,
+        "has_triggered_cd": true,
+        "last_update": 1778048869.8746214
+    },
+    "EzekielKiera33154": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778480875.670723,
+        "has_triggered_cd": true,
+        "last_update": 1778048875.6707242
+    },
+    "ZaraRachel73386": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778480881.6890724,
+        "has_triggered_cd": true,
+        "last_update": 1778048881.689073
+    },
+    "VioletBlake84477": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778480887.7199101,
+        "has_triggered_cd": true,
+        "last_update": 1778048887.7199113
+    },
+    "MaryOscar35748": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778480893.347485,
+        "has_triggered_cd": true,
+        "last_update": 1778048893.3474863
+    },
+    "SharonCarl84102": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778480899.2154334,
+        "has_triggered_cd": true,
+        "last_update": 1778048899.2154348
+    },
+    "JamesSophia66660": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778480904.861074,
+        "has_triggered_cd": true,
+        "last_update": 1778048904.8610752
+    },
+    "GeraldSarah11613": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778480910.6563964,
+        "has_triggered_cd": true,
+        "last_update": 1778048910.656397
+    },
+    "ChristineLuke07902": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778480916.3094018,
+        "has_triggered_cd": true,
+        "last_update": 1778048916.309403
+    },
+    "Ryder80234": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778480922.1399577,
+        "has_triggered_cd": true,
+        "last_update": 1778048922.1399586
+    },
+    "PhamBlade81460": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778480927.8866973,
+        "has_triggered_cd": true,
+        "last_update": 1778048927.886698
+    },
+    "OmariCoraline3t0": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778480933.7628222,
+        "has_triggered_cd": true,
+        "last_update": 1778048933.762823
+    },
+    "Kath3rin3_Fr0stbit32": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778480939.839944,
+        "has_triggered_cd": true,
+        "last_update": 1778048939.839945
+    },
+    "Shaw_Brixton05727": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778480945.8021793,
+        "has_triggered_cd": true,
+        "last_update": 1778048945.8021805
+    },
+    "DarkRodriguezHero142": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778480951.4698808,
+        "has_triggered_cd": true,
+        "last_update": 1778048951.4698815
+    },
+    "OGNayeliBlade8996": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778480957.278551,
+        "has_triggered_cd": true,
+        "last_update": 1778048957.278552
+    },
+    "Louise_Jayceon80444": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778480962.9705563,
+        "has_triggered_cd": true,
+        "last_update": 1778048962.9705577
+    },
+    "SavageAubree2904": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778480968.751162,
+        "has_triggered_cd": true,
+        "last_update": 1778048968.7511632
+    },
+    "JuliaIrene92551": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778480974.670055,
+        "has_triggered_cd": true,
+        "last_update": 1778048974.6700559
+    },
+    "IreneMia37359": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778480980.3119428,
+        "has_triggered_cd": true,
+        "last_update": 1778048980.3119483
+    },
+    "KevinMartha03583": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778480986.1465662,
+        "has_triggered_cd": true,
+        "last_update": 1778048986.146567
+    },
+    "BiancaBrian43082": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778480992.0513735,
+        "has_triggered_cd": true,
+        "last_update": 1778048992.0513756
+    },
+    "HannahLily96123": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778480997.5750375,
+        "has_triggered_cd": true,
+        "last_update": 1778048997.5750382
+    },
+    "DianaMartha43670": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778481003.3948376,
+        "has_triggered_cd": true,
+        "last_update": 1778049003.3948388
+    },
+    "CallieQueen7057": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778481008.962067,
+        "has_triggered_cd": true,
+        "last_update": 1778049008.962068
+    },
     "StrongPowellg9": {},
     "GouldPlayz9260": {},
     "TheZayleeQueen97104": {},
