@@ -1153,7 +1153,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043672.1121452
     },
-    "Light_Stokes919": {},
+    "Light_Stokes919": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475679.4904535,
+        "has_triggered_cd": true,
+        "last_update": 1778043679.4904547
+    },
     "Raymond_Waller9091": {},
     "NicoleGabriel13931": {},
     "JosephAnna15101": {},
