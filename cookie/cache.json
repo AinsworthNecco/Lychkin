@@ -943,7 +943,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043482.7194562
     },
-    "JuliaCharles17072": {},
+    "JuliaCharles17072": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475490.1179628,
+        "has_triggered_cd": true,
+        "last_update": 1778043490.1179645
+    },
     "ThomasApril76333": {},
     "AntonioSarah06887": {},
     "ThomasSophia83023": {},
