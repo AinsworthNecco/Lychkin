@@ -1103,7 +1103,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043627.505238
     },
-    "DarkKameron5203": {},
+    "DarkKameron5203": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475634.9783397,
+        "has_triggered_cd": true,
+        "last_update": 1778043634.9783409
+    },
     "Tristan_Soul142": {},
     "CoolBatesGame11688": {},
     "ToxicKylenGhost103": {},
