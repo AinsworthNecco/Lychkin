@@ -309,12 +309,82 @@
         "is_face": false,
         "is_banned": false
     },
-    "Brenna_Grantham268": {
+    "Rene_Master70122": {
+        "username": "Rene_Master70122",
+        "user_id": 10845735414,
+        "current_robux": 99,
+        "pending_robux": 0,
+        "last_update": 1778042591.152437,
         "is_error": false,
         "is_face": false,
-        "is_banned": true,
-        "last_ban_duration": 7,
-        "unban_time": 1777195815.681,
-        "last_update": 1778042448.1647482
+        "is_banned": false
+    },
+    "Wheeleru48y": {
+        "username": "Wheeleru48y",
+        "user_id": 10849692844,
+        "current_robux": 99,
+        "pending_robux": 0,
+        "last_update": 1778042598.9990838,
+        "is_error": false,
+        "is_face": false,
+        "is_banned": false
+    },
+    "Paul_Stealth8094": {
+        "username": "Paul_Stealth8094",
+        "user_id": 10596380660,
+        "current_robux": 95,
+        "pending_robux": 3,
+        "last_update": 1778042606.964348,
+        "is_error": false,
+        "is_face": false,
+        "is_banned": false
+    },
+    "Ibtisam_Code8600": {
+        "username": "Ibtisam_Code8600",
+        "user_id": 10595347504,
+        "current_robux": 32,
+        "pending_robux": 6,
+        "last_update": 1778042614.8398516,
+        "is_error": false,
+        "is_face": false,
+        "is_banned": false
+    },
+    "RyanCarl59073": {
+        "username": "RyanCarl59073",
+        "user_id": 10896274935,
+        "current_robux": 0,
+        "pending_robux": 6060,
+        "last_update": 1778042622.4232738,
+        "is_error": false,
+        "is_face": false,
+        "is_banned": false
+    },
+    "MariaBen27417": {
+        "username": "MariaBen27417",
+        "user_id": 10899186295,
+        "current_robux": 0,
+        "pending_robux": 717,
+        "last_update": 1778042630.4293802,
+        "is_error": false,
+        "is_face": false,
+        "is_banned": false
+    },
+    "AriaVictoria54715": {
+        "username": "AriaVictoria54715",
+        "user_id": 10899191907,
+        "current_robux": 0,
+        "pending_robux": 81,
+        "last_update": 1778042638.0387568,
+        "is_error": false,
+        "is_face": false,
+        "is_banned": false
+    },
+    "OGMajor32684": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778474644.1087558,
+        "has_triggered_cd": true,
+        "last_update": 1778042644.1087568
     }
 }
