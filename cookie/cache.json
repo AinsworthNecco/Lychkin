@@ -1047,7 +1047,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043576.7824728
     },
-    "Real_Alaina2288": {},
+    "Real_Alaina2288": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475583.9958518,
+        "has_triggered_cd": true,
+        "last_update": 1778043583.9958537
+    },
     "Mckinley_Jayleen156": {},
     "Devin_Huynh81944": {},
     "Sofia_Armstrong38705": {},
