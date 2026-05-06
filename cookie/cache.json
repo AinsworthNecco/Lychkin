@@ -1031,7 +1031,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043562.4244494
     },
-    "Arthur_9v0f": {},
+    "Arthur_9v0f": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475569.5468383,
+        "has_triggered_cd": true,
+        "last_update": 1778043569.5468395
+    },
     "Ember_Primal4806": {},
     "Real_Alaina2288": {},
     "Mckinley_Jayleen156": {},
