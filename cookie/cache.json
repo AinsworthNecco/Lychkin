@@ -935,7 +935,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043475.4593043
     },
-    "LaurenceJames09837": {},
+    "LaurenceJames09837": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475482.7194555,
+        "has_triggered_cd": true,
+        "last_update": 1778043482.7194562
+    },
     "JuliaCharles17072": {},
     "ThomasApril76333": {},
     "AntonioSarah06887": {},
