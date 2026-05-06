@@ -1161,7 +1161,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043679.4904547
     },
-    "Raymond_Waller9091": {},
+    "Raymond_Waller9091": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475686.7135746,
+        "has_triggered_cd": true,
+        "last_update": 1778043686.713576
+    },
     "NicoleGabriel13931": {},
     "JosephAnna15101": {},
     "LeoJames20361": {},
