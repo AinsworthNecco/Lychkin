@@ -895,7 +895,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043439.2825987
     },
-    "HenryStella53290": {},
+    "HenryStella53290": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475446.3711445,
+        "has_triggered_cd": true,
+        "last_update": 1778043446.3711452
+    },
     "BarbaraSam00337": {},
     "DiegoBernard59873": {},
     "RebeccaEve57761": {},
