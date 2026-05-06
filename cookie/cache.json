@@ -831,7 +831,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043380.8239188
     },
-    "ThorntonStudio6330": {},
+    "ThorntonStudio6330": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475388.0924306,
+        "has_triggered_cd": true,
+        "last_update": 1778043388.0924313
+    },
     "Cooper_wtc": {},
     "SavageBartlettPro357": {},
     "EmmaKimberly48473": {},
