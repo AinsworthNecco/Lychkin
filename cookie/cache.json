@@ -1071,7 +1071,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043598.5650253
     },
-    "Sofia_Armstrong38705": {},
+    "Sofia_Armstrong38705": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475605.676779,
+        "has_triggered_cd": true,
+        "last_update": 1778043605.6767805
+    },
     "ShadowKendrickIce999": {},
     "LightPayton629": {},
     "Truongnml8": {},
