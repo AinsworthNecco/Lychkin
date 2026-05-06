@@ -1079,7 +1079,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043605.6767805
     },
-    "ShadowKendrickIce999": {},
+    "ShadowKendrickIce999": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475612.9975255,
+        "has_triggered_cd": true,
+        "last_update": 1778043612.997527
+    },
     "LightPayton629": {},
     "Truongnml8": {},
     "DarkKameron5203": {},
