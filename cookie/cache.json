@@ -1225,7 +1225,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043737.5836837
     },
-    "LauraDavid40536": {},
+    "LauraDavid40536": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475744.9215953,
+        "has_triggered_cd": true,
+        "last_update": 1778043744.921597
+    },
     "MezaBraylon976": {},
     "Daughertylv1u": {},
     "EpicZionModz84831": {},
