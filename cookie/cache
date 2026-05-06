@@ -386,5 +386,13 @@
         "end_cooldown": 1778474644.1087558,
         "has_triggered_cd": true,
         "last_update": 1778042644.1087568
+    },
+    "Swift_Avila317": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778474651.2666202,
+        "has_triggered_cd": true,
+        "last_update": 1778042651.266622
     }
 }
