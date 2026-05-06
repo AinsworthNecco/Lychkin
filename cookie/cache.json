@@ -527,7 +527,14 @@
         "unban_time": 1777653332.109,
         "last_update": 1778043130.3193212
     },
-    "Brenna_Grantham268": {},
+    "Brenna_Grantham268": {
+        "is_error": false,
+        "is_face": false,
+        "is_banned": true,
+        "last_ban_duration": 7,
+        "unban_time": 1777195815.681,
+        "last_update": 1778043137.6527317
+    },
     "ThornThunderHunter18": {},
     "Lubna_Beast6223": {},
     "Estelle_Playz356": {},
