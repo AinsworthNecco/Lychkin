@@ -951,7 +951,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043490.1179645
     },
-    "ThomasApril76333": {},
+    "ThomasApril76333": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475497.5861378,
+        "has_triggered_cd": true,
+        "last_update": 1778043497.586139
+    },
     "AntonioSarah06887": {},
     "ThomasSophia83023": {},
     "ElizabethCharles4683": {},
