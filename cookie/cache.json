@@ -927,7 +927,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043468.3592038
     },
-    "ZaraNicole79442": {},
+    "ZaraNicole79442": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475475.4593034,
+        "has_triggered_cd": true,
+        "last_update": 1778043475.4593043
+    },
     "LaurenceJames09837": {},
     "JuliaCharles17072": {},
     "ThomasApril76333": {},
