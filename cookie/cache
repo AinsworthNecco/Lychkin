@@ -418,5 +418,13 @@
         "end_cooldown": 1778474672.8588536,
         "has_triggered_cd": true,
         "last_update": 1778042672.8588543
+    },
+    "OG_Lewis4180": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778474679.9424486,
+        "has_triggered_cd": true,
+        "last_update": 1778042679.9424496
     }
 }
