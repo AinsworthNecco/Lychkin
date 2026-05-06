@@ -823,7 +823,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043373.5769145
     },
-    "JackI0n8142": {},
+    "JackI0n8142": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475380.8239172,
+        "has_triggered_cd": true,
+        "last_update": 1778043380.8239188
+    },
     "ThorntonStudio6330": {},
     "Cooper_wtc": {},
     "SavageBartlettPro357": {},
