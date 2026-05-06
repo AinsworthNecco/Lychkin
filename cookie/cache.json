@@ -499,9 +499,34 @@
         "is_face": false,
         "is_banned": false
     },
-    "MariaAustin18268": {},
-    "HannahCharlotte72840": {},
-    "Timon_Hamstead489": {},
+    "MariaAustin18268": {
+        "username": "MariaAustin18268",
+        "user_id": 10908327026,
+        "current_robux": 0,
+        "pending_robux": 24,
+        "last_update": 1778043116.0841668,
+        "is_error": false,
+        "is_face": false,
+        "is_banned": false
+    },
+    "HannahCharlotte72840": {
+        "username": "HannahCharlotte72840",
+        "user_id": 10908034333,
+        "current_robux": 0,
+        "pending_robux": 300,
+        "last_update": 1778043123.9645677,
+        "is_error": false,
+        "is_face": false,
+        "is_banned": false
+    },
+    "Timon_Hamstead489": {
+        "is_error": false,
+        "is_face": false,
+        "is_banned": true,
+        "last_ban_duration": 7,
+        "unban_time": 1777653332.109,
+        "last_update": 1778043130.3193212
+    },
     "Brenna_Grantham268": {},
     "ThornThunderHunter18": {},
     "Lubna_Beast6223": {},
