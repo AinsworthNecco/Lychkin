@@ -1433,37 +1433,254 @@
         "has_triggered_cd": true,
         "last_update": 1778047159.6842809
     },
-    "Dakari_Santino17194": {},
-    "FreyjaMarleigh660": {},
-    "Addison_Mirage3914": {},
-    "Vip3r_Z3nithRunn3r14": {},
-    "Alaric_Serrano013": {},
-    "Sadie_Alexa575": {},
-    "Davisp7238": {},
-    "LegendaryFieldsKnigh": {},
-    "TimothyGatlin59341": {},
-    "EloiseEli99997": {},
-    "Aaron_Farmer582": {},
-    "Soreniqu71": {},
-    "OfficialRodgersGame4": {},
-    "CamrynCallan661": {},
-    "Karla_King98455": {},
-    "Diaz_5t893": {},
-    "GlennBrodiexo7": {},
-    "Kehlani_Arabella9148": {},
-    "Yahya_Sky6773": {},
-    "DoughertyIyla34399": {},
-    "EliteCookModz210": {},
-    "Sydney_King4333": {},
-    "ShaneCrosby0231": {},
-    "MendozaBallardua5": {},
-    "Ryder_Lindsey1669": {},
-    "ByteSt0rm_Byte9473": {},
-    "RiftWalkerByte4855": {},
-    "Ayman_NovaCore1437": {},
-    "Gregory_Ashlynn1358": {},
-    "Wes_Playz020": {},
-    "TerryEliana9543": {},
+    "Dakari_Santino17194": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778479165.6112106,
+        "has_triggered_cd": true,
+        "last_update": 1778047165.6112113
+    },
+    "FreyjaMarleigh660": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778479171.3286715,
+        "has_triggered_cd": true,
+        "last_update": 1778047171.3286743
+    },
+    "Addison_Mirage3914": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778479177.074343,
+        "has_triggered_cd": true,
+        "last_update": 1778047177.074344
+    },
+    "Vip3r_Z3nithRunn3r14": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778479182.6969976,
+        "has_triggered_cd": true,
+        "last_update": 1778047182.6969984
+    },
+    "Alaric_Serrano013": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778479188.642038,
+        "has_triggered_cd": true,
+        "last_update": 1778047188.6420395
+    },
+    "Sadie_Alexa575": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778479194.3961086,
+        "has_triggered_cd": true,
+        "last_update": 1778047194.3961103
+    },
+    "Davisp7238": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778479200.0485618,
+        "has_triggered_cd": true,
+        "last_update": 1778047200.0485632
+    },
+    "LegendaryFieldsKnigh": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778479205.83014,
+        "has_triggered_cd": true,
+        "last_update": 1778047205.8301415
+    },
+    "TimothyGatlin59341": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778479211.5156338,
+        "has_triggered_cd": true,
+        "last_update": 1778047211.515635
+    },
+    "EloiseEli99997": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778479217.1812031,
+        "has_triggered_cd": true,
+        "last_update": 1778047217.181204
+    },
+    "Aaron_Farmer582": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778479222.8936474,
+        "has_triggered_cd": true,
+        "last_update": 1778047222.8936486
+    },
+    "Soreniqu71": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778479228.8953476,
+        "has_triggered_cd": true,
+        "last_update": 1778047228.8953493
+    },
+    "OfficialRodgersGame4": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778479234.9557767,
+        "has_triggered_cd": true,
+        "last_update": 1778047234.9557786
+    },
+    "CamrynCallan661": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778479240.663847,
+        "has_triggered_cd": true,
+        "last_update": 1778047240.6638482
+    },
+    "Karla_King98455": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778479246.6824696,
+        "has_triggered_cd": true,
+        "last_update": 1778047246.6824715
+    },
+    "Diaz_5t893": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778479252.6504073,
+        "has_triggered_cd": true,
+        "last_update": 1778047252.6504083
+    },
+    "GlennBrodiexo7": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778479258.4170997,
+        "has_triggered_cd": true,
+        "last_update": 1778047258.4171019
+    },
+    "Kehlani_Arabella9148": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778479264.3594947,
+        "has_triggered_cd": true,
+        "last_update": 1778047264.359496
+    },
+    "Yahya_Sky6773": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778479270.1776783,
+        "has_triggered_cd": true,
+        "last_update": 1778047270.1776795
+    },
+    "DoughertyIyla34399": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778479275.8740547,
+        "has_triggered_cd": true,
+        "last_update": 1778047275.8740559
+    },
+    "EliteCookModz210": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778479281.8559291,
+        "has_triggered_cd": true,
+        "last_update": 1778047281.8559299
+    },
+    "Sydney_King4333": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778479287.862313,
+        "has_triggered_cd": true,
+        "last_update": 1778047287.862314
+    },
+    "ShaneCrosby0231": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778479293.439299,
+        "has_triggered_cd": true,
+        "last_update": 1778047293.4392998
+    },
+    "MendozaBallardua5": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778479299.3940575,
+        "has_triggered_cd": true,
+        "last_update": 1778047299.394058
+    },
+    "Ryder_Lindsey1669": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778479305.2643323,
+        "has_triggered_cd": true,
+        "last_update": 1778047305.2643335
+    },
+    "ByteSt0rm_Byte9473": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778479310.84046,
+        "has_triggered_cd": true,
+        "last_update": 1778047310.8404613
+    },
+    "RiftWalkerByte4855": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778479316.6655242,
+        "has_triggered_cd": true,
+        "last_update": 1778047316.665525
+    },
+    "Ayman_NovaCore1437": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778479322.4494584,
+        "has_triggered_cd": true,
+        "last_update": 1778047322.4494603
+    },
+    "Gregory_Ashlynn1358": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778479328.0011497,
+        "has_triggered_cd": true,
+        "last_update": 1778047328.0011504
+    },
+    "Wes_Playz020": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778479333.730171,
+        "has_triggered_cd": true,
+        "last_update": 1778047333.7301729
+    },
+    "TerryEliana9543": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778479339.7719183,
+        "has_triggered_cd": true,
+        "last_update": 1778047339.7719188
+    },
     "GigaGlide1138": {},
     "RiftWalkerSnare7263": {},
     "Noob_Clements88682": {},
