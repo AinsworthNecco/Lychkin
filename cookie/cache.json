@@ -1015,7 +1015,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043547.832204
     },
-    "RyanLaurence09231": {},
+    "RyanLaurence09231": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475555.0305555,
+        "has_triggered_cd": true,
+        "last_update": 1778043555.0305567
+    },
     "EliteHardy508": {},
     "Arthur_9v0f": {},
     "Ember_Primal4806": {},
