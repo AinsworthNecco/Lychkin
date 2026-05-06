@@ -1039,7 +1039,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043569.5468395
     },
-    "Ember_Primal4806": {},
+    "Ember_Primal4806": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475576.7824721,
+        "has_triggered_cd": true,
+        "last_update": 1778043576.7824728
+    },
     "Real_Alaina2288": {},
     "Mckinley_Jayleen156": {},
     "Devin_Huynh81944": {},
