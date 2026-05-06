@@ -807,7 +807,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043359.154395
     },
-    "Miranda_Wilson5555": {},
+    "Miranda_Wilson5555": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475366.2362728,
+        "has_triggered_cd": true,
+        "last_update": 1778043366.2362745
+    },
     "OG_Lewis4180": {},
     "JackI0n8142": {},
     "ThorntonStudio6330": {},
