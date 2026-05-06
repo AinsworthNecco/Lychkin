@@ -903,7 +903,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043446.3711452
     },
-    "BarbaraSam00337": {},
+    "BarbaraSam00337": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475453.3401282,
+        "has_triggered_cd": true,
+        "last_update": 1778043453.3401299
+    },
     "DiegoBernard59873": {},
     "RebeccaEve57761": {},
     "ZaraNicole79442": {},
