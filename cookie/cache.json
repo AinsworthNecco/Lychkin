@@ -1169,7 +1169,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043686.713576
     },
-    "NicoleGabriel13931": {},
+    "NicoleGabriel13931": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475693.83767,
+        "has_triggered_cd": true,
+        "last_update": 1778043693.837672
+    },
     "JosephAnna15101": {},
     "LeoJames20361": {},
     "LouisNicholas29029": {},
