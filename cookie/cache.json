@@ -871,7 +871,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043417.5453737
     },
-    "LilyMadeline64822": {},
+    "LilyMadeline64822": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475424.7588713,
+        "has_triggered_cd": true,
+        "last_update": 1778043424.758872
+    },
     "EvaClara63929": {},
     "SarahBill37563": {},
     "HenryStella53290": {},
