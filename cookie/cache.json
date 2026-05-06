@@ -783,7 +783,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043336.7933266
     },
-    "Swift_Avila317": {},
+    "Swift_Avila317": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475344.3692148,
+        "has_triggered_cd": true,
+        "last_update": 1778043344.3692162
+    },
     "StricklandSmith579": {},
     "DeanMcIntosh013": {},
     "Miranda_Wilson5555": {},
