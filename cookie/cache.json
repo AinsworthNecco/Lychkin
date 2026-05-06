@@ -1241,7 +1241,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043752.10568
     },
-    "Daughertylv1u": {},
+    "Daughertylv1u": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475759.2111278,
+        "has_triggered_cd": true,
+        "last_update": 1778043759.2111285
+    },
     "EpicZionModz84831": {},
     "ProBlakely176": {},
     "Janiyah_Kori54766": {},
