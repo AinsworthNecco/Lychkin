@@ -799,7 +799,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043351.7842495
     },
-    "DeanMcIntosh013": {},
+    "DeanMcIntosh013": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475359.1543941,
+        "has_triggered_cd": true,
+        "last_update": 1778043359.154395
+    },
     "Miranda_Wilson5555": {},
     "OG_Lewis4180": {},
     "JackI0n8142": {},
