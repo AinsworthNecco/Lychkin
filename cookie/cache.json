@@ -791,7 +791,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043344.3692162
     },
-    "StricklandSmith579": {},
+    "StricklandSmith579": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475351.7842484,
+        "has_triggered_cd": true,
+        "last_update": 1778043351.7842495
+    },
     "DeanMcIntosh013": {},
     "Miranda_Wilson5555": {},
     "OG_Lewis4180": {},
