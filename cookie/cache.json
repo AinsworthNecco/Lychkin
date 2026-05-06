@@ -1135,8 +1135,24 @@
         "has_triggered_cd": true,
         "last_update": 1778043656.5213246
     },
-    "EchoBlad3_Hawk6057": {},
-    "ThomasBernard00727": {},
+    "EchoBlad3_Hawk6057": {
+        "username": "EchoBlad3_Hawk6057",
+        "user_id": 10843088350,
+        "current_robux": 19,
+        "pending_robux": 0,
+        "last_update": 1778043666.0906932,
+        "is_error": false,
+        "is_face": false,
+        "is_banned": false
+    },
+    "ThomasBernard00727": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475672.1121442,
+        "has_triggered_cd": true,
+        "last_update": 1778043672.1121452
+    },
     "Light_Stokes919": {},
     "Raymond_Waller9091": {},
     "NicoleGabriel13931": {},
