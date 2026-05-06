@@ -1007,7 +1007,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043540.4912174
     },
-    "KevinSusan61655": {},
+    "KevinSusan61655": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475547.8322024,
+        "has_triggered_cd": true,
+        "last_update": 1778043547.832204
+    },
     "RyanLaurence09231": {},
     "EliteHardy508": {},
     "Arthur_9v0f": {},
