@@ -1193,7 +1193,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043708.3572147
     },
-    "LouisNicholas29029": {},
+    "LouisNicholas29029": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475715.8143368,
+        "has_triggered_cd": true,
+        "last_update": 1778043715.814338
+    },
     "OscarRebecca17540": {},
     "EvaEdward88932": {},
     "GeorgeRobert44178": {},
