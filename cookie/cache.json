@@ -1209,7 +1209,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043722.8213384
     },
-    "EvaEdward88932": {},
+    "EvaEdward88932": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475730.1085901,
+        "has_triggered_cd": true,
+        "last_update": 1778043730.108591
+    },
     "GeorgeRobert44178": {},
     "LauraDavid40536": {},
     "MezaBraylon976": {},
