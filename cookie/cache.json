@@ -1233,7 +1233,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043744.921597
     },
-    "MezaBraylon976": {},
+    "MezaBraylon976": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475752.105679,
+        "has_triggered_cd": true,
+        "last_update": 1778043752.10568
+    },
     "Daughertylv1u": {},
     "EpicZionModz84831": {},
     "ProBlakely176": {},
