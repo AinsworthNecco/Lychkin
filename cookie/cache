@@ -309,12 +309,12 @@
         "is_face": false,
         "is_banned": false
     },
-    "Timon_Hamstead489": {
+    "Brenna_Grantham268": {
         "is_error": false,
         "is_face": false,
         "is_banned": true,
         "last_ban_duration": 7,
-        "unban_time": 1777653332.109,
-        "last_update": 1778042440.5984883
+        "unban_time": 1777195815.681,
+        "last_update": 1778042448.1647482
     }
 }
