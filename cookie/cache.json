@@ -1127,7 +1127,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043649.2384627
     },
-    "ToxicKylenGhost103": {},
+    "ToxicKylenGhost103": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475656.5213234,
+        "has_triggered_cd": true,
+        "last_update": 1778043656.5213246
+    },
     "EchoBlad3_Hawk6057": {},
     "ThomasBernard00727": {},
     "Light_Stokes919": {},
