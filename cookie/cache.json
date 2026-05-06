@@ -999,7 +999,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043533.499071
     },
-    "BenMax88771": {},
+    "BenMax88771": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475540.4912162,
+        "has_triggered_cd": true,
+        "last_update": 1778043540.4912174
+    },
     "KevinSusan61655": {},
     "RyanLaurence09231": {},
     "EliteHardy508": {},
