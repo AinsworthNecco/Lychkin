@@ -420,12 +420,14 @@
         "is_banned": false
     },
     "OGMajor32684": {
-        "is_error": true,
+        "is_error": false,
         "is_face": false,
         "is_banned": false,
         "end_cooldown": 1778474644.1087558,
         "has_triggered_cd": true,
-        "last_update": 1778042644.1087568
+        "last_update": 1778042644.1087568,
+        "last_ban_duration": 0,
+        "unban_time": 0
     },
     "Swift_Avila317": {
         "is_error": true,
@@ -884,7 +886,7 @@
         "user_id": 10623362706,
         "current_robux": 259,
         "pending_robux": 0,
-        "last_update": 1778070536.8311596,
+        "last_update": 1778070769.1852272,
         "is_error": false,
         "is_face": false,
         "is_banned": false
@@ -894,7 +896,7 @@
         "user_id": 10672458882,
         "current_robux": 254,
         "pending_robux": 3,
-        "last_update": 1778070544.6138756,
+        "last_update": 1778070776.8216367,
         "is_error": false,
         "is_face": false,
         "is_banned": false
@@ -904,7 +906,7 @@
         "user_id": 10849637950,
         "current_robux": 246,
         "pending_robux": 0,
-        "last_update": 1778070552.4446354,
+        "last_update": 1778070784.8262522,
         "is_error": false,
         "is_face": false,
         "is_banned": false
@@ -914,7 +916,7 @@
         "user_id": 10849631981,
         "current_robux": 234,
         "pending_robux": 0,
-        "last_update": 1778070560.317942,
+        "last_update": 1778070792.3618045,
         "is_error": false,
         "is_face": false,
         "is_banned": false
@@ -924,7 +926,7 @@
         "user_id": 10655979062,
         "current_robux": 227,
         "pending_robux": 6,
-        "last_update": 1778070567.6243021,
+        "last_update": 1778070799.930414,
         "is_error": false,
         "is_face": false,
         "is_banned": false
@@ -934,7 +936,7 @@
         "user_id": 10849641664,
         "current_robux": 219,
         "pending_robux": 0,
-        "last_update": 1778070575.0884757,
+        "last_update": 1778070807.8836322,
         "is_error": false,
         "is_face": false,
         "is_banned": false
@@ -944,7 +946,7 @@
         "user_id": 10710874996,
         "current_robux": 165,
         "pending_robux": 0,
-        "last_update": 1778070582.5831437,
+        "last_update": 1778070815.6325219,
         "is_error": false,
         "is_face": false,
         "is_banned": false
@@ -954,7 +956,7 @@
         "user_id": 10849894653,
         "current_robux": 162,
         "pending_robux": 0,
-        "last_update": 1778070590.6922824,
+        "last_update": 1778070823.4086735,
         "is_error": false,
         "is_face": false,
         "is_banned": false
@@ -964,7 +966,7 @@
         "user_id": 10669358409,
         "current_robux": 147,
         "pending_robux": 900,
-        "last_update": 1778070598.205287,
+        "last_update": 1778070831.2638488,
         "is_error": false,
         "is_face": false,
         "is_banned": false
@@ -974,7 +976,7 @@
         "user_id": 10591942871,
         "current_robux": 138,
         "pending_robux": 0,
-        "last_update": 1778070605.8510003,
+        "last_update": 1778070839.0165563,
         "is_error": false,
         "is_face": false,
         "is_banned": false
@@ -984,7 +986,7 @@
         "user_id": 10849624404,
         "current_robux": 129,
         "pending_robux": 0,
-        "last_update": 1778070613.553472,
+        "last_update": 1778070846.6351,
         "is_error": false,
         "is_face": false,
         "is_banned": false
@@ -994,7 +996,7 @@
         "user_id": 10849714481,
         "current_robux": 117,
         "pending_robux": 0,
-        "last_update": 1778070621.10622,
+        "last_update": 1778070854.624451,
         "is_error": false,
         "is_face": false,
         "is_banned": false
@@ -1004,7 +1006,7 @@
         "user_id": 10623371622,
         "current_robux": 111,
         "pending_robux": 0,
-        "last_update": 1778070629.203875,
+        "last_update": 1778070862.7148936,
         "is_error": false,
         "is_face": false,
         "is_banned": false
@@ -1014,7 +1016,7 @@
         "user_id": 10623365643,
         "current_robux": 108,
         "pending_robux": 0,
-        "last_update": 1778070637.1911628,
+        "last_update": 1778070870.218057,
         "is_error": false,
         "is_face": false,
         "is_banned": false
@@ -1024,7 +1026,7 @@
         "user_id": 10623370648,
         "current_robux": 108,
         "pending_robux": 0,
-        "last_update": 1778070644.8958952,
+        "last_update": 1778070878.1435397,
         "is_error": false,
         "is_face": false,
         "is_banned": false
@@ -1034,7 +1036,7 @@
         "user_id": 10849892645,
         "current_robux": 105,
         "pending_robux": 0,
-        "last_update": 1778070652.3499973,
+        "last_update": 1778070885.993203,
         "is_error": false,
         "is_face": false,
         "is_banned": false
@@ -4182,7 +4184,7 @@
         "user_id": 10908138865,
         "current_robux": 0,
         "pending_robux": 0,
-        "last_update": 1778070482.3738213,
+        "last_update": 1778070713.5571358,
         "is_error": false,
         "is_face": false,
         "is_banned": false
@@ -4192,7 +4194,7 @@
         "user_id": 10908119776,
         "current_robux": 0,
         "pending_robux": 0,
-        "last_update": 1778070490.3317518,
+        "last_update": 1778070721.5985243,
         "is_error": false,
         "is_face": false,
         "is_banned": false
@@ -4202,7 +4204,7 @@
         "user_id": 10908388913,
         "current_robux": 0,
         "pending_robux": 0,
-        "last_update": 1778070498.2985392,
+        "last_update": 1778070729.296675,
         "is_error": false,
         "is_face": false,
         "is_banned": false
@@ -4212,7 +4214,7 @@
         "user_id": 10910877933,
         "current_robux": 0,
         "pending_robux": 0,
-        "last_update": 1778070513.9657974,
+        "last_update": 1778070745.218896,
         "is_error": false,
         "is_face": false,
         "is_banned": false
@@ -4270,7 +4272,7 @@
         "user_id": 10910875488,
         "current_robux": 0,
         "pending_robux": 0,
-        "last_update": 1778070521.4197228,
+        "last_update": 1778070753.7976167,
         "is_error": false,
         "is_face": false,
         "is_banned": false
@@ -4280,7 +4282,7 @@
         "user_id": 10910882411,
         "current_robux": 0,
         "pending_robux": 0,
-        "last_update": 1778070529.357332,
+        "last_update": 1778070761.732598,
         "is_error": false,
         "is_face": false,
         "is_banned": false
@@ -4326,7 +4328,7 @@
         "user_id": 10910883875,
         "current_robux": 0,
         "pending_robux": 0,
-        "last_update": 1778070506.4228957,
+        "last_update": 1778070737.1344495,
         "is_error": false,
         "is_face": false,
         "is_banned": false
