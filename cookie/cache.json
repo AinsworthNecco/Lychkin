@@ -1087,7 +1087,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043612.997527
     },
-    "LightPayton629": {},
+    "LightPayton629": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475620.108495,
+        "has_triggered_cd": true,
+        "last_update": 1778043620.1084964
+    },
     "Truongnml8": {},
     "DarkKameron5203": {},
     "Tristan_Soul142": {},
