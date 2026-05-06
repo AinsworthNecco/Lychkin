@@ -839,7 +839,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043388.0924313
     },
-    "Cooper_wtc": {},
+    "Cooper_wtc": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475395.3860621,
+        "has_triggered_cd": true,
+        "last_update": 1778043395.3860636
+    },
     "SavageBartlettPro357": {},
     "EmmaKimberly48473": {},
     "GabrielSamuel89375": {},
