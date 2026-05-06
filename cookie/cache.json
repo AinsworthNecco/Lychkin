@@ -887,7 +887,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043432.2502246
     },
-    "SarahBill37563": {},
+    "SarahBill37563": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475439.2825973,
+        "has_triggered_cd": true,
+        "last_update": 1778043439.2825987
+    },
     "HenryStella53290": {},
     "BarbaraSam00337": {},
     "DiegoBernard59873": {},
