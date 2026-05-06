@@ -1201,7 +1201,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043715.814338
     },
-    "OscarRebecca17540": {},
+    "OscarRebecca17540": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475722.8213375,
+        "has_triggered_cd": true,
+        "last_update": 1778043722.8213384
+    },
     "EvaEdward88932": {},
     "GeorgeRobert44178": {},
     "LauraDavid40536": {},
