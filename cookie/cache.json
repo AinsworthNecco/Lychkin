@@ -983,7 +983,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043518.9732006
     },
-    "AshaJack91535": {},
+    "AshaJack91535": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475526.3875623,
+        "has_triggered_cd": true,
+        "last_update": 1778043526.3875637
+    },
     "MaryWilliam89184": {},
     "BenMax88771": {},
     "KevinSusan61655": {},
