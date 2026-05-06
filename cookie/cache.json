@@ -959,7 +959,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043497.586139
     },
-    "AntonioSarah06887": {},
+    "AntonioSarah06887": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475504.9857569,
+        "has_triggered_cd": true,
+        "last_update": 1778043504.9857574
+    },
     "ThomasSophia83023": {},
     "ElizabethCharles4683": {},
     "AshaJack91535": {},
