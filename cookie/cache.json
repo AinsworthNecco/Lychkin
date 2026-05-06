@@ -1095,7 +1095,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043620.1084964
     },
-    "Truongnml8": {},
+    "Truongnml8": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475627.5052373,
+        "has_triggered_cd": true,
+        "last_update": 1778043627.505238
+    },
     "DarkKameron5203": {},
     "Tristan_Soul142": {},
     "CoolBatesGame11688": {},
