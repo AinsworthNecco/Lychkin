@@ -1265,7 +1265,14 @@
         "has_triggered_cd": true,
         "last_update": 1778043773.8751607
     },
-    "Janiyah_Kori54766": {},
+    "Janiyah_Kori54766": {
+        "is_error": true,
+        "is_face": false,
+        "is_banned": false,
+        "end_cooldown": 1778475781.195532,
+        "has_triggered_cd": true,
+        "last_update": 1778043781.1955328
+    },
     "SuperMakennaMaster90": {},
     "Sadie_Robbins5255": {},
     "MysticWatkins283": {},
