@@ -36,7 +36,7 @@ CONNECTION_TIMEOUT = 10
 # Tùy chỉnh các thông số này để phù hợp với tốc độ máy/mạng của bạn
 WAIT_BEFORE_NEXT_ACCOUNT = 3   # Thời gian chờ trước khi chuyển sang Account tiếp theo
 WAIT_BEFORE_SECOND_OPEN = 15   # Thời gian chờ ở lần mở app đầu tiên để refresh cookie
-TIMEOUT_UIAUTOMATOR = 18       # Thời gian tối đa quét tìm nút Điều khoản trước khi xài Kế hoạch B
+TIMEOUT_UIAUTOMATOR = 23       # Thời gian tối đa quét tìm nút Điều khoản trước khi xài Kế hoạch B
 WAIT_AFTER_AGREE = 10          # Thời gian chờ sau khi bấm nút Agree để App kịp load và tạo Cookie
 WAIT_AFTER_FORCE_STOP = 3      # Thời gian chờ sau khi đóng App (force-stop) để hệ thống dọn dẹp bộ nhớ
 WAIT_BEFORE_INJECT = 3         # Thời gian chờ sau khi đóng App trước khi bơm Cookie mới
