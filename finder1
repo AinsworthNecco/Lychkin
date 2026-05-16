@@ -26,7 +26,7 @@ local Config = {
     AutoStore = true,       
     
     -- Ảnh Logo Custom
-    CustomImageID = "rbxthumb://type=Asset&id=8056621043&w=500&h=500",
+    CustomImageID = "rbxthumb://type=Asset&id=8056621043&w=150&h=150",
     
     -- Cấu hình bay (Tween)
     TweenSpeed = 300,       -- Tốc độ bay (khuyến nghị 300-350 để tránh kick)
