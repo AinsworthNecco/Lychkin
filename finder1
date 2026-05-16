@@ -26,11 +26,15 @@ local Config = {
     AutoStore = true,       
     
     -- Ảnh Logo Custom
-    CustomImageID = "rbxthumb://type=Asset&id=8056621043&w=150&h=150",
+    CustomImageID = "rbxthumb://type=Asset&id=8056621043&w=500&h=500",
     
     -- Cấu hình bay (Tween)
     TweenSpeed = 300,       -- Tốc độ bay (khuyến nghị 300-350 để tránh kick)
     SafeHeight = 5,         -- Khoảng cách an toàn khi bay trên trái ác quỷ
+    
+    -- Cấu hình tối ưu thiết bị (Giới hạn FPS chống nóng máy)
+    EnableFPSLimit = true,
+    FPSLimitTarget = 10,    -- Mức FPS treo máy (15-30 là chuẩn và mát nhất)
     
     -- Tích hợp Webhook xịn
     EnableWebhook = true,
@@ -341,6 +345,22 @@ local function SendWebhook(realFruitName, isStored)
         end)
     end
 end
+
+-- ==========================================
+-- TỐI ƯU HÓA THIẾT BỊ (SET FPS)
+-- ==========================================
+local function OptimizeDevice()
+    -- Chỉ giới hạn FPS để giảm tải CPU/GPU, bỏ qua việc giảm đồ họa vì đổi server liên tục
+    if Config.EnableFPSLimit then
+        local setfps = setfpscap or set_fps_cap
+        if setfps then
+            pcall(function() setfps(Config.FPSLimitTarget) end)
+        end
+    end
+end
+
+-- Gọi hàm tối ưu ngay khi khởi chạy
+OptimizeDevice()
 
 -- ==========================================
 -- VÒNG LẶP CHÍNH CỦA AUTO
