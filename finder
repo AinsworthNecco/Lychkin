@@ -1,0 +1,35 @@
+local url = "https://raw.githubusercontent.com/AinsworthNecco/Lychkin/refs/heads/main/finder"
+local q = syn and syn.queue_on_teleport or queue_on_teleport
+if q then
+    q(("loadstring(game:HttpGet('%s'))()"):format(url))
+end
+if getgenv().neco_ran then return end
+getgenv().neco_ran = true
+_G.CatsFruitFinderV4 = {
+    Notify = true,
+    Webhook = "https://discord.com/api/webhooks/1397368466947969147/HbncMuT0ETe6_5q_kKGzkdd7guLfiGqvewr3WuBFfHAxKBJo3TA7R6ad2ex31YkBHo75",
+    Mode = "Teleport Fruit", -- "Teleport Fruit" or "Tween Fruit"
+    AutoStore = true,
+    AutoJoinTeam = true,
+    Team = "Pirates", -- team to join
+    FruitList = {
+        "Mammoth",
+        "Buddha",
+        "Dough",
+        "Leopard",
+        "Venom",
+        "Dragon",
+        "Gravity",
+        "Rumble",
+        "T-Rex",
+        "Control",
+        "Spirit",
+        "Gas",
+        "Shadow",
+        "Kitsune",
+        "West Dragon",
+        "East Dragon" -- add more here if u want 
+    },
+}
+
+loadstring(game:HttpGet("https://raw.githubusercontent.com/CatsScripts/CatsRobloxScripts/main/CatsBetterFruitFinder.luau?t=" .. tick()))()
