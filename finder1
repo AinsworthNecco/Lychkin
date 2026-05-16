@@ -278,19 +278,23 @@ end
 -- ==========================================
 -- WEBHOOK DISCORD (CẬP NHẬT LOGIC MỚI)
 -- ==========================================
-local function SendWebhook(realFruitName)
+local function SendWebhook(realFruitName, isStored)
     if not Config.EnableWebhook or Config.WebhookURL == "" then return end
 
     -- Proxy siêu ổn định
     local SafeWebhookURL = string.gsub(Config.WebhookURL, "discord.com", "webhook.lewisakura.moe")
+    
+    local embedTitle = isStored and "🍏 Lượm & Cất Trái Thành Công!" or "⚠️ Nhặt Được Trái (Nhưng Kho Đầy!)"
+    local embedColor = isStored and 5635925 or 16753920 -- Xanh lá (5635925) hoặc Cam (16753920)
+    local statusText = isStored and "✅ **Trạng thái:** Đã cất an toàn vào rương." or "❌ **Trạng thái:** Kho đã đạt giới hạn (Max 1), đã tự động xóa trái để chống kẹt."
 
     -- Format JSON đơn giản, loại bỏ các hàm dễ gây lỗi trên Executor
     local data = {
         content = "",
         embeds = {{
-            title = "🍏 Lượm Trái Thành Công!",
-            description = "Tài khoản **" .. LocalPlayer.Name .. "** vừa nhặt được: **" .. realFruitName .. "**",
-            color = 5635925 -- Mã màu xanh lá (Decimal của 0x55FF55)
+            title = embedTitle,
+            description = "Tài khoản **" .. LocalPlayer.Name .. "** vừa tìm thấy: **" .. realFruitName .. "**\n\n" .. statusText,
+            color = embedColor
         }}
     }
     
@@ -332,9 +336,10 @@ local function StartAutoLoop()
                 local storedName, failedName = CheckAndStoreFruits()
                 
                 if storedName then
-                    SendWebhook(storedName)
+                    SendWebhook(storedName, true)
                     UpdateStatus("✨ Đã cất thành công: " .. storedName, Color3.fromRGB(0, 150, 0))
                 elseif failedName then
+                    SendWebhook(failedName, false)
                     UpdateStatus("⚠️ Kho đầy, skip trái: " .. failedName, Color3.fromRGB(200, 100, 0))
                 else
                     UpdateStatus("❌ Nhặt xịt hoặc không phải trái.", Color3.fromRGB(200, 50, 50))
