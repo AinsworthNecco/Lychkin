@@ -7,9 +7,9 @@ if getgenv().neco_ran then return end
 getgenv().neco_ran = true
 
 --[[
-    BẢN AUTO TELEPORT FRUIT + GIAO DIỆN UI PREMIUM LIGHT THEME (Phiên bản v1.6)
+    BẢN AUTO TELEPORT FRUIT + GIAO DIỆN UI PREMIUM LIGHT THEME (Phiên bản v1.7)
     Chức năng: Quét sâu -> Dịch chuyển (Teleport) -> Chống kẹt -> Cất -> Webhook -> Server Hop Siêu Tốc (Random)
-    Cập nhật v1.6: Fix lỗi ảnh Decal trắng bóc, Fix Webhook bị Discord chặn (Dùng proxy).
+    Cập nhật v1.7: Thay proxy Webhook siêu mượt (hyra), thêm debug log, cập nhật webhook link mới của người dùng.
 ]]
 
 local Players = game:GetService("Players")
@@ -353,13 +353,13 @@ local function CheckAndStoreFruits()
 end
 
 -- ==========================================
--- WEBHOOK DISCORD (Đã fix chặn bằng webhook proxy)
+-- WEBHOOK DISCORD (Đã fix chặn bằng webhook proxy hooks.hyra.io)
 -- ==========================================
 local function SendWebhook(realFruitName)
     if not Config.EnableWebhook or Config.WebhookURL == "" then return end
 
-    -- Fix: Thay discord.com bằng proxy discordhooks.com để qua mặt block của Discord
-    local SafeWebhookURL = string.gsub(Config.WebhookURL, "discord.com", "discordhooks.com")
+    -- Fix: Dùng hooks.hyra.io (rất ổn định) thay thế cho discord.com
+    local SafeWebhookURL = string.gsub(Config.WebhookURL, "discord.com", "hooks.hyra.io")
 
     local data = {
         ["embeds"] = {{
@@ -373,16 +373,26 @@ local function SendWebhook(realFruitName)
     
     if httprequest then
         task.spawn(function()
-            pcall(function() 
-                httprequest({
+            local success, result = pcall(function() 
+                local response = httprequest({
                     Url = SafeWebhookURL, 
                     Method = "POST", 
                     Headers = { ["Content-Type"] = "application/json" }, 
                     Body = jsonData
                 })
-                UpdateStatus("🌐 Đã gửi thông báo Discord!", Color3.fromRGB(0, 150, 255))
+                return response
             end)
+            
+            -- Debugging Webhook
+            if success and result and (result.StatusCode == 204 or result.StatusCode == 200) then
+                UpdateStatus("🌐 Đã gửi thông báo Discord!", Color3.fromRGB(0, 150, 255))
+            else
+                UpdateStatus("⚠️ Lỗi Webhook (Xem F9)", Color3.fromRGB(220, 100, 0))
+                warn("Lỗi gửi Webhook Discord: ", tostring(result and result.Body or result or "Không xác định"))
+            end
         end)
+    else
+        UpdateStatus("⚠️ Executor không hỗ trợ Webhook", Color3.fromRGB(220, 100, 0))
     end
 end
 
