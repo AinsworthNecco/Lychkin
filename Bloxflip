@@ -336,7 +336,7 @@
         document.getElementById('bfc-test-webhook-btn').addEventListener('click', () => {
             addLog("Đang gửi Test Webhook...", "#4caf50");
             const balStr = currentBalance > 0 ? currentBalance.toFixed(2) : "0.00";
-            const formatPayload = `\`\`\`text\n--------------------------------------\nTEST WEBHOOK | ( ${balStr} )\n--------------------------------------\n\`\`\``;
+            const formatPayload = `\`\`\`text\n----------------------------------\nTEST WEBHOOK | ( ${balStr} )\n----------------------------------\n\`\`\``;
             sendWebhook("🔔 Kiểm tra Webhook", formatPayload, "#4caf50");
         });
 
