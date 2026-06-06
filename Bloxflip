@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Bloxflip Auto Crash Pro (Draggable & Classic UI)
 // @namespace    http://tampermonkey.net/
-// @version      1.1
-// @description  Bản gốc lưu trên GitHub. Làm tròn tiền cược, Cảnh báo 3x 1.00, Bắt Toast, Smart Refresh.
+// @version      1.2
+// @description  Bản gốc lưu trên GitHub. Làm tròn tiền cược, Cảnh báo 3x 1.00, Bắt Toast, Smart Refresh. Redesign Webhook & Risk Mode UI.
 // @author       You
 // @match        https://bloxflip.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=bloxflip.com
@@ -16,13 +16,16 @@
     // --- KHU VỰC CẤU HÌNH ĐƯỜNG DẪN (URL) ---
     // ==========================================
     const APP_URLS = {
-        // Link ảnh nền của bảng điều khiển
-        bgImage: "https://i.pinimg.com/736x/26/27/df/2627df32c9282724dbc6ba23fd191551.jpg",
-        
-        // Link ảnh GIF Avatar
-        gifImage: "https://i.pinimg.com/originals/a9/5e/94/a95e941785991c66adc761b5f71f2268.gif",
-        
-        // Link API lấy thông tin user của Bloxflip (Thường không cần đổi)
+        safe: {
+            bgImage: "https://i.pinimg.com/736x/26/27/df/2627df32c9282724dbc6ba23fd191551.jpg",
+            gifImage: "https://i.pinimg.com/originals/a9/5e/94/a95e941785991c66adc761b5f71f2268.gif",
+            color: "rgba(255, 105, 180, 0.8)" // Hot Pink
+        },
+        risk: {
+            bgImage: "https://i.pinimg.com/1200x/7d/b3/79/7db379a12d5a51e212c67f74dff11258.jpg",
+            gifImage: "https://i.pinimg.com/736x/9c/d7/c4/9cd7c45ab48a0e7f7671ce5eb1414b60.jpg",
+            color: "rgba(220, 20, 60, 0.8)" // Crimson
+        },
         apiUser: "/api/user"
     };
 
@@ -62,7 +65,7 @@
             minMaxBtn.style.cssText = `
                 position: fixed; top: 0; left: 50%; transform: translateX(-50%);
                 width: 150px; height: 6px; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px;
-                background: ${CFG.enabled ? 'rgba(255, 105, 180, 0.8)' : 'rgba(128, 128, 128, 0.8)'};
+                background: ${CFG.enabled ? APP_URLS[CFG.mode].color : 'rgba(128, 128, 128, 0.8)'};
                 cursor: pointer; z-index: 2147483647; transition: all 0.3s ease;
                 box-shadow: 0 2px 10px rgba(0,0,0,0.5);
             `;
@@ -87,7 +90,7 @@
             opacity: ${CFG.enabled ? '1' : '0'};
             visibility: ${CFG.enabled ? 'visible' : 'hidden'};
             pointer-events: ${CFG.enabled ? 'auto' : 'none'};
-            background: linear-gradient(rgba(15, 20, 30, 0.85), rgba(15, 20, 30, 0.85)), url('${APP_URLS.bgImage}') center/cover no-repeat;
+            background: linear-gradient(rgba(15, 20, 30, 0.85), rgba(15, 20, 30, 0.85)), url('${APP_URLS[CFG.mode].bgImage}') center/cover no-repeat;
             backdrop-filter: blur(8px);
             border-radius: 12px;
             border: 1px solid rgba(255, 255, 255, 0.2);
@@ -119,7 +122,7 @@
         const classicUI = document.createElement('div');
         classicUI.style.cssText = `display: flex; flex-direction: column; align-items: center; margin-top: 15px; width: 100%;`;
         classicUI.innerHTML = `
-            <img src="${APP_URLS.gifImage}" style="width: 100px; height: 100px; border: 2px solid rgba(255, 255, 255, 0.9); border-radius: 6px; object-fit: cover; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+            <img id="bfc-avatar" src="${APP_URLS[CFG.mode].gifImage}" style="width: 100px; height: 100px; border: 2px solid rgba(255, 255, 255, 0.9); border-radius: 6px; object-fit: cover; box-shadow: 0 4px 15px rgba(0,0,0,0.5); transition: all 0.3s ease;">
             <div style="color: #ffffff; font-size: 20px; font-weight: bold; margin-top: 10px; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">Bloxflip Auto Crash</div>
             <div id="bfc-balance-display" style="color: #ffeb3b; font-size: 15px; font-weight: bold; margin-top: 5px; text-shadow: 0 1px 3px rgba(0,0,0,0.8);">💰 Số dư: Đang tải...</div>
             <div id="bfc-main-status" style="color: #69ff94; font-size: 14px; margin-top: 5px; font-weight: bold; text-shadow: 0 1px 3px rgba(0,0,0,0.8);">Đang tải dữ liệu...</div>
@@ -135,8 +138,8 @@
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
                 <label style="color: #eee; font-size: 13px; text-shadow: 0 1px 2px #000;">Chế độ cược</label>
                 <div style="display: flex; background: rgba(0,0,0,0.8); border-radius: 4px; overflow: hidden; border: 1px solid #555;">
-                    <button id="bfc-mode-safe" style="background: ${CFG.mode === 'safe' ? 'rgba(255, 105, 180, 0.8)' : 'transparent'}; color: white; border: none; padding: 4px 10px; font-size: 12px; cursor: pointer; transition: 0.2s;">Safe</button>
-                    <button id="bfc-mode-risk" style="background: ${CFG.mode === 'risk' ? 'rgba(255, 105, 180, 0.8)' : 'transparent'}; color: white; border: none; padding: 4px 10px; font-size: 12px; cursor: pointer; transition: 0.2s;">Risk</button>
+                    <button id="bfc-mode-safe" style="background: ${CFG.mode === 'safe' ? APP_URLS['safe'].color : 'transparent'}; color: white; border: none; padding: 4px 10px; font-size: 12px; cursor: pointer; transition: 0.2s;">Safe</button>
+                    <button id="bfc-mode-risk" style="background: ${CFG.mode === 'risk' ? APP_URLS['risk'].color : 'transparent'}; color: white; border: none; padding: 4px 10px; font-size: 12px; cursor: pointer; transition: 0.2s;">Risk</button>
                 </div>
             </div>
             <div style="color: #aaa; font-size: 10px; text-align: right; margin-top: -6px; margin-bottom: 6px;" id="bfc-mode-desc">
@@ -165,8 +168,9 @@
             </div>
             <input type="text" id="bfc-inp-webhook" value="${CFG.webhookUrl}" placeholder="https://discord.com/api/webhooks/..." style="width: 100%; background: rgba(0,0,0,0.8); border: 1px solid #555; color: white; padding: 6px; border-radius: 4px; outline: none; font-size: 11px; box-sizing: border-box; ${CFG.webhookEnabled ? '' : 'opacity: 0.5; pointer-events: none;'}">
             
-            <div style="display: flex; justify-content: flex-end; margin-top: 4px;">
-                <button id="bfc-test-bet-btn" style="background: #ffeb3b; color: #000; font-weight: bold; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.5); font-size: 11px;">⚙️ Test 1 Round</button>
+            <div style="display: flex; justify-content: flex-end; margin-top: 4px; gap: 5px;">
+                <button id="bfc-test-webhook-btn" style="background: #4caf50; color: #fff; font-weight: bold; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.5); font-size: 11px;">🔔 TEST WEBHOOK</button>
+                <button id="bfc-test-bet-btn" style="background: #ffeb3b; color: #000; font-weight: bold; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.5); font-size: 11px;">⚙️ TEST RUN</button>
             </div>
         `;
 
@@ -185,7 +189,7 @@
             width: 100%; text-align: center; color: rgba(255, 255, 255, 0.4); 
             font-size: 10px; margin-top: 8px; letter-spacing: 1px; font-weight: bold;
         `;
-        versionText.innerText = "Version 1.1";
+        versionText.innerText = "Version 1.2";
 
         leftCol.appendChild(classicUI);
         leftCol.appendChild(configBox);
@@ -240,6 +244,31 @@
             isDragging = false;
         });
 
+        // Hàm áp dụng Theme (Safe/Risk)
+        function applyTheme() {
+            const theme = APP_URLS[CFG.mode];
+            if (consoleEl) {
+                consoleEl.style.backgroundImage = `linear-gradient(rgba(15, 20, 30, 0.85), rgba(15, 20, 30, 0.85)), url('${theme.bgImage}')`;
+            }
+            const avatarImg = document.getElementById('bfc-avatar');
+            if (avatarImg) avatarImg.src = theme.gifImage;
+
+            const modeSafeBtn = document.getElementById('bfc-mode-safe');
+            const modeRiskBtn = document.getElementById('bfc-mode-risk');
+            
+            if (CFG.mode === 'safe') {
+                if (modeSafeBtn) modeSafeBtn.style.background = APP_URLS['safe'].color;
+                if (modeRiskBtn) modeRiskBtn.style.background = 'transparent';
+            } else {
+                if (modeRiskBtn) modeRiskBtn.style.background = APP_URLS['risk'].color;
+                if (modeSafeBtn) modeSafeBtn.style.background = 'transparent';
+            }
+            
+            if (minMaxBtn) {
+                minMaxBtn.style.background = CFG.enabled ? theme.color : 'rgba(128, 128, 128, 0.8)';
+            }
+        }
+
         // Gắn sự kiện Mode Switch
         const modeSafeBtn = document.getElementById('bfc-mode-safe');
         const modeRiskBtn = document.getElementById('bfc-mode-risk');
@@ -248,8 +277,7 @@
         modeSafeBtn.addEventListener('click', () => {
             CFG.mode = 'safe';
             saveConfig('bfc_mode', 'safe');
-            modeSafeBtn.style.background = 'rgba(255, 105, 180, 0.8)';
-            modeRiskBtn.style.background = 'transparent';
+            applyTheme();
             modeDesc.innerText = '(Đợi nổ 2 lần 1 liên tiếp)';
             addLog('Đã chuyển sang Safe Mode (2x 1.00)', '#aaa');
             updateWaitingStatusLabel(true);
@@ -258,8 +286,7 @@
         modeRiskBtn.addEventListener('click', () => {
             CFG.mode = 'risk';
             saveConfig('bfc_mode', 'risk');
-            modeRiskBtn.style.background = 'rgba(255, 105, 180, 0.8)';
-            modeSafeBtn.style.background = 'transparent';
+            applyTheme();
             modeDesc.innerText = '(Đợi nổ 1 lần 1)';
             addLog('Đã chuyển sang Risk Mode (1x 1.00)', '#aaa');
             updateWaitingStatusLabel(true);
@@ -306,12 +333,19 @@
             addLog(`Đã lưu URL Webhook mới`, '#aaa');
         });
 
+        document.getElementById('bfc-test-webhook-btn').addEventListener('click', () => {
+            addLog("Đang gửi Test Webhook...", "#4caf50");
+            const balStr = currentBalance > 0 ? currentBalance.toFixed(2) : "0.00";
+            const formatPayload = `\`\`\`text\n--------------------------------------\nTEST WEBHOOK | ( ${balStr} )\n--------------------------------------\n\`\`\``;
+            sendWebhook("🔔 Kiểm tra Webhook", formatPayload, "#4caf50");
+        });
+
         document.getElementById('bfc-test-bet-btn').addEventListener('click', () => {
             if (isWaitingForRoundResult || isProcessingResult) {
                 addLog("⚠ Đang trong 1 ván cược, không thể Test lúc này.", "#ffeb3b");
                 return;
             }
-            addLog("Đang khởi chạy Test 1 Round...", "#ffeb3b");
+            addLog("Đang khởi chạy Test RUN...", "#ffeb3b");
             executeBet(); 
         });
     }
@@ -321,7 +355,7 @@
         CFG.enabled = !CFG.enabled;
         saveConfig('bfc_enabled', CFG.enabled);
         
-        minMaxBtn.style.background = CFG.enabled ? 'rgba(255, 105, 180, 0.8)' : 'rgba(128, 128, 128, 0.8)';
+        minMaxBtn.style.background = CFG.enabled ? APP_URLS[CFG.mode].color : 'rgba(128, 128, 128, 0.8)';
         consoleEl.style.opacity = CFG.enabled ? '1' : '0';
         consoleEl.style.visibility = CFG.enabled ? 'visible' : 'hidden';
         consoleEl.style.pointerEvents = CFG.enabled ? 'auto' : 'none';
@@ -570,7 +604,10 @@
                 joinBtn.click();
                 setMainStatus(`💸 Đã cược! Chờ kết quả mốc ${CFG.autoCashout}x`, "#2196f3");
                 addLog(`Đã Join Game (Mục tiêu: ${CFG.autoCashout}x)`, "#2196f3");
-                sendWebhook("🚀 Bloxflip Auto: Đã đặt cược", `Chờ kết quả ở mốc **${CFG.autoCashout}x**\n💰 **Số dư sau khi cược (ước tính):** ${displayBalStr}`, "#2196f3");
+                
+                const formatPayload = `\`\`\`text\n--------------------------------------\nBET PLACED | ( ${displayBalStr} )\n--------------------------------------\n\`\`\``;
+                sendWebhook(`🚀 Đã đặt cược (${CFG.autoCashout}x)`, formatPayload, "#2196f3");
+                
                 updateBalanceUI();
             } else {
                 setMainStatus("❌ Lỗi: Không thể nhấn nút Join", "#ff5252");
@@ -621,7 +658,10 @@
             // Gửi cảnh báo Discord khi phát hiện đúng 3 lần "1" liên tiếp
             if (count1s === 3) {
                 addLog("⚠ Phát hiện 3 lần nổ 1.00 liên tiếp!", "#ff9800");
-                sendWebhook("⚠️ Cảnh báo chuỗi Crash Nguy Hiểm", "Hệ thống phát hiện **3 lần nổ 1.00 liên tiếp** trên bàn chơi!", "#ff9800");
+                
+                const balStr = currentBalance > 0 ? currentBalance.toFixed(2) : "0.00";
+                const formatPayload = `\`\`\`text\n--------------------------------------\nWARNING 3x 1.00 | ( ${balStr} )\n--------------------------------------\n\`\`\``;
+                sendWebhook("⚠️ Cảnh báo chuỗi Crash Nguy Hiểm", formatPayload, "#ff9800");
             }
 
             // KHI VÁN KẾT THÚC VÀ ĐANG CÓ LỊCH CƯỢC
@@ -638,15 +678,21 @@
                 setTimeout(async () => {
                     const postGameBal = await fetchBalance();
                     if (postGameBal !== null) currentBalance = postGameBal;
+                    
+                    const balStr = currentBalance.toFixed(2);
 
                     if (isWin) {
                         setMainStatus(`🎉 WIN! Nổ ở ${latestCrashStr}x`, "#69ff94");
                         addLog(`Thắng ván cược! (Nổ: ${latestCrashStr}x)`, "#69ff94");
-                        sendWebhook("✅ Auto Crash: WIN", `Cược thắng! Chốt lãi ở mốc **${latestCrashStr}x** (Mục tiêu: ${CFG.autoCashout}x)\n💰 **Số dư hiện tại:** ${currentBalance.toFixed(2)}`, "#00e676");
+                        
+                        const formatPayload = `\`\`\`text\n--------------------------------------\nWIN | ( ${balStr} )\n--------------------------------------\n\`\`\``;
+                        sendWebhook(`✅ Auto Crash: WIN (${latestCrashStr}x)`, formatPayload, "#00e676");
                     } else {
                         setMainStatus(`💀 LOSE! Nổ ở ${latestCrashStr}x`, "#ff5252");
                         addLog(`Thua ván cược. (Nổ: ${latestCrashStr}x)`, "#ff5252");
-                        sendWebhook("❌ Auto Crash: LOSE", `Cược thua! Gãy sớm ở **${latestCrashStr}x** (Mục tiêu: ${CFG.autoCashout}x)\n💰 **Số dư hiện tại:** ${currentBalance.toFixed(2)}`, "#ff5252");
+                        
+                        const formatPayload = `\`\`\`text\n--------------------------------------\nLOST | ( ${balStr} )\n--------------------------------------\n\`\`\``;
+                        sendWebhook(`❌ Auto Crash: LOSE (${latestCrashStr}x)`, formatPayload, "#ff5252");
                     }
                     
                     updateBalanceUI(); 
