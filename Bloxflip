@@ -1,0 +1,616 @@
+// ==UserScript==
+// @name         Bloxflip Auto Crash Pro (Draggable & Classic UI)
+// @namespace    http://tampermonkey.net/
+// @version      6.1
+// @description  Cập nhật UI: Switch Chế độ (Safe/Risk), Thêm cấu hình % Số dư cược, Log xuống dưới
+// @author       You
+// @match        https://bloxflip.com/*
+// @icon         https://www.google.com/s2/favicons?sz=64&domain=bloxflip.com
+// @grant        none
+// ==/UserScript==
+
+(function() {
+    'use strict';
+
+    // --- QUẢN LÝ DỮ LIỆU LOCALSTORAGE ---
+    const CFG = {
+        enabled: localStorage.getItem('bfc_enabled') !== 'false',
+        mode: localStorage.getItem('bfc_mode') || 'safe', // 'safe' (2x1) hoặc 'risk' (1x1)
+        autoCashout: localStorage.getItem('bfc_autocashout') || '1.01',
+        betPercent: localStorage.getItem('bfc_bet_percent') || '50', // Phần trăm số dư cược
+        webhookUrl: localStorage.getItem('bfc_webhookurl') || '',
+        webhookEnabled: localStorage.getItem('bfc_webhook_enabled') === 'true'
+    };
+
+    function saveConfig(key, value) {
+        localStorage.setItem(key, value);
+    }
+
+    // --- GIAO DIỆN CONSOLE CHÍNH ---
+    let consoleEl;
+    let minMaxBtn;
+    let mainStatusEl;
+    let logContainerEl;
+    let liveHistoryEl;
+    let currentBalance = 0; 
+
+    function initConsole() {
+        if (!document.body) {
+            setTimeout(initConsole, 500);
+            return;
+        }
+
+        // 1. NÚT ĐÓNG/MỞ Ở MÉP TRÊN
+        if (!minMaxBtn) {
+            minMaxBtn = document.createElement('div');
+            minMaxBtn.style.cssText = `
+                position: fixed; top: 0; left: 50%; transform: translateX(-50%);
+                width: 150px; height: 6px; border-bottom-left-radius: 8px; border-bottom-right-radius: 8px;
+                background: ${CFG.enabled ? 'rgba(255, 105, 180, 0.8)' : 'rgba(128, 128, 128, 0.8)'};
+                cursor: pointer; z-index: 2147483647; transition: all 0.3s ease;
+                box-shadow: 0 2px 10px rgba(0,0,0,0.5);
+            `;
+            minMaxBtn.title = "Bật/Tắt Auto Crash Panel";
+            minMaxBtn.onmouseover = () => minMaxBtn.style.height = '12px';
+            minMaxBtn.onmouseout = () => minMaxBtn.style.height = '6px';
+            minMaxBtn.onclick = toggleMainAuto;
+            document.body.appendChild(minMaxBtn);
+        }
+
+        if (document.getElementById('bfc-pro-console')) return;
+
+        // 2. PANEL CHÍNH
+        consoleEl = document.createElement('div');
+        consoleEl.id = 'bfc-pro-console';
+        
+        consoleEl.style.cssText = `
+            position: fixed; 
+            top: 100px; 
+            left: calc(50% - 240px);
+            width: 480px; 
+            opacity: ${CFG.enabled ? '1' : '0'};
+            visibility: ${CFG.enabled ? 'visible' : 'hidden'};
+            pointer-events: ${CFG.enabled ? 'auto' : 'none'};
+            background: linear-gradient(rgba(15, 20, 30, 0.85), rgba(15, 20, 30, 0.85)), url('https://i.pinimg.com/736x/26/27/df/2627df32c9282724dbc6ba23fd191551.jpg') center/cover no-repeat;
+            backdrop-filter: blur(8px);
+            border-radius: 12px;
+            border: 1px solid rgba(255, 255, 255, 0.2);
+            z-index: 2147483646;
+            font-family: 'Segoe UI', Tahoma, sans-serif;
+            box-shadow: 0 15px 50px rgba(0, 0, 0, 0.7);
+            display: flex; flex-direction: column;
+            transition: opacity 0.3s ease, visibility 0.3s ease;
+        `;
+
+        // KHU VỰC NẮM KÉO
+        const dragHeader = document.createElement('div');
+        dragHeader.id = 'bfc-drag-header';
+        dragHeader.style.cssText = `
+            width: 100%; height: 22px; background: rgba(0, 0, 0, 0.5); 
+            cursor: move; border-radius: 12px 12px 0 0; 
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        `;
+
+        // KHU VỰC CHỨA NỘI DUNG
+        const bodyContainer = document.createElement('div');
+        bodyContainer.style.cssText = `display: flex; flex-direction: row; width: 100%;`;
+
+        // --- CỘT TRÁI (UI CHÍNH) ---
+        const leftCol = document.createElement('div');
+        leftCol.style.cssText = `width: 360px; display: flex; flex-direction: column; align-items: center; padding-bottom: 15px;`;
+
+        // ẢNH GIF & TIÊU ĐỀ & SỐ DƯ
+        const classicUI = document.createElement('div');
+        classicUI.style.cssText = `display: flex; flex-direction: column; align-items: center; margin-top: 15px; width: 100%;`;
+        classicUI.innerHTML = `
+            <img src="https://i.pinimg.com/originals/a9/5e/94/a95e941785991c66adc761b5f71f2268.gif" style="width: 100px; height: 100px; border: 2px solid rgba(255, 255, 255, 0.9); border-radius: 6px; object-fit: cover; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+            <div style="color: #ffffff; font-size: 20px; font-weight: bold; margin-top: 10px; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">Bloxflip Auto Crash</div>
+            <div id="bfc-balance-display" style="color: #ffeb3b; font-size: 15px; font-weight: bold; margin-top: 5px; text-shadow: 0 1px 3px rgba(0,0,0,0.8);">💰 Số dư: Đang tải...</div>
+            <div id="bfc-main-status" style="color: #69ff94; font-size: 14px; margin-top: 5px; font-weight: bold; text-shadow: 0 1px 3px rgba(0,0,0,0.8);">Đang tải dữ liệu...</div>
+        `;
+
+        // CONFIG BOX (Chứa Mode, Cashout, Percent, Webhook và Nút Test ở góc dưới)
+        const configBox = document.createElement('div');
+        configBox.style.cssText = `
+            width: 85%; margin-top: 15px; padding: 10px; background: rgba(0, 0, 0, 0.5); 
+            border-radius: 8px; display: flex; flex-direction: column; gap: 8px;
+        `;
+        configBox.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+                <label style="color: #eee; font-size: 13px; text-shadow: 0 1px 2px #000;">Chế độ cược</label>
+                <div style="display: flex; background: rgba(0,0,0,0.8); border-radius: 4px; overflow: hidden; border: 1px solid #555;">
+                    <button id="bfc-mode-safe" style="background: ${CFG.mode === 'safe' ? 'rgba(255, 105, 180, 0.8)' : 'transparent'}; color: white; border: none; padding: 4px 10px; font-size: 12px; cursor: pointer; transition: 0.2s;">Safe</button>
+                    <button id="bfc-mode-risk" style="background: ${CFG.mode === 'risk' ? 'rgba(255, 105, 180, 0.8)' : 'transparent'}; color: white; border: none; padding: 4px 10px; font-size: 12px; cursor: pointer; transition: 0.2s;">Risk</button>
+                </div>
+            </div>
+            <div style="color: #aaa; font-size: 10px; text-align: right; margin-top: -6px; margin-bottom: 6px;" id="bfc-mode-desc">
+                ${CFG.mode === 'safe' ? '(Đợi nổ 2 lần 1 liên tiếp)' : '(Đợi nổ 1 lần 1)'}
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label style="color: #eee; font-size: 13px; text-shadow: 0 1px 2px #000;">% Số dư cược</label>
+                <div style="display: flex; align-items: center; gap: 4px;">
+                    <input type="number" id="bfc-inp-bet-percent" value="${CFG.betPercent}" step="1" min="1" max="100" style="width: 50px; background: rgba(0,0,0,0.8); border: 1px solid #555; color: white; padding: 4px; border-radius: 4px; text-align: center; outline: none; font-weight: bold;">
+                    <span style="color: #eee; font-size: 13px;">%</span>
+                </div>
+            </div>
+
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label style="color: #eee; font-size: 13px; text-shadow: 0 1px 2px #000;">Auto Cashout</label>
+                <input type="number" id="bfc-inp-cashout" value="${CFG.autoCashout}" step="0.01" style="width: 70px; background: rgba(0,0,0,0.8); border: 1px solid #555; color: white; padding: 4px; border-radius: 4px; text-align: center; outline: none; font-weight: bold;">
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label style="color: #eee; font-size: 13px; text-shadow: 0 1px 2px #000;">Bật Webhook Discord</label>
+                <input type="checkbox" id="bfc-chk-webhook" ${CFG.webhookEnabled ? 'checked' : ''} style="cursor: pointer; width: 16px; height: 16px;">
+            </div>
+            <input type="text" id="bfc-inp-webhook" value="${CFG.webhookUrl}" placeholder="https://discord.com/api/webhooks/..." style="width: 100%; background: rgba(0,0,0,0.8); border: 1px solid #555; color: white; padding: 6px; border-radius: 4px; outline: none; font-size: 11px; box-sizing: border-box; ${CFG.webhookEnabled ? '' : 'opacity: 0.5; pointer-events: none;'}">
+            
+            <div style="display: flex; justify-content: flex-end; margin-top: 4px;">
+                <button id="bfc-test-bet-btn" style="background: #ffeb3b; color: #000; font-weight: bold; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.5); font-size: 11px;">⚙️ Test 1 Round</button>
+            </div>
+        `;
+
+        // LOG CONTAINER (Dời xuống dưới cùng)
+        const logBox = document.createElement('div');
+        logBox.style.cssText = `
+            width: 85%; margin: 10px 0 0 0; padding: 8px; background: rgba(0, 0, 0, 0.6); 
+            height: 90px; overflow-y: auto; font-family: monospace; font-size: 11px; 
+            border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);
+        `;
+        logBox.innerHTML = `<div id="bfc-log-container" style="display: flex; flex-direction: column; gap: 4px;"></div>`;
+
+        leftCol.appendChild(classicUI);
+        leftCol.appendChild(configBox);
+        leftCol.appendChild(logBox);
+
+        // --- CỘT PHẢI (LỊCH SỬ) ---
+        const rightCol = document.createElement('div');
+        rightCol.style.cssText = `
+            width: 120px; background: rgba(0, 0, 0, 0.4); border-left: 1px solid rgba(255,255,255,0.1); 
+            display: flex; flex-direction: column; align-items: center; padding: 15px 0; border-radius: 0 0 12px 0;
+        `;
+        rightCol.innerHTML = `
+            <div style="color: #aaa; font-size: 11px; font-weight: bold; letter-spacing: 1px; text-align: center; margin-bottom: 15px;">LỊCH SỬ<br>CRASH</div>
+            <div id="bfc-live-history" style="color: #fff; font-size: 14px; font-family: monospace; text-align: center; line-height: 2.0;">Đang chờ...</div>
+        `;
+
+        // GẮN VÀO KHUNG CHÍNH
+        bodyContainer.appendChild(leftCol);
+        bodyContainer.appendChild(rightCol);
+        consoleEl.appendChild(dragHeader);
+        consoleEl.appendChild(bodyContainer);
+        document.body.appendChild(consoleEl);
+
+        // Lấy Element
+        mainStatusEl = document.getElementById('bfc-main-status');
+        logContainerEl = document.getElementById('bfc-log-container');
+        liveHistoryEl = document.getElementById('bfc-live-history');
+
+        // Logic Kéo thả UI
+        let isDragging = false, startX, startY, initialLeft, initialTop;
+        
+        dragHeader.addEventListener('mousedown', (e) => {
+            isDragging = true;
+            startX = e.clientX;
+            startY = e.clientY;
+            const rect = consoleEl.getBoundingClientRect();
+            initialLeft = rect.left;
+            initialTop = rect.top;
+            e.preventDefault(); 
+        });
+
+        document.addEventListener('mousemove', (e) => {
+            if (!isDragging) return;
+            const dx = e.clientX - startX;
+            const dy = e.clientY - startY;
+            consoleEl.style.left = `${initialLeft + dx}px`;
+            consoleEl.style.top = `${initialTop + dy}px`;
+        });
+
+        document.addEventListener('mouseup', () => {
+            isDragging = false;
+        });
+
+        // Gắn sự kiện Mode Switch
+        const modeSafeBtn = document.getElementById('bfc-mode-safe');
+        const modeRiskBtn = document.getElementById('bfc-mode-risk');
+        const modeDesc = document.getElementById('bfc-mode-desc');
+
+        modeSafeBtn.addEventListener('click', () => {
+            CFG.mode = 'safe';
+            saveConfig('bfc_mode', 'safe');
+            modeSafeBtn.style.background = 'rgba(255, 105, 180, 0.8)';
+            modeRiskBtn.style.background = 'transparent';
+            modeDesc.innerText = '(Đợi nổ 2 lần 1 liên tiếp)';
+            addLog('Đã chuyển sang Safe Mode (2x 1.00)', '#aaa');
+            updateWaitingStatusLabel(true);
+        });
+
+        modeRiskBtn.addEventListener('click', () => {
+            CFG.mode = 'risk';
+            saveConfig('bfc_mode', 'risk');
+            modeRiskBtn.style.background = 'rgba(255, 105, 180, 0.8)';
+            modeSafeBtn.style.background = 'transparent';
+            modeDesc.innerText = '(Đợi nổ 1 lần 1)';
+            addLog('Đã chuyển sang Risk Mode (1x 1.00)', '#aaa');
+            updateWaitingStatusLabel(true);
+        });
+
+        // Gắn sự kiện Input Config phần trăm số dư cược
+        document.getElementById('bfc-inp-bet-percent').addEventListener('change', (e) => {
+            let val = parseFloat(e.target.value);
+            if (isNaN(val) || val < 1) val = 1;
+            if (val > 100) val = 100;
+            e.target.value = val;
+            CFG.betPercent = val.toString();
+            saveConfig('bfc_bet_percent', CFG.betPercent);
+            addLog(`Đã thiết lập mức cược thành ${val}% số dư`, '#aaa');
+        });
+
+        // Gắn sự kiện Input Config Cashout
+        document.getElementById('bfc-inp-cashout').addEventListener('change', (e) => {
+            CFG.autoCashout = e.target.value;
+            saveConfig('bfc_autocashout', e.target.value);
+            addLog(`Đã lưu Cashout thành ${e.target.value}`, '#aaa');
+            setInitialCashout(10);
+        });
+
+        const chkWebhook = document.getElementById('bfc-chk-webhook');
+        const inpWebhook = document.getElementById('bfc-inp-webhook');
+        chkWebhook.addEventListener('change', (e) => {
+            CFG.webhookEnabled = e.target.checked;
+            saveConfig('bfc_webhook_enabled', e.target.checked);
+            inpWebhook.style.opacity = e.target.checked ? '1' : '0.5';
+            inpWebhook.style.pointerEvents = e.target.checked ? 'auto' : 'none';
+            addLog(`Webhook đã ${e.target.checked ? 'BẬT' : 'TẮT'}`, '#aaa');
+        });
+
+        inpWebhook.addEventListener('change', (e) => {
+            CFG.webhookUrl = e.target.value;
+            saveConfig('bfc_webhookurl', e.target.value);
+            addLog(`Đã lưu URL Webhook mới`, '#aaa');
+        });
+
+        // Sự kiện Nút Test 1 Round
+        document.getElementById('bfc-test-bet-btn').addEventListener('click', () => {
+            if (isWaitingForRoundResult) {
+                addLog("⚠ Đang trong 1 ván cược, không thể Test lúc này.", "#ffeb3b");
+                return;
+            }
+            addLog("Đang khởi chạy Test 1 Round...", "#ffeb3b");
+            executeBet(); // Tự động khóa chờ kết quả, test chuẩn 1 ván
+        });
+    }
+
+    // --- CÁC HÀM TIỆN ÍCH ---
+    function toggleMainAuto() {
+        CFG.enabled = !CFG.enabled;
+        saveConfig('bfc_enabled', CFG.enabled);
+        
+        minMaxBtn.style.background = CFG.enabled ? 'rgba(255, 105, 180, 0.8)' : 'rgba(128, 128, 128, 0.8)';
+        consoleEl.style.opacity = CFG.enabled ? '1' : '0';
+        consoleEl.style.visibility = CFG.enabled ? 'visible' : 'hidden';
+        consoleEl.style.pointerEvents = CFG.enabled ? 'auto' : 'none';
+        
+        if(CFG.enabled) {
+            updateWaitingStatusLabel(true);
+            addLog("▶ Auto đã được BẬT", "#69ff94");
+        } else {
+            setMainStatus("Đã TẮT Auto", "#c0c8d0");
+            addLog("⏸ Auto đã TẮT", "#ff5252");
+        }
+    }
+
+    function setMainStatus(msg, color) {
+        if (!mainStatusEl) return;
+        mainStatusEl.innerText = msg;
+        mainStatusEl.style.color = color;
+    }
+
+    function updateWaitingStatusLabel(forceReset = false, count = 0) {
+        if (isWaitingForRoundResult || !CFG.enabled) return;
+        let target = CFG.mode === 'safe' ? 2 : 1;
+        if (forceReset) {
+            setMainStatus(`Đang chờ điều kiện... (0/${target})`, "#69ff94");
+        } else {
+            setMainStatus(`Đang chờ điều kiện... (${count}/${target})`, "#69ff94");
+        }
+    }
+
+    function addLog(msg, color = "#fff") {
+        if (!logContainerEl) return;
+        const time = new Date().toLocaleTimeString([], {hour12: false});
+        const logItem = document.createElement('div');
+        logItem.innerHTML = `<span style="color: #888;">[${time}]</span> <span style="color: ${color};">${msg}</span>`;
+        logContainerEl.appendChild(logItem);
+        logContainerEl.parentElement.scrollTop = logContainerEl.parentElement.scrollHeight;
+    }
+
+    function sendWebhook(title, description, colorHex) {
+        if (!CFG.webhookEnabled || !CFG.webhookUrl) return;
+        const payload = { embeds: [{ title: title, description: description, color: parseInt(colorHex.replace('#', ''), 16), timestamp: new Date().toISOString() }] };
+        fetch(CFG.webhookUrl, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) }).catch(() => {});
+    }
+
+    // --- KHỞI TẠO ---
+    initConsole();
+
+
+    // ==========================================
+    // --- LOGIC AUTO CRASH (NHẬN DIỆN & CƯỢC) ---
+    // ==========================================
+
+    let previousHistorySnapshot = "";
+    let isWaitingForRoundResult = false; 
+
+    function getHistoryElements() {
+        const historyContainer = document.querySelector('.lastestHistory');
+        if (!historyContainer) return [];
+        return historyContainer.querySelectorAll('.gameLatestItem');
+    }
+
+    function getHistorySnapshot(items) {
+        let snap = "";
+        for(let i = Math.max(0, items.length - 8); i < items.length; i++) {
+            snap += items[i].innerText.trim() + "|";
+        }
+        return snap;
+    }
+
+    function updateLiveHistoryUI(items) {
+        if (!liveHistoryEl) return;
+        let displayArr = [];
+        for(let i = Math.max(0, items.length - 8); i < items.length; i++) {
+            let text = items[i].innerText.trim();
+            if(text === "1") displayArr.push(`<span style="color: #ff4785; font-weight: bold;">${text}</span>`);
+            else displayArr.push(text);
+        }
+        liveHistoryEl.innerHTML = displayArr.join("<br>");
+    }
+
+    function findButtonByText(targetText) {
+        const elements = document.querySelectorAll('button, div, span, a, p');
+        for (let i = elements.length - 1; i >= 0; i--) {
+            const el = elements[i];
+            const text = (el.innerText || el.textContent || "").trim();
+            if (text.toLowerCase() === targetText.toLowerCase()) {
+                if (el.offsetWidth > 0 && el.offsetHeight > 0) return el.closest('button') || el;
+            }
+        }
+        return null;
+    }
+
+    function setReactInputValue(inputElement, value) {
+        try {
+            const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
+            nativeInputValueSetter.call(inputElement, value);
+            
+            inputElement.dispatchEvent(new Event('input', { bubbles: true }));
+            inputElement.dispatchEvent(new Event('change', { bubbles: true }));
+            
+            inputElement.focus();
+            inputElement.blur();
+            
+            return true;
+        } catch (e) {
+            console.error("Lỗi khi set React Input:", e);
+            return false;
+        }
+    }
+
+    function getAutoCashoutInput() {
+        const inputs = document.querySelectorAll('input.input-module-scss-module__SixybW__input');
+        for(let i = 0; i < inputs.length; i++) {
+            let parentWrapper = inputs[i].closest('.gameBetInput') || inputs[i].parentElement.parentElement.parentElement;
+            if (parentWrapper && parentWrapper.innerText.toLowerCase().includes("auto cashout")) {
+                return inputs[i];
+            }
+        }
+        if (inputs.length >= 2) return inputs[1]; 
+        return null;
+    }
+
+    function getBetAmountInput() {
+        const inputs = document.querySelectorAll('input.input-module-scss-module__SixybW__input');
+        for(let i = 0; i < inputs.length; i++) {
+            let parentWrapper = inputs[i].closest('.gameBetInput') || inputs[i].parentElement.parentElement.parentElement;
+            if (parentWrapper && parentWrapper.innerText.toLowerCase().includes("bet amount")) {
+                return inputs[i];
+            }
+        }
+        if (inputs.length >= 1) return inputs[0]; 
+        return null;
+    }
+
+    async function fetchBalance() {
+        try {
+            const response = await fetch('/api/user', {
+                method: 'GET',
+                headers: { 'Accept': 'application/json' }
+            });
+            if (response.ok) {
+                const data = await response.json();
+                if (data.success && data.wallet && data.wallet.balances) {
+                    return data.wallet.balances.FLIPCOINS;
+                }
+            }
+        } catch (e) {
+            console.error("Lỗi khi fetch API /api/user:", e);
+        }
+        return null;
+    }
+
+    async function updateBalanceUI() {
+        const bal = await fetchBalance();
+        if (bal !== null) {
+            currentBalance = bal;
+            const balEl = document.getElementById('bfc-balance-display');
+            if (balEl) balEl.innerText = `💰 Số dư: ${bal.toFixed(2)}`;
+        }
+    }
+
+    function setInitialCashout(attempts = 0) {
+        const targetInput = getAutoCashoutInput();
+        if (targetInput) {
+            let isSet = setReactInputValue(targetInput, CFG.autoCashout);
+            if(isSet) {
+                addLog(`✓ Đã điền sẵn Auto Cashout ban đầu: ${CFG.autoCashout}`, "#69ff94");
+            } else {
+                addLog("⚠ Không thể kích hoạt React Input.", "#ffeb3b");
+            }
+        } else {
+            if (attempts < 10) {
+                setTimeout(() => setInitialCashout(attempts + 1), 1000);
+            } else {
+                addLog("⚠ Không tìm thấy ô Auto Cashout. Hãy set bằng tay.", "#ff5252");
+            }
+        }
+    }
+
+    async function executeBet() {
+        if (isWaitingForRoundResult) return;
+        isWaitingForRoundResult = true; 
+        
+        setMainStatus("⚡ Đang thiết lập và đặt cược...", "#ffeb3b");
+        addLog("Chuẩn bị cược...", "#ffeb3b");
+
+        let displayBalStr = "Đang tải...";
+
+        // 1. LẤY SỐ DƯ TỪ API VÀ ĐIỀN VÀO Ô BET AMOUNT THEO PHẦN TRĂM ĐÃ CÀI ĐẶT
+        const balance = await fetchBalance();
+        if (balance !== null && balance > 0) {
+            currentBalance = balance;
+            
+            // Tính toán số tiền cược theo phần trăm
+            const percentStr = CFG.betPercent;
+            const percent = parseFloat(percentStr) / 100;
+            const betAmountNum = balance * percent;
+            const betAmount = betAmountNum.toFixed(2);
+            
+            displayBalStr = (balance - betAmountNum).toFixed(2); 
+            
+            const betInput = getBetAmountInput();
+            
+            if (betInput) {
+                let isSet = setReactInputValue(betInput, betAmount);
+                if (isSet) {
+                    addLog(`✓ Đã điền Bet Amount: ${betAmount} (${percentStr}% số dư)`, "#69ff94");
+                } else {
+                    addLog("⚠ Lỗi nhập số tiền cược. Chờ thủ công hoặc thử lại.", "#ffeb3b");
+                }
+            } else {
+                addLog("⚠ Không tìm thấy ô nhập số tiền cược.", "#ffeb3b");
+            }
+        } else {
+            addLog("⚠ Không thể lấy số dư hoặc số dư = 0.", "#ffeb3b");
+        }
+
+        // 2. CHẮC CHẮN LẠI AUTO CASHOUT ĐÃ ĐÚNG TRƯỚC KHI CƯỢC
+        const targetInput = getAutoCashoutInput();
+        if (targetInput) {
+            setReactInputValue(targetInput, CFG.autoCashout);
+        }
+
+        // 3. ĐỢI VÀI MS RỒI JOIN GAME
+        setTimeout(() => {
+            const joinBtn = findButtonByText('Join game') || findButtonByText('Join next game') || findButtonByText('Place Bet');
+            
+            if (joinBtn && !joinBtn.disabled) {
+                joinBtn.click();
+                setMainStatus(`💸 Đã cược! Chờ kết quả mốc ${CFG.autoCashout}x`, "#2196f3");
+                addLog(`Đã Join Game (Mục tiêu: ${CFG.autoCashout}x)`, "#2196f3");
+                sendWebhook("🚀 Bloxflip Auto: Đã đặt cược", `Chờ kết quả ở mốc **${CFG.autoCashout}x**\n💰 **Số dư sau khi cược (ước tính):** ${displayBalStr}`, "#2196f3");
+                updateBalanceUI();
+            } else {
+                setMainStatus("❌ Lỗi: Không thể nhấn nút Join", "#ff5252");
+                addLog("Nút Join Game không có sẵn hoặc bị mờ", "#ff5252");
+                isWaitingForRoundResult = false; 
+                updateWaitingStatusLabel(true); // Reset về trạng thái chờ
+            }
+        }, 400);
+    }
+
+    async function checkLogic() {
+        if (!CFG.enabled) return;
+
+        const items = getHistoryElements();
+        if (items.length < 2) return; 
+
+        updateLiveHistoryUI(items);
+
+        const currentSnapshot = getHistorySnapshot(items);
+
+        if (currentSnapshot !== previousHistorySnapshot) {
+            previousHistorySnapshot = currentSnapshot;
+            
+            const latestCrashStr = items[items.length - 1].innerText.trim();
+            const prevCrashStr = items[items.length - 2].innerText.trim();
+            
+            const latestCrashNum = parseFloat(latestCrashStr);
+            const targetCashoutNum = parseFloat(CFG.autoCashout);
+
+            // Xử lý đếm chuỗi "1" liên tục hiện tại
+            let count1s = 0;
+            if (latestCrashStr === "1") {
+                count1s = 1;
+                if (prevCrashStr === "1") {
+                    count1s = 2;
+                }
+            }
+
+            if (isWaitingForRoundResult) {
+                isWaitingForRoundResult = false;
+                
+                const postGameBal = await fetchBalance();
+                if (postGameBal !== null) currentBalance = postGameBal;
+
+                if (latestCrashNum >= targetCashoutNum) {
+                    setMainStatus(`🎉 WIN! Nổ ở ${latestCrashStr}x`, "#69ff94");
+                    addLog(`Thắng ván cược! (Nổ: ${latestCrashStr}x)`, "#69ff94");
+                    sendWebhook("✅ Auto Crash: WIN", `Cược thắng! Chốt lãi ở mốc **${latestCrashStr}x** (Mục tiêu: ${CFG.autoCashout}x)\n💰 **Số dư hiện tại:** ${currentBalance.toFixed(2)}`, "#00e676");
+                } else {
+                    setMainStatus(`💀 LOSE! Nổ ở ${latestCrashStr}x`, "#ff5252");
+                    addLog(`Thua ván cược. (Nổ: ${latestCrashStr}x)`, "#ff5252");
+                    sendWebhook("❌ Auto Crash: LOSE", `Cược thua! Gãy sớm ở **${latestCrashStr}x** (Mục tiêu: ${CFG.autoCashout}x)\n💰 **Số dư hiện tại:** ${currentBalance.toFixed(2)}`, "#ff5252");
+                }
+                
+                updateBalanceUI(); 
+
+                setTimeout(() => {
+                    if (CFG.enabled) updateWaitingStatusLabel(true);
+                }, 3000);
+                return;
+            }
+
+            // XÉT ĐIỀU KIỆN DỰA TRÊN CHẾ ĐỘ (MODE) VÀ CẬP NHẬT TRẠNG THÁI
+            if (CFG.mode === 'safe') {
+                if (count1s >= 2) {
+                    setMainStatus("⚡ Đã match điều kiện! Chuẩn bị bet...", "#ffeb3b");
+                    executeBet();
+                } else {
+                    updateWaitingStatusLabel(false, count1s);
+                }
+            } else if (CFG.mode === 'risk') {
+                if (count1s >= 1) {
+                    setMainStatus("⚡ Đã match điều kiện! Chuẩn bị bet...", "#ffeb3b");
+                    executeBet();
+                } else {
+                    updateWaitingStatusLabel(false, 0);
+                }
+            }
+        }
+    }
+
+    // --- BẮT ĐẦU VÒNG LẶP ---
+    setTimeout(() => {
+        setInitialCashout();
+        updateBalanceUI(); 
+        
+        setInterval(updateBalanceUI, 5000); 
+
+        if (CFG.enabled) updateWaitingStatusLabel(true);
+    }, 2000);
+
+    setInterval(checkLogic, 1000);
+
+})();
