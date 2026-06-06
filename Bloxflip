@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Bloxflip Auto Crash Pro (Draggable & Classic UI)
 // @namespace    http://tampermonkey.net/
-// @version      1.2
-// @description  Bản gốc lưu trên GitHub. Làm tròn tiền cược, Cảnh báo 3x 1.00, Bắt Toast, Smart Refresh. Redesign Webhook & Risk Mode UI.
+// @version      1.3
+// @description  Bản gốc lưu trên GitHub. Làm tròn tiền cược, Cảnh báo 3x 1.00, Bắt Toast, Smart Refresh. Chuyển cảnh Smooth Fade giữa Safe và Risk.
 // @author       You
 // @match        https://bloxflip.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=bloxflip.com
@@ -90,7 +90,6 @@
             opacity: ${CFG.enabled ? '1' : '0'};
             visibility: ${CFG.enabled ? 'visible' : 'hidden'};
             pointer-events: ${CFG.enabled ? 'auto' : 'none'};
-            background: linear-gradient(rgba(15, 20, 30, 0.85), rgba(15, 20, 30, 0.85)), url('${APP_URLS[CFG.mode].bgImage}') center/cover no-repeat;
             backdrop-filter: blur(8px);
             border-radius: 12px;
             border: 1px solid rgba(255, 255, 255, 0.2);
@@ -100,6 +99,30 @@
             display: flex; flex-direction: column;
             transition: opacity 0.3s ease, visibility 0.3s ease;
         `;
+
+        // Tạo hai lớp nền để chuyển cảnh Fade mượt mà
+        const bgSafe = document.createElement('div');
+        bgSafe.id = 'bfc-bg-safe';
+        bgSafe.style.cssText = `
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; border-radius: inherit;
+            background: linear-gradient(rgba(15, 20, 30, 0.85), rgba(15, 20, 30, 0.85)), url('${APP_URLS.safe.bgImage}') center/cover no-repeat;
+            transition: opacity 0.5s ease-in-out;
+            opacity: ${CFG.mode === 'safe' ? '1' : '0'};
+            pointer-events: none;
+        `;
+        
+        const bgRisk = document.createElement('div');
+        bgRisk.id = 'bfc-bg-risk';
+        bgRisk.style.cssText = `
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: -1; border-radius: inherit;
+            background: linear-gradient(rgba(15, 20, 30, 0.85), rgba(15, 20, 30, 0.85)), url('${APP_URLS.risk.bgImage}') center/cover no-repeat;
+            transition: opacity 0.5s ease-in-out;
+            opacity: ${CFG.mode === 'risk' ? '1' : '0'};
+            pointer-events: none;
+        `;
+        
+        consoleEl.appendChild(bgSafe);
+        consoleEl.appendChild(bgRisk);
 
         // KHU VỰC NẮM KÉO
         const dragHeader = document.createElement('div');
@@ -122,7 +145,7 @@
         const classicUI = document.createElement('div');
         classicUI.style.cssText = `display: flex; flex-direction: column; align-items: center; margin-top: 15px; width: 100%;`;
         classicUI.innerHTML = `
-            <img id="bfc-avatar" src="${APP_URLS[CFG.mode].gifImage}" style="width: 100px; height: 100px; border: 2px solid rgba(255, 255, 255, 0.9); border-radius: 6px; object-fit: cover; box-shadow: 0 4px 15px rgba(0,0,0,0.5); transition: all 0.3s ease;">
+            <img id="bfc-avatar" src="${APP_URLS[CFG.mode].gifImage}" style="width: 100px; height: 100px; border: 2px solid rgba(255, 255, 255, 0.9); border-radius: 6px; object-fit: cover; box-shadow: 0 4px 15px rgba(0,0,0,0.5); transition: opacity 0.3s ease;">
             <div style="color: #ffffff; font-size: 20px; font-weight: bold; margin-top: 10px; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">Bloxflip Auto Crash</div>
             <div id="bfc-balance-display" style="color: #ffeb3b; font-size: 15px; font-weight: bold; margin-top: 5px; text-shadow: 0 1px 3px rgba(0,0,0,0.8);">💰 Số dư: Đang tải...</div>
             <div id="bfc-main-status" style="color: #69ff94; font-size: 14px; margin-top: 5px; font-weight: bold; text-shadow: 0 1px 3px rgba(0,0,0,0.8);">Đang tải dữ liệu...</div>
@@ -189,7 +212,7 @@
             width: 100%; text-align: center; color: rgba(255, 255, 255, 0.4); 
             font-size: 10px; margin-top: 8px; letter-spacing: 1px; font-weight: bold;
         `;
-        versionText.innerText = "Version 1.2";
+        versionText.innerText = "Version 1.3";
 
         leftCol.appendChild(classicUI);
         leftCol.appendChild(configBox);
@@ -244,15 +267,34 @@
             isDragging = false;
         });
 
-        // Hàm áp dụng Theme (Safe/Risk)
+        // Hàm áp dụng Theme (Safe/Risk) với Fade Effect
         function applyTheme() {
             const theme = APP_URLS[CFG.mode];
-            if (consoleEl) {
-                consoleEl.style.backgroundImage = `linear-gradient(rgba(15, 20, 30, 0.85), rgba(15, 20, 30, 0.85)), url('${theme.bgImage}')`;
+            
+            // Xử lý chuyển cảnh Fade nền
+            const elBgSafe = document.getElementById('bfc-bg-safe');
+            const elBgRisk = document.getElementById('bfc-bg-risk');
+            if (elBgSafe && elBgRisk) {
+                if (CFG.mode === 'safe') {
+                    elBgSafe.style.opacity = '1';
+                    elBgRisk.style.opacity = '0';
+                } else {
+                    elBgSafe.style.opacity = '0';
+                    elBgRisk.style.opacity = '1';
+                }
             }
-            const avatarImg = document.getElementById('bfc-avatar');
-            if (avatarImg) avatarImg.src = theme.gifImage;
 
+            // Xử lý Fade cho Avatar (Mờ đi -> Đổi ảnh -> Sáng lên)
+            const avatarImg = document.getElementById('bfc-avatar');
+            if (avatarImg) {
+                avatarImg.style.opacity = '0';
+                setTimeout(() => {
+                    avatarImg.src = theme.gifImage;
+                    avatarImg.style.opacity = '1';
+                }, 300);
+            }
+
+            // Đổi màu các nút tương ứng
             const modeSafeBtn = document.getElementById('bfc-mode-safe');
             const modeRiskBtn = document.getElementById('bfc-mode-risk');
             
