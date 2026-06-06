@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Bloxflip Auto Crash Pro (Draggable & Classic UI)
 // @namespace    http://tampermonkey.net/
-// @version      6.2
-// @description  Cập nhật UI: Thêm Chống treo thông minh (Smart Refresh), Webhook lấy số dư Delay 2s chuẩn xác
+// @version      6.3
+// @description  Bắt Toast Cashout, Delay 2s lấy số dư cực chuẩn, Smart Refresh
 // @author       You
 // @match        https://bloxflip.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=bloxflip.com
@@ -156,7 +156,7 @@
             </div>
         `;
 
-        // LOG CONTAINER (Dời xuống dưới cùng)
+        // LOG CONTAINER
         const logBox = document.createElement('div');
         logBox.style.cssText = `
             width: 85%; margin: 10px 0 0 0; padding: 8px; background: rgba(0, 0, 0, 0.6); 
@@ -242,7 +242,7 @@
             updateWaitingStatusLabel(true);
         });
 
-        // Gắn sự kiện Input Config phần trăm số dư cược
+        // Gắn sự kiện Input Config
         document.getElementById('bfc-inp-bet-percent').addEventListener('change', (e) => {
             let val = parseFloat(e.target.value);
             if (isNaN(val) || val < 1) val = 1;
@@ -253,7 +253,6 @@
             addLog(`Đã thiết lập mức cược thành ${val}% số dư`, '#aaa');
         });
 
-        // Gắn sự kiện Input Config Cashout
         document.getElementById('bfc-inp-cashout').addEventListener('change', (e) => {
             CFG.autoCashout = e.target.value;
             saveConfig('bfc_autocashout', e.target.value);
@@ -284,14 +283,13 @@
             addLog(`Đã lưu URL Webhook mới`, '#aaa');
         });
 
-        // Sự kiện Nút Test 1 Round
         document.getElementById('bfc-test-bet-btn').addEventListener('click', () => {
-            if (isWaitingForRoundResult) {
+            if (isWaitingForRoundResult || isProcessingResult) {
                 addLog("⚠ Đang trong 1 ván cược, không thể Test lúc này.", "#ffeb3b");
                 return;
             }
             addLog("Đang khởi chạy Test 1 Round...", "#ffeb3b");
-            executeBet(); // Tự động khóa chờ kết quả, test chuẩn 1 ván
+            executeBet(); 
         });
     }
 
@@ -306,7 +304,7 @@
         consoleEl.style.pointerEvents = CFG.enabled ? 'auto' : 'none';
         
         if(CFG.enabled) {
-            lastHistoryUpdateTime = Date.now(); // Reset bộ đếm chống treo khi bật lại
+            lastHistoryUpdateTime = Date.now(); 
             updateWaitingStatusLabel(true);
             addLog("▶ Auto đã được BẬT", "#69ff94");
         } else {
@@ -322,7 +320,7 @@
     }
 
     function updateWaitingStatusLabel(forceReset = false, count = 0) {
-        if (isWaitingForRoundResult || !CFG.enabled) return;
+        if (isWaitingForRoundResult || isProcessingResult || !CFG.enabled) return;
         let target = CFG.mode === 'safe' ? 2 : 1;
         if (forceReset) {
             setMainStatus(`Đang chờ điều kiện... (0/${target})`, "#69ff94");
@@ -356,6 +354,20 @@
 
     let previousHistorySnapshot = "";
     let isWaitingForRoundResult = false; 
+    let isProcessingResult = false; // Cờ khóa trong lúc đợi 2s lấy API
+    let winToastDetected = false;   // Cờ ghi nhận đã thấy thông báo "Successfully cashed out"
+
+    // Vòng lặp siêu nhanh rình thông báo Toast Cashout (Chỉ chạy khi đang đợi kết quả)
+    setInterval(() => {
+        if (!isWaitingForRoundResult || winToastDetected) return;
+        
+        // Sử dụng textContent để check toàn bộ text trên trang siêu tốc mà không gây giật lag
+        const bodyText = document.body.textContent || "";
+        if (bodyText.includes("Successfully cashed out at")) {
+            winToastDetected = true;
+            addLog("🎯 Đã bắt được thông báo Cashout thành công!", "#69ff94");
+        }
+    }, 250);
 
     function getHistoryElements() {
         const historyContainer = document.querySelector('.lastestHistory');
@@ -482,8 +494,9 @@
     }
 
     async function executeBet() {
-        if (isWaitingForRoundResult) return;
+        if (isWaitingForRoundResult || isProcessingResult) return;
         isWaitingForRoundResult = true; 
+        winToastDetected = false; // Reset cờ Toast mỗi khi cược mới
         
         setMainStatus("⚡ Đang thiết lập và đặt cược...", "#ffeb3b");
         addLog("Chuẩn bị cược...", "#ffeb3b");
@@ -495,7 +508,6 @@
         if (balance !== null && balance > 0) {
             currentBalance = balance;
             
-            // Tính toán số tiền cược theo phần trăm
             const percentStr = CFG.betPercent;
             const percent = parseFloat(percentStr) / 100;
             const betAmountNum = balance * percent;
@@ -539,19 +551,18 @@
                 setMainStatus("❌ Lỗi: Không thể nhấn nút Join", "#ff5252");
                 addLog("Nút Join Game không có sẵn hoặc bị mờ", "#ff5252");
                 isWaitingForRoundResult = false; 
-                updateWaitingStatusLabel(true); // Reset về trạng thái chờ
+                updateWaitingStatusLabel(true); 
             }
         }, 400);
     }
 
-    async function checkLogic() {
+    function checkLogic() {
         if (!CFG.enabled) return;
 
         // --- CƠ CHẾ CHỐNG TREO THÔNG MINH ---
-        // Nếu bật Auto Refresh và quá 120 giây (2 phút) lịch sử không có biến động, tự động tải lại trang
-        if (CFG.autoRefresh && !isWaitingForRoundResult && (Date.now() - lastHistoryUpdateTime > 120000)) {
+        if (CFG.autoRefresh && !isWaitingForRoundResult && !isProcessingResult && (Date.now() - lastHistoryUpdateTime > 120000)) {
             addLog("⚠ Phát hiện trang bị treo (quá 2 phút không có ván mới). Đang làm mới...", "#ff5252");
-            lastHistoryUpdateTime = Date.now(); // Khóa reload liên tục
+            lastHistoryUpdateTime = Date.now(); 
             setTimeout(() => window.location.reload(), 1500);
             return;
         }
@@ -565,7 +576,7 @@
 
         if (currentSnapshot !== previousHistorySnapshot) {
             previousHistorySnapshot = currentSnapshot;
-            lastHistoryUpdateTime = Date.now(); // Cập nhật lại thời gian chống treo khi có ván mới
+            lastHistoryUpdateTime = Date.now(); 
             
             const latestCrashStr = items[items.length - 1].innerText.trim();
             const prevCrashStr = items[items.length - 2].innerText.trim();
@@ -573,7 +584,6 @@
             const latestCrashNum = parseFloat(latestCrashStr);
             const targetCashoutNum = parseFloat(CFG.autoCashout);
 
-            // Xử lý đếm chuỗi "1" liên tục hiện tại
             let count1s = 0;
             if (latestCrashStr === "1") {
                 count1s = 1;
@@ -582,46 +592,60 @@
                 }
             }
 
+            // KHI VÁN KẾT THÚC VÀ ĐANG CÓ LỊCH CƯỢC
             if (isWaitingForRoundResult) {
                 isWaitingForRoundResult = false;
+                isProcessingResult = true; // Khóa không cho quét đợt tiếp theo
                 
-                // ĐỢI 2 GIÂY ĐỂ SERVER BLOXFLIP HOÀN TẤT CỘNG/TRỪ TIỀN RỒI MỚI LẤY SỐ DƯ
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                const postGameBal = await fetchBalance();
-                if (postGameBal !== null) currentBalance = postGameBal;
+                // Xác định Win/Lose: Nếu chộp được Toast HOẶC nổ lớn hơn Cashout
+                const isWin = winToastDetected || (latestCrashNum >= targetCashoutNum);
 
-                if (latestCrashNum >= targetCashoutNum) {
-                    setMainStatus(`🎉 WIN! Nổ ở ${latestCrashStr}x`, "#69ff94");
-                    addLog(`Thắng ván cược! (Nổ: ${latestCrashStr}x)`, "#69ff94");
-                    sendWebhook("✅ Auto Crash: WIN", `Cược thắng! Chốt lãi ở mốc **${latestCrashStr}x** (Mục tiêu: ${CFG.autoCashout}x)\n💰 **Số dư hiện tại:** ${currentBalance.toFixed(2)}`, "#00e676");
-                } else {
-                    setMainStatus(`💀 LOSE! Nổ ở ${latestCrashStr}x`, "#ff5252");
-                    addLog(`Thua ván cược. (Nổ: ${latestCrashStr}x)`, "#ff5252");
-                    sendWebhook("❌ Auto Crash: LOSE", `Cược thua! Gãy sớm ở **${latestCrashStr}x** (Mục tiêu: ${CFG.autoCashout}x)\n💰 **Số dư hiện tại:** ${currentBalance.toFixed(2)}`, "#ff5252");
-                }
+                setMainStatus("⏳ Đang chờ hệ thống cập nhật số dư (2s)...", "#ffeb3b");
+
+                // ĐỢI 2 GIÂY ĐỂ SERVER BLOXFLIP HOÀN TẤT CỘNG/TRỪ TIỀN
+                setTimeout(async () => {
+                    const postGameBal = await fetchBalance();
+                    if (postGameBal !== null) currentBalance = postGameBal;
+
+                    if (isWin) {
+                        setMainStatus(`🎉 WIN! Nổ ở ${latestCrashStr}x`, "#69ff94");
+                        addLog(`Thắng ván cược! (Nổ: ${latestCrashStr}x)`, "#69ff94");
+                        sendWebhook("✅ Auto Crash: WIN", `Cược thắng! Chốt lãi ở mốc **${latestCrashStr}x** (Mục tiêu: ${CFG.autoCashout}x)\n💰 **Số dư hiện tại:** ${currentBalance.toFixed(2)}`, "#00e676");
+                    } else {
+                        setMainStatus(`💀 LOSE! Nổ ở ${latestCrashStr}x`, "#ff5252");
+                        addLog(`Thua ván cược. (Nổ: ${latestCrashStr}x)`, "#ff5252");
+                        sendWebhook("❌ Auto Crash: LOSE", `Cược thua! Gãy sớm ở **${latestCrashStr}x** (Mục tiêu: ${CFG.autoCashout}x)\n💰 **Số dư hiện tại:** ${currentBalance.toFixed(2)}`, "#ff5252");
+                    }
+                    
+                    updateBalanceUI(); 
+                    
+                    isProcessingResult = false; // Mở khóa
+                    winToastDetected = false;
+
+                    setTimeout(() => {
+                        if (CFG.enabled) updateWaitingStatusLabel(true);
+                    }, 1500);
+                }, 2000);
                 
-                updateBalanceUI(); 
-
-                setTimeout(() => {
-                    if (CFG.enabled) updateWaitingStatusLabel(true);
-                }, 3000);
-                return;
+                return; // Bỏ qua quét điều kiện bet ở nhịp này
             }
 
-            // XÉT ĐIỀU KIỆN DỰA TRÊN CHẾ ĐỘ (MODE) VÀ CẬP NHẬT TRẠNG THÁI
-            if (CFG.mode === 'safe') {
-                if (count1s >= 2) {
-                    setMainStatus("⚡ Đã match điều kiện! Chuẩn bị bet...", "#ffeb3b");
-                    executeBet();
-                } else {
-                    updateWaitingStatusLabel(false, count1s);
-                }
-            } else if (CFG.mode === 'risk') {
-                if (count1s >= 1) {
-                    setMainStatus("⚡ Đã match điều kiện! Chuẩn bị bet...", "#ffeb3b");
-                    executeBet();
-                } else {
-                    updateWaitingStatusLabel(false, 0);
+            // XÉT ĐIỀU KIỆN DỰA TRÊN CHẾ ĐỘ (Chỉ xét khi không bị khóa)
+            if (!isProcessingResult && !isWaitingForRoundResult) {
+                if (CFG.mode === 'safe') {
+                    if (count1s >= 2) {
+                        setMainStatus("⚡ Đã match điều kiện! Chuẩn bị bet...", "#ffeb3b");
+                        executeBet();
+                    } else {
+                        updateWaitingStatusLabel(false, count1s);
+                    }
+                } else if (CFG.mode === 'risk') {
+                    if (count1s >= 1) {
+                        setMainStatus("⚡ Đã match điều kiện! Chuẩn bị bet...", "#ffeb3b");
+                        executeBet();
+                    } else {
+                        updateWaitingStatusLabel(false, 0);
+                    }
                 }
             }
         }
