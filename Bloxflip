@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Bloxflip Auto Crash Pro (Draggable & Classic UI)
 // @namespace    http://tampermonkey.net/
-// @version      6.3
-// @description  Bắt Toast Cashout, Delay 2s lấy số dư cực chuẩn, Smart Refresh
+// @version      6.4
+// @description  Đưa URL cấu hình lên đầu, Bắt Toast Cashout, Delay 2s lấy số dư, Smart Refresh
 // @author       You
 // @match        https://bloxflip.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=bloxflip.com
@@ -11,6 +11,20 @@
 
 (function() {
     'use strict';
+
+    // ==========================================
+    // --- KHU VỰC CẤU HÌNH ĐƯỜNG DẪN (URL) ---
+    // ==========================================
+    const APP_URLS = {
+        // Link ảnh nền của bảng điều khiển
+        bgImage: "https://i.pinimg.com/736x/26/27/df/2627df32c9282724dbc6ba23fd191551.jpg",
+        
+        // Link ảnh GIF Avatar
+        gifImage: "https://i.pinimg.com/originals/a9/5e/94/a95e941785991c66adc761b5f71f2268.gif",
+        
+        // Link API lấy thông tin user của Bloxflip (Thường không cần đổi)
+        apiUser: "/api/user"
+    };
 
     // --- QUẢN LÝ DỮ LIỆU LOCALSTORAGE ---
     const CFG = {
@@ -73,7 +87,7 @@
             opacity: ${CFG.enabled ? '1' : '0'};
             visibility: ${CFG.enabled ? 'visible' : 'hidden'};
             pointer-events: ${CFG.enabled ? 'auto' : 'none'};
-            background: linear-gradient(rgba(15, 20, 30, 0.85), rgba(15, 20, 30, 0.85)), url('https://i.pinimg.com/736x/26/27/df/2627df32c9282724dbc6ba23fd191551.jpg') center/cover no-repeat;
+            background: linear-gradient(rgba(15, 20, 30, 0.85), rgba(15, 20, 30, 0.85)), url('${APP_URLS.bgImage}') center/cover no-repeat;
             backdrop-filter: blur(8px);
             border-radius: 12px;
             border: 1px solid rgba(255, 255, 255, 0.2);
@@ -105,7 +119,7 @@
         const classicUI = document.createElement('div');
         classicUI.style.cssText = `display: flex; flex-direction: column; align-items: center; margin-top: 15px; width: 100%;`;
         classicUI.innerHTML = `
-            <img src="https://i.pinimg.com/originals/a9/5e/94/a95e941785991c66adc761b5f71f2268.gif" style="width: 100px; height: 100px; border: 2px solid rgba(255, 255, 255, 0.9); border-radius: 6px; object-fit: cover; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
+            <img src="${APP_URLS.gifImage}" style="width: 100px; height: 100px; border: 2px solid rgba(255, 255, 255, 0.9); border-radius: 6px; object-fit: cover; box-shadow: 0 4px 15px rgba(0,0,0,0.5);">
             <div style="color: #ffffff; font-size: 20px; font-weight: bold; margin-top: 10px; text-shadow: 0 2px 4px rgba(0,0,0,0.8);">Bloxflip Auto Crash</div>
             <div id="bfc-balance-display" style="color: #ffeb3b; font-size: 15px; font-weight: bold; margin-top: 5px; text-shadow: 0 1px 3px rgba(0,0,0,0.8);">💰 Số dư: Đang tải...</div>
             <div id="bfc-main-status" style="color: #69ff94; font-size: 14px; margin-top: 5px; font-weight: bold; text-shadow: 0 1px 3px rgba(0,0,0,0.8);">Đang tải dữ liệu...</div>
@@ -450,7 +464,7 @@
 
     async function fetchBalance() {
         try {
-            const response = await fetch('/api/user', {
+            const response = await fetch(APP_URLS.apiUser, {
                 method: 'GET',
                 headers: { 'Accept': 'application/json' }
             });
