@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Bloxflip Auto Crash Pro (Draggable & Classic UI)
 // @namespace    http://tampermonkey.net/
-// @version      6.5
-// @description  Đưa URL cấu hình lên đầu, Bắt Toast Cashout, Delay 2s lấy số dư, Smart Refresh, Thêm phiên bản UI
+// @version      1.1
+// @description  Bản gốc lưu trên GitHub. Làm tròn tiền cược, Cảnh báo 3x 1.00, Bắt Toast, Smart Refresh.
 // @author       You
 // @match        https://bloxflip.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=bloxflip.com
@@ -144,7 +144,7 @@
             </div>
 
             <div style="display: flex; justify-content: space-between; align-items: center;">
-                <label style="color: #eee; font-size: 13px; text-shadow: 0 1px 2px #000;">% Số dư cược</label>
+                <label style="color: #eee; font-size: 13px; text-shadow: 0 1px 2px #000;">% Số dư cược (Làm tròn)</label>
                 <div style="display: flex; align-items: center; gap: 4px;">
                     <input type="number" id="bfc-inp-bet-percent" value="${CFG.betPercent}" step="1" min="1" max="100" style="width: 50px; background: rgba(0,0,0,0.8); border: 1px solid #555; color: white; padding: 4px; border-radius: 4px; text-align: center; outline: none; font-weight: bold;">
                     <span style="color: #eee; font-size: 13px;">%</span>
@@ -185,7 +185,7 @@
             width: 100%; text-align: center; color: rgba(255, 255, 255, 0.4); 
             font-size: 10px; margin-top: 8px; letter-spacing: 1px; font-weight: bold;
         `;
-        versionText.innerText = "Version 6.5";
+        versionText.innerText = "Version 1.1";
 
         leftCol.appendChild(classicUI);
         leftCol.appendChild(configBox);
@@ -533,8 +533,10 @@
             
             const percentStr = CFG.betPercent;
             const percent = parseFloat(percentStr) / 100;
-            const betAmountNum = balance * percent;
-            const betAmount = betAmountNum.toFixed(2);
+            
+            // TÍNH TOÁN VÀ LÀM TRÒN XUỐNG SỐ TIỀN CƯỢC
+            const betAmountNum = Math.floor(balance * percent);
+            const betAmount = betAmountNum.toString();
             
             displayBalStr = (balance - betAmountNum).toFixed(2); 
             
@@ -602,17 +604,24 @@
             lastHistoryUpdateTime = Date.now(); 
             
             const latestCrashStr = items[items.length - 1].innerText.trim();
-            const prevCrashStr = items[items.length - 2].innerText.trim();
             
             const latestCrashNum = parseFloat(latestCrashStr);
             const targetCashoutNum = parseFloat(CFG.autoCashout);
 
+            // Đếm số lượng nổ "1" liên tục hiện tại từ cuối lên
             let count1s = 0;
-            if (latestCrashStr === "1") {
-                count1s = 1;
-                if (prevCrashStr === "1") {
-                    count1s = 2;
+            for (let i = items.length - 1; i >= Math.max(0, items.length - 5); i--) {
+                if (items[i].innerText.trim() === "1") {
+                    count1s++;
+                } else {
+                    break;
                 }
+            }
+
+            // Gửi cảnh báo Discord khi phát hiện đúng 3 lần "1" liên tiếp
+            if (count1s === 3) {
+                addLog("⚠ Phát hiện 3 lần nổ 1.00 liên tiếp!", "#ff9800");
+                sendWebhook("⚠️ Cảnh báo chuỗi Crash Nguy Hiểm", "Hệ thống phát hiện **3 lần nổ 1.00 liên tiếp** trên bàn chơi!", "#ff9800");
             }
 
             // KHI VÁN KẾT THÚC VÀ ĐANG CÓ LỊCH CƯỢC
