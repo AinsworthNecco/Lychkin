@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Bloxflip Auto Crash Pro (Draggable & Classic UI)
 // @namespace    http://tampermonkey.net/
-// @version      6.1
-// @description  Cập nhật UI: Switch Chế độ (Safe/Risk), Thêm cấu hình % Số dư cược, Log xuống dưới
+// @version      6.2
+// @description  Cập nhật UI: Thêm Chống treo thông minh (Smart Refresh), Webhook lấy số dư Delay 2s chuẩn xác
 // @author       You
 // @match        https://bloxflip.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=bloxflip.com
@@ -19,7 +19,8 @@
         autoCashout: localStorage.getItem('bfc_autocashout') || '1.01',
         betPercent: localStorage.getItem('bfc_bet_percent') || '50', // Phần trăm số dư cược
         webhookUrl: localStorage.getItem('bfc_webhookurl') || '',
-        webhookEnabled: localStorage.getItem('bfc_webhook_enabled') === 'true'
+        webhookEnabled: localStorage.getItem('bfc_webhook_enabled') === 'true',
+        autoRefresh: localStorage.getItem('bfc_auto_refresh') !== 'false' // Chống treo mặc định Bật
     };
 
     function saveConfig(key, value) {
@@ -33,6 +34,7 @@
     let logContainerEl;
     let liveHistoryEl;
     let currentBalance = 0; 
+    let lastHistoryUpdateTime = Date.now(); // Biến theo dõi thời gian chống treo
 
     function initConsole() {
         if (!document.body) {
@@ -109,7 +111,7 @@
             <div id="bfc-main-status" style="color: #69ff94; font-size: 14px; margin-top: 5px; font-weight: bold; text-shadow: 0 1px 3px rgba(0,0,0,0.8);">Đang tải dữ liệu...</div>
         `;
 
-        // CONFIG BOX (Chứa Mode, Cashout, Percent, Webhook và Nút Test ở góc dưới)
+        // CONFIG BOX (Chứa Mode, Cashout, Percent, Webhook, Refresh và Nút Test ở góc dưới)
         const configBox = document.createElement('div');
         configBox.style.cssText = `
             width: 85%; margin-top: 15px; padding: 10px; background: rgba(0, 0, 0, 0.5); 
@@ -138,6 +140,10 @@
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <label style="color: #eee; font-size: 13px; text-shadow: 0 1px 2px #000;">Auto Cashout</label>
                 <input type="number" id="bfc-inp-cashout" value="${CFG.autoCashout}" step="0.01" style="width: 70px; background: rgba(0,0,0,0.8); border: 1px solid #555; color: white; padding: 4px; border-radius: 4px; text-align: center; outline: none; font-weight: bold;">
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label style="color: #eee; font-size: 13px; text-shadow: 0 1px 2px #000;">Chống treo (Auto Refresh)</label>
+                <input type="checkbox" id="bfc-chk-refresh" ${CFG.autoRefresh ? 'checked' : ''} style="cursor: pointer; width: 16px; height: 16px;">
             </div>
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <label style="color: #eee; font-size: 13px; text-shadow: 0 1px 2px #000;">Bật Webhook Discord</label>
@@ -255,6 +261,13 @@
             setInitialCashout(10);
         });
 
+        const chkRefresh = document.getElementById('bfc-chk-refresh');
+        chkRefresh.addEventListener('change', (e) => {
+            CFG.autoRefresh = e.target.checked;
+            saveConfig('bfc_auto_refresh', e.target.checked);
+            addLog(`Tính năng Chống treo trang đã ${e.target.checked ? 'BẬT' : 'TẮT'}`, '#aaa');
+        });
+
         const chkWebhook = document.getElementById('bfc-chk-webhook');
         const inpWebhook = document.getElementById('bfc-inp-webhook');
         chkWebhook.addEventListener('change', (e) => {
@@ -293,6 +306,7 @@
         consoleEl.style.pointerEvents = CFG.enabled ? 'auto' : 'none';
         
         if(CFG.enabled) {
+            lastHistoryUpdateTime = Date.now(); // Reset bộ đếm chống treo khi bật lại
             updateWaitingStatusLabel(true);
             addLog("▶ Auto đã được BẬT", "#69ff94");
         } else {
@@ -533,6 +547,15 @@
     async function checkLogic() {
         if (!CFG.enabled) return;
 
+        // --- CƠ CHẾ CHỐNG TREO THÔNG MINH ---
+        // Nếu bật Auto Refresh và quá 120 giây (2 phút) lịch sử không có biến động, tự động tải lại trang
+        if (CFG.autoRefresh && !isWaitingForRoundResult && (Date.now() - lastHistoryUpdateTime > 120000)) {
+            addLog("⚠ Phát hiện trang bị treo (quá 2 phút không có ván mới). Đang làm mới...", "#ff5252");
+            lastHistoryUpdateTime = Date.now(); // Khóa reload liên tục
+            setTimeout(() => window.location.reload(), 1500);
+            return;
+        }
+
         const items = getHistoryElements();
         if (items.length < 2) return; 
 
@@ -542,6 +565,7 @@
 
         if (currentSnapshot !== previousHistorySnapshot) {
             previousHistorySnapshot = currentSnapshot;
+            lastHistoryUpdateTime = Date.now(); // Cập nhật lại thời gian chống treo khi có ván mới
             
             const latestCrashStr = items[items.length - 1].innerText.trim();
             const prevCrashStr = items[items.length - 2].innerText.trim();
@@ -561,6 +585,8 @@
             if (isWaitingForRoundResult) {
                 isWaitingForRoundResult = false;
                 
+                // ĐỢI 2 GIÂY ĐỂ SERVER BLOXFLIP HOÀN TẤT CỘNG/TRỪ TIỀN RỒI MỚI LẤY SỐ DƯ
+                await new Promise(resolve => setTimeout(resolve, 2000));
                 const postGameBal = await fetchBalance();
                 if (postGameBal !== null) currentBalance = postGameBal;
 
