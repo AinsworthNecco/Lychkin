@@ -1,7 +1,7 @@
 // ==UserScript==
 // @name         Bloxflip Auto Crash Pro (Draggable & Classic UI)
 // @namespace    http://tampermonkey.net/
-// @version      2.2
+// @version      1.1
 // @description  Bản gốc trên GitHub. Đảo ngược logic đọc lịch sử (cuối cùng = mới nhất), thêm nút Failsafe và Đồng hồ đếm ngược.
 // @author       You
 // @match        https://bloxflip.com/*
