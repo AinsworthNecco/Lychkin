@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Bloxflip Auto Crash Pro (Draggable & Classic UI)
 // @namespace    http://tampermonkey.net/
-// @version      1.3
-// @description  Bản gốc lưu trên GitHub. Làm tròn tiền cược, Cảnh báo 3x 1.00, Bắt Toast, Smart Refresh. Chuyển cảnh Smooth Fade giữa Safe và Risk.
+// @version      1.4
+// @description  Bản gốc lưu trên GitHub. Sửa lỗi đọc ngược lịch sử Crash. Cập nhật nút Test Run thông minh.
 // @author       You
 // @match        https://bloxflip.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=bloxflip.com
@@ -212,7 +212,7 @@
             width: 100%; text-align: center; color: rgba(255, 255, 255, 0.4); 
             font-size: 10px; margin-top: 8px; letter-spacing: 1px; font-weight: bold;
         `;
-        versionText.innerText = "Version 1.3";
+        versionText.innerText = "Version 1.4";
 
         leftCol.appendChild(classicUI);
         leftCol.appendChild(configBox);
@@ -387,8 +387,8 @@
                 addLog("⚠ Đang trong 1 ván cược, không thể Test lúc này.", "#ffeb3b");
                 return;
             }
-            addLog("Đang khởi chạy Test RUN...", "#ffeb3b");
-            executeBet(); 
+            addLog("🛠 Bật giả lập: Đã đủ điều kiện cược (Test Run)...", "#ffeb3b");
+            forceTestCondition = true;
         });
     }
 
@@ -455,6 +455,7 @@
     let isWaitingForRoundResult = false; 
     let isProcessingResult = false; // Cờ khóa trong lúc đợi 2s lấy API
     let winToastDetected = false;   // Cờ ghi nhận đã thấy thông báo "Successfully cashed out"
+    let forceTestCondition = false; // Cờ giả lập Test Run
 
     // Vòng lặp siêu nhanh rình thông báo Toast Cashout (Chỉ chạy khi đang đợi kết quả)
     setInterval(() => {
@@ -476,7 +477,8 @@
 
     function getHistorySnapshot(items) {
         let snap = "";
-        for(let i = Math.max(0, items.length - 8); i < items.length; i++) {
+        // Bloxflip thêm game mới vào đầu danh sách (index 0). Ta chỉ lấy 5 game đầu làm chữ ký phân biệt ván mới
+        for(let i = 0; i < Math.min(5, items.length); i++) {
             snap += items[i].innerText.trim() + "|";
         }
         return snap;
@@ -485,7 +487,8 @@
     function updateLiveHistoryUI(items) {
         if (!liveHistoryEl) return;
         let displayArr = [];
-        for(let i = Math.max(0, items.length - 8); i < items.length; i++) {
+        // Hiển thị 8 game mới nhất theo thứ tự thực tế
+        for(let i = 0; i < Math.min(8, items.length); i++) {
             let text = items[i].innerText.trim();
             if(text === "1") displayArr.push(`<span style="color: #ff4785; font-weight: bold;">${text}</span>`);
             else displayArr.push(text);
@@ -677,19 +680,22 @@
         updateLiveHistoryUI(items);
 
         const currentSnapshot = getHistorySnapshot(items);
+        const isNewRound = currentSnapshot !== previousHistorySnapshot;
 
-        if (currentSnapshot !== previousHistorySnapshot) {
-            previousHistorySnapshot = currentSnapshot;
-            lastHistoryUpdateTime = Date.now(); 
+        if (isNewRound || forceTestCondition) {
+            if (isNewRound) {
+                previousHistorySnapshot = currentSnapshot;
+                lastHistoryUpdateTime = Date.now(); 
+            }
             
-            const latestCrashStr = items[items.length - 1].innerText.trim();
-            
+            // Game mới nhất luôn nằm ở vị trí đầu tiên (index 0) của NodeList
+            const latestCrashStr = items[0].innerText.trim();
             const latestCrashNum = parseFloat(latestCrashStr);
             const targetCashoutNum = parseFloat(CFG.autoCashout);
 
-            // Đếm số lượng nổ "1" liên tục hiện tại từ cuối lên
+            // Đếm số lượng nổ "1" liên tục hiện tại (từ game mới nhất trở về trước)
             let count1s = 0;
-            for (let i = items.length - 1; i >= Math.max(0, items.length - 5); i--) {
+            for (let i = 0; i < Math.min(10, items.length); i++) {
                 if (items[i].innerText.trim() === "1") {
                     count1s++;
                 } else {
@@ -697,8 +703,14 @@
                 }
             }
 
-            // Gửi cảnh báo Discord khi phát hiện đúng 3 lần "1" liên tiếp
-            if (count1s === 3) {
+            // Nhúng điều kiện giả lập nếu người dùng bấm nút Test Run
+            if (forceTestCondition && !isWaitingForRoundResult) {
+                count1s = 2; 
+                forceTestCondition = false;
+            }
+
+            // Gửi cảnh báo Discord khi phát hiện đúng 3 lần "1" liên tiếp (chỉ báo khi có ván mới thật)
+            if (isNewRound && count1s === 3) {
                 addLog("⚠ Phát hiện 3 lần nổ 1.00 liên tiếp!", "#ff9800");
                 
                 const balStr = currentBalance > 0 ? currentBalance.toFixed(2) : "0.00";
