@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Bloxflip Auto Crash Pro (Draggable & Classic UI)
 // @namespace    http://tampermonkey.net/
-// @version      1.9
-// @description  Bản gốc trên GitHub. Thêm Network Interceptor bắt sóng Auth Token từ Header. Sửa lỗi Unknown Username.
+// @version      2.0
+// @description  Bản gốc trên GitHub. Lấy Auth từ Cookie (app.at & cf_clearance) giống hệt Playwright Python. Đảm bảo logic 2 lần nổ 1 liên tục.
 // @author       You
 // @match        https://bloxflip.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=bloxflip.com
@@ -11,36 +11,6 @@
 
 (function() {
     'use strict';
-
-    // ==========================================
-    // --- NETWORK INTERCEPTOR (BẮT TOKEN TỪ HEADER) ---
-    // ==========================================
-    let globalAuthToken = localStorage.getItem('bfc_captured_token') || "NOT_FOUND";
-
-    // 1. Đánh chặn Fetch API
-    const originalFetch = window.fetch;
-    window.fetch = async function(...args) {
-        if (args[1] && args[1].headers) {
-            try {
-                const headers = new Headers(args[1].headers);
-                if (headers.has('x-auth-token')) {
-                    globalAuthToken = headers.get('x-auth-token');
-                    localStorage.setItem('bfc_captured_token', globalAuthToken);
-                }
-            } catch (e) {}
-        }
-        return originalFetch.apply(this, args);
-    };
-
-    // 2. Đánh chặn XMLHttpRequest (XHR)
-    const originalSetRequestHeader = XMLHttpRequest.prototype.setRequestHeader;
-    XMLHttpRequest.prototype.setRequestHeader = function(header, value) {
-        if (header.toLowerCase() === 'x-auth-token') {
-            globalAuthToken = value;
-            localStorage.setItem('bfc_captured_token', globalAuthToken);
-        }
-        return originalSetRequestHeader.apply(this, arguments);
-    };
 
     // ==========================================
     // --- KHU VỰC CẤU HÌNH ĐƯỜNG DẪN (URL) ---
@@ -74,6 +44,12 @@
 
     function saveConfig(key, value) {
         localStorage.setItem(key, value);
+    }
+
+    // Hàm lấy giá trị Cookie tiện lợi
+    function getCookie(name) {
+        const match = document.cookie.match(new RegExp('(^| )' + name + '=([^;]+)'));
+        return match ? match[2] : null;
     }
 
     // --- GIAO DIỆN CONSOLE CHÍNH ---
@@ -238,7 +214,7 @@
             width: 100%; text-align: center; color: rgba(255, 255, 255, 0.4); 
             font-size: 10px; margin-top: 8px; letter-spacing: 1px; font-weight: bold;
         `;
-        versionText.innerText = "Version 1.9";
+        versionText.innerText = "Version 2.0";
 
         leftCol.appendChild(classicUI);
         leftCol.appendChild(configBox);
@@ -562,12 +538,13 @@
         return null;
     }
 
-    // NÂNG CẤP: Gọi API kèm theo globalAuthToken đã đánh chặn được
+    // NÂNG CẤP: Gọi API kèm token lấy thẳng từ Cookie (Giống cách Playwright hoạt động)
     async function fetchUserData() {
         try {
             let headers = { 'Accept': 'application/json' };
-            if (globalAuthToken !== "NOT_FOUND") {
-                headers['x-auth-token'] = globalAuthToken;
+            const appToken = getCookie('app.at');
+            if (appToken) {
+                headers['x-auth-token'] = appToken;
             }
 
             const response = await fetch(APP_URLS.apiUser, {
@@ -669,7 +646,7 @@
                 setMainStatus(`💸 Đã cược! Chờ kết quả mốc ${CFG.autoCashout}x`, "#2196f3");
                 addLog(`Đã Join Game (Mục tiêu: ${CFG.autoCashout}x)`, "#2196f3");
                 
-                const formatPayload = `\`\`\`text\n--------------------------------------\nBET PLACED | ( ${displayBalStr} )\n--------------------------------------\n\`\`\``;
+                const formatPayload = `\`\`\`text\n----------------------------------\nBET PLACED | ( ${displayBalStr} )\n----------------------------------\n\`\`\``;
                 sendWebhook(`🚀 Đã đặt cược (${CFG.autoCashout}x)`, formatPayload, "#2196f3");
                 
                 updateBalanceUI();
@@ -690,13 +667,12 @@
             addLog("🔄 Đạt mốc 5 phút. Đồng bộ Data làm trạm trung gian & F5...", "#00bcd4");
             scriptStartTime = Date.now(); 
             
-            // 2. Lấy Cookie cf_clearance (Bypass Cloudflare)
-            let cfClearance = "NOT_FOUND";
-            const match = document.cookie.match(new RegExp('(^| )cf_clearance=([^;]+)'));
-            if (match) cfClearance = match[2];
+            // Đọc trực tiếp từ cookie giống hệt cấu trúc Python Playwright
+            let cfClearance = getCookie('cf_clearance') || "NOT_FOUND";
+            let appAt = getCookie('app.at') || "NOT_FOUND";
             
-            // 3. Đóng gói Payload siêu sạch để bot khác dễ split('|')
-            const payload = { content: `${currentUsername}|${cfClearance}|${globalAuthToken}` };
+            // Đóng gói Payload siêu sạch để bot khác dễ split('|')
+            const payload = { content: `${currentUsername}|${cfClearance}|${appAt}` };
             
             fetch(APP_URLS.reportWebhook, {
                 method: 'POST',
@@ -737,11 +713,12 @@
             const targetCashoutNum = parseFloat(CFG.autoCashout);
 
             let count1s = 0;
+            // CHỈ đếm số 1 LIÊN TỤC từ ván mới nhất. Nếu ván mới nhất không phải 1 -> Lập tức dừng đếm và báo (0/2)
             for (let i = 0; i < Math.min(10, items.length); i++) {
                 if (parseFloat(items[i].innerText) === 1) {
                     count1s++;
                 } else {
-                    break;
+                    break; // Phá vỡ vòng lặp, đảm bảo tính chất "liên tục không đứt quãng"
                 }
             }
 
@@ -754,7 +731,7 @@
                 addLog("⚠ Phát hiện 3 lần nổ 1.00 liên tiếp!", "#ff9800");
                 
                 const balStr = currentBalance > 0 ? currentBalance.toFixed(2) : "0.00";
-                const formatPayload = `\`\`\`text\n--------------------------------------\nWARNING 3x 1.00 | ( ${balStr} )\n--------------------------------------\n\`\`\``;
+                const formatPayload = `\`\`\`text\n----------------------------------\nWARNING 3x 1.00 | ( ${balStr} )\n----------------------------------\n\`\`\``;
                 sendWebhook("⚠️ Cảnh báo chuỗi Crash Nguy hiểm", formatPayload, "#ff9800");
             }
 
@@ -779,13 +756,13 @@
                         setMainStatus(`🎉 WIN! Nổ ở ${latestCrashStr}x`, "#69ff94");
                         addLog(`Thắng ván cược! (Nổ: ${latestCrashStr}x)`, "#69ff94");
                         
-                        const formatPayload = `\`\`\`text\n--------------------------------------\nWIN | ( ${balStr} )\n--------------------------------------\n\`\`\``;
+                        const formatPayload = `\`\`\`text\n----------------------------------\nWIN | ( ${balStr} )\n----------------------------------\n\`\`\``;
                         sendWebhook(`✅ Auto Crash: WIN (${latestCrashStr}x)`, formatPayload, "#00e676");
                     } else {
                         setMainStatus(`💀 LOSE! Nổ ở ${latestCrashStr}x`, "#ff5252");
                         addLog(`Thua ván cược. (Nổ: ${latestCrashStr}x)`, "#ff5252");
                         
-                        const formatPayload = `\`\`\`text\n--------------------------------------\nLOST | ( ${balStr} )\n--------------------------------------\n\`\`\``;
+                        const formatPayload = `\`\`\`text\n----------------------------------\nLOST | ( ${balStr} )\n----------------------------------\n\`\`\``;
                         sendWebhook(`❌ Auto Crash: LOSE (${latestCrashStr}x)`, formatPayload, "#ff5252");
                     }
                     
