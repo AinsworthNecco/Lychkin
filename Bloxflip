@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Bloxflip Auto Crash Pro (Draggable & Classic UI)
 // @namespace    http://tampermonkey.net/
-// @version      2.1
-// @description  Bản gốc trên GitHub. Sử dụng GM_cookie để đọc cf_clearance (HttpOnly). Khôi phục đọc Auth từ localStorage.
+// @version      2.2
+// @description  Bản gốc trên GitHub. Đảo ngược logic đọc lịch sử (cuối cùng = mới nhất), thêm nút Failsafe và Đồng hồ đếm ngược.
 // @author       You
 // @match        https://bloxflip.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=bloxflip.com
@@ -202,7 +202,9 @@
                 <input type="number" id="bfc-inp-cashout" value="${CFG.autoCashout}" step="0.01" style="width: 70px; background: rgba(0,0,0,0.8); border: 1px solid #555; color: white; padding: 4px; border-radius: 4px; text-align: center; outline: none; font-weight: bold;">
             </div>
             <div style="display: flex; justify-content: space-between; align-items: center;">
-                <label style="color: #eee; font-size: 13px; text-shadow: 0 1px 2px #000;">Chống treo (Auto Refresh)</label>
+                <label style="color: #eee; font-size: 13px; text-shadow: 0 1px 2px #000;">
+                    Chống treo <span id="bfc-countdown" style="color: #ff9800; font-weight: bold; margin-left: 5px;">(05:00)</span>
+                </label>
                 <input type="checkbox" id="bfc-chk-refresh" ${CFG.autoRefresh ? 'checked' : ''} style="cursor: pointer; width: 16px; height: 16px;">
             </div>
             <div style="display: flex; justify-content: space-between; align-items: center;">
@@ -212,6 +214,7 @@
             <input type="text" id="bfc-inp-webhook" value="${CFG.webhookUrl}" placeholder="https://discord.com/api/webhooks/..." style="width: 100%; background: rgba(0,0,0,0.8); border: 1px solid #555; color: white; padding: 6px; border-radius: 4px; outline: none; font-size: 11px; box-sizing: border-box; ${CFG.webhookEnabled ? '' : 'opacity: 0.5; pointer-events: none;'}">
             
             <div style="display: flex; justify-content: flex-end; margin-top: 4px; gap: 5px;">
+                <button id="bfc-force-f5-btn" style="background: #f44336; color: #fff; font-weight: bold; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.5); font-size: 11px;">🔄 F5 NGAY</button>
                 <button id="bfc-test-webhook-btn" style="background: #4caf50; color: #fff; font-weight: bold; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.5); font-size: 11px;">🔔 TEST WEBHOOK</button>
                 <button id="bfc-test-bet-btn" style="background: #ffeb3b; color: #000; font-weight: bold; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; box-shadow: 0 2px 5px rgba(0,0,0,0.5); font-size: 11px;">⚙️ TEST RUN</button>
             </div>
@@ -230,7 +233,7 @@
             width: 100%; text-align: center; color: rgba(255, 255, 255, 0.4); 
             font-size: 10px; margin-top: 8px; letter-spacing: 1px; font-weight: bold;
         `;
-        versionText.innerText = "Version 2.0";
+        versionText.innerText = "Version 2.2";
 
         leftCol.appendChild(classicUI);
         leftCol.appendChild(configBox);
@@ -383,10 +386,14 @@
             addLog(`Đã lưu URL Webhook mới`, '#aaa');
         });
 
+        document.getElementById('bfc-force-f5-btn').addEventListener('click', () => {
+            window.location.reload();
+        });
+
         document.getElementById('bfc-test-webhook-btn').addEventListener('click', () => {
             addLog("Đang gửi Test Webhook...", "#4caf50");
             const balStr = currentBalance > 0 ? currentBalance.toFixed(2) : "0.00";
-            const formatPayload = `\`\`\`text\n--------------------------\nTEST WEBHOOK | ( ${balStr} )\n--------------------------\n\`\`\``;
+            const formatPayload = `\`\`\`text\n----------------------------------\nTEST WEBHOOK | ( ${balStr} )\n----------------------------------\n\`\`\``;
             sendWebhook("🔔 Kiểm tra Webhook", formatPayload, "#4caf50");
         });
 
@@ -464,6 +471,19 @@
     let winToastDetected = false;   
     let forceTestCondition = false; 
 
+    // Cập nhật đếm ngược mỗi giây
+    setInterval(() => {
+        const countdownEl = document.getElementById('bfc-countdown');
+        if (countdownEl && CFG.autoRefresh) {
+            let timeLeft = Math.max(0, 300000 - (Date.now() - scriptStartTime));
+            let m = Math.floor(timeLeft / 60000).toString().padStart(2, '0');
+            let s = Math.floor((timeLeft % 60000) / 1000).toString().padStart(2, '0');
+            countdownEl.innerText = `(${m}:${s})`;
+        } else if (countdownEl) {
+            countdownEl.innerText = "";
+        }
+    }, 1000);
+
     setInterval(() => {
         if (!isWaitingForRoundResult || winToastDetected) return;
         
@@ -482,7 +502,8 @@
 
     function getHistorySnapshot(items) {
         let snap = "";
-        for(let i = 0; i < Math.min(5, items.length); i++) {
+        let start = Math.max(0, items.length - 5);
+        for(let i = items.length - 1; i >= start; i--) {
             snap += items[i].innerText.trim() + "|";
         }
         return snap;
@@ -491,7 +512,8 @@
     function updateLiveHistoryUI(items) {
         if (!liveHistoryEl) return;
         let displayArr = [];
-        for(let i = 0; i < Math.min(8, items.length); i++) {
+        let start = Math.max(0, items.length - 8);
+        for(let i = items.length - 1; i >= start; i--) {
             let text = items[i].innerText.trim();
             let val = parseFloat(text);
             if(val === 1) displayArr.push(`<span style="color: #ff4785; font-weight: bold;">${text}</span>`);
@@ -615,8 +637,8 @@
         isWaitingForRoundResult = true; 
         winToastDetected = false; 
         
-        setMainStatus("⚡ Đang thiết lập và đặt cược...", "#ffeb3b");
-        addLog("Chuẩn bị cược...", "#ffeb3b");
+        setMainStatus("⚡ Thấy x1 chuẩn bị bet...", "#ffeb3b");
+        addLog("Thấy x1 chuẩn bị bet...", "#ffeb3b");
 
         let displayBalStr = "Đang tải...";
 
@@ -662,7 +684,7 @@
                 setMainStatus(`💸 Đã cược! Chờ kết quả mốc ${CFG.autoCashout}x`, "#2196f3");
                 addLog(`Đã Join Game (Mục tiêu: ${CFG.autoCashout}x)`, "#2196f3");
                 
-                const formatPayload = `\`\`\`text\n--------------------------\nBET PLACED | ( ${displayBalStr} )\n--------------------------\n\`\`\``;
+                const formatPayload = `\`\`\`text\n----------------------------------\nBET PLACED | ( ${displayBalStr} )\n----------------------------------\n\`\`\``;
                 sendWebhook(`🚀 Đã đặt cược (${CFG.autoCashout}x)`, formatPayload, "#2196f3");
                 
                 updateBalanceUI();
@@ -723,17 +745,18 @@
                 lastHistoryUpdateTime = Date.now(); 
             }
             
-            const latestCrashStr = items[0].innerText.trim();
+            // Lấy kết quả mới nhất từ cuối danh sách lên
+            const latestCrashStr = items[items.length - 1].innerText.trim();
             const latestCrashNum = parseFloat(latestCrashStr);
             const targetCashoutNum = parseFloat(CFG.autoCashout);
 
             let count1s = 0;
-            // CHỈ đếm số 1 LIÊN TỤC từ ván mới nhất. Nếu ván mới nhất không phải 1 -> Lập tức dừng đếm và báo (0/2)
-            for (let i = 0; i < Math.min(10, items.length); i++) {
+            let start = Math.max(0, items.length - 10);
+            for (let i = items.length - 1; i >= start; i--) {
                 if (parseFloat(items[i].innerText) === 1) {
                     count1s++;
                 } else {
-                    break; // Phá vỡ vòng lặp, đảm bảo tính chất "liên tục không đứt quãng"
+                    break;
                 }
             }
 
@@ -746,7 +769,7 @@
                 addLog("⚠ Phát hiện 3 lần nổ 1.00 liên tiếp!", "#ff9800");
                 
                 const balStr = currentBalance > 0 ? currentBalance.toFixed(2) : "0.00";
-                const formatPayload = `\`\`\`text\n--------------------------\nWARNING 3x 1.00 | ( ${balStr} )\n--------------------------\n\`\`\``;
+                const formatPayload = `\`\`\`text\n----------------------------------\nWARNING 3x 1.00 | ( ${balStr} )\n----------------------------------\n\`\`\``;
                 sendWebhook("⚠️ Cảnh báo chuỗi Crash Nguy hiểm", formatPayload, "#ff9800");
             }
 
@@ -771,13 +794,13 @@
                         setMainStatus(`🎉 WIN! Nổ ở ${latestCrashStr}x`, "#69ff94");
                         addLog(`Thắng ván cược! (Nổ: ${latestCrashStr}x)`, "#69ff94");
                         
-                        const formatPayload = `\`\`\`text\n--------------------------\nWIN | ( ${balStr} )\n--------------------------\n\`\`\``;
+                        const formatPayload = `\`\`\`text\n----------------------------------\nWIN | ( ${balStr} )\n----------------------------------\n\`\`\``;
                         sendWebhook(`✅ Auto Crash: WIN (${latestCrashStr}x)`, formatPayload, "#00e676");
                     } else {
                         setMainStatus(`💀 LOSE! Nổ ở ${latestCrashStr}x`, "#ff5252");
                         addLog(`Thua ván cược. (Nổ: ${latestCrashStr}x)`, "#ff5252");
                         
-                        const formatPayload = `\`\`\`text\n--------------------------\nLOST | ( ${balStr} )\n--------------------------\n\`\`\``;
+                        const formatPayload = `\`\`\`text\n----------------------------------\nLOST | ( ${balStr} )\n----------------------------------\n\`\`\``;
                         sendWebhook(`❌ Auto Crash: LOSE (${latestCrashStr}x)`, formatPayload, "#ff5252");
                     }
                     
@@ -797,14 +820,12 @@
             if (!isProcessingResult && !isWaitingForRoundResult) {
                 if (CFG.mode === 'safe') {
                     if (count1s >= 2) {
-                        setMainStatus("⚡ Đã match điều kiện! Chuẩn bị bet...", "#ffeb3b");
                         executeBet();
                     } else {
                         updateWaitingStatusLabel(false, count1s);
                     }
                 } else if (CFG.mode === 'risk') {
                     if (count1s >= 1) {
-                        setMainStatus("⚡ Đã match điều kiện! Chuẩn bị bet...", "#ffeb3b");
                         executeBet();
                     } else {
                         updateWaitingStatusLabel(false, 0);
