@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Bloxflip Auto Crash Pro (Draggable & Classic UI)
 // @namespace    http://tampermonkey.net/
-// @version      1.4
-// @description  Bản gốc lưu trên GitHub. Sửa lỗi đọc ngược lịch sử Crash. Cập nhật nút Test Run thông minh.
+// @version      1.5
+// @description  Bản gốc lưu trên GitHub. Thêm cơ chế Fail-safe tự động F5 sau mỗi 5 phút để chống treo dài hạn.
 // @author       You
 // @match        https://bloxflip.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=bloxflip.com
@@ -51,7 +51,8 @@
     let logContainerEl;
     let liveHistoryEl;
     let currentBalance = 0; 
-    let lastHistoryUpdateTime = Date.now(); // Biến theo dõi thời gian chống treo
+    let lastHistoryUpdateTime = Date.now(); // Biến theo dõi thời gian chống treo do web đứng
+    let scriptStartTime = Date.now(); // Biến đếm thời gian sống của script (5 phút F5)
 
     function initConsole() {
         if (!document.body) {
@@ -212,7 +213,7 @@
             width: 100%; text-align: center; color: rgba(255, 255, 255, 0.4); 
             font-size: 10px; margin-top: 8px; letter-spacing: 1px; font-weight: bold;
         `;
-        versionText.innerText = "Version 1.4";
+        versionText.innerText = "Version 1.5";
 
         leftCol.appendChild(classicUI);
         leftCol.appendChild(configBox);
@@ -404,6 +405,7 @@
         
         if(CFG.enabled) {
             lastHistoryUpdateTime = Date.now(); 
+            scriptStartTime = Date.now(); // Reset bộ đếm F5 5 phút khi bật lại Auto
             updateWaitingStatusLabel(true);
             addLog("▶ Auto đã được BẬT", "#69ff94");
         } else {
@@ -666,6 +668,16 @@
     function checkLogic() {
         if (!CFG.enabled) return;
 
+        // --- CƠ CHẾ HARD REFRESH (FAIL-SAFE 5 PHÚT) ---
+        // Tự động tải lại trang mỗi 5 phút để tránh tràn bộ nhớ khi cắm máy thời gian dài.
+        // Điều kiện: Chỉ refresh khi trang không đang xử lý ván cược.
+        if (CFG.autoRefresh && !isWaitingForRoundResult && !isProcessingResult && (Date.now() - scriptStartTime > 300000)) {
+            addLog("🔄 Đã đạt mốc 5 phút. Tự động F5 để chống treo bộ nhớ...", "#ff9800");
+            scriptStartTime = Date.now(); // Khóa để tránh gọi hàm liên tục
+            setTimeout(() => window.location.reload(), 1500);
+            return;
+        }
+
         // --- CƠ CHẾ CHỐNG TREO THÔNG MINH ---
         if (CFG.autoRefresh && !isWaitingForRoundResult && !isProcessingResult && (Date.now() - lastHistoryUpdateTime > 120000)) {
             addLog("⚠ Phát hiện trang bị treo (quá 2 phút không có ván mới). Đang làm mới...", "#ff5252");
@@ -715,7 +727,7 @@
                 
                 const balStr = currentBalance > 0 ? currentBalance.toFixed(2) : "0.00";
                 const formatPayload = `\`\`\`text\n--------------------------------------\nWARNING 3x 1.00 | ( ${balStr} )\n--------------------------------------\n\`\`\``;
-                sendWebhook("⚠️ Cảnh báo chuỗi Crash Nguy Hiểm", formatPayload, "#ff9800");
+                sendWebhook("⚠️ Cảnh báo chuỗi Crash Nguy tiếp", formatPayload, "#ff9800");
             }
 
             // KHI VÁN KẾT THÚC VÀ ĐANG CÓ LỊCH CƯỢC
