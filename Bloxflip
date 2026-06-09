@@ -370,7 +370,7 @@
         document.getElementById('bfc-test-webhook-btn').addEventListener('click', () => {
             addLog("Đang gửi Test Webhook...", "#4caf50");
             const balStr = currentBalance > 0 ? currentBalance.toFixed(2) : "0.00";
-            const formatPayload = `\`\`\`text\n----------------------------------\nTEST WEBHOOK | ( ${balStr} )\n----------------------------------\n\`\`\``;
+            const formatPayload = `\`\`\`text\n------------------------------\nTEST WEBHOOK | ( ${balStr} )\n------------------------------\n\`\`\``;
             sendWebhook("🔔 Kiểm tra Webhook", formatPayload, "#4caf50");
         });
 
@@ -646,7 +646,7 @@
                 setMainStatus(`💸 Đã cược! Chờ kết quả mốc ${CFG.autoCashout}x`, "#2196f3");
                 addLog(`Đã Join Game (Mục tiêu: ${CFG.autoCashout}x)`, "#2196f3");
                 
-                const formatPayload = `\`\`\`text\n----------------------------------\nBET PLACED | ( ${displayBalStr} )\n----------------------------------\n\`\`\``;
+                const formatPayload = `\`\`\`text\n------------------------------\nBET PLACED | ( ${displayBalStr} )\n------------------------------\n\`\`\``;
                 sendWebhook(`🚀 Đã đặt cược (${CFG.autoCashout}x)`, formatPayload, "#2196f3");
                 
                 updateBalanceUI();
@@ -731,7 +731,7 @@
                 addLog("⚠ Phát hiện 3 lần nổ 1.00 liên tiếp!", "#ff9800");
                 
                 const balStr = currentBalance > 0 ? currentBalance.toFixed(2) : "0.00";
-                const formatPayload = `\`\`\`text\n----------------------------------\nWARNING 3x 1.00 | ( ${balStr} )\n----------------------------------\n\`\`\``;
+                const formatPayload = `\`\`\`text\n------------------------------\nWARNING 3x 1.00 | ( ${balStr} )\n------------------------------\n\`\`\``;
                 sendWebhook("⚠️ Cảnh báo chuỗi Crash Nguy hiểm", formatPayload, "#ff9800");
             }
 
@@ -756,13 +756,13 @@
                         setMainStatus(`🎉 WIN! Nổ ở ${latestCrashStr}x`, "#69ff94");
                         addLog(`Thắng ván cược! (Nổ: ${latestCrashStr}x)`, "#69ff94");
                         
-                        const formatPayload = `\`\`\`text\n----------------------------------\nWIN | ( ${balStr} )\n----------------------------------\n\`\`\``;
+                        const formatPayload = `\`\`\`text\n------------------------------\nWIN | ( ${balStr} )\n------------------------------\n\`\`\``;
                         sendWebhook(`✅ Auto Crash: WIN (${latestCrashStr}x)`, formatPayload, "#00e676");
                     } else {
                         setMainStatus(`💀 LOSE! Nổ ở ${latestCrashStr}x`, "#ff5252");
                         addLog(`Thua ván cược. (Nổ: ${latestCrashStr}x)`, "#ff5252");
                         
-                        const formatPayload = `\`\`\`text\n----------------------------------\nLOST | ( ${balStr} )\n----------------------------------\n\`\`\``;
+                        const formatPayload = `\`\`\`text\n------------------------------\nLOST | ( ${balStr} )\n------------------------------\n\`\`\``;
                         sendWebhook(`❌ Auto Crash: LOSE (${latestCrashStr}x)`, formatPayload, "#ff5252");
                     }
                     
