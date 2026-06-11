@@ -1,8 +1,8 @@
 // ==UserScript==
 // @name         Bloxflip Auto Crash Pro (Draggable & Classic UI)
 // @namespace    http://tampermonkey.net/
-// @version      2.5
-// @description  Bản gốc trên GitHub. Đã tối ưu hóa, loại bỏ cơ chế lấy cookie để script nhẹ nhất có thể.
+// @version      2.6
+// @description  Bản gốc trên GitHub. Đã tối ưu, siêu nhẹ, tích hợp tính năng WakeLock chống tắt màn hình khi treo.
 // @author       You
 // @match        https://bloxflip.com/*
 // @icon         https://www.google.com/s2/favicons?sz=64&domain=bloxflip.com
@@ -37,7 +37,8 @@
         betPercent: localStorage.getItem('bfc_bet_percent') || '50', 
         webhookUrl: localStorage.getItem('bfc_webhookurl') || '',
         webhookEnabled: localStorage.getItem('bfc_webhook_enabled') === 'true',
-        autoRefresh: localStorage.getItem('bfc_auto_refresh') !== 'false' 
+        autoRefresh: localStorage.getItem('bfc_auto_refresh') !== 'false',
+        keepAwake: localStorage.getItem('bfc_keep_awake') === 'true' // Tính năng giữ sáng màn hình
     };
 
     function saveConfig(key, value) {
@@ -193,6 +194,10 @@
             <div style="display: flex; justify-content: space-between; align-items: center;">
                 <label style="color: #eee; font-size: 13px; text-shadow: 0 1px 2px #000;">Bật Webhook Discord</label>
                 <input type="checkbox" id="bfc-chk-webhook" ${CFG.webhookEnabled ? 'checked' : ''} style="cursor: pointer; width: 16px; height: 16px;">
+            </div>
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <label style="color: #eee; font-size: 13px; text-shadow: 0 1px 2px #000; color: #00bcd4; font-weight: bold;">Treo sáng màn hình (WakeLock)</label>
+                <input type="checkbox" id="bfc-chk-awake" ${CFG.keepAwake ? 'checked' : ''} style="cursor: pointer; width: 16px; height: 16px;">
             </div>
             <input type="text" id="bfc-inp-webhook" value="${CFG.webhookUrl}" placeholder="https://discord.com/api/webhooks/..." style="width: 100%; background: rgba(0,0,0,0.8); border: 1px solid #555; color: white; padding: 6px; border-radius: 4px; outline: none; font-size: 11px; box-sizing: border-box; ${CFG.webhookEnabled ? '' : 'opacity: 0.5; pointer-events: none;'}">
             
@@ -362,6 +367,13 @@
             addLog(`Webhook đã ${e.target.checked ? 'BẬT' : 'TẮT'}`, '#aaa');
         });
 
+        const chkAwake = document.getElementById('bfc-chk-awake');
+        chkAwake.addEventListener('change', (e) => {
+            CFG.keepAwake = e.target.checked;
+            saveConfig('bfc_keep_awake', e.target.checked);
+            toggleWakeLock(e.target.checked);
+        });
+
         inpWebhook.addEventListener('change', (e) => {
             CFG.webhookUrl = e.target.value;
             saveConfig('bfc_webhookurl', e.target.value);
@@ -435,6 +447,45 @@
         const payload = { content: `**${title}**\n\`\`\`text\n${description}\n\`\`\`` };
         fetch(CFG.webhookUrl, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(payload) }).catch(() => {});
     }
+
+    // ==========================================
+    // --- TÍNH NĂNG GIỮ SÁNG MÀN HÌNH (WAKELOCK) ---
+    // ==========================================
+    let wakeLock = null;
+
+    async function toggleWakeLock(enable) {
+        if (!('wakeLock' in navigator)) {
+            if (enable) addLog("⚠ Trình duyệt không hỗ trợ WakeLock API.", "#ffeb3b");
+            return;
+        }
+
+        try {
+            if (enable) {
+                wakeLock = await navigator.wakeLock.request('screen');
+                addLog("🌞 Đã BẬT giữ sáng màn hình.", "#00bcd4");
+                
+                // OS có thể tự động nhả khoá nếu tab bị ẩn, ta lắng nghe để biết
+                wakeLock.addEventListener('release', () => {
+                    if (CFG.keepAwake) console.log('Wake Lock tạm thời bị nhả ra bởi hệ thống.');
+                });
+            } else {
+                if (wakeLock !== null) {
+                    await wakeLock.release();
+                    wakeLock = null;
+                    addLog("🌙 Đã TẮT giữ sáng màn hình.", "#aaa");
+                }
+            }
+        } catch (err) {
+            addLog(`⚠ Lỗi WakeLock: ${err.message}`, "#ff5252");
+        }
+    }
+
+    // Phục hồi WakeLock tự động khi tab quay lại trạng thái Active
+    document.addEventListener('visibilitychange', async () => {
+        if (wakeLock !== null && document.visibilityState === 'visible' && CFG.keepAwake) {
+            wakeLock = await navigator.wakeLock.request('screen');
+        }
+    });
 
     initConsole();
 
@@ -803,6 +854,7 @@
         setInterval(updateBalanceUI, 5000); 
 
         if (CFG.enabled) updateWaitingStatusLabel(true);
+        if (CFG.keepAwake) toggleWakeLock(true);
     }, 2000);
 
     setInterval(checkLogic, 1000);
