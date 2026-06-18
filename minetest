@@ -17,8 +17,8 @@ KEY_ESCAPE = "4"
 KEY_CHAT = "76"
 KEY_ENTER = "66"
 
-SEND_BTN_X = 950
-SEND_BTN_Y = 950
+SEND_BTN_X = 930
+SEND_BTN_Y = 660
 
 class InputController:
     def __init__(self, use_su=True):
