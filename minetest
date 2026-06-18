@@ -22,7 +22,7 @@ CHAT_BOX_Y = 900                 # Hãy dùng Pointer Location lấy lại tọa
 
 # Mã phím cứng (Keycodes) cho Minecraft Bedrock
 KEY_INVENTORY = "69"             # Phím 'E' (Hoặc thay bằng 111 - ESC)
-KEY_ESCAPE = "111"               # Phím ESC để đóng UI
+KEY_ESCAPE = "4"                 # ĐÃ SỬA: Phím BACK của Android (Mã 4) - Đóng UI chuẩn nhất trên giả lập
 KEY_CHAT = "76"                  # Phím '/' (Mã 76) để mở chat
 KEY_ENTER = "66"                 # Phím Enter
 KEY_SHIFT = "59"                 # Phím Shift trái
