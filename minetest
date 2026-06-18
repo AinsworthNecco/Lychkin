@@ -6,6 +6,7 @@ MAIN_ACCOUNT = "xxstylexx21"
 PAY_AMOUNT = "50k"
 SELL_PRICE = "50k"
 START_DELAY = 5
+LOOP_DELAY = 20  # Wait 20 seconds before repeating
 
 CHEST_BLOCK_X = 500
 CHEST_BLOCK_Y = 250
@@ -36,7 +37,6 @@ class InputController:
         time.sleep(0.5)
 
     def tap_random(self, x, y, duration=300):
-        # Add random offset of 3-4 pixels to seem more human
         rx = x + random.randint(-4, 4)
         ry = y + random.randint(-4, 4)
         print(f" -> Tap (random): ({rx}, {ry}) for {duration}ms")
@@ -77,21 +77,18 @@ class InputController:
 
         time.sleep(0.8)
 
-        # Step 4: Triple tap with random offset and 1s between each
-        for i in range(3):
-            print(f" -> Send tap {i+1}/3...")
+        # Step 4: Double tap with random offset
+        for i in range(2):
+            print(f" -> Send tap {i+1}/2...")
             self.tap_random(SEND_BTN_X, SEND_BTN_Y, duration=300)
             time.sleep(1.0)
 
         time.sleep(2.0)
 
-def main():
-    print(f"[*] START IN {START_DELAY}S")
-    for i in range(START_DELAY, 0, -1):
-        print(f"{i}s...")
-        time.sleep(1)
-
-    ctrl = InputController(use_su=True)
+def run_cycle(ctrl, cycle_num):
+    print(f"\n{'='*40}")
+    print(f"[*] CYCLE #{cycle_num} STARTING...")
+    print(f"{'='*40}")
 
     print("\n[STEP 0]: OPEN CHEST")
     ctrl.tap(CHEST_BLOCK_X, CHEST_BLOCK_Y)
@@ -113,7 +110,34 @@ def main():
     ctrl.send_command(f"pay {MAIN_ACCOUNT} {PAY_AMOUNT}")
     time.sleep(2.0)
 
-    print("\n[DONE]")
+    print(f"\n[✓] CYCLE #{cycle_num} DONE!")
+
+def main():
+    print(f"[*] START IN {START_DELAY}S")
+    for i in range(START_DELAY, 0, -1):
+        print(f"{i}s...")
+        time.sleep(1)
+
+    ctrl = InputController(use_su=True)
+    cycle = 1
+
+    while True:
+        try:
+            run_cycle(ctrl, cycle)
+            cycle += 1
+
+            # Wait 20 seconds before next cycle
+            print(f"\n[*] Waiting {LOOP_DELAY}s before next cycle...")
+            for i in range(LOOP_DELAY, 0, -1):
+                print(f"  Next cycle in {i}s...", end='\r')
+                time.sleep(1)
+
+        except KeyboardInterrupt:
+            print("\n[!] Stopped by user. Exiting...")
+            break
+        except Exception as e:
+            print(f"\n[!] Error: {e}. Retrying in 5s...")
+            time.sleep(5)
 
 if __name__ == "__main__":
     main()
