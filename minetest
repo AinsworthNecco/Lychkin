@@ -1,4 +1,3 @@
-import subprocess
 import time
 import os
 import sys
@@ -41,14 +40,17 @@ ROI_CHAT_H = 400
 # ==========================================
 class InputController:
     def __init__(self, use_su=True):
-        # Đổi thành True nếu chạy trực tiếp trên Termux Android. False nếu chạy ADB từ PC.
-        self.cmd_prefix = ["su", "-c"] if use_su else ["adb", "shell"]
-        print(f"[*] Khởi tạo Controller. Prefix: {' '.join(self.cmd_prefix)}")
+        # Đổi thành True nếu chạy trực tiếp trên Termux Android có Root.
+        self.use_su = use_su
+        mode = "Root (su)" if use_su else "ADB (shell)"
+        print(f"[*] Khởi tạo Controller. Chế độ: {mode}")
 
     def run_cmd(self, command):
-        # Sửa lỗi Unknown ID: Cần gom toàn bộ lệnh vào 1 chuỗi string thay vì list rời rạc
-        cmd_list = self.cmd_prefix + [command]
-        subprocess.call(cmd_list)
+        # Sử dụng os.system và bọc lệnh trong nháy đơn để tránh lỗi "Unknown id" do parsing sai
+        if self.use_su:
+            os.system(f"su -c '{command}'")
+        else:
+            os.system(f"adb shell {command}")
 
     def tap(self, x, y):
         print(f" -> Tap chạm vào ({x}, {y})")
@@ -85,33 +87,20 @@ class InputController:
         time.sleep(0.5)
 
 # ==========================================
-# 4. HÀM HIỂN THỊ THÔNG BÁO POPUP
-# ==========================================
-def show_toast(message):
-    try:
-        # Dùng termux-toast để hiển thị thông báo nổi trên màn hình Android
-        subprocess.call(["termux-toast", message])
-    except FileNotFoundError:
-        # Bỏ qua nếu máy chưa cài đặt termux-api
-        pass
-
-# ==========================================
-# 5. KỊCH BẢN KIỂM TRA (TEST WORKFLOW)
+# 4. KỊCH BẢN KIỂM TRA (TEST WORKFLOW)
 # ==========================================
 def test_hard_keys():
     print("\n==========================================")
     print(f"[*] BẠN CÓ {START_DELAY} GIÂY ĐỂ CHUYỂN SANG MINECRAFT")
     print("==========================================")
     
-    show_toast(f"Auto-Seller: Chuyển sang Minecraft ngay! Bắt đầu sau {START_DELAY}s.")
-    
     for i in range(START_DELAY, 0, -1):
         print(f"Bắt đầu sau {i}s...")
         time.sleep(1)
 
-    show_toast("Auto-Seller: Bắt đầu thao tác!")
+    print("\n[*] HẾT THỜI GIAN CHỜ. BẮT ĐẦU THAO TÁC!")
 
-    # Vì bạn đang chạy trên Termux, tôi đã chuyển use_su=True để dùng quyền Root
+    # Khởi tạo giả lập phím/chuột qua Root
     ctrl = InputController(use_su=True) 
     
     print("\n[BƯỚC 1]: LẤY ĐỒ TỪ RƯƠNG")
@@ -129,10 +118,8 @@ def test_hard_keys():
     print("\n[BƯỚC 4]: RỬA TIỀN (CHUYỂN VỀ ACC CHÍNH)")
     ctrl.send_command(f"pay {MAIN_ACCOUNT} {PAY_AMOUNT}")
     
-    show_toast("Auto-Seller: Hoàn tất quá trình test!")
     print("\n[HOÀN TẤT TEST VẬT LÝ]")
 
 if __name__ == "__main__":
-    # Hiện tại gọi thẳng hàm test để bạn canh chỉnh tọa độ và phím trước.
-    # Khi nào phím cứng chạy mượt 100%, chúng ta sẽ ráp OpenCV vào.
+    # Chạy thử luồng phím vật lý
     test_hard_keys()
