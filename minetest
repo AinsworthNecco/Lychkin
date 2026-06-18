@@ -11,10 +11,14 @@ SELL_PRICE = "50k"               # Giá bán
 START_DELAY = 5                  # Thời gian đếm ngược trước khi chạy (giây)
 
 # Tọa độ thao tác (Dùng Pointer Location trong Developer Options để lấy tọa độ)
-CHEST_BLOCK_X = 600              # Tọa độ X nhấn vào block rương trước mặt để mở rương
-CHEST_BLOCK_Y = 300              # Tọa độ Y nhấn vào block rương trước mặt để mở rương
+CHEST_BLOCK_X = 960              # Tọa độ X nhấn vào block rương (960 = Mặc định giữa màn hình)
+CHEST_BLOCK_Y = 540              # Tọa độ Y nhấn vào block rương (540 = Mặc định giữa màn hình)
 CHEST_SLOT_1_X = 580             # Tọa độ X của ô đầu tiên trong rương
 CHEST_SLOT_1_Y = 100             # Tọa độ Y của ô đầu tiên trong rương
+
+# Tọa độ thanh nhập liệu CHAT (Để ép game focus vào thanh gõ chữ)
+CHAT_BOX_X = 300                 # Nằm ở nửa dưới bên trái màn hình
+CHAT_BOX_Y = 900                 # Hãy dùng Pointer Location lấy lại tọa độ Y này cho chuẩn với MuMu
 
 # Mã phím cứng (Keycodes) cho Minecraft Bedrock
 KEY_INVENTORY = "69"             # Phím 'E' (Hoặc thay bằng 111 - ESC)
@@ -74,17 +78,22 @@ class InputController:
         time.sleep(0.3)
 
     def send_text(self, text):
-        # Tránh lỗi khoảng trắng khi gửi qua input
-        formatted = text.replace(" ", "%s")
+        # Cách thoát khoảng trắng cực kỳ an toàn cho Root shell (Dùng \ thay vì khoảng trắng)
+        escaped_text = text.replace(" ", r"\ ")
         print(f" -> Nhập text: {text}")
-        # Bọc chuỗi text trong ngoặc kép " " giúp shell không bị lỗi ngắt chữ
-        self.run_cmd(f'input text "{formatted}"')
+        self.run_cmd(f"input text {escaped_text}")
         time.sleep(0.8) # Đợi text hiển thị hoàn toàn trên màn hình
 
     def send_command(self, cmd_text):
         """Tổ hợp chuẩn để gõ lệnh vào khung chat"""
         self.send_key(KEY_CHAT)
         time.sleep(2.0) # Chờ 2 GIÂY ĐỂ UI CHAT MỞ HẲN
+        
+        # BƯỚC MỚI: ÉP FOCUS CHAT
+        # Chạm vào thanh text ở dưới cùng để hệ thống nhận diện đang muốn gõ chữ
+        self.tap(CHAT_BOX_X, CHAT_BOX_Y)
+        time.sleep(0.5)
+        
         self.send_text(cmd_text)
         time.sleep(0.5) # Chờ chữ hiển thị đủ trước khi Enter
         self.send_key(KEY_ENTER)
