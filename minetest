@@ -6,8 +6,8 @@ import requests
 MAIN_ACCOUNT = "xxstylexx21"
 SELL_PRICE = "50k"
 START_DELAY = 40
-MIN_LOOP_DELAY = 3
-MAX_LOOP_DELAY = 7
+MIN_LOOP_DELAY = 1
+MAX_LOOP_DELAY = 3
 
 MIN_PAY_THRESHOLD = 1_000_000  # Chỉ pay khi có trên 1 triệu
 
