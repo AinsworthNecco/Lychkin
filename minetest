@@ -20,10 +20,6 @@ CHEST_SLOT_1_Y = 100             # Tọa độ Y của ô đầu tiên trong rư
 CHAT_BOX_X = 500                 # Nằm ở nửa dưới bên trái màn hình
 CHAT_BOX_Y = 500                 # Hãy dùng Pointer Location lấy lại tọa độ Y này cho chuẩn với MuMu
 
-# TỌA ĐỘ NÚT MỞ CHAT (Ở giữa cạnh trên màn hình)
-CHAT_BUTTON_X = 960              # Tọa độ X nút mở Chat (Giữa màn hình ngang)
-CHAT_BUTTON_Y = 80               # Tọa độ Y nút mở Chat (Sát cạnh trên)
-
 # Mã phím cứng (Keycodes) cho Minecraft Bedrock
 KEY_INVENTORY = "69"             # Phím 'E' (Hoặc thay bằng 111 - ESC)
 KEY_ESCAPE = "4"                 # ĐÃ SỬA: Phím BACK của Android (Mã 4) - Đóng UI chuẩn nhất trên giả lập
@@ -82,16 +78,16 @@ class InputController:
         time.sleep(0.5)
 
     def send_text(self, text):
-        # Cách thoát khoảng trắng cực kỳ an toàn cho Root shell (Dùng \ thay vì khoảng trắng)
-        escaped_text = text.replace(" ", r"\ ")
+        # Dùng %s thay cho khoảng trắng, Android input text sẽ tự chuyển %s thành space
+        escaped_text = text.replace(" ", "%s")
         print(f" -> Nhập text: {text}")
         self.run_cmd(f"input text {escaped_text}")
         time.sleep(1.0) # Đợi text hiển thị hoàn toàn trên màn hình
 
     def send_command(self, cmd_text):
         """Tổ hợp chuẩn để gõ lệnh vào khung chat"""
-        print(" -> Mở khung chat bằng cách chạm vào nút Chat ở cạnh trên...")
-        self.tap(CHAT_BUTTON_X, CHAT_BUTTON_Y)
+        print(" -> Mở khung chat bằng phím tắt '/'...")
+        self.send_key(KEY_CHAT)
         print(" -> [Đang chờ 3s] Đợi UI chat mở hoàn toàn...")
         time.sleep(3.0) # TĂNG THỜI GIAN CHỜ LÊN 3 GIÂY
         
@@ -100,9 +96,11 @@ class InputController:
         self.tap(CHAT_BOX_X, CHAT_BOX_Y)
         time.sleep(1.0) # Chờ bàn phím ảo ổn định
         
+        # Nhập văn bản (Lúc này khung chat đã có sẵn dấu / từ phím KEY_CHAT)
         self.send_text(cmd_text)
         time.sleep(1.0) # Chờ chữ hiển thị đủ trước khi Enter
         
+        print(" -> Nhấn Enter để gửi...")
         self.send_key(KEY_ENTER)
         print(" -> [Đang chờ 2s] Đợi server xử lý lệnh...")
         time.sleep(2.0) # Đợi lệnh thực thi xong
@@ -138,10 +136,11 @@ def test_hard_keys():
     time.sleep(3.0) # THỜI GIAN CHỜ QUAN TRỌNG NHẤT: Đảm bảo rương đã biến mất
     
     print("\n[BƯỚC 3]: ĐĂNG BÁN")
-    ctrl.send_command(f"/ah sell {SELL_PRICE}") # Thêm dấu / vì chạm nút chat không tự có
+    # Truyền string KHÔNG có dấu / ở đầu (vì KEY_CHAT đã mở sẵn dấu /)
+    ctrl.send_command(f"ah sell {SELL_PRICE}") 
     
     print("\n[BƯỚC 4]: RỬA TIỀN (CHUYỂN VỀ ACC CHÍNH)")
-    ctrl.send_command(f"/pay {MAIN_ACCOUNT} {PAY_AMOUNT}") # Thêm dấu /
+    ctrl.send_command(f"pay {MAIN_ACCOUNT} {PAY_AMOUNT}")
     
     print("\n[HOÀN TẤT TEST VẬT LÝ]")
 
