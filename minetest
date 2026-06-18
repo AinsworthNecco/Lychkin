@@ -1,19 +1,21 @@
 import time
 import os
 import random
+import requests
 
 MAIN_ACCOUNT = "xxstylexx21"
-PAY_AMOUNT = "100k"
 SELL_PRICE = "50k"
 START_DELAY = 40
 LOOP_DELAY = 5
+
+API_KEY = "204d46ca97004d34bfb3f6efc274c2d6"
+BOT_USERNAME = ".FeudalLake7807"  # Dùng y chang, không thêm bớt
 
 CHEST_BLOCK_X = 630
 CHEST_BLOCK_Y = 500
 CHEST_SLOT_1_X = 630
 CHEST_SLOT_1_Y = 150
 
-# Ô slot 1 trong kho đồ
 INVENTORY_SLOT_1_X = 125
 INVENTORY_SLOT_1_Y = 150
 
@@ -23,6 +25,36 @@ KEY_ENTER = "66"
 
 SEND_BTN_X = 930
 SEND_BTN_Y = 660
+
+def get_bot_money():
+    """Lấy số tiền hiện tại của bot từ API Donut SMP"""
+    try:
+        headers = {
+            "Authorization": f"Bearer {API_KEY}",
+            "User-Agent": "Mozilla/5.0"
+        }
+        url = f"https://api.donutsmp.net/v1/stats/{BOT_USERNAME}"
+        res = requests.get(url, headers=headers, timeout=10)
+        data = res.json()
+        print(f"[API] Raw response: {data}")
+
+        # Thử các key có thể có
+        money = (
+            data.get("money") or
+            data.get("data", {}).get("money") or
+            data.get("stats", {}).get("money")
+        )
+
+        if money is not None:
+            money_int = int(str(money).replace(",", "").replace(".", ""))
+            print(f"[API] 💰 Tiền hiện tại: {money_int}")
+            return money_int
+        else:
+            print(f"[API] ❌ Không tìm thấy money trong response")
+            return None
+    except Exception as e:
+        print(f"[API] ❌ Lỗi: {e}")
+        return None
 
 class InputController:
     def __init__(self, use_su=True):
@@ -55,26 +87,22 @@ class InputController:
     def send_command(self, cmd_text):
         print(f"[CMD] Sending: /{cmd_text}")
 
-        # Step 1: Open chat
         self.run_cmd(f"input keyevent {KEY_CHAT}")
         time.sleep(1.5)
 
-        # Step 2: Type slash
         self.run_cmd("input text /")
         time.sleep(0.5)
 
-        # Step 3: Type command word by word
         parts = cmd_text.lstrip("/").split(" ")
         for i, part in enumerate(parts):
             self.run_cmd(f"input text '{part}'")
             time.sleep(0.4)
             if i < len(parts) - 1:
-                self.run_cmd("input keyevent 62")  # space
+                self.run_cmd("input keyevent 62")
                 time.sleep(0.3)
 
         time.sleep(0.8)
 
-        # Step 4: 1 tap to send
         print(f" -> Send tap...")
         self.tap_random(SEND_BTN_X, SEND_BTN_Y, duration=300)
         time.sleep(2.0)
@@ -102,12 +130,18 @@ def run_cycle(ctrl, cycle_num):
 
     print("\n[STEP 4]: SELL")
     ctrl.send_command(f"ah sell {SELL_PRICE}")
-    time.sleep(2.0)
+    time.sleep(3.0)  # Chờ server cập nhật tiền
 
-    print("\n[STEP 5]: PAY")
-    ctrl.send_command(f"pay {MAIN_ACCOUNT} {PAY_AMOUNT}")
-    time.sleep(2.0)
+    print("\n[STEP 5]: LẤY TIỀN TỪ API...")
+    money = get_bot_money()
 
+    if money and money > 0:
+        print(f"\n[STEP 6]: PAY {money} -> {MAIN_ACCOUNT}")
+        ctrl.send_command(f"pay {MAIN_ACCOUNT} {money}")
+    else:
+        print(f"\n[STEP 6]: ❌ API fail, skip pay cycle này")
+
+    time.sleep(2.0)
     print(f"\n[✓] CYCLE #{cycle_num} DONE!")
 
 def main():
