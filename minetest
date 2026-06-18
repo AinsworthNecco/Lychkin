@@ -8,11 +8,11 @@ import sys
 MAIN_ACCOUNT = "xxstylexx21"     # Tên nick nhận tiền
 PAY_AMOUNT = "50k"               # Số tiền rửa
 SELL_PRICE = "50k"               # Giá bán
-START_DELAY = 40                 # Thời gian đếm ngược trước khi chạy (giây)
+START_DELAY = 60                 # Thời gian đếm ngược trước khi chạy (giây)
 
 # Tọa độ thao tác (Dùng Pointer Location trong Developer Options để lấy tọa độ)
-CHEST_SLOT_1_X = 500             # Tọa độ X của ô đầu tiên trong rương
-CHEST_SLOT_1_Y = 300             # Tọa độ Y của ô đầu tiên trong rương
+CHEST_SLOT_1_X = 620             # Tọa độ X của ô đầu tiên trong rương
+CHEST_SLOT_1_Y = 150             # Tọa độ Y của ô đầu tiên trong rương
 
 # Mã phím cứng (Keycodes) cho Minecraft Bedrock
 KEY_INVENTORY = "69"             # Phím 'E' (Hoặc thay bằng 111 - ESC)
@@ -67,7 +67,7 @@ class InputController:
         formatted = text.replace(" ", "%s")
         print(f" -> Nhập text: {text}")
         self.run_cmd(f"input text {formatted}")
-        time.sleep(0.2)
+        time.sleep(0.5) # Tăng nhẹ thời gian chờ sau khi nhập text
 
     def shift_click(self, x, y):
         print(f" -> Shift + Click vào ({x}, {y})")
@@ -81,10 +81,11 @@ class InputController:
     def send_command(self, cmd_text):
         """Tổ hợp chuẩn để gõ lệnh vào khung chat"""
         self.send_key(KEY_CHAT)
-        time.sleep(0.5) # Chờ UI chat mở
+        time.sleep(2.0) # TĂNG THỜI GIAN CHỜ LÊN 2 GIÂY ĐỂ UI CHAT MỞ HẲN
         self.send_text(cmd_text)
+        time.sleep(0.5) # Chờ chữ hiển thị đủ trước khi Enter
         self.send_key(KEY_ENTER)
-        time.sleep(0.5)
+        time.sleep(1.0) # Đợi lệnh thực thi xong
 
 # ==========================================
 # 4. KỊCH BẢN KIỂM TRA (TEST WORKFLOW)
