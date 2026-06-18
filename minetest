@@ -6,9 +6,10 @@ import sys
 # ==========================================
 # 1. CẤU HÌNH TỌA ĐỘ VÀ PHÍM CỨNG (SỬA Ở ĐÂY)
 # ==========================================
-MAIN_ACCOUNT = "xxstylexx21"       # Tên nick nhận tiền
-PAY_AMOUNT = "50k"             # Số tiền rửa
+MAIN_ACCOUNT = "xxstylexx21"     # Tên nick nhận tiền
+PAY_AMOUNT = "50k"               # Số tiền rửa
 SELL_PRICE = "50k"               # Giá bán
+START_DELAY = 20                 # Thời gian đếm ngược trước khi chạy (giây)
 
 # Tọa độ thao tác (Dùng Pointer Location trong Developer Options để lấy tọa độ)
 CHEST_SLOT_1_X = 500             # Tọa độ X của ô đầu tiên trong rương
@@ -99,12 +100,12 @@ def show_toast(message):
 # ==========================================
 def test_hard_keys():
     print("\n==========================================")
-    print("[*] BẠN CÓ 10 GIÂY ĐỂ CHUYỂN SANG MINECRAFT")
+    print(f"[*] BẠN CÓ {START_DELAY} GIÂY ĐỂ CHUYỂN SANG MINECRAFT")
     print("==========================================")
     
-    show_toast("Auto-Seller: Chuyển sang Minecraft ngay! Bắt đầu sau 10s.")
+    show_toast(f"Auto-Seller: Chuyển sang Minecraft ngay! Bắt đầu sau {START_DELAY}s.")
     
-    for i in range(10, 0, -1):
+    for i in range(START_DELAY, 0, -1):
         print(f"Bắt đầu sau {i}s...")
         time.sleep(1)
 
