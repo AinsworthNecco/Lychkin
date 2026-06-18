@@ -11,8 +11,8 @@ SELL_PRICE = "50k"               # Giá bán
 START_DELAY = 5                  # Thời gian đếm ngược trước khi chạy (giây)
 
 # Tọa độ thao tác (Dùng Pointer Location trong Developer Options để lấy tọa độ)
-CHEST_BLOCK_X = 960              # Tọa độ X nhấn vào block rương (960 = Mặc định giữa màn hình)
-CHEST_BLOCK_Y = 540              # Tọa độ Y nhấn vào block rương (540 = Mặc định giữa màn hình)
+CHEST_BLOCK_X = 500              # Tọa độ X nhấn vào block rương (960 = Mặc định giữa màn hình)
+CHEST_BLOCK_Y = 250              # Tọa độ Y nhấn vào block rương (540 = Mặc định giữa màn hình)
 CHEST_SLOT_1_X = 580             # Tọa độ X của ô đầu tiên trong rương
 CHEST_SLOT_1_Y = 100             # Tọa độ Y của ô đầu tiên trong rương
 
