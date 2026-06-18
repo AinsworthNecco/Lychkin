@@ -27,7 +27,6 @@ SEND_BTN_X = 930
 SEND_BTN_Y = 660
 
 def get_bot_money():
-    """Lấy số tiền hiện tại của bot từ API Donut SMP"""
     try:
         headers = {
             "Authorization": f"Bearer {API_KEY}",
@@ -38,19 +37,15 @@ def get_bot_money():
         data = res.json()
         print(f"[API] Raw response: {data}")
 
-        # Thử các key có thể có
-        money = (
-            data.get("money") or
-            data.get("data", {}).get("money") or
-            data.get("stats", {}).get("money")
-        )
+        # Money nằm trong data["result"]["money"]
+        money = data.get("result", {}).get("money")
 
         if money is not None:
             money_int = int(str(money).replace(",", "").replace(".", ""))
             print(f"[API] 💰 Tiền hiện tại: {money_int}")
             return money_int
         else:
-            print(f"[API] ❌ Không tìm thấy money trong response")
+            print(f"[API] ❌ Không tìm thấy money")
             return None
     except Exception as e:
         print(f"[API] ❌ Lỗi: {e}")
