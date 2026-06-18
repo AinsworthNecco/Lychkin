@@ -5,14 +5,17 @@ import requests
 
 MAIN_ACCOUNT = "xxstylexx21"
 SELL_PRICE = "50k"
-START_DELAY = 40
-MIN_LOOP_DELAY = 1
-MAX_LOOP_DELAY = 3
+START_DELAY = 5
+MIN_LOOP_DELAY = 3
+MAX_LOOP_DELAY = 7
 
-MIN_PAY_THRESHOLD = 1_000_000  # Chỉ pay khi có trên 1 triệu
+MIN_PAY_THRESHOLD = 1_000_000
 
 API_KEY = "204d46ca97004d34bfb3f6efc274c2d6"
 BOT_USERNAME = ".FeudalLake7807"
+
+# Minecraft package name
+MC_PACKAGE = "com.mojang.minecraftpe"
 
 CHEST_BLOCK_X = 630
 CHEST_BLOCK_Y = 500
@@ -77,6 +80,11 @@ class InputController:
         self.run_cmd(f"input swipe {rx} {ry} {rx} {ry} {duration}")
         time.sleep(0.5)
 
+    def swipe(self, x1, y1, x2, y2, duration=1000):
+        print(f" -> Swipe: ({x1},{y1}) -> ({x2},{y2}) for {duration}ms")
+        self.run_cmd(f"input swipe {x1} {y1} {x2} {y2} {duration}")
+        time.sleep(0.5)
+
     def send_key(self, keycode):
         print(f" -> Key: {keycode}")
         self.run_cmd(f"input keyevent {keycode}")
@@ -110,12 +118,50 @@ class InputController:
         self.tap_random(SEND_BTN_X, SEND_BTN_Y, duration=300)
         time.sleep(2.0)
 
+def launch_minecraft(ctrl):
+    print("\n" + "="*40)
+    print("[*] LAUNCHING MINECRAFT...")
+    print("="*40)
+
+    # Mở Minecraft
+    print("\n[LAUNCH 0]: Mở Minecraft...")
+    ctrl.run_cmd(f"monkey -p {MC_PACKAGE} -c android.intent.category.LAUNCHER 1")
+    print("[*] Chờ 10s cho game load...")
+    time.sleep(10)
+
+    # Nhấn nút Start (giữ 300ms)
+    print("\n[LAUNCH 1]: Nhấn nút Start...")
+    ctrl.tap(500, 450, duration=300)
+    print("[*] Chờ 10s cho game đồng bộ...")
+    time.sleep(10)
+
+    # Chọn tab Server
+    print("\n[LAUNCH 2]: Chọn tab Server...")
+    ctrl.tap(820, 120, duration=150)
+    time.sleep(2.0)
+
+    # Kéo xuống đáy danh sách server (3 giây)
+    print("\n[LAUNCH 3]: Kéo xuống tìm DonutSMP...")
+    ctrl.swipe(170, 830, 170, 200, duration=3000)
+    time.sleep(1.5)
+
+    # Chọn server DonutSMP
+    print("\n[LAUNCH 4]: Chọn server DonutSMP...")
+    ctrl.tap(200, 750, duration=150)
+    time.sleep(1.0)
+
+    # Nhấn nút Play
+    print("\n[LAUNCH 5]: Nhấn nút Play...")
+    ctrl.tap(750, 210, duration=300)
+    print("[*] Chờ 30s cho server load...")
+    time.sleep(30)
+
+    print("\n[✓] Đã vào game! Bắt đầu bot...")
+
 def idle_wait(ctrl, seconds):
-    """Chờ với random jump để tránh đứng yên quá lâu"""
     print(f"[*] Idle {seconds}s...")
     elapsed = 0
     while elapsed < seconds:
-        # Mỗi giây có 20% chance nhảy
         if random.random() < 0.2:
             ctrl.jump()
         time.sleep(1)
@@ -144,7 +190,7 @@ def run_cycle(ctrl, cycle_num):
 
     print("\n[STEP 4]: SELL")
     ctrl.send_command(f"ah sell {SELL_PRICE}")
-    time.sleep(random.uniform(2.5, 4.0))  # Chờ server cập nhật
+    time.sleep(random.uniform(2.5, 4.0))
 
     print("\n[STEP 5]: LẤY TIỀN TỪ API...")
     money = get_bot_money()
@@ -154,9 +200,9 @@ def run_cycle(ctrl, cycle_num):
             print(f"\n[STEP 6]: ✅ Đủ tiền ({money:,}) -> PAY {MAIN_ACCOUNT}")
             ctrl.send_command(f"pay {MAIN_ACCOUNT} {money}")
         else:
-            print(f"\n[STEP 6]: ⏳ Chưa đủ 1M ({money:,}), bỏ qua pay lần này")
+            print(f"\n[STEP 6]: ⏳ Chưa đủ 1M ({money:,}), bỏ qua pay")
     else:
-        print(f"\n[STEP 6]: ❌ API fail, skip pay cycle này")
+        print(f"\n[STEP 6]: ❌ API fail, skip pay")
 
     time.sleep(2.0)
     print(f"\n[✓] CYCLE #{cycle_num} DONE!")
@@ -168,8 +214,11 @@ def main():
         time.sleep(1)
 
     ctrl = InputController(use_su=True)
-    cycle = 1
 
+    # Auto launch Minecraft và vào server
+    launch_minecraft(ctrl)
+
+    cycle = 1
     while True:
         try:
             run_cycle(ctrl, cycle)
