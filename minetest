@@ -11,8 +11,8 @@ SELL_PRICE = "50k"               # Giá bán
 START_DELAY = 5                 # Thời gian đếm ngược trước khi chạy (giây)
 
 # Tọa độ thao tác (Dùng Pointer Location trong Developer Options để lấy tọa độ)
-CHEST_SLOT_1_X = 580             # Tọa độ X của ô đầu tiên trong rương
-CHEST_SLOT_1_Y = 100             # Tọa độ Y của ô đầu tiên trong rương
+CHEST_SLOT_1_X = 580             # Tọa độ X của ô đầu tiên trong rương (Đã cập nhật)
+CHEST_SLOT_1_Y = 100             # Tọa độ Y của ô đầu tiên trong rương (Đã cập nhật)
 
 # Mã phím cứng (Keycodes) cho Minecraft Bedrock
 KEY_INVENTORY = "69"             # Phím 'E' (Hoặc thay bằng 111 - ESC)
@@ -54,8 +54,17 @@ class InputController:
 
     def tap(self, x, y):
         print(f" -> Tap chạm vào ({x}, {y})")
-        self.run_cmd(f"input tap {x} {y}")
+        # Thay vì tap chớp nhoáng, vuốt tại chỗ 50ms sẽ giả lập chạm thật của ngón tay chuẩn hơn
+        self.run_cmd(f"input swipe {x} {y} {x} {y} 50")
         time.sleep(0.2)
+
+    def double_click(self, x, y):
+        print(f" -> Double Click vào ({x}, {y})")
+        # Chạm 2 lần liên tiếp với độ trễ siêu nhỏ
+        self.run_cmd(f"input swipe {x} {y} {x} {y} 50")
+        time.sleep(0.1)
+        self.run_cmd(f"input swipe {x} {y} {x} {y} 50")
+        time.sleep(0.3)
 
     def send_key(self, keycode):
         print(f" -> Nhấn phím cứng: {keycode}")
@@ -66,22 +75,14 @@ class InputController:
         # Tránh lỗi khoảng trắng khi gửi qua input
         formatted = text.replace(" ", "%s")
         print(f" -> Nhập text: {text}")
-        self.run_cmd(f"input text {formatted}")
-        time.sleep(0.5) # Tăng nhẹ thời gian chờ sau khi nhập text
-
-    def shift_click(self, x, y):
-        print(f" -> Shift + Click vào ({x}, {y})")
-        # Giữ Shift -> Tap -> Thả Shift
-        self.run_cmd(f"input keyevent --longpress {KEY_SHIFT} &")
-        time.sleep(0.1)
-        self.run_cmd(f"input tap {x} {y}")
-        self.run_cmd(f"input keyevent {KEY_SHIFT}") # Reset key
-        time.sleep(0.2)
+        # Bọc chuỗi text trong ngoặc kép " " giúp shell không bị lỗi ngắt chữ
+        self.run_cmd(f'input text "{formatted}"')
+        time.sleep(0.8) # Đợi text hiển thị hoàn toàn trên màn hình
 
     def send_command(self, cmd_text):
         """Tổ hợp chuẩn để gõ lệnh vào khung chat"""
         self.send_key(KEY_CHAT)
-        time.sleep(2.0) # TĂNG THỜI GIAN CHỜ LÊN 2 GIÂY ĐỂ UI CHAT MỞ HẲN
+        time.sleep(2.0) # Chờ 2 GIÂY ĐỂ UI CHAT MỞ HẲN
         self.send_text(cmd_text)
         time.sleep(0.5) # Chờ chữ hiển thị đủ trước khi Enter
         self.send_key(KEY_ENTER)
@@ -105,16 +106,16 @@ def test_hard_keys():
     ctrl = InputController(use_su=True) 
     
     print("\n[BƯỚC 1]: LẤY ĐỒ TỪ RƯƠNG")
-    # Giả sử rương đã mở sẵn, tiến hành Shift+Click lấy đồ
-    ctrl.shift_click(CHEST_SLOT_1_X, CHEST_SLOT_1_Y)
+    # Thay thế Shift+Click bằng Double Click theo góp ý để sửa lỗi không ăn chạm
+    ctrl.double_click(CHEST_SLOT_1_X, CHEST_SLOT_1_Y)
     
     print("\n[BƯỚC 2]: ĐÓNG RƯƠNG")
     ctrl.send_key(KEY_ESCAPE)
-    time.sleep(1)
+    time.sleep(1.5) # Chờ UI rương đóng hẳn lại
     
     print("\n[BƯỚC 3]: ĐĂNG BÁN")
     ctrl.send_command(f"ah sell {SELL_PRICE}")
-    time.sleep(1)
+    time.sleep(1.5)
     
     print("\n[BƯỚC 4]: RỬA TIỀN (CHUYỂN VỀ ACC CHÍNH)")
     ctrl.send_command(f"pay {MAIN_ACCOUNT} {PAY_AMOUNT}")
