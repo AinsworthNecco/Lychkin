@@ -1,5 +1,6 @@
 import time
 import os
+import random
 
 MAIN_ACCOUNT = "xxstylexx21"
 PAY_AMOUNT = "50k"
@@ -32,6 +33,14 @@ class InputController:
     def tap(self, x, y, duration=150):
         print(f" -> Tap: ({x}, {y}) for {duration}ms")
         self.run_cmd(f"input swipe {x} {y} {x} {y} {duration}")
+        time.sleep(0.5)
+
+    def tap_random(self, x, y, duration=300):
+        # Add random offset of 3-4 pixels to seem more human
+        rx = x + random.randint(-4, 4)
+        ry = y + random.randint(-4, 4)
+        print(f" -> Tap (random): ({rx}, {ry}) for {duration}ms")
+        self.run_cmd(f"input swipe {rx} {ry} {rx} {ry} {duration}")
         time.sleep(0.5)
 
     def double_click(self, x, y):
@@ -68,14 +77,12 @@ class InputController:
 
         time.sleep(0.8)
 
-        # Step 4: First tap to focus the send button
-        print(" -> Tap 1: Focus send button...")
-        self.tap(SEND_BTN_X, SEND_BTN_Y, duration=300)
-        time.sleep(0.8)
+        # Step 4: Triple tap with random offset and 1s between each
+        for i in range(3):
+            print(f" -> Send tap {i+1}/3...")
+            self.tap_random(SEND_BTN_X, SEND_BTN_Y, duration=300)
+            time.sleep(1.0)
 
-        # Step 5: Second tap to actually send
-        print(" -> Tap 2: Send!")
-        self.tap(SEND_BTN_X, SEND_BTN_Y, duration=300)
         time.sleep(2.0)
 
 def main():
