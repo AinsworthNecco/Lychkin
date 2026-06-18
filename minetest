@@ -15,7 +15,6 @@ KEY_ESCAPE = "4"
 KEY_CHAT = "76"
 KEY_ENTER = "66"
 
-# ⚠️ YOU NEED TO UPDATE THESE with your actual send button coordinates!
 SEND_BTN_X = 900
 SEND_BTN_Y = 500
 
@@ -30,9 +29,9 @@ class InputController:
         else:
             os.system(f"adb shell {command}")
 
-    def tap(self, x, y):
-        print(f" -> Tap: ({x}, {y})")
-        self.run_cmd(f"input swipe {x} {y} {x} {y} 100")  # longer press
+    def tap(self, x, y, duration=150):  # Default longer duration
+        print(f" -> Tap: ({x}, {y}) for {duration}ms")
+        self.run_cmd(f"input swipe {x} {y} {x} {y} {duration}")
         time.sleep(0.5)
 
     def double_click(self, x, y):
@@ -69,15 +68,10 @@ class InputController:
 
         time.sleep(0.8)
 
-        # Step 4: Try ENTER first
-        print(" -> Trying ENTER key...")
-        self.run_cmd(f"input keyevent {KEY_ENTER}")
-        time.sleep(1.0)
-
-        # Step 5: If that fails, tap send button
-        print(" -> Tapping send button as backup...")
-        self.tap(SEND_BTN_X, SEND_BTN_Y)
-        time.sleep(2.0)
+        # Step 4: Tap send button with LONG press (300ms)
+        print(" -> Tapping send button (long)...")
+        self.tap(SEND_BTN_X, SEND_BTN_Y, duration=300)
+        time.sleep(1.5)
 
 def main():
     print(f"[*] START IN {START_DELAY}S")
