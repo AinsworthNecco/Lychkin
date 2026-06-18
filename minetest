@@ -6,10 +6,13 @@ import requests
 MAIN_ACCOUNT = "xxstylexx21"
 SELL_PRICE = "50k"
 START_DELAY = 40
-LOOP_DELAY = 5
+MIN_LOOP_DELAY = 3
+MAX_LOOP_DELAY = 7
+
+MIN_PAY_THRESHOLD = 1_000_000  # Chỉ pay khi có trên 1 triệu
 
 API_KEY = "204d46ca97004d34bfb3f6efc274c2d6"
-BOT_USERNAME = ".FeudalLake7807"  # Dùng y chang, không thêm bớt
+BOT_USERNAME = ".FeudalLake7807"
 
 CHEST_BLOCK_X = 630
 CHEST_BLOCK_Y = 500
@@ -22,6 +25,7 @@ INVENTORY_SLOT_1_Y = 150
 KEY_ESCAPE = "4"
 KEY_CHAT = "76"
 KEY_ENTER = "66"
+KEY_SPACE = "62"
 
 SEND_BTN_X = 930
 SEND_BTN_Y = 660
@@ -37,12 +41,11 @@ def get_bot_money():
         data = res.json()
         print(f"[API] Raw response: {data}")
 
-        # Money nằm trong data["result"]["money"]
         money = data.get("result", {}).get("money")
 
         if money is not None:
             money_int = int(str(money).replace(",", "").replace(".", ""))
-            print(f"[API] 💰 Tiền hiện tại: {money_int}")
+            print(f"[API] 💰 Tiền hiện tại: {money_int:,}")
             return money_int
         else:
             print(f"[API] ❌ Không tìm thấy money")
@@ -79,6 +82,11 @@ class InputController:
         self.run_cmd(f"input keyevent {keycode}")
         time.sleep(0.5)
 
+    def jump(self):
+        print(f" -> 🐸 Jump!")
+        self.run_cmd(f"input keyevent {KEY_SPACE}")
+        time.sleep(0.3)
+
     def send_command(self, cmd_text):
         print(f"[CMD] Sending: /{cmd_text}")
 
@@ -102,6 +110,17 @@ class InputController:
         self.tap_random(SEND_BTN_X, SEND_BTN_Y, duration=300)
         time.sleep(2.0)
 
+def idle_wait(ctrl, seconds):
+    """Chờ với random jump để tránh đứng yên quá lâu"""
+    print(f"[*] Idle {seconds}s...")
+    elapsed = 0
+    while elapsed < seconds:
+        # Mỗi giây có 20% chance nhảy
+        if random.random() < 0.2:
+            ctrl.jump()
+        time.sleep(1)
+        elapsed += 1
+
 def run_cycle(ctrl, cycle_num):
     print(f"\n{'='*40}")
     print(f"[*] CYCLE #{cycle_num} STARTING...")
@@ -109,30 +128,33 @@ def run_cycle(ctrl, cycle_num):
 
     print("\n[STEP 0]: OPEN CHEST")
     ctrl.tap(CHEST_BLOCK_X, CHEST_BLOCK_Y)
-    time.sleep(2.0)
+    time.sleep(random.uniform(1.8, 2.5))
 
     print("\n[STEP 1]: CLICK ITEM IN CHEST")
     ctrl.tap(CHEST_SLOT_1_X, CHEST_SLOT_1_Y)
-    time.sleep(0.5)
+    time.sleep(random.uniform(0.4, 0.7))
 
     print("\n[STEP 2]: CLICK SLOT 1 IN INVENTORY")
     ctrl.tap(INVENTORY_SLOT_1_X, INVENTORY_SLOT_1_Y)
-    time.sleep(0.5)
+    time.sleep(random.uniform(0.4, 0.7))
 
     print("\n[STEP 3]: CLOSE CHEST")
     ctrl.send_key(KEY_ESCAPE)
-    time.sleep(3.0)
+    time.sleep(random.uniform(2.5, 3.5))
 
     print("\n[STEP 4]: SELL")
     ctrl.send_command(f"ah sell {SELL_PRICE}")
-    time.sleep(3.0)  # Chờ server cập nhật tiền
+    time.sleep(random.uniform(2.5, 4.0))  # Chờ server cập nhật
 
     print("\n[STEP 5]: LẤY TIỀN TỪ API...")
     money = get_bot_money()
 
-    if money and money > 0:
-        print(f"\n[STEP 6]: PAY {money} -> {MAIN_ACCOUNT}")
-        ctrl.send_command(f"pay {MAIN_ACCOUNT} {money}")
+    if money is not None:
+        if money >= MIN_PAY_THRESHOLD:
+            print(f"\n[STEP 6]: ✅ Đủ tiền ({money:,}) -> PAY {MAIN_ACCOUNT}")
+            ctrl.send_command(f"pay {MAIN_ACCOUNT} {money}")
+        else:
+            print(f"\n[STEP 6]: ⏳ Chưa đủ 1M ({money:,}), bỏ qua pay lần này")
     else:
         print(f"\n[STEP 6]: ❌ API fail, skip pay cycle này")
 
@@ -153,10 +175,9 @@ def main():
             run_cycle(ctrl, cycle)
             cycle += 1
 
-            print(f"\n[*] Waiting {LOOP_DELAY}s before next cycle...")
-            for i in range(LOOP_DELAY, 0, -1):
-                print(f"  Next cycle in {i}s...", end='\r')
-                time.sleep(1)
+            delay = random.randint(MIN_LOOP_DELAY, MAX_LOOP_DELAY)
+            print(f"\n[*] Nghỉ {delay}s trước cycle tiếp theo...")
+            idle_wait(ctrl, delay)
 
         except KeyboardInterrupt:
             print("\n[!] Stopped. Exiting...")
