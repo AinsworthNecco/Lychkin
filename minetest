@@ -6,7 +6,7 @@ MAIN_ACCOUNT = "xxstylexx21"
 PAY_AMOUNT = "50k"
 SELL_PRICE = "50k"
 START_DELAY = 40
-LOOP_DELAY = 20  # Wait 20 seconds before repeating
+LOOP_DELAY = 5  # Wait 20 seconds before repeating
 
 CHEST_BLOCK_X = 500
 CHEST_BLOCK_Y = 500
