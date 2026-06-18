@@ -62,7 +62,7 @@ class InputController:
         print(f" -> Tap chạm vào ({x}, {y})")
         # Thay vì tap chớp nhoáng, vuốt tại chỗ 50ms sẽ giả lập chạm thật của ngón tay chuẩn hơn
         self.run_cmd(f"input swipe {x} {y} {x} {y} 50")
-        time.sleep(0.2)
+        time.sleep(0.3)
 
     def double_click(self, x, y):
         print(f" -> Double Click vào ({x}, {y})")
@@ -70,34 +70,37 @@ class InputController:
         self.run_cmd(f"input swipe {x} {y} {x} {y} 50")
         time.sleep(0.1)
         self.run_cmd(f"input swipe {x} {y} {x} {y} 50")
-        time.sleep(0.3)
+        time.sleep(0.5)
 
     def send_key(self, keycode):
         print(f" -> Nhấn phím cứng: {keycode}")
         self.run_cmd(f"input keyevent {keycode}")
-        time.sleep(0.3)
+        time.sleep(0.5)
 
     def send_text(self, text):
         # Cách thoát khoảng trắng cực kỳ an toàn cho Root shell (Dùng \ thay vì khoảng trắng)
         escaped_text = text.replace(" ", r"\ ")
         print(f" -> Nhập text: {text}")
         self.run_cmd(f"input text {escaped_text}")
-        time.sleep(0.8) # Đợi text hiển thị hoàn toàn trên màn hình
+        time.sleep(1.0) # Đợi text hiển thị hoàn toàn trên màn hình
 
     def send_command(self, cmd_text):
         """Tổ hợp chuẩn để gõ lệnh vào khung chat"""
         self.send_key(KEY_CHAT)
-        time.sleep(2.0) # Chờ 2 GIÂY ĐỂ UI CHAT MỞ HẲN
+        print(" -> [Đang chờ 3s] Đợi UI chat mở hoàn toàn...")
+        time.sleep(3.0) # TĂNG THỜI GIAN CHỜ LÊN 3 GIÂY
         
         # BƯỚC MỚI: ÉP FOCUS CHAT
-        # Chạm vào thanh text ở dưới cùng để hệ thống nhận diện đang muốn gõ chữ
+        print(" -> Chạm vào thanh gõ chữ để focus...")
         self.tap(CHAT_BOX_X, CHAT_BOX_Y)
-        time.sleep(0.5)
+        time.sleep(1.0) # Chờ bàn phím ảo ổn định
         
         self.send_text(cmd_text)
-        time.sleep(0.5) # Chờ chữ hiển thị đủ trước khi Enter
+        time.sleep(1.0) # Chờ chữ hiển thị đủ trước khi Enter
+        
         self.send_key(KEY_ENTER)
-        time.sleep(1.0) # Đợi lệnh thực thi xong
+        print(" -> [Đang chờ 2s] Đợi server xử lý lệnh...")
+        time.sleep(2.0) # Đợi lệnh thực thi xong
 
 # ==========================================
 # 4. KỊCH BẢN KIỂM TRA (TEST WORKFLOW)
@@ -118,19 +121,19 @@ def test_hard_keys():
     
     print("\n[BƯỚC 0]: MỞ RƯƠNG")
     ctrl.tap(CHEST_BLOCK_X, CHEST_BLOCK_Y) # Chạm vào rương trước mặt
-    time.sleep(2.0) # Đợi 2 giây theo yêu cầu để rương mở hẳn
+    print(" -> [Đang chờ 2s] Đợi rương mở...")
+    time.sleep(2.0) # Đợi rương mở hẳn
     
     print("\n[BƯỚC 1]: LẤY ĐỒ TỪ RƯƠNG")
-    # Thay thế Shift+Click bằng Double Click theo góp ý để sửa lỗi không ăn chạm
     ctrl.double_click(CHEST_SLOT_1_X, CHEST_SLOT_1_Y)
     
     print("\n[BƯỚC 2]: ĐÓNG RƯƠNG")
     ctrl.send_key(KEY_ESCAPE)
-    time.sleep(1.5) # Chờ UI rương đóng hẳn lại
+    print(" -> [Đang chờ 3s] Đợi UI rương đóng hẳn và clear animation...")
+    time.sleep(3.0) # THỜI GIAN CHỜ QUAN TRỌNG NHẤT: Đảm bảo rương đã biến mất
     
     print("\n[BƯỚC 3]: ĐĂNG BÁN")
     ctrl.send_command(f"ah sell {SELL_PRICE}")
-    time.sleep(1.5)
     
     print("\n[BƯỚC 4]: RỬA TIỀN (CHUYỂN VỀ ACC CHÍNH)")
     ctrl.send_command(f"pay {MAIN_ACCOUNT} {PAY_AMOUNT}")
