@@ -2,148 +2,103 @@ import time
 import os
 import sys
 
-# ==========================================
-# 1. CẤU HÌNH TỌA ĐỘ VÀ PHÍM CỨNG (SỬA Ở ĐÂY)
-# ==========================================
-MAIN_ACCOUNT = "xxstylexx21"     # Tên nick nhận tiền
-PAY_AMOUNT = "50k"               # Số tiền rửa
-SELL_PRICE = "50k"               # Giá bán
-START_DELAY = 5                  # Thời gian đếm ngược trước khi chạy (giây)
+MAIN_ACCOUNT = "xxstylexx21"
+PAY_AMOUNT = "50k"
+SELL_PRICE = "50k"
+START_DELAY = 5
 
-# Tọa độ thao tác (Dùng Pointer Location trong Developer Options để lấy tọa độ)
-CHEST_BLOCK_X = 500              # Tọa độ X nhấn vào block rương (960 = Mặc định giữa màn hình)
-CHEST_BLOCK_Y = 250              # Tọa độ Y nhấn vào block rương (540 = Mặc định giữa màn hình)
-CHEST_SLOT_1_X = 580             # Tọa độ X của ô đầu tiên trong rương
-CHEST_SLOT_1_Y = 100             # Tọa độ Y của ô đầu tiên trong rương
+CHEST_BLOCK_X = 500
+CHEST_BLOCK_Y = 250
+CHEST_SLOT_1_X = 580
+CHEST_SLOT_1_Y = 100
 
-# Tọa độ thanh nhập liệu CHAT (Để ép game focus vào thanh gõ chữ)
-CHAT_BOX_X = 500                 # Nằm ở nửa dưới bên trái màn hình
-CHAT_BOX_Y = 500                 # Hãy dùng Pointer Location lấy lại tọa độ Y này cho chuẩn với MuMu
+KEY_INVENTORY = "69"
+KEY_ESCAPE = "4"
+KEY_CHAT = "76"
+KEY_ENTER = "66"
+KEY_SHIFT = "59"
 
-# Mã phím cứng (Keycodes) cho Minecraft Bedrock
-KEY_INVENTORY = "69"             # Phím 'E' (Hoặc thay bằng 111 - ESC)
-KEY_ESCAPE = "4"                 # Phím BACK của Android (Mã 4) - Đóng UI chuẩn nhất trên giả lập
-KEY_CHAT = "76"                  # Phím '/' (Mã 76) để mở chat
-KEY_ENTER = "66"                 # Phím Enter
-KEY_SHIFT = "59"                 # Phím Shift trái
-
-# ==========================================
-# 2. CẤU HÌNH OPENCV (DÀNH CHO GIAI ĐOẠN SAU)
-# ==========================================
-# Thư mục Download trên Android để chứa ảnh mẫu OpenCV
 TEMPLATE_DIR = "/sdcard/Download/"
 IMG_SOLD = os.path.join(TEMPLATE_DIR, "template_sold.png")
 IMG_MAX_SLOT = os.path.join(TEMPLATE_DIR, "template_max.png")
 
-# Tọa độ vùng quét (ROI - Region of Interest) để OpenCV chạy nhẹ nhất có thể
 ROI_CHAT_X = 0
 ROI_CHAT_Y = 0
 ROI_CHAT_W = 600
 ROI_CHAT_H = 400
 
-# ==========================================
-# 3. LÕI ĐIỀU KHIỂN VẬT LÝ (HARD BUTTONS)
-# ==========================================
 class InputController:
     def __init__(self, use_su=True):
-        # Đổi thành True nếu chạy trực tiếp trên Termux Android có Root.
         self.use_su = use_su
-        mode = "Root (su)" if use_su else "ADB (shell)"
-        print(f"[*] Khởi tạo Controller. Chế độ: {mode}")
+        print(f"[*] Controller: {'Root (su)' if use_su else 'ADB'}")
 
     def run_cmd(self, command):
-        # Sử dụng os.system và bọc lệnh trong nháy đơn để tránh lỗi "Unknown id" do parsing sai
         if self.use_su:
             os.system(f"su -c '{command}'")
         else:
             os.system(f"adb shell {command}")
 
     def tap(self, x, y):
-        print(f" -> Tap chạm vào ({x}, {y})")
-        # Thay vì tap chớp nhoáng, vuốt tại chỗ 50ms sẽ giả lập chạm thật của ngón tay chuẩn hơn
+        print(f" -> Tap: ({x}, {y})")
         self.run_cmd(f"input swipe {x} {y} {x} {y} 50")
         time.sleep(0.3)
 
     def double_click(self, x, y):
-        print(f" -> Double Click vào ({x}, {y})")
-        # Chạm 2 lần liên tiếp với độ trễ siêu nhỏ
+        print(f" -> Double Click: ({x}, {y})")
         self.run_cmd(f"input swipe {x} {y} {x} {y} 50")
         time.sleep(0.1)
         self.run_cmd(f"input swipe {x} {y} {x} {y} 50")
         time.sleep(0.5)
 
     def send_key(self, keycode):
-        print(f" -> Nhấn phím cứng: {keycode}")
+        print(f" -> Key: {keycode}")
         self.run_cmd(f"input keyevent {keycode}")
         time.sleep(0.5)
 
     def send_text(self, text):
-        # Dùng %s thay cho khoảng trắng, Android input text sẽ tự chuyển %s thành space
         escaped_text = text.replace(" ", "%s")
-        print(f" -> Nhập text: {text}")
+        print(f" -> Text: {text}")
         self.run_cmd(f"input text {escaped_text}")
-        time.sleep(1.0) # Đợi text hiển thị hoàn toàn trên màn hình
+        time.sleep(1.0)
 
     def send_command(self, cmd_text):
-        """Tổ hợp chuẩn để gõ lệnh vào khung chat"""
-        print(" -> [Trick] Gửi thẳng chữ '/' để ép game mở khung chat...")
         self.run_cmd("input text /")
-        print(" -> [Đang chờ 3s] Đợi UI chat mở hoàn toàn...")
-        time.sleep(3.0) # TĂNG THỜI GIAN CHỜ LÊN 3 GIÂY
+        time.sleep(3.0)
         
-        # BƯỚC MỚI: ÉP FOCUS CHAT
-        print(" -> Chạm vào thanh gõ chữ để focus...")
-        self.tap(CHAT_BOX_X, CHAT_BOX_Y)
-        time.sleep(1.0) # Chờ bàn phím ảo ổn định
+        self.send_text(cmd_text.lstrip("/"))
+        time.sleep(1.0)
         
-        # Nhập văn bản (Loại bỏ dấu / ở đầu nếu có vì trick trên đã điền sẵn dấu /)
-        cmd_to_send = cmd_text.lstrip("/")
-        self.send_text(cmd_to_send)
-        time.sleep(1.0) # Chờ chữ hiển thị đủ trước khi Enter
-        
-        print(" -> Nhấn Enter để gửi...")
         self.send_key(KEY_ENTER)
-        print(" -> [Đang chờ 2s] Đợi server xử lý lệnh...")
-        time.sleep(2.0) # Đợi lệnh thực thi xong
+        self.send_key(KEY_ENTER)
+        self.send_key(KEY_ENTER)
+        time.sleep(2.0)
 
-# ==========================================
-# 4. KỊCH BẢN KIỂM TRA (TEST WORKFLOW)
-# ==========================================
 def test_hard_keys():
-    print("\n==========================================")
-    print(f"[*] BẠN CÓ {START_DELAY} GIÂY ĐỂ CHUYỂN SANG MINECRAFT")
-    print("==========================================")
-    
+    print(f"[*] START IN {START_DELAY}S")
     for i in range(START_DELAY, 0, -1):
-        print(f"Bắt đầu sau {i}s...")
+        print(f"{i}s...")
         time.sleep(1)
 
-    print("\n[*] HẾT THỜI GIAN CHỜ. BẮT ĐẦU THAO TÁC!")
-
-    # Khởi tạo giả lập phím/chuột qua Root
     ctrl = InputController(use_su=True) 
     
-    print("\n[BƯỚC 0]: MỞ RƯƠNG")
-    ctrl.tap(CHEST_BLOCK_X, CHEST_BLOCK_Y) # Chạm vào rương trước mặt
-    print(" -> [Đang chờ 2s] Đợi rương mở...")
-    time.sleep(2.0) # Đợi rương mở hẳn
+    print("\n[STEP 0]: OPEN CHEST")
+    ctrl.tap(CHEST_BLOCK_X, CHEST_BLOCK_Y)
+    time.sleep(2.0)
     
-    print("\n[BƯỚC 1]: LẤY ĐỒ TỪ RƯƠNG")
+    print("\n[STEP 1]: TAKE ITEM")
     ctrl.double_click(CHEST_SLOT_1_X, CHEST_SLOT_1_Y)
     
-    print("\n[BƯỚC 2]: ĐÓNG RƯƠNG")
+    print("\n[STEP 2]: CLOSE CHEST")
     ctrl.send_key(KEY_ESCAPE)
-    print(" -> [Đang chờ 3s] Đợi UI rương đóng hẳn và clear animation...")
-    time.sleep(3.0) # THỜI GIAN CHỜ QUAN TRỌNG NHẤT: Đảm bảo rương đã biến mất
+    time.sleep(3.0)
     
-    print("\n[BƯỚC 3]: ĐĂNG BÁN")
+    print("\n[STEP 3]: SELL")
     ctrl.send_command(f"ah sell {SELL_PRICE}") 
     
-    print("\n[BƯỚC 4]: RỬA TIỀN (CHUYỂN VỀ ACC CHÍNH)")
+    print("\n[STEP 4]: PAY")
     ctrl.send_command(f"pay {MAIN_ACCOUNT} {PAY_AMOUNT}")
     
-    print("\n[HOÀN TẤT TEST VẬT LÝ]")
+    print("\n[DONE]")
 
 if __name__ == "__main__":
-    # Chạy thử luồng phím vật lý
     test_hard_keys()
