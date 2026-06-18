@@ -11,11 +11,13 @@ CHEST_BLOCK_Y = 250
 CHEST_SLOT_1_X = 580
 CHEST_SLOT_1_Y = 100
 
-KEY_INVENTORY = "69"
 KEY_ESCAPE = "4"
 KEY_CHAT = "76"
 KEY_ENTER = "66"
-KEY_SHIFT = "59"
+
+# ⚠️ YOU NEED TO UPDATE THESE with your actual send button coordinates!
+SEND_BTN_X = 900
+SEND_BTN_Y = 500
 
 class InputController:
     def __init__(self, use_su=True):
@@ -30,8 +32,8 @@ class InputController:
 
     def tap(self, x, y):
         print(f" -> Tap: ({x}, {y})")
-        self.run_cmd(f"input swipe {x} {y} {x} {y} 50")
-        time.sleep(0.3)
+        self.run_cmd(f"input swipe {x} {y} {x} {y} 100")  # longer press
+        time.sleep(0.5)
 
     def double_click(self, x, y):
         print(f" -> Double Click: ({x}, {y})")
@@ -47,29 +49,34 @@ class InputController:
 
     def send_command(self, cmd_text):
         print(f"[CMD] Sending: /{cmd_text}")
-        
+
         # Step 1: Open chat
         self.run_cmd(f"input keyevent {KEY_CHAT}")
-        time.sleep(1.5)  # Wait for chat to open
-        
+        time.sleep(1.5)
+
         # Step 2: Type slash
         self.run_cmd("input text /")
         time.sleep(0.5)
-        
-        # Step 3: Type command word by word (avoids issues with spaces)
+
+        # Step 3: Type command word by word
         parts = cmd_text.lstrip("/").split(" ")
         for i, part in enumerate(parts):
             self.run_cmd(f"input text '{part}'")
             time.sleep(0.4)
             if i < len(parts) - 1:
-                # Type space between words
-                self.run_cmd("input keyevent 62")
+                self.run_cmd("input keyevent 62")  # space
                 time.sleep(0.3)
-        
-        time.sleep(0.5)
-        
-        # Step 4: Press ENTER to send
+
+        time.sleep(0.8)
+
+        # Step 4: Try ENTER first
+        print(" -> Trying ENTER key...")
         self.run_cmd(f"input keyevent {KEY_ENTER}")
+        time.sleep(1.0)
+
+        # Step 5: If that fails, tap send button
+        print(" -> Tapping send button as backup...")
+        self.tap(SEND_BTN_X, SEND_BTN_Y)
         time.sleep(2.0)
 
 def main():
