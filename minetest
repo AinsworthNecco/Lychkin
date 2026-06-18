@@ -45,7 +45,9 @@ class InputController:
         print(f"[*] Khởi tạo Controller. Prefix: {' '.join(self.cmd_prefix)}")
 
     def run_cmd(self, command):
-        subprocess.call(self.cmd_prefix + command.split(" "))
+        # Sửa lỗi Unknown ID: Cần gom toàn bộ lệnh vào 1 chuỗi string thay vì list rời rạc
+        cmd_list = self.cmd_prefix + [command]
+        subprocess.call(cmd_list)
 
     def tap(self, x, y):
         print(f" -> Tap chạm vào ({x}, {y})")
@@ -67,7 +69,7 @@ class InputController:
     def shift_click(self, x, y):
         print(f" -> Shift + Click vào ({x}, {y})")
         # Giữ Shift -> Tap -> Thả Shift
-        subprocess.call(self.cmd_prefix + [f"input keyevent --longpress {KEY_SHIFT} &"])
+        self.run_cmd(f"input keyevent --longpress {KEY_SHIFT} &")
         time.sleep(0.1)
         self.run_cmd(f"input tap {x} {y}")
         self.run_cmd(f"input keyevent {KEY_SHIFT}") # Reset key
@@ -85,6 +87,13 @@ class InputController:
 # 4. KỊCH BẢN KIỂM TRA (TEST WORKFLOW)
 # ==========================================
 def test_hard_keys():
+    print("\n==========================================")
+    print("[*] BẠN CÓ 5 GIÂY ĐỂ CHUYỂN SANG MINECRAFT")
+    print("==========================================")
+    for i in range(5, 0, -1):
+        print(f"Bắt đầu sau {i}s...")
+        time.sleep(1)
+
     # Vì bạn đang chạy trên Termux, tôi đã chuyển use_su=True để dùng quyền Root
     ctrl = InputController(use_su=True) 
     
