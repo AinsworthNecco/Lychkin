@@ -29,7 +29,7 @@ class InputController:
         else:
             os.system(f"adb shell {command}")
 
-    def tap(self, x, y, duration=150):  # Default longer duration
+    def tap(self, x, y, duration=150):
         print(f" -> Tap: ({x}, {y}) for {duration}ms")
         self.run_cmd(f"input swipe {x} {y} {x} {y} {duration}")
         time.sleep(0.5)
@@ -68,10 +68,15 @@ class InputController:
 
         time.sleep(0.8)
 
-        # Step 4: Tap send button with LONG press (300ms)
-        print(" -> Tapping send button (long)...")
+        # Step 4: First tap to focus the send button
+        print(" -> Tap 1: Focus send button...")
         self.tap(SEND_BTN_X, SEND_BTN_Y, duration=300)
-        time.sleep(1.5)
+        time.sleep(0.8)
+
+        # Step 5: Second tap to actually send
+        print(" -> Tap 2: Send!")
+        self.tap(SEND_BTN_X, SEND_BTN_Y, duration=300)
+        time.sleep(2.0)
 
 def main():
     print(f"[*] START IN {START_DELAY}S")
