@@ -8,7 +8,7 @@ import sys
 MAIN_ACCOUNT = "xxstylexx21"     # Tên nick nhận tiền
 PAY_AMOUNT = "50k"               # Số tiền rửa
 SELL_PRICE = "50k"               # Giá bán
-START_DELAY = 10                 # Thời gian đếm ngược trước khi chạy (giây)
+START_DELAY = 5                 # Thời gian đếm ngược trước khi chạy (giây)
 
 # Tọa độ thao tác (Dùng Pointer Location trong Developer Options để lấy tọa độ)
 CHEST_SLOT_1_X = 580             # Tọa độ X của ô đầu tiên trong rương
