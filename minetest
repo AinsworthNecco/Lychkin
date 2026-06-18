@@ -17,8 +17,12 @@ CHEST_SLOT_1_X = 580             # Tọa độ X của ô đầu tiên trong rư
 CHEST_SLOT_1_Y = 100             # Tọa độ Y của ô đầu tiên trong rương
 
 # Tọa độ thanh nhập liệu CHAT (Để ép game focus vào thanh gõ chữ)
-CHAT_BOX_X = 300                 # Nằm ở nửa dưới bên trái màn hình
-CHAT_BOX_Y = 900                 # Hãy dùng Pointer Location lấy lại tọa độ Y này cho chuẩn với MuMu
+CHAT_BOX_X = 500                 # Nằm ở nửa dưới bên trái màn hình
+CHAT_BOX_Y = 500                 # Hãy dùng Pointer Location lấy lại tọa độ Y này cho chuẩn với MuMu
+
+# TỌA ĐỘ NÚT MỞ CHAT (Ở giữa cạnh trên màn hình)
+CHAT_BUTTON_X = 960              # Tọa độ X nút mở Chat (Giữa màn hình ngang)
+CHAT_BUTTON_Y = 80               # Tọa độ Y nút mở Chat (Sát cạnh trên)
 
 # Mã phím cứng (Keycodes) cho Minecraft Bedrock
 KEY_INVENTORY = "69"             # Phím 'E' (Hoặc thay bằng 111 - ESC)
@@ -86,7 +90,8 @@ class InputController:
 
     def send_command(self, cmd_text):
         """Tổ hợp chuẩn để gõ lệnh vào khung chat"""
-        self.send_key(KEY_CHAT)
+        print(" -> Mở khung chat bằng cách chạm vào nút Chat ở cạnh trên...")
+        self.tap(CHAT_BUTTON_X, CHAT_BUTTON_Y)
         print(" -> [Đang chờ 3s] Đợi UI chat mở hoàn toàn...")
         time.sleep(3.0) # TĂNG THỜI GIAN CHỜ LÊN 3 GIÂY
         
@@ -133,10 +138,10 @@ def test_hard_keys():
     time.sleep(3.0) # THỜI GIAN CHỜ QUAN TRỌNG NHẤT: Đảm bảo rương đã biến mất
     
     print("\n[BƯỚC 3]: ĐĂNG BÁN")
-    ctrl.send_command(f"ah sell {SELL_PRICE}")
+    ctrl.send_command(f"/ah sell {SELL_PRICE}") # Thêm dấu / vì chạm nút chat không tự có
     
     print("\n[BƯỚC 4]: RỬA TIỀN (CHUYỂN VỀ ACC CHÍNH)")
-    ctrl.send_command(f"pay {MAIN_ACCOUNT} {PAY_AMOUNT}")
+    ctrl.send_command(f"/pay {MAIN_ACCOUNT} {PAY_AMOUNT}") # Thêm dấu /
     
     print("\n[HOÀN TẤT TEST VẬT LÝ]")
 
