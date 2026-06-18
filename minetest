@@ -8,11 +8,13 @@ import sys
 MAIN_ACCOUNT = "xxstylexx21"     # Tên nick nhận tiền
 PAY_AMOUNT = "50k"               # Số tiền rửa
 SELL_PRICE = "50k"               # Giá bán
-START_DELAY = 5                 # Thời gian đếm ngược trước khi chạy (giây)
+START_DELAY = 5                  # Thời gian đếm ngược trước khi chạy (giây)
 
 # Tọa độ thao tác (Dùng Pointer Location trong Developer Options để lấy tọa độ)
-CHEST_SLOT_1_X = 580             # Tọa độ X của ô đầu tiên trong rương (Đã cập nhật)
-CHEST_SLOT_1_Y = 100             # Tọa độ Y của ô đầu tiên trong rương (Đã cập nhật)
+CHEST_BLOCK_X = 600              # Tọa độ X nhấn vào block rương trước mặt để mở rương
+CHEST_BLOCK_Y = 300              # Tọa độ Y nhấn vào block rương trước mặt để mở rương
+CHEST_SLOT_1_X = 580             # Tọa độ X của ô đầu tiên trong rương
+CHEST_SLOT_1_Y = 100             # Tọa độ Y của ô đầu tiên trong rương
 
 # Mã phím cứng (Keycodes) cho Minecraft Bedrock
 KEY_INVENTORY = "69"             # Phím 'E' (Hoặc thay bằng 111 - ESC)
@@ -104,6 +106,10 @@ def test_hard_keys():
 
     # Khởi tạo giả lập phím/chuột qua Root
     ctrl = InputController(use_su=True) 
+    
+    print("\n[BƯỚC 0]: MỞ RƯƠNG")
+    ctrl.tap(CHEST_BLOCK_X, CHEST_BLOCK_Y) # Chạm vào rương trước mặt
+    time.sleep(2.0) # Đợi 2 giây theo yêu cầu để rương mở hẳn
     
     print("\n[BƯỚC 1]: LẤY ĐỒ TỪ RƯƠNG")
     # Thay thế Shift+Click bằng Double Click theo góp ý để sửa lỗi không ăn chạm
