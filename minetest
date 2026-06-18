@@ -84,15 +84,31 @@ class InputController:
         time.sleep(0.5)
 
 # ==========================================
-# 4. KỊCH BẢN KIỂM TRA (TEST WORKFLOW)
+# 4. HÀM HIỂN THỊ THÔNG BÁO POPUP
+# ==========================================
+def show_toast(message):
+    try:
+        # Dùng termux-toast để hiển thị thông báo nổi trên màn hình Android
+        subprocess.call(["termux-toast", message])
+    except FileNotFoundError:
+        # Bỏ qua nếu máy chưa cài đặt termux-api
+        pass
+
+# ==========================================
+# 5. KỊCH BẢN KIỂM TRA (TEST WORKFLOW)
 # ==========================================
 def test_hard_keys():
     print("\n==========================================")
-    print("[*] BẠN CÓ 5 GIÂY ĐỂ CHUYỂN SANG MINECRAFT")
+    print("[*] BẠN CÓ 10 GIÂY ĐỂ CHUYỂN SANG MINECRAFT")
     print("==========================================")
-    for i in range(5, 0, -1):
+    
+    show_toast("Auto-Seller: Chuyển sang Minecraft ngay! Bắt đầu sau 10s.")
+    
+    for i in range(10, 0, -1):
         print(f"Bắt đầu sau {i}s...")
         time.sleep(1)
+
+    show_toast("Auto-Seller: Bắt đầu thao tác!")
 
     # Vì bạn đang chạy trên Termux, tôi đã chuyển use_su=True để dùng quyền Root
     ctrl = InputController(use_su=True) 
@@ -112,6 +128,7 @@ def test_hard_keys():
     print("\n[BƯỚC 4]: RỬA TIỀN (CHUYỂN VỀ ACC CHÍNH)")
     ctrl.send_command(f"pay {MAIN_ACCOUNT} {PAY_AMOUNT}")
     
+    show_toast("Auto-Seller: Hoàn tất quá trình test!")
     print("\n[HOÀN TẤT TEST VẬT LÝ]")
 
 if __name__ == "__main__":
