@@ -9,16 +9,16 @@ START_DELAY = 5
 LOOP_DELAY = 20  # Wait 20 seconds before repeating
 
 CHEST_BLOCK_X = 500
-CHEST_BLOCK_Y = 250
-CHEST_SLOT_1_X = 580
-CHEST_SLOT_1_Y = 100
+CHEST_BLOCK_Y = 500
+CHEST_SLOT_1_X = 630
+CHEST_SLOT_1_Y = 150
 
 KEY_ESCAPE = "4"
 KEY_CHAT = "76"
 KEY_ENTER = "66"
 
-SEND_BTN_X = 900
-SEND_BTN_Y = 500
+SEND_BTN_X = 950
+SEND_BTN_Y = 950
 
 class InputController:
     def __init__(self, use_su=True):
