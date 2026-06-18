@@ -15,20 +15,16 @@ CHEST_SLOT_1_Y = 100
 SEND_BTN_X = 900
 SEND_BTN_Y = 500
 
-KEY_INVENTORY = "69"
-KEY_ESCAPE = "4"
-KEY_CHAT = "76"
-KEY_ENTER = "66"
-KEY_SHIFT = "59"
+# Android key codes
+KEY_INVENTORY = 69
+KEY_ESCAPE = 4
+KEY_CHAT = 76
+KEY_ENTER = 66
+KEY_SHIFT = 59
 
 TEMPLATE_DIR = "/sdcard/Download/"
 IMG_SOLD = os.path.join(TEMPLATE_DIR, "template_sold.png")
 IMG_MAX_SLOT = os.path.join(TEMPLATE_DIR, "template_max.png")
-
-ROI_CHAT_X = 0
-ROI_CHAT_Y = 0
-ROI_CHAT_W = 600
-ROI_CHAT_H = 400
 
 class InputController:
     def __init__(self, use_su=True):
@@ -41,41 +37,46 @@ class InputController:
         else:
             os.system(f"adb shell {command}")
 
-    def tap(self, x, y):
+    def tap(self, x, y, duration=50):
         print(f" -> Tap: ({x}, {y})")
-        self.run_cmd(f"input swipe {x} {y} {x} {y} 50")
-        time.sleep(0.3)
+        self.run_cmd(f"input swipe {x} {y} {x} {y} {duration}")
+        time.sleep(0.5)  # Increased delay
 
     def double_click(self, x, y):
         print(f" -> Double Click: ({x}, {y})")
-        self.run_cmd(f"input swipe {x} {y} {x} {y} 50")
-        time.sleep(0.1)
-        self.run_cmd(f"input swipe {x} {y} {x} {y} 50")
+        self.tap(x, y, 50)
+        time.sleep(0.2)
+        self.tap(x, y, 50)
         time.sleep(0.5)
 
     def send_key(self, keycode):
         print(f" -> Key: {keycode}")
         self.run_cmd(f"input keyevent {keycode}")
-        time.sleep(0.5)
+        time.sleep(0.8)
 
     def send_text(self, text):
-        escaped_text = text.replace(" ", "%s")
+        # Use proper escaping for special characters
+        escaped_text = text.replace("'", "\\'")
         print(f" -> Text: {text}")
-        self.run_cmd(f"input text {escaped_text}")
-        time.sleep(1.0)
+        self.run_cmd(f"input text '{escaped_text}'")
+        time.sleep(1.2)
 
     def send_command(self, cmd_text):
-        self.run_cmd("input text /")
-        time.sleep(3.0)
+        print(f"[CMD] Sending: {cmd_text}")
         
+        # Open chat with /
+        self.send_key(KEY_CHAT)  # Open chat
+        time.sleep(1.0)
+        
+        self.run_cmd("input text '/'")
+        time.sleep(0.5)
+        
+        # Send command text
         self.send_text(cmd_text.lstrip("/"))
         time.sleep(1.0)
         
-        # Spam nhấn nút gửi 3 lần cách nhau 1s
-        for _ in range(3):
-            self.tap(SEND_BTN_X, SEND_BTN_Y)
-            time.sleep(1.0)
-        
+        # Send with ENTER key (more reliable than button tap)
+        self.send_key(KEY_ENTER)
         time.sleep(2.0)
 
 def test_hard_keys():
@@ -88,10 +89,11 @@ def test_hard_keys():
     
     print("\n[STEP 0]: OPEN CHEST")
     ctrl.tap(CHEST_BLOCK_X, CHEST_BLOCK_Y)
-    time.sleep(2.0)
+    time.sleep(2.5)
     
     print("\n[STEP 1]: TAKE ITEM")
     ctrl.double_click(CHEST_SLOT_1_X, CHEST_SLOT_1_Y)
+    time.sleep(1.5)
     
     print("\n[STEP 2]: CLOSE CHEST")
     ctrl.send_key(KEY_ESCAPE)
@@ -99,9 +101,11 @@ def test_hard_keys():
     
     print("\n[STEP 3]: SELL")
     ctrl.send_command(f"ah sell {SELL_PRICE}") 
+    time.sleep(2.0)
     
     print("\n[STEP 4]: PAY")
     ctrl.send_command(f"pay {MAIN_ACCOUNT} {PAY_AMOUNT}")
+    time.sleep(2.0)
     
     print("\n[DONE]")
 
