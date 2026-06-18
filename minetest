@@ -1,6 +1,7 @@
 import subprocess
 import time
 import os
+import sys
 
 # ==========================================
 # 1. CẤU HÌNH TỌA ĐỘ VÀ PHÍM CỨNG (SỬA Ở ĐÂY)
@@ -38,7 +39,7 @@ ROI_CHAT_H = 400
 # 3. LÕI ĐIỀU KHIỂN VẬT LÝ (HARD BUTTONS)
 # ==========================================
 class InputController:
-    def __init__(self, use_su=False):
+    def __init__(self, use_su=True):
         # Đổi thành True nếu chạy trực tiếp trên Termux Android. False nếu chạy ADB từ PC.
         self.cmd_prefix = ["su", "-c"] if use_su else ["adb", "shell"]
         print(f"[*] Khởi tạo Controller. Prefix: {' '.join(self.cmd_prefix)}")
@@ -84,7 +85,8 @@ class InputController:
 # 4. KỊCH BẢN KIỂM TRA (TEST WORKFLOW)
 # ==========================================
 def test_hard_keys():
-    ctrl = InputController(use_su=False) # Đang chạy PC -> MuMu
+    # Vì bạn đang chạy trên Termux, tôi đã chuyển use_su=True để dùng quyền Root
+    ctrl = InputController(use_su=True) 
     
     print("\n[BƯỚC 1]: LẤY ĐỒ TỪ RƯƠNG")
     # Giả sử rương đã mở sẵn, tiến hành Shift+Click lấy đồ
