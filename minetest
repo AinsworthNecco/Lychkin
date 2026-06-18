@@ -1,0 +1,109 @@
+import subprocess
+import time
+import os
+
+# ==========================================
+# 1. CẤU HÌNH TỌA ĐỘ VÀ PHÍM CỨNG (SỬA Ở ĐÂY)
+# ==========================================
+MAIN_ACCOUNT = "xxstylexx21"       # Tên nick nhận tiền
+PAY_AMOUNT = "50k"             # Số tiền rửa
+SELL_PRICE = "50k"               # Giá bán
+
+# Tọa độ thao tác (Dùng Pointer Location trong Developer Options để lấy tọa độ)
+CHEST_SLOT_1_X = 500             # Tọa độ X của ô đầu tiên trong rương
+CHEST_SLOT_1_Y = 300             # Tọa độ Y của ô đầu tiên trong rương
+
+# Mã phím cứng (Keycodes) cho Minecraft Bedrock
+KEY_INVENTORY = "69"             # Phím 'E' (Hoặc thay bằng 111 - ESC)
+KEY_ESCAPE = "111"               # Phím ESC để đóng UI
+KEY_CHAT = "76"                  # Phím '/' (Mã 76) để mở chat
+KEY_ENTER = "66"                 # Phím Enter
+KEY_SHIFT = "59"                 # Phím Shift trái
+
+# ==========================================
+# 2. CẤU HÌNH OPENCV (DÀNH CHO GIAI ĐOẠN SAU)
+# ==========================================
+# Thư mục Download trên Android để chứa ảnh mẫu OpenCV
+TEMPLATE_DIR = "/sdcard/Download/"
+IMG_SOLD = os.path.join(TEMPLATE_DIR, "template_sold.png")
+IMG_MAX_SLOT = os.path.join(TEMPLATE_DIR, "template_max.png")
+
+# Tọa độ vùng quét (ROI - Region of Interest) để OpenCV chạy nhẹ nhất có thể
+ROI_CHAT_X = 0
+ROI_CHAT_Y = 0
+ROI_CHAT_W = 600
+ROI_CHAT_H = 400
+
+# ==========================================
+# 3. LÕI ĐIỀU KHIỂN VẬT LÝ (HARD BUTTONS)
+# ==========================================
+class InputController:
+    def __init__(self, use_su=False):
+        # Đổi thành True nếu chạy trực tiếp trên Termux Android. False nếu chạy ADB từ PC.
+        self.cmd_prefix = ["su", "-c"] if use_su else ["adb", "shell"]
+        print(f"[*] Khởi tạo Controller. Prefix: {' '.join(self.cmd_prefix)}")
+
+    def run_cmd(self, command):
+        subprocess.call(self.cmd_prefix + command.split(" "))
+
+    def tap(self, x, y):
+        print(f" -> Tap chạm vào ({x}, {y})")
+        self.run_cmd(f"input tap {x} {y}")
+        time.sleep(0.2)
+
+    def send_key(self, keycode):
+        print(f" -> Nhấn phím cứng: {keycode}")
+        self.run_cmd(f"input keyevent {keycode}")
+        time.sleep(0.3)
+
+    def send_text(self, text):
+        # Tránh lỗi khoảng trắng khi gửi qua input
+        formatted = text.replace(" ", "%s")
+        print(f" -> Nhập text: {text}")
+        self.run_cmd(f"input text {formatted}")
+        time.sleep(0.2)
+
+    def shift_click(self, x, y):
+        print(f" -> Shift + Click vào ({x}, {y})")
+        # Giữ Shift -> Tap -> Thả Shift
+        subprocess.call(self.cmd_prefix + [f"input keyevent --longpress {KEY_SHIFT} &"])
+        time.sleep(0.1)
+        self.run_cmd(f"input tap {x} {y}")
+        self.run_cmd(f"input keyevent {KEY_SHIFT}") # Reset key
+        time.sleep(0.2)
+
+    def send_command(self, cmd_text):
+        """Tổ hợp chuẩn để gõ lệnh vào khung chat"""
+        self.send_key(KEY_CHAT)
+        time.sleep(0.5) # Chờ UI chat mở
+        self.send_text(cmd_text)
+        self.send_key(KEY_ENTER)
+        time.sleep(0.5)
+
+# ==========================================
+# 4. KỊCH BẢN KIỂM TRA (TEST WORKFLOW)
+# ==========================================
+def test_hard_keys():
+    ctrl = InputController(use_su=False) # Đang chạy PC -> MuMu
+    
+    print("\n[BƯỚC 1]: LẤY ĐỒ TỪ RƯƠNG")
+    # Giả sử rương đã mở sẵn, tiến hành Shift+Click lấy đồ
+    ctrl.shift_click(CHEST_SLOT_1_X, CHEST_SLOT_1_Y)
+    
+    print("\n[BƯỚC 2]: ĐÓNG RƯƠNG")
+    ctrl.send_key(KEY_ESCAPE)
+    time.sleep(1)
+    
+    print("\n[BƯỚC 3]: ĐĂNG BÁN")
+    ctrl.send_command(f"ah sell {SELL_PRICE}")
+    time.sleep(1)
+    
+    print("\n[BƯỚC 4]: RỬA TIỀN (CHUYỂN VỀ ACC CHÍNH)")
+    ctrl.send_command(f"pay {MAIN_ACCOUNT} {PAY_AMOUNT}")
+    
+    print("\n[HOÀN TẤT TEST VẬT LÝ]")
+
+if __name__ == "__main__":
+    # Hiện tại gọi thẳng hàm test để bạn canh chỉnh tọa độ và phím trước.
+    # Khi nào phím cứng chạy mượt 100%, chúng ta sẽ ráp OpenCV vào.
+    test_hard_keys()
