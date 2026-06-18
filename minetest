@@ -12,6 +12,9 @@ CHEST_BLOCK_Y = 250
 CHEST_SLOT_1_X = 580
 CHEST_SLOT_1_Y = 100
 
+SEND_BTN_X = 900
+SEND_BTN_Y = 500
+
 KEY_INVENTORY = "69"
 KEY_ESCAPE = "4"
 KEY_CHAT = "76"
@@ -68,9 +71,11 @@ class InputController:
         self.send_text(cmd_text.lstrip("/"))
         time.sleep(1.0)
         
-        self.send_key(KEY_ENTER)
-        self.send_key(KEY_ENTER)
-        self.send_key(KEY_ENTER)
+        # Spam nhấn nút gửi 3 lần cách nhau 1s
+        for _ in range(3):
+            self.tap(SEND_BTN_X, SEND_BTN_Y)
+            time.sleep(1.0)
+        
         time.sleep(2.0)
 
 def test_hard_keys():
