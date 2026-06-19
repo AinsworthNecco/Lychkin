@@ -147,42 +147,49 @@ def launch_minecraft(ctrl):
     print("[*] LAUNCHING MINECRAFT...")
     print("="*40)
 
-    # Đánh thức màn hình trước
+    # Tắt hẳn Minecraft trước để tránh lưu giao diện cũ
+    print("\n[LAUNCH 0]: Tắt Minecraft cũ nếu đang chạy...")
+    ctrl.run_cmd(f"am force-stop {MC_PACKAGE}")
+    time.sleep(3)
+
+    # Đánh thức màn hình
     ctrl.run_cmd("input keyevent 224")
     time.sleep(1)
 
     # Mở Minecraft
-    print("\n[LAUNCH 0]: Mở Minecraft...")
+    print("\n[LAUNCH 1]: Mở Minecraft...")
     ctrl.run_cmd(f"monkey -p {MC_PACKAGE} -c android.intent.category.LAUNCHER 1")
     print("[*] Chờ 10s cho game load...")
     time.sleep(10)
 
     # Nhấn nút Start
-    print("\n[LAUNCH 1]: Nhấn nút Start...")
+    print("\n[LAUNCH 2]: Nhấn nút Start...")
     ctrl.tap(500, 450, duration=300)
     print("[*] Chờ 10s cho game đồng bộ...")
     time.sleep(10)
 
     # Chọn tab Server
-    print("\n[LAUNCH 2]: Chọn tab Server...")
+    print("\n[LAUNCH 3]: Chọn tab Server...")
     ctrl.tap(820, 120, duration=150)
     time.sleep(2.0)
 
-    # Kéo xuống đáy danh sách server
-    print("\n[LAUNCH 3]: Kéo xuống tìm DonutSMP...")
+    # Kéo xuống đáy 2 lần
+    print("\n[LAUNCH 4]: Kéo xuống tìm DonutSMP...")
     ctrl.swipe(170, 830, 170, 200, duration=3000)
     time.sleep(1.0)
     ctrl.swipe(170, 830, 170, 200, duration=3000)
     time.sleep(1.5)
 
     # Chọn server DonutSMP
-    print("\n[LAUNCH 4]: Chọn server DonutSMP...")
+    print("\n[LAUNCH 5]: Chọn server DonutSMP...")
     ctrl.tap(200, 750, duration=150)
-    time.sleep(1.0)
+    time.sleep(10)  # Chờ 10 giây sau khi chọn server
 
-    # Nhấn nút Play
-    print("\n[LAUNCH 5]: Nhấn nút Play...")
-    ctrl.tap(750, 210, duration=300)
+    # Nhấn nút Play 2 lần cách nhau 0.5s
+    print("\n[LAUNCH 6]: Nhấn nút Play...")
+    ctrl.tap(750, 210, duration=random.randint(300, 400))
+    time.sleep(0.5)
+    ctrl.tap(750, 210, duration=random.randint(300, 400))
     print("[*] Chờ 30s cho server load...")
     time.sleep(30)
 
