@@ -187,9 +187,9 @@ def launch_minecraft(ctrl):
 
     # Nhấn nút Play 2 lần cách nhau 0.5s
     print("\n[LAUNCH 6]: Nhấn nút Play...")
-    ctrl.tap(750, 210, duration=random.randint(300, 400))
-    time.sleep(0.5)
-    ctrl.tap(750, 210, duration=random.randint(300, 400))
+    ctrl.tap(750, 210, duration=random.randint(500, 600))
+    time.sleep(0.2)
+    ctrl.tap(750, 210, duration=random.randint(500, 600))
     print("[*] Chờ 30s cho server load...")
     time.sleep(30)
 
