@@ -170,7 +170,9 @@ def launch_minecraft(ctrl):
 
     # Kéo xuống đáy danh sách server
     print("\n[LAUNCH 3]: Kéo xuống tìm DonutSMP...")
-    ctrl.swipe(170, 830, 170, 200, duration=5000)
+    ctrl.swipe(170, 830, 170, 200, duration=3000)
+    time.sleep(1.0)
+    ctrl.swipe(170, 830, 170, 200, duration=3000)
     time.sleep(1.5)
 
     # Chọn server DonutSMP
