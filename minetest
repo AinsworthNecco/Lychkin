@@ -6,8 +6,8 @@ import requests
 MAIN_ACCOUNT = "xxstylexx21"
 SELL_PRICE = "50k"
 START_DELAY = 5
-MIN_LOOP_DELAY = 3
-MAX_LOOP_DELAY = 7
+MIN_LOOP_DELAY = 1
+MAX_LOOP_DELAY = 3
 
 MIN_PAY_THRESHOLD = 3_000_000
 RESTART_INTERVAL = 10 * 60  
@@ -24,6 +24,10 @@ CHEST_SLOT_1_Y = 150
 
 INVENTORY_SLOT_1_X = 125
 INVENTORY_SLOT_1_Y = 150
+
+# Ô đồ số 1 trên hotbar để cầm tay
+HOTBAR_SLOT_1_X = 230
+HOTBAR_SLOT_1_Y = 955
 
 KEY_ESCAPE = "4"
 KEY_CHAT = "76"
@@ -96,48 +100,48 @@ class InputController:
         time.sleep(0.3)
 
     def send_command(self, cmd_text):
+        """Gõ từng ký tự riêng lẻ để tránh lệch/thiếu chữ"""
         print(f"[CMD] Sending: /{cmd_text}")
 
+        # Mở chat
         self.run_cmd(f"input keyevent {KEY_CHAT}")
-        time.sleep(1.5)
+        time.sleep(2.0)  # Chờ chat mở hẳn
 
+        # Gõ slash
         self.run_cmd("input text /")
-        time.sleep(0.5)
-
-        parts = cmd_text.lstrip("/").split(" ")
-        for i, part in enumerate(parts):
-            self.run_cmd(f"input text '{part}'")
-            time.sleep(0.4)
-            if i < len(parts) - 1:
-                self.run_cmd("input keyevent 62")
-                time.sleep(0.3)
-
         time.sleep(0.8)
 
+        # Gõ từng ký tự một thay vì từng từ
+        full_cmd = cmd_text.lstrip("/")
+        for char in full_cmd:
+            if char == " ":
+                self.run_cmd("input keyevent 62")  # space
+            else:
+                # Escape ký tự đặc biệt
+                safe_char = char.replace("'", "\\'")
+                self.run_cmd(f"input text '{safe_char}'")
+            time.sleep(0.15)  # Delay giữa mỗi ký tự
+
+        time.sleep(1.0)
+
+        # Tap send
         print(f" -> Send tap...")
         self.tap_random(SEND_BTN_X, SEND_BTN_Y, duration=300)
         time.sleep(2.0)
 
 def enable_wake_lock(ctrl):
-    """Bật wake lock để màn hình không tắt"""
     print("\n[WAKE] 🔒 Bật wake lock...")
-    # Giữ màn hình luôn sáng
     ctrl.run_cmd("settings put system screen_off_timeout 2147483647")
-    # Bật wake lock qua dumpsys
     ctrl.run_cmd("dumpsys deviceidle disable")
-    # Tắt chế độ ngủ
     ctrl.run_cmd("svc power stayon true")
-    # Đánh thức màn hình nếu đang tắt
     ctrl.run_cmd("input keyevent 224")
     time.sleep(1)
     print("[WAKE] ✅ Wake lock đã bật!")
 
 def kill_minecraft(ctrl):
-    """Tắt hoàn toàn Minecraft"""
     print("\n[RESTART] 🔴 Đang tắt Minecraft...")
     ctrl.run_cmd(f"am force-stop {MC_PACKAGE}")
     time.sleep(3)
-    # Kill thêm lần nữa cho chắc
     ctrl.run_cmd(f"killall {MC_PACKAGE}")
     time.sleep(2)
     print("[RESTART] ✅ Minecraft đã tắt!")
@@ -147,63 +151,58 @@ def launch_minecraft(ctrl):
     print("[*] LAUNCHING MINECRAFT...")
     print("="*40)
 
-    # Tắt hẳn Minecraft trước để tránh lưu giao diện cũ
     print("\n[LAUNCH 0]: Tắt Minecraft cũ nếu đang chạy...")
     ctrl.run_cmd(f"am force-stop {MC_PACKAGE}")
     time.sleep(3)
 
-    # Đánh thức màn hình
     ctrl.run_cmd("input keyevent 224")
     time.sleep(1)
 
-    # Mở Minecraft
     print("\n[LAUNCH 1]: Mở Minecraft...")
     ctrl.run_cmd(f"monkey -p {MC_PACKAGE} -c android.intent.category.LAUNCHER 1")
     print("[*] Chờ 10s cho game load...")
     time.sleep(10)
 
-    # Nhấn nút Start
     print("\n[LAUNCH 2]: Nhấn nút Start...")
     ctrl.tap(500, 450, duration=300)
     print("[*] Chờ 10s cho game đồng bộ...")
     time.sleep(10)
 
-    # Chọn tab Server
     print("\n[LAUNCH 3]: Chọn tab Server...")
     ctrl.tap(820, 120, duration=150)
     time.sleep(2.0)
 
-    # Kéo xuống đáy 2 lần
     print("\n[LAUNCH 4]: Kéo xuống tìm DonutSMP...")
     ctrl.swipe(170, 830, 170, 200, duration=3000)
     time.sleep(1.0)
     ctrl.swipe(170, 830, 170, 200, duration=3000)
     time.sleep(1.5)
 
-    # Chọn server DonutSMP
     print("\n[LAUNCH 5]: Chọn server DonutSMP...")
     ctrl.tap(200, 750, duration=150)
-    time.sleep(10)  # Chờ 10 giây sau khi chọn server
+    time.sleep(10)
 
-    # Nhấn nút Play 2 lần cách nhau 0.5s
     print("\n[LAUNCH 6]: Nhấn nút Play...")
     ctrl.tap(750, 210, duration=random.randint(200, 250))
     print("[*] Chờ 20s cho server load...")
     time.sleep(20)
 
+    # Chỉ làm 1 lần sau khi vào server - cầm đồ slot 1
+    print("\n[LAUNCH 7]: Chọn ô đồ số 1 trên hotbar...")
+    ctrl.tap(HOTBAR_SLOT_1_X, HOTBAR_SLOT_1_Y, duration=150)
+    time.sleep(1.0)
+
     print("\n[✓] Đã vào game! Bắt đầu bot...")
 
 def restart_minecraft(ctrl):
-    """Tắt rồi bật lại Minecraft"""
     print("\n" + "="*40)
-    print("[RESTART] 🔄 AUTO RESTART MINECRAFT (20 phút)")
+    print("[RESTART] 🔄 AUTO RESTART MINECRAFT")
     print("="*40)
     kill_minecraft(ctrl)
     time.sleep(3)
     launch_minecraft(ctrl)
 
 def idle_wait(ctrl, seconds):
-    """Chờ với random jump để tránh AFK"""
     print(f"[*] Idle {seconds}s...")
     elapsed = 0
     while elapsed < seconds:
@@ -260,10 +259,7 @@ def main():
 
     ctrl = InputController(use_su=True)
 
-    # Bật wake lock ngay từ đầu
     enable_wake_lock(ctrl)
-
-    # Launch Minecraft lần đầu
     launch_minecraft(ctrl)
 
     cycle = 1
@@ -271,11 +267,10 @@ def main():
 
     while True:
         try:
-            # Kiểm tra 20 phút thì restart
             elapsed = time.time() - last_restart_time
             if elapsed >= RESTART_INTERVAL:
                 restart_minecraft(ctrl)
-                enable_wake_lock(ctrl)  # Bật lại wake lock sau restart
+                enable_wake_lock(ctrl)
                 last_restart_time = time.time()
 
             run_cycle(ctrl, cycle)
@@ -287,7 +282,6 @@ def main():
 
         except KeyboardInterrupt:
             print("\n[!] Stopped. Exiting...")
-            # Tắt wake lock khi dừng
             ctrl.run_cmd("settings put system screen_off_timeout 60000")
             ctrl.run_cmd("svc power stayon false")
             break
