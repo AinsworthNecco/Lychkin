@@ -187,9 +187,9 @@ def launch_minecraft(ctrl):
 
     # Nhấn nút Play 2 lần cách nhau 0.5s
     print("\n[LAUNCH 6]: Nhấn nút Play...")
-    ctrl.tap(750, 210, duration=random.randint(500, 600))
-    time.sleep(0.2)
-    ctrl.tap(750, 210, duration=random.randint(500, 600))
+    ctrl.tap(750, 210, duration=random.randint(200, 250))
+    time.sleep(0.1)
+    ctrl.tap(750, 210, duration=random.randint(200, 250))
     print("[*] Chờ 30s cho server load...")
     time.sleep(30)
 
@@ -247,7 +247,7 @@ def run_cycle(ctrl, cycle_num):
             print(f"\n[STEP 6]: ✅ Đủ tiền ({money:,}) -> PAY {MAIN_ACCOUNT}")
             ctrl.send_command(f"pay {MAIN_ACCOUNT} {money}")
         else:
-            print(f"\n[STEP 6]: ⏳ Chưa đủ 1M ({money:,}), bỏ qua pay")
+            print(f"\n[STEP 6]: ⏳ Chưa đủ ({money:,}), bỏ qua pay")
     else:
         print(f"\n[STEP 6]: ❌ API fail, skip pay")
 
