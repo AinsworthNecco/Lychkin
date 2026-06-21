@@ -2,6 +2,7 @@ import time
 import os
 import random
 import requests
+import threading
 
 MAIN_ACCOUNT = "xxstylexx21"
 START_DELAY = 5
@@ -13,9 +14,10 @@ MIN_PAY_THRESHOLD = 5_000_000
 RESTART_INTERVAL = 10 * 60
 RESTART_ENABLED = False
 
-# Click settings
-CLICK_DURATION_MS = 100    # Thời gian giữ mỗi click
-CLICK_DELAY_MS = 10       # Delay giữa các click
+CLICK_DURATION_MS = 100
+CLICK_DELAY_MS = 10
+
+CHECK_EVERY_N_CYCLES = 10  # Check tiền mỗi 10 lần sell
 
 API_KEY = "204d46ca97004d34bfb3f6efc274c2d6"
 BOT_USERNAME = ".FeudalLake7807"
@@ -74,6 +76,13 @@ def get_chest_slots():
 INVENTORY_SLOTS = get_inventory_slots()
 CHEST_SLOTS = get_chest_slots()
 
+# Shared state cho thread check tiền
+money_state = {
+    "value": None,
+    "enough": False,
+    "checking": False
+}
+
 def get_bot_money():
     try:
         headers = {
@@ -94,6 +103,18 @@ def get_bot_money():
     except Exception as e:
         print(f"[API] ❌ Lỗi: {e}")
         return None
+
+def check_money_async():
+    """Chạy trong thread riêng, check tiền song song"""
+    money_state["checking"] = True
+    money = get_bot_money()
+    money_state["value"] = money
+    if money is not None and money >= MIN_PAY_THRESHOLD:
+        money_state["enough"] = True
+        print(f"[CHECK] ✅ Đủ tiền {money:,}! Sẽ pay sau khi sell xong...")
+    else:
+        money_state["enough"] = False
+    money_state["checking"] = False
 
 class InputController:
     def __init__(self, use_su=True):
@@ -127,11 +148,6 @@ class InputController:
         print(f" -> Key: {keycode}")
         self.run_cmd(f"input keyevent {keycode}")
         time.sleep(0.5)
-
-    def jump(self):
-        print(f" -> 🐸 Jump!")
-        self.run_cmd(f"input keyevent {KEY_SPACE}")
-        time.sleep(0.3)
 
     def send_command(self, cmd_text):
         print(f"[CMD] Sending: /{cmd_text}")
@@ -238,28 +254,31 @@ def open_sell_menu(ctrl):
     ctrl.swipe(750, 700, 750, 200, duration=1000)
     time.sleep(1.0)
 
-def spam_sell_slots(ctrl):
-    print("[SELL] Click xen kẽ 36 cặp inv <-> chest...")
+def do_sell_cycle(ctrl):
+    """1 cycle = 36 cặp click + nhấn sell + xác nhận"""
     duration = CLICK_DURATION_MS
     delay = CLICK_DELAY_MS / 1000
 
+    # 36 cặp click xen kẽ
     for i in range(36):
         inv_x, inv_y = INVENTORY_SLOTS[i]
         chest_x, chest_y = CHEST_SLOTS[i]
-
         ctrl.run_cmd(f"input swipe {inv_x} {inv_y} {inv_x} {inv_y} {duration}")
         time.sleep(delay)
         ctrl.run_cmd(f"input swipe {chest_x} {chest_y} {chest_x} {chest_y} {duration}")
         time.sleep(delay)
 
-    print("[SELL] Nhấn nút Sell...")
-    ctrl.run_cmd(f"input swipe 700 950 700 950 {duration}")
+    # Nhấn nút Sell
+    print("[SELL] Nhấn Sell...")
+    ctrl.run_cmd(f"input swipe 705 940 705 940 {duration}")
     time.sleep(delay)
-    ctrl.run_cmd(f"input swipe 700 950 700 950 {duration}")
-    time.sleep(1.0)
 
-def idle_wait(ctrl, seconds):
-    # Bỏ jump, chỉ chờ thôi
+    # Nhấn xác nhận
+    print("[SELL] Xác nhận...")
+    ctrl.run_cmd(f"input swipe 620 940 620 940 {duration}")
+    time.sleep(0.5)
+
+def idle_wait(seconds):
     print(f"[*] Idle {seconds}s...")
     time.sleep(seconds)
 
@@ -267,32 +286,49 @@ def run_sell_loop(ctrl):
     print("\n[*] Bắt đầu sell loop...")
     open_sell_menu(ctrl)
 
+    cycle_count = 0
+    money_state["enough"] = False
+    money_state["value"] = None
+
     while True:
-        spam_sell_slots(ctrl)
-        time.sleep(1.0)
+        # Chạy 1 cycle sell
+        do_sell_cycle(ctrl)
+        cycle_count += 1
+        print(f"[SELL] Cycle #{cycle_count} xong")
 
-        print("\n[CHECK] Kiểm tra tiền...")
-        money = get_bot_money()
+        # Mỗi 10 cycle thì check tiền song song
+        if cycle_count % CHECK_EVERY_N_CYCLES == 0:
+            print(f"[CHECK] Trigger check tiền (cycle {cycle_count})...")
+            t = threading.Thread(target=check_money_async, daemon=True)
+            t.start()
 
-        if money is not None and money >= MIN_PAY_THRESHOLD:
-            print(f"[CHECK] ✅ Đủ {money:,}! Thoát sell...")
+        # Nếu đã check xong và đủ tiền thì dừng sau cycle hiện tại
+        if money_state["enough"]:
+            print(f"[CHECK] ✅ Đủ tiền! Kết thúc vòng lặp sell...")
+            break
 
-            ctrl.send_key(KEY_ESCAPE)
-            time.sleep(1.5)
+    # Thoát sell menu
+    ctrl.send_key(KEY_ESCAPE)
+    time.sleep(1.5)
 
-            print(f"[PAY] 💸 Pay {money:,} -> {MAIN_ACCOUNT}")
-            ctrl.send_command(f"pay {MAIN_ACCOUNT} {money}")
-            time.sleep(2.0)
+    # Pay
+    money = money_state["value"]
+    print(f"[PAY] 💸 Pay {money:,} -> {MAIN_ACCOUNT}")
+    ctrl.send_command(f"pay {MAIN_ACCOUNT} {money}")
+    time.sleep(2.0)
 
-            delay = random.randint(MIN_LOOP_DELAY, MAX_LOOP_DELAY)
-            print(f"[*] Nghỉ {delay}s trước khi sell tiếp...")
-            idle_wait(ctrl, delay)
+    # Reset state
+    money_state["enough"] = False
+    money_state["value"] = None
+    cycle_count = 0
 
-            open_sell_menu(ctrl)
+    # Nghỉ random
+    delay = random.randint(MIN_LOOP_DELAY, MAX_LOOP_DELAY)
+    print(f"[*] Nghỉ {delay}s trước khi sell tiếp...")
+    idle_wait(delay)
 
-        else:
-            money_str = f"{money:,}" if money else "N/A"
-            print(f"[CHECK] ⏳ Chưa đủ ({money_str}), tiếp tục sell...")
+    # Vào lại sell
+    open_sell_menu(ctrl)
 
 def main():
     print(f"[*] START IN {START_DELAY}S")
