@@ -14,9 +14,9 @@ MIN_PAY_THRESHOLD = 5_000_000
 RESTART_INTERVAL = 10 * 60
 RESTART_ENABLED = False  # 👈 Bật/tắt auto restart
 
-# Double click settings cho 36 ô inventory
-DOUBLE_CLICK_DELAY_MS = 5
-DOUBLE_CLICK_DURATION_MS = 10  # 👈 Giống nút sell
+# Double click settings
+DOUBLE_CLICK_DURATION_MS = 80   # 👈 Thời gian giữ mỗi click
+DOUBLE_CLICK_DELAY_MS = 20      # 👈 Delay giữa 2 lần click
 
 API_KEY = "204d46ca97004d34bfb3f6efc274c2d6"
 BOT_USERNAME = ".FeudalLake7807"
@@ -238,9 +238,9 @@ def spam_sell_slots(ctrl):
         time.sleep(delay)
 
     print("[SELL] Double click nút Sell...")
-    ctrl.run_cmd(f"input swipe 700 950 700 950 80")
-    time.sleep(0.05)
-    ctrl.run_cmd(f"input swipe 700 950 700 950 80")
+    ctrl.run_cmd(f"input swipe 700 950 700 950 {duration}")
+    time.sleep(delay)
+    ctrl.run_cmd(f"input swipe 700 950 700 950 {duration}")
     time.sleep(1.0)
 
 def idle_wait(ctrl, seconds):
