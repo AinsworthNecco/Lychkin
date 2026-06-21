@@ -6,17 +6,16 @@ import requests
 MAIN_ACCOUNT = "xxstylexx21"
 START_DELAY = 5
 
-# Loop delay giữa mỗi lần chạy sell_loop (sau khi pay xong)
 MIN_LOOP_DELAY = 3
 MAX_LOOP_DELAY = 7
 
 MIN_PAY_THRESHOLD = 5_000_000
 RESTART_INTERVAL = 10 * 60
-RESTART_ENABLED = False  # 👈 Bật/tắt auto restart
+RESTART_ENABLED = False
 
-# Double click settings
-DOUBLE_CLICK_DURATION_MS = 5   # 👈 Thời gian giữ mỗi click
-DOUBLE_CLICK_DELAY_MS = 5      # 👈 Delay giữa 2 lần click
+# Click settings
+CLICK_DURATION_MS = 80    # Thời gian giữ mỗi click
+CLICK_DELAY_MS = 50       # Delay giữa các click
 
 API_KEY = "204d46ca97004d34bfb3f6efc274c2d6"
 BOT_USERNAME = ".FeudalLake7807"
@@ -34,13 +33,21 @@ KEY_SPACE = "62"
 SEND_BTN_X = 930
 SEND_BTN_Y = 660
 
-# Tọa độ 36 ô inventory (4 cột x 9 hàng)
+# Inventory của bạn (trái)
 INV_LEFT = 85
 INV_TOP = 105
 INV_RIGHT = 415
-INV_BOTTOM = 855  # 👈 Đã sửa
+INV_BOTTOM = 855
 INV_COLS = 4
 INV_ROWS = 9
+
+# Inventory chest (phải)
+CHEST_INV_LEFT = 585
+CHEST_INV_TOP = 135
+CHEST_INV_RIGHT = 915
+CHEST_INV_BOTTOM = 885
+CHEST_INV_COLS = 4
+CHEST_INV_ROWS = 9
 
 def get_inventory_slots():
     slots = []
@@ -53,7 +60,19 @@ def get_inventory_slots():
             slots.append((x, y))
     return slots
 
+def get_chest_slots():
+    slots = []
+    cell_w = (CHEST_INV_RIGHT - CHEST_INV_LEFT) / CHEST_INV_COLS
+    cell_h = (CHEST_INV_BOTTOM - CHEST_INV_TOP) / CHEST_INV_ROWS
+    for row in range(CHEST_INV_ROWS):
+        for col in range(CHEST_INV_COLS):
+            x = int(CHEST_INV_LEFT + cell_w * col + cell_w / 2)
+            y = int(CHEST_INV_TOP + cell_h * row + cell_h / 2)
+            slots.append((x, y))
+    return slots
+
 INVENTORY_SLOTS = get_inventory_slots()
+CHEST_SLOTS = get_chest_slots()
 
 def get_bot_money():
     try:
@@ -98,13 +117,6 @@ class InputController:
         print(f" -> Tap (random): ({rx}, {ry}) for {duration}ms")
         self.run_cmd(f"input swipe {rx} {ry} {rx} {ry} {duration}")
         time.sleep(0.5)
-
-    def double_click(self, x, y):
-        delay = DOUBLE_CLICK_DELAY_MS / 1000
-        self.run_cmd(f"input swipe {x} {y} {x} {y} 80")
-        time.sleep(delay)
-        self.run_cmd(f"input swipe {x} {y} {x} {y} 80")
-        time.sleep(delay)
 
     def swipe(self, x1, y1, x2, y2, duration=1000):
         print(f" -> Swipe: ({x1},{y1}) -> ({x2},{y2}) for {duration}ms")
@@ -227,30 +239,29 @@ def open_sell_menu(ctrl):
     time.sleep(1.0)
 
 def spam_sell_slots(ctrl):
-    print("[SELL] Double click 36 ô inventory...")
-    duration = DOUBLE_CLICK_DURATION_MS
-    delay = DOUBLE_CLICK_DELAY_MS / 1000
+    print("[SELL] Click xen kẽ 36 cặp inv <-> chest...")
+    duration = CLICK_DURATION_MS
+    delay = CLICK_DELAY_MS / 1000
 
-    for i, (x, y) in enumerate(INVENTORY_SLOTS):
-        ctrl.run_cmd(f"input swipe {x} {y} {x} {y} {duration}")
+    for i in range(36):
+        inv_x, inv_y = INVENTORY_SLOTS[i]
+        chest_x, chest_y = CHEST_SLOTS[i]
+
+        ctrl.run_cmd(f"input swipe {inv_x} {inv_y} {inv_x} {inv_y} {duration}")
         time.sleep(delay)
-        ctrl.run_cmd(f"input swipe {x} {y} {x} {y} {duration}")
+        ctrl.run_cmd(f"input swipe {chest_x} {chest_y} {chest_x} {chest_y} {duration}")
         time.sleep(delay)
 
-    print("[SELL] Double click nút Sell...")
+    print("[SELL] Nhấn nút Sell...")
     ctrl.run_cmd(f"input swipe 700 950 700 950 {duration}")
     time.sleep(delay)
     ctrl.run_cmd(f"input swipe 700 950 700 950 {duration}")
     time.sleep(1.0)
 
 def idle_wait(ctrl, seconds):
+    # Bỏ jump, chỉ chờ thôi
     print(f"[*] Idle {seconds}s...")
-    elapsed = 0
-    while elapsed < seconds:
-        if random.random() < 0.2:
-            ctrl.jump()
-        time.sleep(1)
-        elapsed += 1
+    time.sleep(seconds)
 
 def run_sell_loop(ctrl):
     print("\n[*] Bắt đầu sell loop...")
@@ -273,12 +284,10 @@ def run_sell_loop(ctrl):
             ctrl.send_command(f"pay {MAIN_ACCOUNT} {money}")
             time.sleep(2.0)
 
-            # Nghỉ random trước khi vào sell lại
             delay = random.randint(MIN_LOOP_DELAY, MAX_LOOP_DELAY)
             print(f"[*] Nghỉ {delay}s trước khi sell tiếp...")
             idle_wait(ctrl, delay)
 
-            # Vào lại sell
             open_sell_menu(ctrl)
 
         else:
@@ -300,7 +309,6 @@ def main():
 
     while True:
         try:
-            # Check restart
             if RESTART_ENABLED:
                 elapsed = time.time() - last_restart_time
                 if elapsed >= RESTART_INTERVAL:
