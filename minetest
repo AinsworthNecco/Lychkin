@@ -5,11 +5,17 @@ import requests
 
 MAIN_ACCOUNT = "xxstylexx21"
 START_DELAY = 5
-MIN_LOOP_DELAY = 1
-MAX_LOOP_DELAY = 2
+
+# Loop delay giữa mỗi lần chạy sell_loop (sau khi pay xong)
+MIN_LOOP_DELAY = 3
+MAX_LOOP_DELAY = 7
 
 MIN_PAY_THRESHOLD = 5_000_000
-RESTART_INTERVAL = 100 * 60
+RESTART_INTERVAL = 10 * 60
+RESTART_ENABLED = True  # 👈 Bật/tắt auto restart
+
+# Double click delay giữa 2 lần click (ms)
+DOUBLE_CLICK_DELAY_MS = 50  # 👈 Chỉnh ở đây
 
 API_KEY = "204d46ca97004d34bfb3f6efc274c2d6"
 BOT_USERNAME = ".FeudalLake7807"
@@ -31,12 +37,11 @@ SEND_BTN_Y = 660
 INV_LEFT = 85
 INV_TOP = 105
 INV_RIGHT = 415
-INV_BOTTOM = 855
+INV_BOTTOM = 855  # 👈 Đã sửa
 INV_COLS = 4
 INV_ROWS = 9
 
 def get_inventory_slots():
-    """Tính tọa độ tất cả 36 ô inventory"""
     slots = []
     cell_w = (INV_RIGHT - INV_LEFT) / INV_COLS
     cell_h = (INV_BOTTOM - INV_TOP) / INV_ROWS
@@ -93,7 +98,8 @@ class InputController:
         self.run_cmd(f"input swipe {rx} {ry} {rx} {ry} {duration}")
         time.sleep(0.5)
 
-    def double_click(self, x, y, delay=0.1):
+    def double_click(self, x, y):
+        delay = DOUBLE_CLICK_DELAY_MS / 1000
         self.run_cmd(f"input swipe {x} {y} {x} {y} 80")
         time.sleep(delay)
         self.run_cmd(f"input swipe {x} {y} {x} {y} 80")
@@ -211,25 +217,21 @@ def restart_minecraft(ctrl):
     launch_minecraft(ctrl)
 
 def open_sell_menu(ctrl):
-    """Mở /sell menu và scroll xuống"""
     print("\n[SELL] Mở /sell menu...")
     ctrl.send_command("sell")
     time.sleep(2.0)
 
-    # Scroll bên phải từ y700 lên y200
     print("[SELL] Scroll danh sách sell...")
     ctrl.swipe(750, 700, 750, 200, duration=1000)
     time.sleep(1.0)
 
 def spam_sell_slots(ctrl):
-    """Double click tất cả 36 ô inventory rồi nhấn sell"""
     print("[SELL] Double click 36 ô inventory...")
     for i, (x, y) in enumerate(INVENTORY_SLOTS):
-        ctrl.double_click(x, y, delay=0.1)
-        # Không cần thêm sleep vì delay=0.1 đã đủ
+        ctrl.double_click(x, y)
 
     print("[SELL] Double click nút Sell...")
-    ctrl.double_click(700, 950, delay=0.1)
+    ctrl.double_click(700, 950)
     time.sleep(1.0)
 
 def idle_wait(ctrl, seconds):
@@ -242,34 +244,32 @@ def idle_wait(ctrl, seconds):
         elapsed += 1
 
 def run_sell_loop(ctrl):
-    """Vòng lặp sell cho đến khi đủ tiền"""
     print("\n[*] Bắt đầu sell loop...")
-
-    # Mở /sell lần đầu
     open_sell_menu(ctrl)
 
     while True:
-        # Spam 36 ô + nút sell
         spam_sell_slots(ctrl)
         time.sleep(1.0)
 
-        # Check tiền
         print("\n[CHECK] Kiểm tra tiền...")
         money = get_bot_money()
 
         if money is not None and money >= MIN_PAY_THRESHOLD:
-            print(f"[CHECK] ✅ Đủ {money:,} >= {MIN_PAY_THRESHOLD:,}! Thoát sell...")
+            print(f"[CHECK] ✅ Đủ {money:,}! Thoát sell...")
 
-            # Thoát sell menu
             ctrl.send_key(KEY_ESCAPE)
             time.sleep(1.5)
 
-            # Pay
             print(f"[PAY] 💸 Pay {money:,} -> {MAIN_ACCOUNT}")
             ctrl.send_command(f"pay {MAIN_ACCOUNT} {money}")
             time.sleep(2.0)
 
-            # Vào lại sell để tiếp tục
+            # Nghỉ random trước khi vào sell lại
+            delay = random.randint(MIN_LOOP_DELAY, MAX_LOOP_DELAY)
+            print(f"[*] Nghỉ {delay}s trước khi sell tiếp...")
+            idle_wait(ctrl, delay)
+
+            # Vào lại sell
             open_sell_menu(ctrl)
 
         else:
@@ -291,18 +291,15 @@ def main():
 
     while True:
         try:
-            # Check restart 10 phút
-            elapsed = time.time() - last_restart_time
-            if elapsed >= RESTART_INTERVAL:
-                restart_minecraft(ctrl)
-                enable_wake_lock(ctrl)
-                last_restart_time = time.time()
+            # Check restart
+            if RESTART_ENABLED:
+                elapsed = time.time() - last_restart_time
+                if elapsed >= RESTART_INTERVAL:
+                    restart_minecraft(ctrl)
+                    enable_wake_lock(ctrl)
+                    last_restart_time = time.time()
 
             run_sell_loop(ctrl)
-
-            delay = random.randint(MIN_LOOP_DELAY, MAX_LOOP_DELAY)
-            print(f"\n[*] Nghỉ {delay}s...")
-            idle_wait(ctrl, delay)
 
         except KeyboardInterrupt:
             print("\n[!] Stopped. Exiting...")
