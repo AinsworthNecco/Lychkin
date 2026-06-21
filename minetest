@@ -12,7 +12,7 @@ MAX_LOOP_DELAY = 7
 
 MIN_PAY_THRESHOLD = 5_000_000
 RESTART_INTERVAL = 10 * 60
-RESTART_ENABLED = True  # 👈 Bật/tắt auto restart
+RESTART_ENABLED = False  # 👈 Bật/tắt auto restart
 
 # Double click delay giữa 2 lần click (ms)
 DOUBLE_CLICK_DELAY_MS = 50  # 👈 Chỉnh ở đây
