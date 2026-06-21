@@ -14,8 +14,8 @@ RESTART_INTERVAL = 10 * 60
 RESTART_ENABLED = False
 
 # Click settings
-CLICK_DURATION_MS = 80    # Thời gian giữ mỗi click
-CLICK_DELAY_MS = 50       # Delay giữa các click
+CLICK_DURATION_MS = 20    # Thời gian giữ mỗi click
+CLICK_DELAY_MS = 10       # Delay giữa các click
 
 API_KEY = "204d46ca97004d34bfb3f6efc274c2d6"
 BOT_USERNAME = ".FeudalLake7807"
