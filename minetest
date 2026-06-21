@@ -15,8 +15,8 @@ RESTART_INTERVAL = 10 * 60
 RESTART_ENABLED = False  # 👈 Bật/tắt auto restart
 
 # Double click settings cho 36 ô inventory
-DOUBLE_CLICK_DELAY_MS = 10
-DOUBLE_CLICK_DURATION_MS = 20  # 👈 Giống nút sell
+DOUBLE_CLICK_DELAY_MS = 5
+DOUBLE_CLICK_DURATION_MS = 10  # 👈 Giống nút sell
 
 API_KEY = "204d46ca97004d34bfb3f6efc274c2d6"
 BOT_USERNAME = ".FeudalLake7807"
