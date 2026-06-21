@@ -4,28 +4,18 @@ import random
 import requests
 
 MAIN_ACCOUNT = "xxstylexx21"
-SELL_PRICE = "50k"
 START_DELAY = 5
-MIN_LOOP_DELAY = 1
-MAX_LOOP_DELAY = 1
+MIN_LOOP_DELAY = 3
+MAX_LOOP_DELAY = 7
 
-MIN_PAY_THRESHOLD = 3_000_000
-RESTART_INTERVAL = 10 * 60  
+MIN_PAY_THRESHOLD = 5_000_000
+RESTART_INTERVAL = 100 * 60
 
 API_KEY = "204d46ca97004d34bfb3f6efc274c2d6"
 BOT_USERNAME = ".FeudalLake7807"
 
 MC_PACKAGE = "com.mojang.minecraftpe"
 
-CHEST_BLOCK_X = 630
-CHEST_BLOCK_Y = 500
-CHEST_SLOT_1_X = 630
-CHEST_SLOT_1_Y = 150
-
-INVENTORY_SLOT_1_X = 125
-INVENTORY_SLOT_1_Y = 150
-
-# Ô đồ số 1 trên hotbar để cầm tay
 HOTBAR_SLOT_1_X = 230
 HOTBAR_SLOT_1_Y = 955
 
@@ -37,6 +27,28 @@ KEY_SPACE = "62"
 SEND_BTN_X = 930
 SEND_BTN_Y = 660
 
+# Tọa độ 36 ô inventory (4 cột x 9 hàng)
+INV_LEFT = 85
+INV_TOP = 105
+INV_RIGHT = 415
+INV_BOTTOM = 855
+INV_COLS = 4
+INV_ROWS = 9
+
+def get_inventory_slots():
+    """Tính tọa độ tất cả 36 ô inventory"""
+    slots = []
+    cell_w = (INV_RIGHT - INV_LEFT) / INV_COLS
+    cell_h = (INV_BOTTOM - INV_TOP) / INV_ROWS
+    for row in range(INV_ROWS):
+        for col in range(INV_COLS):
+            x = int(INV_LEFT + cell_w * col + cell_w / 2)
+            y = int(INV_TOP + cell_h * row + cell_h / 2)
+            slots.append((x, y))
+    return slots
+
+INVENTORY_SLOTS = get_inventory_slots()
+
 def get_bot_money():
     try:
         headers = {
@@ -46,10 +58,7 @@ def get_bot_money():
         url = f"https://api.donutsmp.net/v1/stats/{BOT_USERNAME}"
         res = requests.get(url, headers=headers, timeout=10)
         data = res.json()
-        print(f"[API] Raw response: {data}")
-
         money = data.get("result", {}).get("money")
-
         if money is not None:
             money_int = int(str(money).replace(",", "").replace(".", ""))
             print(f"[API] 💰 Tiền hiện tại: {money_int:,}")
@@ -84,6 +93,12 @@ class InputController:
         self.run_cmd(f"input swipe {rx} {ry} {rx} {ry} {duration}")
         time.sleep(0.5)
 
+    def double_click(self, x, y, delay=0.1):
+        self.run_cmd(f"input swipe {x} {y} {x} {y} 80")
+        time.sleep(delay)
+        self.run_cmd(f"input swipe {x} {y} {x} {y} 80")
+        time.sleep(delay)
+
     def swipe(self, x1, y1, x2, y2, duration=1000):
         print(f" -> Swipe: ({x1},{y1}) -> ({x2},{y2}) for {duration}ms")
         self.run_cmd(f"input swipe {x1} {y1} {x2} {y2} {duration}")
@@ -100,31 +115,25 @@ class InputController:
         time.sleep(0.3)
 
     def send_command(self, cmd_text):
-        """Gõ từng ký tự riêng lẻ để tránh lệch/thiếu chữ"""
         print(f"[CMD] Sending: /{cmd_text}")
 
-        # Mở chat
         self.run_cmd(f"input keyevent {KEY_CHAT}")
-        time.sleep(2.0)  # Chờ chat mở hẳn
+        time.sleep(2.0)
 
-        # Gõ slash
         self.run_cmd("input text /")
         time.sleep(0.8)
 
-        # Gõ từng ký tự một thay vì từng từ
         full_cmd = cmd_text.lstrip("/")
         for char in full_cmd:
             if char == " ":
-                self.run_cmd("input keyevent 62")  # space
+                self.run_cmd("input keyevent 62")
             else:
-                # Escape ký tự đặc biệt
                 safe_char = char.replace("'", "\\'")
                 self.run_cmd(f"input text '{safe_char}'")
-            time.sleep(0.15)  # Delay giữa mỗi ký tự
+            time.sleep(0.15)
 
         time.sleep(1.0)
 
-        # Tap send
         print(f" -> Send tap...")
         self.tap_random(SEND_BTN_X, SEND_BTN_Y, duration=300)
         time.sleep(2.0)
@@ -151,7 +160,7 @@ def launch_minecraft(ctrl):
     print("[*] LAUNCHING MINECRAFT...")
     print("="*40)
 
-    print("\n[LAUNCH 0]: Tắt Minecraft cũ nếu đang chạy...")
+    print("\n[LAUNCH 0]: Tắt Minecraft cũ...")
     ctrl.run_cmd(f"am force-stop {MC_PACKAGE}")
     time.sleep(3)
 
@@ -187,12 +196,11 @@ def launch_minecraft(ctrl):
     print("[*] Chờ 20s cho server load...")
     time.sleep(20)
 
-    # Chỉ làm 1 lần sau khi vào server - cầm đồ slot 1
     print("\n[LAUNCH 7]: Chọn ô đồ số 1 trên hotbar...")
     ctrl.tap(HOTBAR_SLOT_1_X, HOTBAR_SLOT_1_Y, duration=150)
     time.sleep(1.0)
 
-    print("\n[✓] Đã vào game! Bắt đầu bot...")
+    print("\n[✓] Đã vào game!")
 
 def restart_minecraft(ctrl):
     print("\n" + "="*40)
@@ -201,6 +209,28 @@ def restart_minecraft(ctrl):
     kill_minecraft(ctrl)
     time.sleep(3)
     launch_minecraft(ctrl)
+
+def open_sell_menu(ctrl):
+    """Mở /sell menu và scroll xuống"""
+    print("\n[SELL] Mở /sell menu...")
+    ctrl.send_command("sell")
+    time.sleep(2.0)
+
+    # Scroll bên phải từ y700 lên y200
+    print("[SELL] Scroll danh sách sell...")
+    ctrl.swipe(750, 700, 750, 200, duration=1000)
+    time.sleep(1.0)
+
+def spam_sell_slots(ctrl):
+    """Double click tất cả 36 ô inventory rồi nhấn sell"""
+    print("[SELL] Double click 36 ô inventory...")
+    for i, (x, y) in enumerate(INVENTORY_SLOTS):
+        ctrl.double_click(x, y, delay=0.1)
+        # Không cần thêm sleep vì delay=0.1 đã đủ
+
+    print("[SELL] Double click nút Sell...")
+    ctrl.double_click(700, 950, delay=0.1)
+    time.sleep(1.0)
 
 def idle_wait(ctrl, seconds):
     print(f"[*] Idle {seconds}s...")
@@ -211,45 +241,40 @@ def idle_wait(ctrl, seconds):
         time.sleep(1)
         elapsed += 1
 
-def run_cycle(ctrl, cycle_num):
-    print(f"\n{'='*40}")
-    print(f"[*] CYCLE #{cycle_num} STARTING...")
-    print(f"{'='*40}")
+def run_sell_loop(ctrl):
+    """Vòng lặp sell cho đến khi đủ tiền"""
+    print("\n[*] Bắt đầu sell loop...")
 
-    print("\n[STEP 0]: OPEN CHEST")
-    ctrl.tap(CHEST_BLOCK_X, CHEST_BLOCK_Y)
-    time.sleep(random.uniform(1.8, 2.5))
+    # Mở /sell lần đầu
+    open_sell_menu(ctrl)
 
-    print("\n[STEP 1]: CLICK ITEM IN CHEST")
-    ctrl.tap(CHEST_SLOT_1_X, CHEST_SLOT_1_Y)
-    time.sleep(random.uniform(0.4, 0.7))
+    while True:
+        # Spam 36 ô + nút sell
+        spam_sell_slots(ctrl)
+        time.sleep(1.0)
 
-    print("\n[STEP 2]: CLICK SLOT 1 IN INVENTORY")
-    ctrl.tap(INVENTORY_SLOT_1_X, INVENTORY_SLOT_1_Y)
-    time.sleep(random.uniform(0.4, 0.7))
+        # Check tiền
+        print("\n[CHECK] Kiểm tra tiền...")
+        money = get_bot_money()
 
-    print("\n[STEP 3]: CLOSE CHEST")
-    ctrl.send_key(KEY_ESCAPE)
-    time.sleep(random.uniform(2.5, 3.5))
+        if money is not None and money >= MIN_PAY_THRESHOLD:
+            print(f"[CHECK] ✅ Đủ {money:,} >= {MIN_PAY_THRESHOLD:,}! Thoát sell...")
 
-    print("\n[STEP 4]: SELL")
-    ctrl.send_command(f"ah sell {SELL_PRICE}")
-    time.sleep(random.uniform(2.5, 4.0))
+            # Thoát sell menu
+            ctrl.send_key(KEY_ESCAPE)
+            time.sleep(1.5)
 
-    print("\n[STEP 5]: LẤY TIỀN TỪ API...")
-    money = get_bot_money()
-
-    if money is not None:
-        if money >= MIN_PAY_THRESHOLD:
-            print(f"\n[STEP 6]: ✅ Đủ tiền ({money:,}) -> PAY {MAIN_ACCOUNT}")
+            # Pay
+            print(f"[PAY] 💸 Pay {money:,} -> {MAIN_ACCOUNT}")
             ctrl.send_command(f"pay {MAIN_ACCOUNT} {money}")
-        else:
-            print(f"\n[STEP 6]: ⏳ Chưa đủ ({money:,}), bỏ qua pay")
-    else:
-        print(f"\n[STEP 6]: ❌ API fail, skip pay")
+            time.sleep(2.0)
 
-    time.sleep(2.0)
-    print(f"\n[✓] CYCLE #{cycle_num} DONE!")
+            # Vào lại sell để tiếp tục
+            open_sell_menu(ctrl)
+
+        else:
+            money_str = f"{money:,}" if money else "N/A"
+            print(f"[CHECK] ⏳ Chưa đủ ({money_str}), tiếp tục sell...")
 
 def main():
     print(f"[*] START IN {START_DELAY}S")
@@ -262,22 +287,21 @@ def main():
     enable_wake_lock(ctrl)
     launch_minecraft(ctrl)
 
-    cycle = 1
     last_restart_time = time.time()
 
     while True:
         try:
+            # Check restart 10 phút
             elapsed = time.time() - last_restart_time
             if elapsed >= RESTART_INTERVAL:
                 restart_minecraft(ctrl)
                 enable_wake_lock(ctrl)
                 last_restart_time = time.time()
 
-            run_cycle(ctrl, cycle)
-            cycle += 1
+            run_sell_loop(ctrl)
 
             delay = random.randint(MIN_LOOP_DELAY, MAX_LOOP_DELAY)
-            print(f"\n[*] Nghỉ {delay}s trước cycle tiếp theo...")
+            print(f"\n[*] Nghỉ {delay}s...")
             idle_wait(ctrl, delay)
 
         except KeyboardInterrupt:
