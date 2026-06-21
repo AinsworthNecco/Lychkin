@@ -14,8 +14,8 @@ MIN_PAY_THRESHOLD = 5_000_000
 RESTART_INTERVAL = 10 * 60
 RESTART_ENABLED = False
 
-CLICK_DURATION_MS = 150
-CLICK_DELAY_MS = 20
+CLICK_DURATION_MS = 100
+CLICK_DELAY_MS = 15
 
 CHECK_EVERY_N_CYCLES = 10  # Check tiền mỗi 10 lần sell
 
@@ -260,7 +260,7 @@ def do_sell_cycle(ctrl):
     delay = CLICK_DELAY_MS / 1000
 
     # 36 cặp click xen kẽ
-    for i in range(36):
+    for i in range(28):
         inv_x, inv_y = INVENTORY_SLOTS[i]
         chest_x, chest_y = CHEST_SLOTS[i]
         ctrl.run_cmd(f"input swipe {inv_x} {inv_y} {inv_x} {inv_y} {duration}")
