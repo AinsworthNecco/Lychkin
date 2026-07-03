@@ -2,120 +2,55 @@ import time
 import os
 import random
 import requests
-import threading
 
-MAIN_ACCOUNT = "xxstylexx21"
-START_DELAY = 5
-
-MIN_LOOP_DELAY = 3
-MAX_LOOP_DELAY = 7
-
-MIN_PAY_THRESHOLD = 5_000_000
-RESTART_INTERVAL = 10 * 60
-RESTART_ENABLED = False
-
-CLICK_DURATION_MS = 50
-CLICK_DELAY_MS = 5
-
-CHECK_EVERY_N_CYCLES = 10  # Check tiền mỗi 10 lần sell
-
+# ==========================================
+# CẤU HÌNH
+# ==========================================
 API_KEY = "204d46ca97004d34bfb3f6efc274c2d6"
 BOT_USERNAME = ".FeudalLake7807"
 
-MC_PACKAGE = "com.mojang.minecraftpe"
+START_DELAY = 5
+CHECK_INTERVAL = 60         # Quét mỗi 60 giây
+OFFLINE_WAIT = 60           # Chờ 60s sau khi phát hiện offline
+JOIN_SERVER_WAIT = 30       # Chờ 30s sau khi join server
+MAIN_SCREEN_WAIT = 10       # Chờ 10s sau khi về màn hình chính
 
-HOTBAR_SLOT_1_X = 230
-HOTBAR_SLOT_1_Y = 955
+# ==========================================
+# TỌA ĐỘ NÚT - TỰ ĐIỀN
+# ==========================================
+AUTO_CLICK_BTN_X = 40
+AUTO_CLICK_BTN_Y = 50
 
-KEY_ESCAPE = "4"
-KEY_CHAT = "76"
-KEY_ENTER = "66"
-KEY_SPACE = "62"
+MAIN_SCREEN_BTN_X = 1685
+MAIN_SCREEN_BTN_Y = 835
+
+JOIN_SERVER_BTN_X = 2000
+JOIN_SERVER_BTN_Y = 250
+
+ENTER_BTN_X = 2050
+ENTER_BTN_Y = 820
 
 SEND_BTN_X = 930
 SEND_BTN_Y = 660
 
-# Inventory của bạn (trái)
-INV_LEFT = 85
-INV_TOP = 105
-INV_RIGHT = 415
-INV_BOTTOM = 855
-INV_COLS = 4
-INV_ROWS = 9
+KEY_CHAT = "76"
 
-# Inventory chest (phải)
-CHEST_INV_LEFT = 585
-CHEST_INV_TOP = 135
-CHEST_INV_RIGHT = 915
-CHEST_INV_BOTTOM = 885
-CHEST_INV_COLS = 4
-CHEST_INV_ROWS = 9
-
-def get_inventory_slots():
-    slots = []
-    cell_w = (INV_RIGHT - INV_LEFT) / INV_COLS
-    cell_h = (INV_BOTTOM - INV_TOP) / INV_ROWS
-    for row in range(INV_ROWS):
-        for col in range(INV_COLS):
-            x = int(INV_LEFT + cell_w * col + cell_w / 2)
-            y = int(INV_TOP + cell_h * row + cell_h / 2)
-            slots.append((x, y))
-    return slots
-
-def get_chest_slots():
-    slots = []
-    cell_w = (CHEST_INV_RIGHT - CHEST_INV_LEFT) / CHEST_INV_COLS
-    cell_h = (CHEST_INV_BOTTOM - CHEST_INV_TOP) / CHEST_INV_ROWS
-    for row in range(CHEST_INV_ROWS):
-        for col in range(CHEST_INV_COLS):
-            x = int(CHEST_INV_LEFT + cell_w * col + cell_w / 2)
-            y = int(CHEST_INV_TOP + cell_h * row + cell_h / 2)
-            slots.append((x, y))
-    return slots
-
-INVENTORY_SLOTS = get_inventory_slots()
-CHEST_SLOTS = get_chest_slots()
-
-# Shared state cho thread check tiền
-money_state = {
-    "value": None,
-    "enough": False,
-    "checking": False
-}
-
-def get_bot_money():
+# ==========================================
+# API
+# ==========================================
+def check_online():
     try:
-        headers = {
-            "Authorization": f"Bearer {API_KEY}",
-            "User-Agent": "Mozilla/5.0"
-        }
-        url = f"https://api.donutsmp.net/v1/stats/{BOT_USERNAME}"
+        headers = {"Authorization": f"Bearer {API_KEY}", "User-Agent": "Mozilla/5.0"}
+        url = f"https://api.donutsmp.net/v1/lookup/{BOT_USERNAME}"
         res = requests.get(url, headers=headers, timeout=10)
-        data = res.json()
-        money = data.get("result", {}).get("money")
-        if money is not None:
-            money_int = int(str(money).replace(",", "").replace(".", ""))
-            print(f"[API] 💰 Tiền hiện tại: {money_int:,}")
-            return money_int
-        else:
-            print(f"[API] ❌ Không tìm thấy money")
-            return None
+        return res.status_code == 200
     except Exception as e:
-        print(f"[API] ❌ Lỗi: {e}")
-        return None
+        print(f"[API] ❌ Lỗi check online: {e}")
+        return False
 
-def check_money_async():
-    """Chạy trong thread riêng, check tiền song song"""
-    money_state["checking"] = True
-    money = get_bot_money()
-    money_state["value"] = money
-    if money is not None and money >= MIN_PAY_THRESHOLD:
-        money_state["enough"] = True
-        print(f"[CHECK] ✅ Đủ tiền {money:,}! Sẽ pay sau khi sell xong...")
-    else:
-        money_state["enough"] = False
-    money_state["checking"] = False
-
+# ==========================================
+# CONTROLLER
+# ==========================================
 class InputController:
     def __init__(self, use_su=True):
         self.use_su = use_su
@@ -144,32 +79,19 @@ class InputController:
         self.run_cmd(f"input swipe {x1} {y1} {x2} {y2} {duration}")
         time.sleep(0.5)
 
-    def send_key(self, keycode):
-        print(f" -> Key: {keycode}")
-        self.run_cmd(f"input keyevent {keycode}")
-        time.sleep(0.5)
-
     def send_command(self, cmd_text):
         print(f"[CMD] Sending: /{cmd_text}")
-
         self.run_cmd(f"input keyevent {KEY_CHAT}")
         time.sleep(2.0)
-
         self.run_cmd("input text /")
         time.sleep(0.8)
-
-        full_cmd = cmd_text.lstrip("/")
-        for char in full_cmd:
+        for char in cmd_text.lstrip("/"):
             if char == " ":
                 self.run_cmd("input keyevent 62")
             else:
-                safe_char = char.replace("'", "\\'")
-                self.run_cmd(f"input text '{safe_char}'")
+                self.run_cmd(f"input text '{char}'")
             time.sleep(0.15)
-
         time.sleep(1.0)
-
-        print(f" -> Send tap...")
         self.tap_random(SEND_BTN_X, SEND_BTN_Y, duration=300)
         time.sleep(2.0)
 
@@ -182,154 +104,59 @@ def enable_wake_lock(ctrl):
     time.sleep(1)
     print("[WAKE] ✅ Wake lock đã bật!")
 
-def kill_minecraft(ctrl):
-    print("\n[RESTART] 🔴 Đang tắt Minecraft...")
-    ctrl.run_cmd(f"am force-stop {MC_PACKAGE}")
-    time.sleep(3)
-    ctrl.run_cmd(f"killall {MC_PACKAGE}")
-    time.sleep(2)
-    print("[RESTART] ✅ Minecraft đã tắt!")
+# ==========================================
+# LOGIC REJOIN
+# ==========================================
+def handle_offline(ctrl):
+    print("\n[OFFLINE] ⚠️ Bot offline! Đang xử lý...")
 
-def launch_minecraft(ctrl):
-    print("\n" + "="*40)
-    print("[*] LAUNCHING MINECRAFT...")
-    print("="*40)
-
-    print("\n[LAUNCH 0]: Tắt Minecraft cũ...")
-    ctrl.run_cmd(f"am force-stop {MC_PACKAGE}")
-    time.sleep(3)
-
-    ctrl.run_cmd("input keyevent 224")
-    time.sleep(1)
-
-    print("\n[LAUNCH 1]: Mở Minecraft...")
-    ctrl.run_cmd(f"monkey -p {MC_PACKAGE} -c android.intent.category.LAUNCHER 1")
-    print("[*] Chờ 10s cho game load...")
-    time.sleep(10)
-
-    print("\n[LAUNCH 2]: Nhấn nút Start...")
-    ctrl.tap(500, 450, duration=300)
-    print("[*] Chờ 10s cho game đồng bộ...")
-    time.sleep(10)
-
-    print("\n[LAUNCH 3]: Chọn tab Server...")
-    ctrl.tap(820, 120, duration=150)
-    time.sleep(2.0)
-
-    print("\n[LAUNCH 4]: Kéo xuống tìm DonutSMP...")
-    ctrl.swipe(170, 830, 170, 200, duration=3000)
-    time.sleep(1.0)
-    ctrl.swipe(170, 830, 170, 200, duration=3000)
-    time.sleep(1.5)
-
-    print("\n[LAUNCH 5]: Chọn server DonutSMP...")
-    ctrl.tap(200, 750, duration=150)
-    time.sleep(10)
-
-    print("\n[LAUNCH 6]: Nhấn nút Play...")
-    ctrl.tap(750, 210, duration=random.randint(200, 250))
-    print("[*] Chờ 20s cho server load...")
-    time.sleep(20)
-
-    print("\n[LAUNCH 7]: Chọn ô đồ số 1 trên hotbar...")
-    ctrl.tap(HOTBAR_SLOT_1_X, HOTBAR_SLOT_1_Y, duration=150)
+    # Tắt auto click
+    print("[OFFLINE] Tắt auto click...")
+    ctrl.tap(AUTO_CLICK_BTN_X, AUTO_CLICK_BTN_Y)
     time.sleep(1.0)
 
-    print("\n[✓] Đã vào game!")
+    # Chờ 1 phút
+    print(f"[OFFLINE] Chờ {OFFLINE_WAIT}s...")
+    for i in range(OFFLINE_WAIT, 0, -1):
+        print(f"  Còn {i}s...", end='\r')
+        time.sleep(1)
 
-def restart_minecraft(ctrl):
-    print("\n" + "="*40)
-    print("[RESTART] 🔄 AUTO RESTART MINECRAFT")
-    print("="*40)
-    kill_minecraft(ctrl)
-    time.sleep(3)
-    launch_minecraft(ctrl)
+    # Về màn hình chính
+    print("\n[OFFLINE] Nhấn nút màn hình chính...")
+    ctrl.tap(MAIN_SCREEN_BTN_X, MAIN_SCREEN_BTN_Y)
+    print(f"[OFFLINE] Chờ {MAIN_SCREEN_WAIT}s...")
+    time.sleep(MAIN_SCREEN_WAIT)
 
-def open_sell_menu(ctrl):
-    print("\n[SELL] Mở /sell menu...")
+    # Join server
+    print("[OFFLINE] Nhấn nút join server...")
+    ctrl.tap(JOIN_SERVER_BTN_X, JOIN_SERVER_BTN_Y)
+    print(f"[OFFLINE] Chờ {JOIN_SERVER_WAIT}s cho server load...")
+    time.sleep(JOIN_SERVER_WAIT)
+
+    # Mở /sell
+    print("[OFFLINE] Mở /sell...")
     ctrl.send_command("sell")
     time.sleep(2.0)
 
-    print("[SELL] Scroll danh sách sell...")
+    # Scroll
     ctrl.swipe(750, 700, 750, 200, duration=1000)
     time.sleep(1.0)
 
-def do_sell_cycle(ctrl):
-    """1 cycle = 36 cặp click + nhấn sell + xác nhận"""
-    duration = CLICK_DURATION_MS
-    delay = CLICK_DELAY_MS / 1000
+    # Nhấn Enter
+    print("[OFFLINE] Nhấn Enter...")
+    ctrl.tap(ENTER_BTN_X, ENTER_BTN_Y)
+    time.sleep(1.0)
 
-    # 36 cặp click xen kẽ
-    for i in range(28):
-        inv_x, inv_y = INVENTORY_SLOTS[i]
-        chest_x, chest_y = CHEST_SLOTS[i]
-        ctrl.run_cmd(f"input swipe {inv_x} {inv_y} {inv_x} {inv_y} {duration}")
-        time.sleep(delay)
-        ctrl.run_cmd(f"input swipe {chest_x} {chest_y} {chest_x} {chest_y} {duration}")
-        time.sleep(delay)
+    # Bật auto click
+    print("[OFFLINE] Bật auto click...")
+    ctrl.tap(AUTO_CLICK_BTN_X, AUTO_CLICK_BTN_Y)
+    time.sleep(1.0)
 
-    # Nhấn nút Sell
-    print("[SELL] Nhấn Sell...")
-    ctrl.run_cmd(f"input swipe 705 940 705 940 {duration}")
-    time.sleep(delay)
+    print("[OFFLINE] ✅ Xử lý xong!")
 
-    # Nhấn xác nhận
-    print("[SELL] Xác nhận...")
-    ctrl.run_cmd(f"input swipe 620 940 620 940 {duration}")
-    time.sleep(0.5)
-
-def idle_wait(seconds):
-    print(f"[*] Idle {seconds}s...")
-    time.sleep(seconds)
-
-def run_sell_loop(ctrl):
-    print("\n[*] Bắt đầu sell loop...")
-    open_sell_menu(ctrl)
-
-    cycle_count = 0
-    money_state["enough"] = False
-    money_state["value"] = None
-
-    while True:
-        # Chạy 1 cycle sell
-        do_sell_cycle(ctrl)
-        cycle_count += 1
-        print(f"[SELL] Cycle #{cycle_count} xong")
-
-        # Mỗi 10 cycle thì check tiền song song
-        if cycle_count % CHECK_EVERY_N_CYCLES == 0:
-            print(f"[CHECK] Trigger check tiền (cycle {cycle_count})...")
-            t = threading.Thread(target=check_money_async, daemon=True)
-            t.start()
-
-        # Nếu đã check xong và đủ tiền thì dừng sau cycle hiện tại
-        if money_state["enough"]:
-            print(f"[CHECK] ✅ Đủ tiền! Kết thúc vòng lặp sell...")
-            break
-
-    # Thoát sell menu
-    ctrl.send_key(KEY_ESCAPE)
-    time.sleep(1.5)
-
-    # Pay
-    money = money_state["value"]
-    print(f"[PAY] 💸 Pay {money:,} -> {MAIN_ACCOUNT}")
-    ctrl.send_command(f"pay {MAIN_ACCOUNT} {money}")
-    time.sleep(2.0)
-
-    # Reset state
-    money_state["enough"] = False
-    money_state["value"] = None
-    cycle_count = 0
-
-    # Nghỉ random
-    delay = random.randint(MIN_LOOP_DELAY, MAX_LOOP_DELAY)
-    print(f"[*] Nghỉ {delay}s trước khi sell tiếp...")
-    idle_wait(delay)
-
-    # Vào lại sell
-    open_sell_menu(ctrl)
-
+# ==========================================
+# MAIN
+# ==========================================
 def main():
     print(f"[*] START IN {START_DELAY}S")
     for i in range(START_DELAY, 0, -1):
@@ -337,22 +164,19 @@ def main():
         time.sleep(1)
 
     ctrl = InputController(use_su=True)
-
     enable_wake_lock(ctrl)
-    launch_minecraft(ctrl)
-
-    last_restart_time = time.time()
 
     while True:
         try:
-            if RESTART_ENABLED:
-                elapsed = time.time() - last_restart_time
-                if elapsed >= RESTART_INTERVAL:
-                    restart_minecraft(ctrl)
-                    enable_wake_lock(ctrl)
-                    last_restart_time = time.time()
+            print(f"\n[*] Quét... ({time.strftime('%H:%M:%S')})")
 
-            run_sell_loop(ctrl)
+            if not check_online():
+                handle_offline(ctrl)
+            else:
+                print("[*] ✅ Bot online! Chờ lần quét tiếp...")
+
+            print(f"[*] Chờ {CHECK_INTERVAL}s...")
+            time.sleep(CHECK_INTERVAL)
 
         except KeyboardInterrupt:
             print("\n[!] Stopped. Exiting...")
