@@ -8,7 +8,7 @@ import random
 START_DELAY = 5
 CYCLE_INTERVAL = 60 * 60    # 1 tiếng mỗi cycle
 JOIN_SERVER_WAIT = 30        # Chờ 30s sau khi join server
-HOME_WAIT = 10               # Chờ 10s sau khi về home để ping server
+HOME_WAIT = 30             # Chờ 10s sau khi về home để ping server
 
 MC_PACKAGE = "com.mojang.minecraftpe"
 
