@@ -97,7 +97,7 @@ def go_home_and_join(ctrl):
     time.sleep(2.0)
 
     print("[*] Mở Minecraft...")
-    ctrl.run_cmd(f"monkey -p {MC_PACKAGE} -c android.intent.category.LAUNCHER 1")
+    ctrl.run_cmd(f"am start -n {MC_PACKAGE}/com.mojang.minecraftpe.MainActivity")
     print(f"[*] Chờ {HOME_WAIT}s để ping server...")
     time.sleep(HOME_WAIT)
 
