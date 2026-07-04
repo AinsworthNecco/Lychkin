@@ -18,9 +18,6 @@ MC_PACKAGE = "com.mojang.minecraftpe"
 AUTO_CLICK_BTN_X = 40
 AUTO_CLICK_BTN_Y = 50
 
-MAIN_SCREEN_BTN_X = 1685
-MAIN_SCREEN_BTN_Y = 835
-
 JOIN_SERVER_BTN_X = 1750
 JOIN_SERVER_BTN_Y = 355
 
@@ -93,7 +90,7 @@ def enable_wake_lock(ctrl):
 # ==========================================
 def go_home_and_join(ctrl):
     print("\n[*] Về home...")
-    ctrl.tap(MAIN_SCREEN_BTN_X, MAIN_SCREEN_BTN_Y)
+    ctrl.run_cmd("input keyevent 3")  # 3 = HOME button
     time.sleep(2.0)
 
     print("[*] Mở Minecraft...")
