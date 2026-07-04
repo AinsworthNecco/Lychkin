@@ -1,22 +1,19 @@
 import time
 import os
 import random
-import requests
 
 # ==========================================
 # CẤU HÌNH
 # ==========================================
-API_KEY = "204d46ca97004d34bfb3f6efc274c2d6"
-BOT_USERNAME = ".FeudalLake7807"
-
 START_DELAY = 5
-CHECK_INTERVAL = 60         # Quét mỗi 60 giây
-OFFLINE_WAIT = 60           # Chờ 60s sau khi phát hiện offline
-JOIN_SERVER_WAIT = 30       # Chờ 30s sau khi join server
-MAIN_SCREEN_WAIT = 10       # Chờ 10s sau khi về màn hình chính
+CYCLE_INTERVAL = 60 * 60    # 1 tiếng mỗi cycle
+JOIN_SERVER_WAIT = 30        # Chờ 30s sau khi join server
+HOME_WAIT = 10               # Chờ 10s sau khi về home để ping server
+
+MC_PACKAGE = "com.mojang.minecraftpe"
 
 # ==========================================
-# TỌA ĐỘ NÚT - TỰ ĐIỀN
+# TỌA ĐỘ NÚT
 # ==========================================
 AUTO_CLICK_BTN_X = 40
 AUTO_CLICK_BTN_Y = 50
@@ -24,8 +21,8 @@ AUTO_CLICK_BTN_Y = 50
 MAIN_SCREEN_BTN_X = 1685
 MAIN_SCREEN_BTN_Y = 835
 
-JOIN_SERVER_BTN_X = 2000
-JOIN_SERVER_BTN_Y = 250
+JOIN_SERVER_BTN_X = 1750
+JOIN_SERVER_BTN_Y = 355
 
 ENTER_BTN_X = 2050
 ENTER_BTN_Y = 820
@@ -34,19 +31,6 @@ SEND_BTN_X = 930
 SEND_BTN_Y = 660
 
 KEY_CHAT = "76"
-
-# ==========================================
-# API
-# ==========================================
-def check_online():
-    try:
-        headers = {"Authorization": f"Bearer {API_KEY}", "User-Agent": "Mozilla/5.0"}
-        url = f"https://api.donutsmp.net/v1/lookup/{BOT_USERNAME}"
-        res = requests.get(url, headers=headers, timeout=10)
-        return res.status_code == 200
-    except Exception as e:
-        print(f"[API] ❌ Lỗi check online: {e}")
-        return False
 
 # ==========================================
 # CONTROLLER
@@ -105,54 +89,41 @@ def enable_wake_lock(ctrl):
     print("[WAKE] ✅ Wake lock đã bật!")
 
 # ==========================================
-# LOGIC REJOIN
+# LOGIC
 # ==========================================
-def handle_offline(ctrl):
-    print("\n[OFFLINE] ⚠️ Bot offline! Đang xử lý...")
-
-    # Tắt auto click
-    print("[OFFLINE] Tắt auto click...")
-    ctrl.tap(AUTO_CLICK_BTN_X, AUTO_CLICK_BTN_Y)
-    time.sleep(1.0)
-
-    # Chờ 1 phút
-    print(f"[OFFLINE] Chờ {OFFLINE_WAIT}s...")
-    for i in range(OFFLINE_WAIT, 0, -1):
-        print(f"  Còn {i}s...", end='\r')
-        time.sleep(1)
-
-    # Về màn hình chính
-    print("\n[OFFLINE] Nhấn nút màn hình chính...")
+def go_home_and_join(ctrl):
+    print("\n[*] Về home...")
     ctrl.tap(MAIN_SCREEN_BTN_X, MAIN_SCREEN_BTN_Y)
-    print(f"[OFFLINE] Chờ {MAIN_SCREEN_WAIT}s...")
-    time.sleep(MAIN_SCREEN_WAIT)
+    time.sleep(2.0)
 
-    # Join server
-    print("[OFFLINE] Nhấn nút join server...")
+    print("[*] Mở Minecraft...")
+    ctrl.run_cmd(f"monkey -p {MC_PACKAGE} -c android.intent.category.LAUNCHER 1")
+    print(f"[*] Chờ {HOME_WAIT}s để ping server...")
+    time.sleep(HOME_WAIT)
+
+    print("[*] Nhấn Join server...")
     ctrl.tap(JOIN_SERVER_BTN_X, JOIN_SERVER_BTN_Y)
-    print(f"[OFFLINE] Chờ {JOIN_SERVER_WAIT}s cho server load...")
+    print(f"[*] Chờ {JOIN_SERVER_WAIT}s cho server load...")
     time.sleep(JOIN_SERVER_WAIT)
 
-    # Mở /sell
-    print("[OFFLINE] Mở /sell...")
+    print("[*] Mở /sell...")
     ctrl.send_command("sell")
     time.sleep(2.0)
 
-    # Scroll
-    ctrl.swipe(750, 700, 750, 200, duration=1000)
-    time.sleep(1.0)
-
-    # Nhấn Enter
-    print("[OFFLINE] Nhấn Enter...")
+    print("[*] Nhấn Enter...")
     ctrl.tap(ENTER_BTN_X, ENTER_BTN_Y)
     time.sleep(1.0)
 
-    # Bật auto click
-    print("[OFFLINE] Bật auto click...")
+    print("[*] Bật auto click...")
     ctrl.tap(AUTO_CLICK_BTN_X, AUTO_CLICK_BTN_Y)
     time.sleep(1.0)
 
-    print("[OFFLINE] ✅ Xử lý xong!")
+    print("[✓] Đã vào game và bắt đầu auto click!")
+
+def stop_and_reset(ctrl):
+    print("\n[*] Tắt auto click...")
+    ctrl.tap(AUTO_CLICK_BTN_X, AUTO_CLICK_BTN_Y)
+    time.sleep(1.0)
 
 # ==========================================
 # MAIN
@@ -166,17 +137,28 @@ def main():
     ctrl = InputController(use_su=True)
     enable_wake_lock(ctrl)
 
+    cycle = 1
+
     while True:
         try:
-            print(f"\n[*] Quét... ({time.strftime('%H:%M:%S')})")
+            print(f"\n{'='*40}")
+            print(f"[*] CYCLE #{cycle} - {time.strftime('%H:%M:%S')}")
+            print(f"{'='*40}")
 
-            if not check_online():
-                handle_offline(ctrl)
-            else:
-                print("[*] ✅ Bot online! Chờ lần quét tiếp...")
+            # Vào game và bật auto click
+            go_home_and_join(ctrl)
 
-            print(f"[*] Chờ {CHECK_INTERVAL}s...")
-            time.sleep(CHECK_INTERVAL)
+            # Chờ 1 tiếng
+            print(f"\n[*] Auto click đang chạy, chờ {CYCLE_INTERVAL//60} phút...")
+            for i in range(CYCLE_INTERVAL, 0, -1):
+                m, s = divmod(i, 60)
+                print(f"  Còn {m:02d}:{s:02d}...", end='\r')
+                time.sleep(1)
+
+            # Tắt auto click và reset
+            print("\n[*] Hết 1 tiếng, reset...")
+            stop_and_reset(ctrl)
+            cycle += 1
 
         except KeyboardInterrupt:
             print("\n[!] Stopped. Exiting...")
