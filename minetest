@@ -24,9 +24,6 @@ JOIN_SERVER_BTN_Y = 355
 ENTER_BTN_X = 2250
 ENTER_BTN_Y = 725
 
-SEND_BTN_X = 930
-SEND_BTN_Y = 660
-
 KEY_CHAT = "76"
 
 # ==========================================
@@ -73,8 +70,7 @@ class InputController:
                 self.run_cmd(f"input text '{char}'")
             time.sleep(0.15)
         time.sleep(1.0)
-        self.tap_random(SEND_BTN_X, SEND_BTN_Y, duration=300)
-        time.sleep(2.0)
+        # Không tap send nữa, dùng ENTER_BTN bên ngoài
 
 def enable_wake_lock(ctrl):
     print("\n[WAKE] 🔒 Bật wake lock...")
