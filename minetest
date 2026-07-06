@@ -24,6 +24,9 @@ JOIN_SERVER_BTN_Y = 355
 ENTER_BTN_X = 2250
 ENTER_BTN_Y = 725
 
+SEND_BTN_X = 930
+SEND_BTN_Y = 660
+
 KEY_CHAT = "76"
 
 # ==========================================
