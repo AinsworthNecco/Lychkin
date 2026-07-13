@@ -52,11 +52,8 @@ def hold_center(ctrl):
     x = SCREEN_CENTER_X
     y = SCREEN_CENTER_Y
     while True:
-        print(" -> Đang hold trong 5 giây...")
         # Hold 5000ms (5 giây) bằng cách dùng swipe tại chỗ
         ctrl.run_cmd(f"input swipe {x} {y} {x} {y} 5000")
-        
-        print(" -> Đang nghỉ 1 giây...")
         # Nghỉ ngơi 1 giây trước khi bắt đầu hold lại
         time.sleep(1)
 
