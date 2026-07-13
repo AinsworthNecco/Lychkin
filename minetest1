@@ -12,8 +12,8 @@ HOME_WAIT = 10
 MC_PACKAGE = "com.mojang.minecraftpe"
 
 # Tọa độ giữa màn hình - tự điền
-SCREEN_CENTER_X = 0
-SCREEN_CENTER_Y = 0
+SCREEN_CENTER_X = 1200
+SCREEN_CENTER_Y = 600
 
 JOIN_SERVER_BTN_X = 1750
 JOIN_SERVER_BTN_Y = 355
