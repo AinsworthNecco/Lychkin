@@ -48,13 +48,13 @@ def enable_wake_lock(ctrl):
 
 def hold_center(ctrl):
     """Hold giữa màn hình 5 giây, nghỉ 1 giây, lặp vô hạn"""
-    print("[*] Bắt đầu chu kỳ hold 5s, nghỉ 1s...")
+    print("[*] Bắt đầu hold giữa màn hình (5s nghỉ 1s)...")
     x = SCREEN_CENTER_X
     y = SCREEN_CENTER_Y
     while True:
-        # Hold 5000ms (5 giây) bằng cách dùng swipe tại chỗ
+        # Hold 5000ms (5 giây)
         ctrl.run_cmd(f"input swipe {x} {y} {x} {y} 5000")
-        # Nghỉ ngơi 1 giây trước khi bắt đầu hold lại
+        # Nghỉ 1 giây
         time.sleep(1)
 
 # ==========================================
