@@ -7,7 +7,7 @@ import random
 # ==========================================
 START_DELAY = 5
 JOIN_SERVER_WAIT = 30
-HOME_WAIT = 10
+HOME_WAIT = 30
 
 MC_PACKAGE = "com.mojang.minecraftpe"
 
