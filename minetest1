@@ -1,6 +1,7 @@
 import time
 import os
 import random
+import sys
 
 # ==========================================
 # CẤU HÌNH
@@ -49,6 +50,7 @@ def enable_wake_lock(ctrl):
 def hold_center(ctrl):
     """Hold giữa màn hình random 15-20 giây, nghỉ 1 giây, lặp vô hạn"""
     print("[*] Bắt đầu hold giữa màn hình (random 15-20s, nghỉ 1s)...")
+    print("[!] ĐỂ DỪNG SCRIPT AN TOÀN, HÃY BẤM: CTRL + C")
     x = SCREEN_CENTER_X
     y = SCREEN_CENTER_Y
     while True:
@@ -86,8 +88,18 @@ def main():
     print(f"[*] Chờ {JOIN_SERVER_WAIT}s cho server load...")
     time.sleep(JOIN_SERVER_WAIT)
 
-    # Chạy chu kỳ hold random nghỉ 1s
-    hold_center(ctrl)
+    # Chạy chu kỳ hold random nghỉ 1s, bắt sự kiện Ctrl+C để thoát an toàn
+    try:
+        hold_center(ctrl)
+    except KeyboardInterrupt:
+        print("\n\n[!] BẠN ĐÃ DỪNG SCRIPT (Ctrl + C).")
+        print("[!] Đang xử lý dọn dẹp để tránh kẹt màn hình...")
+        # Kill các tiến trình input đang chạy dở để dừng việc hold
+        ctrl.run_cmd("pkill -f com.android.commands.input")
+        # Tap nhanh 1 phát để hệ điều hành nhận diện nhả cảm ứng
+        ctrl.tap(SCREEN_CENTER_X, SCREEN_CENTER_Y, 50)
+        print("[!] Đã dọn dẹp xong. Giờ bạn có thể đóng Termux an toàn!")
+        sys.exit(0)
 
 if __name__ == "__main__":
     main()
