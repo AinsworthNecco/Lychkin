@@ -1,0 +1,88 @@
+import time
+import os
+import random
+
+# ==========================================
+# CẤU HÌNH
+# ==========================================
+START_DELAY = 5
+JOIN_SERVER_WAIT = 30
+HOME_WAIT = 10
+
+MC_PACKAGE = "com.mojang.minecraftpe"
+
+# Tọa độ giữa màn hình - tự điền
+SCREEN_CENTER_X = 1200
+SCREEN_CENTER_Y = 600
+
+JOIN_SERVER_BTN_X = 1750
+JOIN_SERVER_BTN_Y = 355
+
+# ==========================================
+# CONTROLLER
+# ==========================================
+class InputController:
+    def __init__(self, use_su=True):
+        self.use_su = use_su
+        print(f"[*] Controller: {'Root (su)' if use_su else 'ADB'}")
+
+    def run_cmd(self, command):
+        if self.use_su:
+            os.system(f"su -c '{command}'")
+        else:
+            os.system(f"adb shell {command}")
+
+    def tap(self, x, y, duration=150):
+        print(f" -> Tap: ({x}, {y}) for {duration}ms")
+        self.run_cmd(f"input swipe {x} {y} {x} {y} {duration}")
+        time.sleep(0.5)
+
+def enable_wake_lock(ctrl):
+    print("\n[WAKE] 🔒 Bật wake lock...")
+    ctrl.run_cmd("settings put system screen_off_timeout 2147483647")
+    ctrl.run_cmd("dumpsys deviceidle disable")
+    ctrl.run_cmd("svc power stayon true")
+    ctrl.run_cmd("input keyevent 224")
+    time.sleep(1)
+    print("[WAKE] ✅ Wake lock đã bật!")
+
+def hold_center(ctrl):
+    """Hold giữa màn hình liên tục không nhả"""
+    print("[*] Bắt đầu hold giữa màn hình...")
+    x = SCREEN_CENTER_X
+    y = SCREEN_CENTER_Y
+    while True:
+        # Swipe duration dài = hold lâu, lặp liên tục
+        ctrl.run_cmd(f"input swipe {x} {y} {x} {y} 10000")
+
+# ==========================================
+# MAIN
+# ==========================================
+def main():
+    print(f"[*] START IN {START_DELAY}S")
+    for i in range(START_DELAY, 0, -1):
+        print(f"{i}s...")
+        time.sleep(1)
+
+    ctrl = InputController(use_su=True)
+    enable_wake_lock(ctrl)
+
+    print("\n[*] Về home...")
+    ctrl.run_cmd("input keyevent 3")
+    time.sleep(2.0)
+
+    print("[*] Mở Minecraft...")
+    ctrl.run_cmd(f"am start -n {MC_PACKAGE}/com.mojang.minecraftpe.MainActivity")
+    print(f"[*] Chờ {HOME_WAIT}s để ping server...")
+    time.sleep(HOME_WAIT)
+
+    print("[*] Nhấn Join server...")
+    ctrl.tap(JOIN_SERVER_BTN_X, JOIN_SERVER_BTN_Y)
+    print(f"[*] Chờ {JOIN_SERVER_WAIT}s cho server load...")
+    time.sleep(JOIN_SERVER_WAIT)
+
+    # Hold giữa màn hình mãi mãi
+    hold_center(ctrl)
+
+if __name__ == "__main__":
+    main()
