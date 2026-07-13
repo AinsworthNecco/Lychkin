@@ -47,13 +47,15 @@ def enable_wake_lock(ctrl):
     print("[WAKE] ✅ Wake lock đã bật!")
 
 def hold_center(ctrl):
-    """Hold giữa màn hình liên tục không nhả"""
-    print("[*] Bắt đầu hold giữa màn hình...")
+    """Hold giữa màn hình 5 giây, nghỉ 1 giây, lặp vô hạn"""
+    print("[*] Bắt đầu hold giữa màn hình (5s nghỉ 1s)...")
     x = SCREEN_CENTER_X
     y = SCREEN_CENTER_Y
     while True:
-        # Swipe duration dài = hold lâu, lặp liên tục
-        ctrl.run_cmd(f"input swipe {x} {y} {x} {y} 10000")
+        # Hold 5000ms (5 giây)
+        ctrl.run_cmd(f"input swipe {x} {y} {x} {y} 5000")
+        # Nghỉ 1 giây
+        time.sleep(1)
 
 # ==========================================
 # MAIN
@@ -81,7 +83,7 @@ def main():
     print(f"[*] Chờ {JOIN_SERVER_WAIT}s cho server load...")
     time.sleep(JOIN_SERVER_WAIT)
 
-    # Hold giữa màn hình mãi mãi
+    # Chạy chu kỳ hold 5s nghỉ 1s
     hold_center(ctrl)
 
 if __name__ == "__main__":
