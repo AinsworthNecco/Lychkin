@@ -7,13 +7,13 @@ import random
 # ==========================================
 START_DELAY = 5
 JOIN_SERVER_WAIT = 30
-HOME_WAIT = 30
+HOME_WAIT = 10
 
 MC_PACKAGE = "com.mojang.minecraftpe"
 
 # Tọa độ giữa màn hình - tự điền
-SCREEN_CENTER_X = 1200
-SCREEN_CENTER_Y = 600
+SCREEN_CENTER_X = 0
+SCREEN_CENTER_Y = 0
 
 JOIN_SERVER_BTN_X = 1750
 JOIN_SERVER_BTN_Y = 355
@@ -47,15 +47,13 @@ def enable_wake_lock(ctrl):
     print("[WAKE] ✅ Wake lock đã bật!")
 
 def hold_center(ctrl):
-    """Hold giữa màn hình 5 giây, nghỉ 1 giây, lặp vô hạn"""
-    print("[*] Bắt đầu hold giữa màn hình (5s nghỉ 1s)...")
+    """Hold giữa màn hình liên tục không nhả"""
+    print("[*] Bắt đầu hold giữa màn hình...")
     x = SCREEN_CENTER_X
     y = SCREEN_CENTER_Y
     while True:
-        # Hold 5000ms (5 giây)
-        ctrl.run_cmd(f"input swipe {x} {y} {x} {y} 5000")
-        # Nghỉ 1 giây
-        time.sleep(1)
+        # Swipe duration dài = hold lâu, lặp liên tục
+        ctrl.run_cmd(f"input swipe {x} {y} {x} {y} 10000")
 
 # ==========================================
 # MAIN
@@ -83,7 +81,7 @@ def main():
     print(f"[*] Chờ {JOIN_SERVER_WAIT}s cho server load...")
     time.sleep(JOIN_SERVER_WAIT)
 
-    # Chạy chu kỳ hold 5s nghỉ 1s
+    # Hold giữa màn hình mãi mãi
     hold_center(ctrl)
 
 if __name__ == "__main__":
