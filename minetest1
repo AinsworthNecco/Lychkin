@@ -60,7 +60,7 @@ def hold_center(ctrl):
         ctrl.run_cmd(f"input swipe {x} {y} {x} {y} {hold_time_ms}")
         
         # Nghỉ random 5 đến 6 giây
-        sleep_time = random.randint(5, 6)
+        sleep_time = random.randint(0, 1)
         print(f" -> Đang nghỉ {sleep_time} giây...")
         time.sleep(sleep_time)
 
