@@ -4,20 +4,43 @@ import random
 import sys
 
 # ==========================================
-# CẤU HÌNH
+# 1. CẤU HÌNH THỜI GIAN VÀ CHẾ ĐỘ
 # ==========================================
+CONTINUOUS_HOLD = True  # Đổi thành True: Hold liên tục. False: Hold có nhả theo thời gian random bên dưới.
+
+# -- Cấu hình cho chế độ Hold có nhả (khi CONTINUOUS_HOLD = False) --
+HOLD_TIME_MIN = 5       # Thời gian hold tối thiểu (giây)
+HOLD_TIME_MAX = 6       # Thời gian hold tối đa (giây)
+REST_TIME_MIN = 2        # Thời gian nghỉ tối thiểu (giây)
+REST_TIME_MAX = 3        # Thời gian nghỉ tối đa (giây)
+
+# -- Cấu hình cho chế độ Hold liên tục (khi CONTINUOUS_HOLD = True) --
+CONTINUOUS_HOLD_CYCLE = 30 # Thời gian đè mỗi chu kỳ (giây) trước khi tự re-hold
+
+# -- Cấu hình góc nhìn --
+LOOK_UP_ENABLED = False   # True: Vuốt ngước lên trời. False: Bỏ qua bước vuốt ngước.
+
 START_DELAY = 5
-JOIN_SERVER_WAIT = 30
 HOME_WAIT = 30
+JOIN_SERVER_WAIT = 30
 
 MC_PACKAGE = "com.mojang.minecraftpe"
 
-# Tọa độ giữa màn hình - tự điền
+# ==========================================
+# 2. CẤU HÌNH TỌA ĐỘ
+# ==========================================
+# Tọa độ giữa màn hình để Hold
 SCREEN_CENTER_X = 1200
 SCREEN_CENTER_Y = 600
 
+# Tọa độ nút Join Server
 JOIN_SERVER_BTN_X = 1750
 JOIN_SERVER_BTN_Y = 355
+
+# Tọa độ vuốt ngước lên 90 độ (từ dưới lên trên)
+LOOK_UP_X = 1200
+LOOK_UP_Y_START = 1000
+LOOK_UP_Y_END = 200
 
 # ==========================================
 # CONTROLLER
@@ -48,21 +71,34 @@ def enable_wake_lock(ctrl):
     print("[WAKE] ✅ Wake lock đã bật!")
 
 def hold_center(ctrl):
-    """Hold giữa màn hình random 15-20 giây, nghỉ random 2-3 giây, lặp vô hạn"""
-    print("[*] Bắt đầu hold giữa màn hình (random 15-20s, nghỉ random 2-3s)...")
+    """Xử lý logic hold dựa trên tùy chọn CONTINUOUS_HOLD"""
+    print("\n[*] =====================================")
+    if CONTINUOUS_HOLD:
+        print(f"[*] CHẾ ĐỘ: HOLD LIÊN TỤC ({CONTINUOUS_HOLD_CYCLE}s/chu kỳ tự re-hold)")
+    else:
+        print(f"[*] CHẾ ĐỘ: HOLD CÓ NHẢ (Hold {HOLD_TIME_MIN}-{HOLD_TIME_MAX}s, Nghỉ {REST_TIME_MIN}-{REST_TIME_MAX}s)")
     print("[!] ĐỂ DỪNG SCRIPT AN TOÀN, HÃY BẤM: CTRL + C")
+    print("[*] =====================================")
+    
     x = SCREEN_CENTER_X
     y = SCREEN_CENTER_Y
+    
     while True:
-        # Random thời gian hold từ 15 đến 20 giây (15000ms - 20000ms)
-        hold_time_ms = random.randint(15000, 20000)
-        print(f" -> Đang hold trong {hold_time_ms/1000} giây...")
-        ctrl.run_cmd(f"input swipe {x} {y} {x} {y} {hold_time_ms}")
-        
-        # Nghỉ random 5 đến 6 giây
-        sleep_time = random.randint(5, 6)
-        print(f" -> Đang nghỉ {sleep_time} giây...")
-        time.sleep(sleep_time)
+        if CONTINUOUS_HOLD:
+            # Chế độ Hold liên tục
+            print(f" -> Đang giữ liên tục ({CONTINUOUS_HOLD_CYCLE}s/chu kỳ để chống kẹt hệ điều hành)...")
+            ctrl.run_cmd(f"input swipe {x} {y} {x} {y} {CONTINUOUS_HOLD_CYCLE * 1000}")
+            # Không có sleep ở đây để đảm bảo hold liên tục ngay khi lệnh trước kết thúc
+        else:
+            # Chế độ Hold có nhả: Random theo cấu hình
+            hold_time_ms = random.randint(HOLD_TIME_MIN * 1000, HOLD_TIME_MAX * 1000)
+            print(f" -> Đang hold trong {hold_time_ms/1000} giây...")
+            ctrl.run_cmd(f"input swipe {x} {y} {x} {y} {hold_time_ms}")
+            
+            # Nghỉ random theo cấu hình
+            sleep_time = random.randint(REST_TIME_MIN, REST_TIME_MAX)
+            print(f" -> Đang nghỉ {sleep_time} giây...")
+            time.sleep(sleep_time)
 
 # ==========================================
 # MAIN
@@ -76,21 +112,31 @@ def main():
     ctrl = InputController(use_su=True)
     enable_wake_lock(ctrl)
 
-    print("\n[*] Về home...")
+    print("\n[*] 1. Về home...")
     ctrl.run_cmd("input keyevent 3")
     time.sleep(2.0)
 
-    print("[*] Mở Minecraft...")
+    print("[*] 2. Mở Minecraft...")
     ctrl.run_cmd(f"am start -n {MC_PACKAGE}/com.mojang.minecraftpe.MainActivity")
     print(f"[*] Chờ {HOME_WAIT}s để ping server...")
     time.sleep(HOME_WAIT)
 
-    print("[*] Nhấn Join server...")
+    print("[*] 3. Nhấn Join server...")
     ctrl.tap(JOIN_SERVER_BTN_X, JOIN_SERVER_BTN_Y)
     print(f"[*] Chờ {JOIN_SERVER_WAIT}s cho server load...")
     time.sleep(JOIN_SERVER_WAIT)
 
-    # Chạy chu kỳ hold random nghỉ 1s, bắt sự kiện Ctrl+C để thoát an toàn
+    if LOOK_UP_ENABLED:
+        print("[*] 4. Vuốt màn hình ngước lên 90 độ...")
+        # Vuốt từ y 1000 đến y 200, thời gian vuốt 600ms cho mượt mà
+        ctrl.run_cmd(f"input swipe {LOOK_UP_X} {LOOK_UP_Y_START} {LOOK_UP_X} {LOOK_UP_Y_END} 600")
+        print("[*] Chờ 1.5s để ổn định camera...")
+        time.sleep(1.5)
+    else:
+        print("[*] 4. Bỏ qua bước ngước lên trời (LOOK_UP_ENABLED = False)...")
+
+    # 5. Bắt đầu Hold
+    print("[*] 5. Bắt đầu thực thi Hold")
     try:
         hold_center(ctrl)
     except KeyboardInterrupt:
