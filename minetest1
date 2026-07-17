@@ -6,7 +6,7 @@ import sys
 # ==========================================
 # 1. CẤU HÌNH THỜI GIAN VÀ CHẾ ĐỘ
 # ==========================================
-CONTINUOUS_HOLD = True  # Đổi thành True: Hold liên tục. False: Hold có nhả theo thời gian random bên dưới.
+CONTINUOUS_HOLD = False  # Đổi thành True: Hold liên tục. False: Hold có nhả theo thời gian random bên dưới.
 
 # -- Cấu hình cho chế độ Hold có nhả (khi CONTINUOUS_HOLD = False) --
 HOLD_TIME_MIN = 5       # Thời gian hold tối thiểu (giây)
