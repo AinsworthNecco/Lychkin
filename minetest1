@@ -9,16 +9,16 @@ import sys
 CONTINUOUS_HOLD = False  # Đổi thành True: Hold liên tục. False: Hold có nhả theo thời gian random bên dưới.
 
 # -- Cấu hình cho chế độ Hold có nhả (khi CONTINUOUS_HOLD = False) --
-HOLD_TIME_MIN = 5       # Thời gian hold tối thiểu (giây)
-HOLD_TIME_MAX = 6       # Thời gian hold tối đa (giây)
-REST_TIME_MIN = 2        # Thời gian nghỉ tối thiểu (giây)
-REST_TIME_MAX = 3        # Thời gian nghỉ tối đa (giây)
+HOLD_TIME_MIN = 15      # Thời gian hold tối thiểu (giây)
+HOLD_TIME_MAX = 15       # Thời gian hold tối đa (giây)
+REST_TIME_MIN = 1       # Thời gian nghỉ tối thiểu (giây)
+REST_TIME_MAX = 2       # Thời gian nghỉ tối đa (giây)
 
 # -- Cấu hình cho chế độ Hold liên tục (khi CONTINUOUS_HOLD = True) --
 CONTINUOUS_HOLD_CYCLE = 30 # Thời gian đè mỗi chu kỳ (giây) trước khi tự re-hold
 
 # -- Cấu hình góc nhìn --
-LOOK_UP_ENABLED = False   # True: Vuốt ngước lên trời. False: Bỏ qua bước vuốt ngước.
+LOOK_UP_ENABLED = True   # True: Vuốt ngước lên trời. False: Bỏ qua bước vuốt ngước.
 
 START_DELAY = 5
 HOME_WAIT = 30
