@@ -51,9 +51,9 @@ LOOK_UP_Y_START = 800
 LOOK_UP_Y_END = 200
 
 # Tọa độ ô đồ (Hotbar) - Bạn cần tự điền tọa độ chính xác trên màn hình của bạn!
-HOTBAR_SLOT_1_X = 800  # Tọa độ X của ô đồ thứ 1 (Công cụ/Vũ khí để hold)
+HOTBAR_SLOT_1_X = 700  # Tọa độ X của ô đồ thứ 1 (Công cụ/Vũ khí để hold)
 HOTBAR_SLOT_1_Y = 1000 # Tọa độ Y của ô đồ thứ 1
-HOTBAR_SLOT_2_X = 950  # Tọa độ X của ô đồ thứ 2 (Thức ăn)
+HOTBAR_SLOT_2_X = 850  # Tọa độ X của ô đồ thứ 2 (Thức ăn)
 HOTBAR_SLOT_2_Y = 1000 # Tọa độ Y của ô đồ thứ 2
 
 # ==========================================
