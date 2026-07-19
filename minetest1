@@ -25,6 +25,9 @@ AUTO_EAT_ENABLED = True      # Bật/tắt tự động ăn
 AUTO_EAT_INTERVAL = 600      # Thời gian giữa các lần ăn (giây) - 600s = 10 phút
 AUTO_EAT_HOLD_TIME = 5       # Thời gian hold để ăn (giây)
 
+# -- Tự động xoay màn hình --
+FORCE_LANDSCAPE = True       # True: Ép thiết bị xoay ngang trước khi vào game
+
 START_DELAY = 5
 HOME_WAIT = 30
 JOIN_SERVER_WAIT = 30
@@ -80,6 +83,16 @@ def enable_wake_lock(ctrl):
     ctrl.run_cmd("input keyevent 224")
     time.sleep(1)
     print("[WAKE] ✅ Wake lock đã bật!")
+
+def set_landscape_mode(ctrl):
+    if FORCE_LANDSCAPE:
+        print("\n[SCREEN] 🔄 Đang khóa và ép xoay ngang màn hình...")
+        # Tắt tính năng tự động xoay bằng cảm biến
+        ctrl.run_cmd("settings put system accelerometer_rotation 0")
+        # Ép màn hình xoay ngang (1 = ngang 90 độ, nếu máy bạn bị ngược có thể đổi thành 3)
+        ctrl.run_cmd("settings put system user_rotation 1")
+        time.sleep(1)
+        print("[SCREEN] ✅ Đã xoay ngang thành công!")
 
 def hold_center(ctrl):
     """Xử lý logic hold dựa trên tùy chọn CONTINUOUS_HOLD"""
@@ -142,6 +155,7 @@ def main():
 
     ctrl = InputController(use_su=True)
     enable_wake_lock(ctrl)
+    set_landscape_mode(ctrl)
 
     print("\n[*] 1. Về home...")
     ctrl.run_cmd("input keyevent 3")
