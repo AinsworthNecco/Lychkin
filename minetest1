@@ -9,10 +9,10 @@ import sys
 CONTINUOUS_HOLD = False  # Đổi thành True: Hold liên tục. False: Hold có nhả theo thời gian random bên dưới.
 
 # -- Cấu hình cho chế độ Hold có nhả (khi CONTINUOUS_HOLD = False) --
-HOLD_TIME_MIN = 5       # Thời gian hold tối thiểu (giây)
-HOLD_TIME_MAX = 6       # Thời gian hold tối đa (giây)
-REST_TIME_MIN = 2        # Thời gian nghỉ tối thiểu (giây)
-REST_TIME_MAX = 3        # Thời gian nghỉ tối đa (giây)
+HOLD_TIME_MIN = 10       # Thời gian hold tối thiểu (giây)
+HOLD_TIME_MAX = 15       # Thời gian hold tối đa (giây)
+REST_TIME_MIN = 1        # Thời gian nghỉ tối thiểu (giây)
+REST_TIME_MAX = 2       # Thời gian nghỉ tối đa (giây)
 
 # -- Cấu hình cho chế độ Hold liên tục (khi CONTINUOUS_HOLD = True) --
 CONTINUOUS_HOLD_CYCLE = 30 # Thời gian đè mỗi chu kỳ (giây) trước khi tự re-hold
@@ -48,9 +48,9 @@ LOOK_UP_Y_START = 800
 LOOK_UP_Y_END = 200
 
 # Tọa độ ô đồ (Hotbar) - Bạn cần tự điền tọa độ chính xác trên màn hình của bạn!
-HOTBAR_SLOT_1_X = 750  # Tọa độ X của ô đồ thứ 1 (Công cụ/Vũ khí để hold)
+HOTBAR_SLOT_1_X = 800  # Tọa độ X của ô đồ thứ 1 (Công cụ/Vũ khí để hold)
 HOTBAR_SLOT_1_Y = 1000 # Tọa độ Y của ô đồ thứ 1
-HOTBAR_SLOT_2_X = 850  # Tọa độ X của ô đồ thứ 2 (Thức ăn)
+HOTBAR_SLOT_2_X = 950  # Tọa độ X của ô đồ thứ 2 (Thức ăn)
 HOTBAR_SLOT_2_Y = 1000 # Tọa độ Y của ô đồ thứ 2
 
 # ==========================================
@@ -165,6 +165,11 @@ def main():
         time.sleep(1.5)
     else:
         print("[*] 4. Bỏ qua bước ngước lên trời (LOOK_UP_ENABLED = False)...")
+
+    # Mặc định tự chuyển về Slot đồ 1 trước khi bắt đầu Hold (không cần điều kiện)
+    print("[*] 4.5. Chuyển về Slot đồ thứ 1 (Mặc định)...")
+    ctrl.tap(HOTBAR_SLOT_1_X, HOTBAR_SLOT_1_Y, 150)
+    time.sleep(1.0) # Đợi 1 giây cho game nhận thao tác chuyển ô đồ
 
     # 5. Bắt đầu Hold
     print("[*] 5. Bắt đầu thực thi Hold")
