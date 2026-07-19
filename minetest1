@@ -39,7 +39,7 @@ JOIN_SERVER_BTN_Y = 355
 
 # Tọa độ vuốt ngước lên 90 độ (từ dưới lên trên)
 LOOK_UP_X = 1200
-LOOK_UP_Y_START = 1000
+LOOK_UP_Y_START = 800
 LOOK_UP_Y_END = 200
 
 # ==========================================
