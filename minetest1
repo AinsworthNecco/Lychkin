@@ -12,7 +12,7 @@ CONTINUOUS_HOLD = False  # Đổi thành True: Hold liên tục. False: Hold có
 HOLD_TIME_MIN = 10       # Thời gian hold tối thiểu (giây)
 HOLD_TIME_MAX = 15       # Thời gian hold tối đa (giây)
 REST_TIME_MIN = 1        # Thời gian nghỉ tối thiểu (giây)
-REST_TIME_MAX = 2       # Thời gian nghỉ tối đa (giây)
+REST_TIME_MAX = 2        # Thời gian nghỉ tối đa (giây)
 
 # -- Cấu hình cho chế độ Hold liên tục (khi CONTINUOUS_HOLD = True) --
 CONTINUOUS_HOLD_CYCLE = 30 # Thời gian đè mỗi chu kỳ (giây) trước khi tự re-hold
@@ -161,10 +161,11 @@ def main():
         print("[*] 4. Vuốt màn hình ngước lên 90 độ...")
         # Vuốt từ y 1000 đến y 200, thời gian vuốt 600ms cho mượt mà
         ctrl.run_cmd(f"input swipe {LOOK_UP_X} {LOOK_UP_Y_START} {LOOK_UP_X} {LOOK_UP_Y_END} 600")
-        print("[*] Chờ 1.5s để ổn định camera...")
-        time.sleep(1.5)
     else:
         print("[*] 4. Bỏ qua bước ngước lên trời (LOOK_UP_ENABLED = False)...")
+
+    print("[*] Chờ 3 giây sau khi xử lý góc nhìn...")
+    time.sleep(3.0)
 
     # Mặc định tự chuyển về Slot đồ 1 trước khi bắt đầu Hold (không cần điều kiện)
     print("[*] 4.5. Chuyển về Slot đồ thứ 1 (Mặc định)...")
