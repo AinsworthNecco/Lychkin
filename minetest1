@@ -9,16 +9,21 @@ import sys
 CONTINUOUS_HOLD = False  # Đổi thành True: Hold liên tục. False: Hold có nhả theo thời gian random bên dưới.
 
 # -- Cấu hình cho chế độ Hold có nhả (khi CONTINUOUS_HOLD = False) --
-HOLD_TIME_MIN = 15      # Thời gian hold tối thiểu (giây)
-HOLD_TIME_MAX = 15       # Thời gian hold tối đa (giây)
-REST_TIME_MIN = 1       # Thời gian nghỉ tối thiểu (giây)
-REST_TIME_MAX = 2       # Thời gian nghỉ tối đa (giây)
+HOLD_TIME_MIN = 5       # Thời gian hold tối thiểu (giây)
+HOLD_TIME_MAX = 6       # Thời gian hold tối đa (giây)
+REST_TIME_MIN = 2        # Thời gian nghỉ tối thiểu (giây)
+REST_TIME_MAX = 3        # Thời gian nghỉ tối đa (giây)
 
 # -- Cấu hình cho chế độ Hold liên tục (khi CONTINUOUS_HOLD = True) --
 CONTINUOUS_HOLD_CYCLE = 30 # Thời gian đè mỗi chu kỳ (giây) trước khi tự re-hold
 
 # -- Cấu hình góc nhìn --
 LOOK_UP_ENABLED = True   # True: Vuốt ngước lên trời. False: Bỏ qua bước vuốt ngước.
+
+# -- Cấu hình Auto Eat (Tự động ăn) --
+AUTO_EAT_ENABLED = True      # Bật/tắt tự động ăn
+AUTO_EAT_INTERVAL = 600      # Thời gian giữa các lần ăn (giây) - 600s = 10 phút
+AUTO_EAT_HOLD_TIME = 5       # Thời gian hold để ăn (giây)
 
 START_DELAY = 5
 HOME_WAIT = 30
@@ -41,6 +46,12 @@ JOIN_SERVER_BTN_Y = 355
 LOOK_UP_X = 1200
 LOOK_UP_Y_START = 800
 LOOK_UP_Y_END = 200
+
+# Tọa độ ô đồ (Hotbar) - Bạn cần tự điền tọa độ chính xác trên màn hình của bạn!
+HOTBAR_SLOT_1_X = 750  # Tọa độ X của ô đồ thứ 1 (Công cụ/Vũ khí để hold)
+HOTBAR_SLOT_1_Y = 1000 # Tọa độ Y của ô đồ thứ 1
+HOTBAR_SLOT_2_X = 850  # Tọa độ X của ô đồ thứ 2 (Thức ăn)
+HOTBAR_SLOT_2_Y = 1000 # Tọa độ Y của ô đồ thứ 2
 
 # ==========================================
 # CONTROLLER
@@ -83,7 +94,27 @@ def hold_center(ctrl):
     x = SCREEN_CENTER_X
     y = SCREEN_CENTER_Y
     
+    last_eat_time = time.time() # Bộ đếm thời gian cho Auto Eat
+    
     while True:
+        # -- Kiểm tra và thực hiện Auto Eat --
+        if AUTO_EAT_ENABLED and (time.time() - last_eat_time >= AUTO_EAT_INTERVAL):
+            print("\n[🍔] Đã đến giờ ăn (đã qua 10 phút)! Tạm dừng hold...")
+            # 1. Bấm sang ô đồ thứ 2 (chứa thức ăn)
+            ctrl.tap(HOTBAR_SLOT_2_X, HOTBAR_SLOT_2_Y, 150)
+            
+            # 2. Hold 5 giây giữa màn hình để ăn
+            print(f" -> Đang giữ {AUTO_EAT_HOLD_TIME} giây để ăn...")
+            ctrl.run_cmd(f"input swipe {x} {y} {x} {y} {AUTO_EAT_HOLD_TIME * 1000}")
+            
+            # 3. Bấm về lại ô đồ thứ 1 (công cụ/vũ khí)
+            ctrl.tap(HOTBAR_SLOT_1_X, HOTBAR_SLOT_1_Y, 150)
+            print("[🍔] Ăn xong! Tiếp tục vòng lặp hold...\n")
+            
+            # Reset lại bộ đếm thời gian chờ đến 10 phút tiếp theo
+            last_eat_time = time.time()
+        # ------------------------------------
+
         if CONTINUOUS_HOLD:
             # Chế độ Hold liên tục
             print(f" -> Đang giữ liên tục ({CONTINUOUS_HOLD_CYCLE}s/chu kỳ để chống kẹt hệ điều hành)...")
