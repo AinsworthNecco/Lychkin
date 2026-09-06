@@ -1,14 +1,11 @@
 #!/bin/bash
 
-# Webhook Discord để nhận thông báo khởi động
 DISCORD_WEBHOOK="https://discord.com/api/webhooks/1522976376246763673/4OiFCAvV0Z7Bd22nIV6ZYFWXIrsxwtufoZUCpIH5J_dOuMHztuIWbcJSDqgT9Q2dDgnq"
 IMAGE_URL="https://i.pinimg.com/736x/14/cd/b8/14cdb8ffeb8017a8a431f12f6c65f2a0.jpg"
 
-# 1. Nạp biến môi trường chuẩn Termux
 export PREFIX="/data/data/com.termux/files/usr"
 export PATH="$PREFIX/bin:$PATH"
 
-# 2. Giữ CPU không rơi vào Deep Sleep
 termux-wake-lock 2>/dev/null
 
 START_TIME=$(date +%s)
@@ -23,11 +20,9 @@ cleanup() {
 }
 trap cleanup SIGINT SIGTERM SIGHUP EXIT
 
-# 3. Thư mục Workspace chứa code
 TARGET_DIR="/sdcard/Download/ServerWorkspace"
 mkdir -p "$TARGET_DIR"
 
-# 4. Cấu hình code-server
 mkdir -p ~/.config/code-server
 cat << 'EOF' > ~/.config/code-server/config.yaml
 bind-addr: 127.0.0.1:8080
@@ -35,10 +30,8 @@ auth: none
 cert: false
 EOF
 
-# 5. Dọn dẹp tiến trình cũ
 pm2 delete web-panel tunnel discord-bot server-manager 2>/dev/null
 
-# 6. Khởi động Web Panel & Cloudflare Tunnel
 pm2 start "code-server --bind-addr 127.0.0.1:8080 --auth none $TARGET_DIR" --name "web-panel" >/dev/null 2>&1
 sleep 4
 
@@ -46,7 +39,6 @@ CLOUDFLARE_LOG="$HOME/cloudflare.log"
 rm -f "$CLOUDFLARE_LOG"
 pm2 start "cloudflared tunnel --url http://127.0.0.1:8080" --name "tunnel" --output "$CLOUDFLARE_LOG" --error "$CLOUDFLARE_LOG" >/dev/null 2>&1
 
-# 7. Khởi động Bot chính và Bot Quản trị
 if [ -f "$TARGET_DIR/main.py" ]; then
     pm2 start "$TARGET_DIR/main.py" --name "discord-bot" --interpreter python --cwd "$TARGET_DIR" >/dev/null 2>&1
 fi
@@ -57,7 +49,6 @@ fi
 
 pm2 save >/dev/null 2>&1
 
-# 8. Quét link trycloudflare.com
 echo "Đang khởi động Server và lấy link kết nối..."
 TUNNEL_URL=""
 for i in {1..30}; do
@@ -70,7 +61,6 @@ for i in {1..30}; do
   fi
 done
 
-# 9. Gửi webhook Discord
 if [ -n "$TUNNEL_URL" ]; then
   curl -H "Content-Type: application/json" \
        -X POST \
@@ -91,7 +81,6 @@ YELLOW='\033[1;33m'
 RED='\033[0;31m'
 NC='\033[0m'
 
-# Hàm định dạng dung lượng byte ra B/KB/MB/GB
 format_bytes() {
     local b=$1
     if [ "$b" -ge 1073741824 ]; then
@@ -105,78 +94,28 @@ format_bytes() {
     fi
 }
 
-# Đọc Pin và tính công suất (W) trực tiếp từ sysfs
-get_battery_info() {
-    local base="/sys/class/power_supply/battery"
-    local cap="N/A"
-    local watt="N/A"
-
-    if [ ! -d "$base" ]; then
-        for ps in /sys/class/power_supply/*; do
-            case "$ps" in
-                *bat*|*BAT*) base="$ps"; break ;;
-            esac
-        done
-    fi
-
-    if [ -d "$base" ]; then
-        [ -f "$base/capacity" ] && cap="$(cat "$base/capacity")%"
-
-        local v=0 c=0
-        [ -f "$base/voltage_now" ] && v=$(cat "$base/voltage_now")
-        [ "$v" -eq 0 ] && [ -f "$base/batt_vol" ] && v=$(cat "$base/batt_vol")
-
-        [ -f "$base/current_now" ] && c=$(cat "$base/current_now")
-        [ "$c" -eq 0 ] && [ -f "$base/batt_current" ] && c=$(cat "$base/batt_current")
-
-        v=${v#-}
-        c=${c#-}
-        if [ "$v" -gt 0 ] && [ "$c" -gt 0 ]; then
-            watt=$(awk -v v="$v" -v c="$c" 'BEGIN {printf "%.2f W", (v/1000000)*(c/1000000)}')
-        fi
-    fi
-
-    if [ "$cap" = "N/A" ]; then
-        local raw=$(termux-battery-status 2>/dev/null)
-        local p=$(echo "$raw" | grep -o '"percentage": [0-9]*' | cut -d' ' -f2)
-        [ -n "$p" ] && cap="${p}%"
-    fi
-
-    echo "$cap | $watt"
-}
-
-# 10. Vòng lặp giám sát: Căn chuẩn các mốc phút chẵn 10, 20, 30, 40, 50, 00
 while true; do
-    # Kiểm tra trạng thái Tunnel
     TUNNEL_STATUS=$(pm2 describe tunnel 2>/dev/null | grep -o "online" | head -n 1)
     if [ "$TUNNEL_STATUS" != "online" ]; then
         echo -e "\n${RED}[!] Phát hiện Cloudflare Tunnel đã ngắt kết nối hoặc tắt.${NC}"
         cleanup
     fi
 
-    # RAM khả dụng
     RAM_FREE=$(free -m | awk '/Mem:/ {print $7}')
     [ -z "$RAM_FREE" ] && RAM_FREE=$(free -m | awk '/Mem:/ {print $4}')
 
-    # ROM còn trống
     DISK_FREE=$(df -h /data 2>/dev/null | awk 'NR==2 {print $4}')
 
-    # Tổng Data (bỏ interface lo)
     read -r TOTAL_RX TOTAL_TX <<< "$(awk 'NR>2 && $1 !~ /lo/ {rx+=$2; tx+=$10} END {print rx, tx}' /proc/net/dev 2>/dev/null)"
     RX_FMT=$(format_bytes "${TOTAL_RX:-0}")
     TX_FMT=$(format_bytes "${TOTAL_TX:-0}")
 
-    # Thông số Pin & Watt
-    BAT_INFO=$(get_battery_info)
-
-    # Trạng thái 2 bot
     MAIN_BOT_STATUS=$(pm2 describe discord-bot 2>/dev/null | grep -o "online" | head -n 1)
     [ "$MAIN_BOT_STATUS" = "online" ] && MAIN_BOT_DISPLAY="${GREEN}ONLINE${NC}" || MAIN_BOT_DISPLAY="${RED}OFFLINE${NC}"
 
     MGR_BOT_STATUS=$(pm2 describe server-manager 2>/dev/null | grep -o "online" | head -n 1)
     [ "$MGR_BOT_STATUS" = "online" ] && MGR_BOT_DISPLAY="${GREEN}ONLINE${NC}" || MGR_BOT_DISPLAY="${RED}OFFLINE${NC}"
 
-    # Server Uptime
     CURRENT_TIME=$(date +%s)
     DIFF_SEC=$(( CURRENT_TIME - START_TIME ))
     UP_DAYS=$(( DIFF_SEC / 86400 ))
@@ -208,14 +147,12 @@ LOGO
     echo -e "${NC}--------------------------------------------------"
     echo -e "  • RAM trống    : ${RAM_FREE} MB"
     echo -e "  • ROM trống    : ${DISK_FREE}"
-    echo -e "  • Pin & Watt   : ${BAT_INFO}"
     echo -e "${NC}--------------------------------------------------"
     echo -e "  • Link Web     : ${CYAN}${TUNNEL_URL:-Đang kết nối...}${NC}"
     echo -e "${NC}=================================================="
     echo -e "${YELLOW}[!] Cập nhật mỗi 10 phút chẵn (:00, :10, :20, :30, :40, :50).${NC}"
     echo -e "${YELLOW}[!] Bấm Ctrl+C hoặc đóng Termux để tắt toàn bộ.${NC}"
 
-    # Tính toán thời gian ngủ chính xác đến mốc tròn chục tiếp theo
     CURR_MIN=$(date +%-M)
     CURR_SEC=$(date +%-S)
     REM=$(( CURR_MIN % 10 ))
