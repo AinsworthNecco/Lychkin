@@ -1,166 +1,56 @@
-import time
-import os
-import random
+#!/bin/bash
 
-# ==========================================
-# CẤU HÌNH
-# ==========================================
-START_DELAY = 5
-CYCLE_INTERVAL = 60 * 60    # 1 tiếng mỗi cycle
-JOIN_SERVER_WAIT = 30        # Chờ 30s sau khi join server
-HOME_WAIT = 30             # Chờ 10s sau khi về home để ping server
+# Đặt link Webhook của bạn ở đây (Ví dụ Discord Webhook)
+DISCORD_WEBHOOK="https://discord.com/api/webhooks/1522976376246763673/4OiFCAvV0Z7Bd22nIV6ZYFWXIrsxwtufoZUCpIH5J_dOuMHztuIWbcJSDqgT9Q2dDgnq"
 
-MC_PACKAGE = "com.mojang.minecraftpe"
+# 1. Giữ máy luôn thức
+termux-wake-lock 2>/dev/null
 
-# ==========================================
-# TỌA ĐỘ NÚT
-# ==========================================
-AUTO_CLICK_BTN_X = 40
-AUTO_CLICK_BTN_Y = 50
+# 2. Cấu hình code-server không cần mật khẩu
+mkdir -p ~/.config/code-server
+cat << 'EOF' > ~/.config/code-server/config.yaml
+bind-addr: 0.0.0.0:8080
+auth: none
+cert: false
+EOF
 
-JOIN_SERVER_BTN_X = 1750
-JOIN_SERVER_BTN_Y = 355
+# 3. Dừng các phiên chạy cũ để tránh trùng lặp
+pm2 delete web-panel tunnel 2>/dev/null
 
-ENTER_BTN_X = 2250
-ENTER_BTN_Y = 725
+# 4. Khởi chạy code-server
+pm2 start "code-server" --name "web-panel"
 
-KEY_CHAT = "76"
+# 5. Khởi chạy Cloudflare Tunnel và ghi log vào file tạm
+CLOUDFLARE_LOG="$HOME/cloudflare.log"
+rm -f "$CLOUDFLARE_LOG"
 
-# ==========================================
-# CONTROLLER
-# ==========================================
-class InputController:
-    def __init__(self, use_su=True):
-        self.use_su = use_su
-        print(f"[*] Controller: {'Root (su)' if use_su else 'ADB'}")
+pm2 start "cloudflared tunnel --url http://localhost:8080" --name "tunnel" --output "$CLOUDFLARE_LOG" --error "$CLOUDFLARE_LOG"
+pm2 save
 
-    def run_cmd(self, command):
-        if self.use_su:
-            os.system(f"su -c '{command}'")
-        else:
-            os.system(f"adb shell {command}")
+# 6. Quét log tìm link trycloudflare.com
+echo "Đang đợi Cloudflare khởi tạo link..."
+TUNNEL_URL=""
 
-    def tap(self, x, y, duration=150):
-        print(f" -> Tap: ({x}, {y}) for {duration}ms")
-        self.run_cmd(f"input swipe {x} {y} {x} {y} {duration}")
-        time.sleep(0.5)
+for i in {1..30}; do
+  sleep 1
+  if [ -f "$CLOUDFLARE_LOG" ]; then
+    TUNNEL_URL=$(grep -o 'https://[-a-zA-Z0-9@:%._\+~#=]*\.trycloudflare\.com' "$CLOUDFLARE_LOG" | tail -n 1)
+    if [ -n "$TUNNEL_URL" ]; then
+      break
+    fi
+  fi
+done
 
-    def tap_random(self, x, y, duration=300):
-        rx = x + random.randint(-4, 4)
-        ry = y + random.randint(-4, 4)
-        print(f" -> Tap (random): ({rx}, {ry}) for {duration}ms")
-        self.run_cmd(f"input swipe {rx} {ry} {rx} {ry} {duration}")
-        time.sleep(0.5)
-
-    def swipe(self, x1, y1, x2, y2, duration=1000):
-        print(f" -> Swipe: ({x1},{y1}) -> ({x2},{y2}) for {duration}ms")
-        self.run_cmd(f"input swipe {x1} {y1} {x2} {y2} {duration}")
-        time.sleep(0.5)
-
-    def send_command(self, cmd_text):
-        print(f"[CMD] Sending: /{cmd_text}")
-        self.run_cmd(f"input keyevent {KEY_CHAT}")
-        time.sleep(2.0)
-        self.run_cmd("input text /")
-        time.sleep(0.8)
-        for char in cmd_text.lstrip("/"):
-            if char == " ":
-                self.run_cmd("input keyevent 62")
-            else:
-                self.run_cmd(f"input text '{char}'")
-            time.sleep(0.15)
-        time.sleep(1.0)
-        # Không tap send nữa, dùng ENTER_BTN bên ngoài
-
-def enable_wake_lock(ctrl):
-    print("\n[WAKE] 🔒 Bật wake lock...")
-    ctrl.run_cmd("settings put system screen_off_timeout 2147483647")
-    ctrl.run_cmd("dumpsys deviceidle disable")
-    ctrl.run_cmd("svc power stayon true")
-    ctrl.run_cmd("input keyevent 224")
-    time.sleep(1)
-    print("[WAKE] ✅ Wake lock đã bật!")
-
-# ==========================================
-# LOGIC
-# ==========================================
-def go_home_and_join(ctrl):
-    print("\n[*] Về home...")
-    ctrl.run_cmd("input keyevent 3")  # 3 = HOME button
-    time.sleep(2.0)
-
-    print("[*] Mở Minecraft...")
-    ctrl.run_cmd(f"am start -n {MC_PACKAGE}/com.mojang.minecraftpe.MainActivity")
-    print(f"[*] Chờ {HOME_WAIT}s để ping server...")
-    time.sleep(HOME_WAIT)
-
-    print("[*] Nhấn Join server...")
-    ctrl.tap(JOIN_SERVER_BTN_X, JOIN_SERVER_BTN_Y)
-    print(f"[*] Chờ {JOIN_SERVER_WAIT}s cho server load...")
-    time.sleep(JOIN_SERVER_WAIT)
-
-    print("[*] Mở /sell...")
-    ctrl.send_command("sell")
-    time.sleep(2.0)
-
-    print("[*] Nhấn Enter...")
-    ctrl.tap(ENTER_BTN_X, ENTER_BTN_Y)
-    time.sleep(1.0)
-
-    print("[*] Bật auto click...")
-    ctrl.tap(AUTO_CLICK_BTN_X, AUTO_CLICK_BTN_Y)
-    time.sleep(1.0)
-
-    print("[✓] Đã vào game và bắt đầu auto click!")
-
-def stop_and_reset(ctrl):
-    print("\n[*] Tắt auto click...")
-    ctrl.tap(AUTO_CLICK_BTN_X, AUTO_CLICK_BTN_Y)
-    time.sleep(1.0)
-
-# ==========================================
-# MAIN
-# ==========================================
-def main():
-    print(f"[*] START IN {START_DELAY}S")
-    for i in range(START_DELAY, 0, -1):
-        print(f"{i}s...")
-        time.sleep(1)
-
-    ctrl = InputController(use_su=True)
-    enable_wake_lock(ctrl)
-
-    cycle = 1
-
-    while True:
-        try:
-            print(f"\n{'='*40}")
-            print(f"[*] CYCLE #{cycle} - {time.strftime('%H:%M:%S')}")
-            print(f"{'='*40}")
-
-            # Vào game và bật auto click
-            go_home_and_join(ctrl)
-
-            # Chờ 1 tiếng
-            print(f"\n[*] Auto click đang chạy, chờ {CYCLE_INTERVAL//60} phút...")
-            for i in range(CYCLE_INTERVAL, 0, -1):
-                m, s = divmod(i, 60)
-                print(f"  Còn {m:02d}:{s:02d}...", end='\r')
-                time.sleep(1)
-
-            # Tắt auto click và reset
-            print("\n[*] Hết 1 tiếng, reset...")
-            stop_and_reset(ctrl)
-            cycle += 1
-
-        except KeyboardInterrupt:
-            print("\n[!] Stopped. Exiting...")
-            ctrl.run_cmd("settings put system screen_off_timeout 60000")
-            ctrl.run_cmd("svc power stayon false")
-            break
-        except Exception as e:
-            print(f"\n[!] Error: {e}. Retrying in 5s...")
-            time.sleep(5)
-
-if __name__ == "__main__":
-    main()
+# 7. Thông báo kết quả và bắn Webhook
+if [ -n "$TUNNEL_URL" ]; then
+  echo "Link server: $TUNNEL_URL"
+  if [ -n "$DISCORD_WEBHOOK" ] && [ "$DISCORD_WEBHOOK" != "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL_HERE" ]; then
+    curl -H "Content-Type: application/json" \
+         -X POST \
+         -d "{\"content\": \"🚀 **Server Termux đã khởi động thành công!**\n🔗 **Link Web Panel:** $TUNNEL_URL\"}" \
+         "$DISCORD_WEBHOOK" > /dev/null 2>&1
+    echo "Đã gửi link vào Discord Webhook thành công."
+  fi
+else
+  echo "Không tìm thấy link Tunnel trong log. Hãy kiểm tra lại kết nối mạng."
+fi
