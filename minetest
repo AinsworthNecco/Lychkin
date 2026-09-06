@@ -1,33 +1,36 @@
 #!/bin/bash
 
-# Đặt link Webhook của bạn ở đây (Ví dụ Discord Webhook)
+# Webhook Discord của bạn
 DISCORD_WEBHOOK="https://discord.com/api/webhooks/1522976376246763673/4OiFCAvV0Z7Bd22nIV6ZYFWXIrsxwtufoZUCpIH5J_dOuMHztuIWbcJSDqgT9Q2dDgnq"
 
-# 1. Giữ máy luôn thức
+# 1. Nạp biến môi trường chuẩn Termux
+export PREFIX="/data/data/com.termux/files/usr"
+export PATH="$PREFIX/bin:$PATH"
+
+# 2. Giữ máy thức không ngủ
 termux-wake-lock 2>/dev/null
 
-# 2. Cấu hình code-server không cần mật khẩu
-mkdir -p ~/.config/code-server
-cat << 'EOF' > ~/.config/code-server/config.yaml
-bind-addr: 0.0.0.0:8080
-auth: none
-cert: false
-EOF
+# 3. Tạo thư mục làm việc trong Download
+TARGET_DIR="/sdcard/Download/ServerWorkspace"
+mkdir -p "$TARGET_DIR"
 
-# 3. Dừng các phiên chạy cũ để tránh trùng lặp
+# 4. Dọn dẹp tiến trình cũ
 pm2 delete web-panel tunnel 2>/dev/null
 
-# 4. Khởi chạy code-server
-pm2 start "code-server" --name "web-panel"
+# 5. Khởi chạy code-server với cờ bind rõ ràng cổng 8080 và bỏ mật khẩu
+pm2 start "code-server --bind-addr 127.0.0.1:8080 --auth none $TARGET_DIR" --name "web-panel"
 
-# 5. Khởi chạy Cloudflare Tunnel và ghi log vào file tạm
+# Đợi 5 giây cho code-server khởi tạo xong socket cổng 8080
+sleep 5
+
+# 6. Khởi chạy Cloudflare Tunnel và ghi log
 CLOUDFLARE_LOG="$HOME/cloudflare.log"
 rm -f "$CLOUDFLARE_LOG"
 
-pm2 start "cloudflared tunnel --url http://localhost:8080" --name "tunnel" --output "$CLOUDFLARE_LOG" --error "$CLOUDFLARE_LOG"
+pm2 start "cloudflared tunnel --url http://127.0.0.1:8080" --name "tunnel" --output "$CLOUDFLARE_LOG" --error "$CLOUDFLARE_LOG"
 pm2 save
 
-# 6. Quét log tìm link trycloudflare.com
+# 7. Quét log tìm link trycloudflare.com
 echo "Đang đợi Cloudflare khởi tạo link..."
 TUNNEL_URL=""
 
@@ -41,16 +44,15 @@ for i in {1..30}; do
   fi
 done
 
-# 7. Thông báo kết quả và bắn Webhook
+# 8. Bắn link về Discord Webhook
 if [ -n "$TUNNEL_URL" ]; then
   echo "Link server: $TUNNEL_URL"
-  if [ -n "$DISCORD_WEBHOOK" ] && [ "$DISCORD_WEBHOOK" != "https://discord.com/api/webhooks/YOUR_WEBHOOK_URL_HERE" ]; then
-    curl -H "Content-Type: application/json" \
-         -X POST \
-         -d "{\"content\": \"🚀 **Server Termux đã khởi động thành công!**\n🔗 **Link Web Panel:** $TUNNEL_URL\"}" \
-         "$DISCORD_WEBHOOK" > /dev/null 2>&1
-    echo "Đã gửi link vào Discord Webhook thành công."
-  fi
+  curl -H "Content-Type: application/json" \
+       -X POST \
+       -d "{\"content\": \"🚀 **Server Termux đã sẵn sàng!**\n📂 **Workspace:** \`/sdcard/Download/ServerWorkspace\`\n🔗 **Link điều khiển:** $TUNNEL_URL\"}" \
+       "$DISCORD_WEBHOOK" > /dev/null 2>&1
+  echo "Đã gửi link vào Discord thành công!"
 else
-  echo "Không tìm thấy link Tunnel trong log. Hãy kiểm tra lại kết nối mạng."
+  echo "Không lấy được link. Log Cloudflare:"
+  cat "$CLOUDFLARE_LOG" | tail -n 10
 fi
