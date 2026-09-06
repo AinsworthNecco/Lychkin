@@ -1,38 +1,38 @@
 #!/bin/bash
 
-# Webhook Discord của bạn
+# Webhook Discord
 DISCORD_WEBHOOK="https://discord.com/api/webhooks/1522976376246763673/4OiFCAvV0Z7Bd22nIV6ZYFWXIrsxwtufoZUCpIH5J_dOuMHztuIWbcJSDqgT9Q2dDgnq"
 
 # Link ảnh hiển thị trên Discord Webhook
 IMAGE_URL="https://i.pinimg.com/1200x/a6/f7/a3/a6f7a31443989f866e216ed18348b593.jpg"
 
-# Chu kỳ làm mới Dashboard (5 giây)
 INTERVAL=5
 
-# 1. Nạp biến môi trường chuẩn Termux
+# 1. Nạp môi trường Termux
 export PREFIX="/data/data/com.termux/files/usr"
 export PATH="$PREFIX/bin:$PATH"
 
-# 2. Giữ máy thức không rơi vào ngủ sâu
+# 2. Giữ máy thức
 termux-wake-lock 2>/dev/null
 
 START_TIME=$(date +%s)
 
+# Hàm dọn dẹp tắt sạch khi kết thúc hoặc Tunnel sập
 cleanup() {
-    echo -e "\n\033[0;31m[!] Đang tắt và giải phóng toàn bộ server...\033[0m"
-    pm2 delete web-panel tunnel 2>/dev/null
+    echo -e "\n\033[0;31m[!] Đang tắt và giải phóng toàn bộ dịch vụ server...\033[0m"
+    pm2 delete web-panel tunnel discord-bot 2>/dev/null
     pm2 kill 2>/dev/null
     termux-wake-unlock 2>/dev/null
-    echo -e "\033[0;32m[✓] Server đã offline hoàn toàn.\033[0m"
+    echo -e "\033[0;32m[✓] Server đã offline hoàn toàn. Bạn có thể bảo trì thiết bị.\033[0m"
     exit 0
 }
 trap cleanup SIGINT SIGTERM SIGHUP EXIT
 
-# 3. Thư mục lưu trữ
+# 3. Thư mục Workspace
 TARGET_DIR="/sdcard/Download/ServerWorkspace"
 mkdir -p "$TARGET_DIR"
 
-# 4. Cấu hình code-server không mật khẩu
+# 4. Cấu hình code-server
 mkdir -p ~/.config/code-server
 cat << 'EOF' > ~/.config/code-server/config.yaml
 bind-addr: 127.0.0.1:8080
@@ -40,17 +40,22 @@ auth: none
 cert: false
 EOF
 
-# 5. Dọn tiến trình cũ
-pm2 delete web-panel tunnel 2>/dev/null
+# 5. Dọn dẹp các tiến trình cũ
+pm2 delete web-panel tunnel discord-bot 2>/dev/null
 
-# 6. Khởi chạy code-server
+# 6. Khởi động Web Panel & Cloudflare Tunnel
 pm2 start "code-server --bind-addr 127.0.0.1:8080 --auth none $TARGET_DIR" --name "web-panel" >/dev/null 2>&1
 sleep 4
 
-# 7. Khởi chạy Cloudflare Tunnel
 CLOUDFLARE_LOG="$HOME/cloudflare.log"
 rm -f "$CLOUDFLARE_LOG"
 pm2 start "cloudflared tunnel --url http://127.0.0.1:8080" --name "tunnel" --output "$CLOUDFLARE_LOG" --error "$CLOUDFLARE_LOG" >/dev/null 2>&1
+
+# 7. Khởi động thẳng bot Python main.py từ ServerWorkspace
+if [ -f "$TARGET_DIR/main.py" ]; then
+    pm2 start "$TARGET_DIR/main.py" --name "discord-bot" --interpreter python --cwd "$TARGET_DIR" >/dev/null 2>&1
+fi
+pm2 save >/dev/null 2>&1
 
 # 8. Quét link trycloudflare.com
 echo "Đang khởi động Server và lấy link kết nối..."
@@ -65,14 +70,14 @@ for i in {1..30}; do
   fi
 done
 
-# 9. Bắn Discord Webhook
+# 9. Gửi link về Discord
 if [ -n "$TUNNEL_URL" ]; then
   curl -H "Content-Type: application/json" \
        -X POST \
        -d "{
          \"embeds\": [{
-           \"title\": \"🚀 Server Termux đã sẵn sàng!\",
-           \"description\": \"📂 **Workspace:** \`/sdcard/Download/ServerWorkspace\`\n🔗 **Link điều khiển:** $TUNNEL_URL\",
+           \"title\": \"🚀 Server & Bot đã sẵn sàng!\",
+           \"description\": \"📂 **Workspace:** \`/sdcard/Download/ServerWorkspace\`\n🔗 **Link điều khiển:** $TUNNEL_URL\n🤖 **Bot Discord:** Đang chạy\",
            \"color\": 3066993,
            \"image\": { \"url\": \"$IMAGE_URL\" }
          }]
@@ -92,36 +97,33 @@ get_bytes() {
 
 read -r PREV_RX PREV_TX <<< "$(get_bytes)"
 
-# 10. Dashboard hiển thị
+# 10. Vòng lặp giám sát Dashboard & Kiểm tra sống còn của Tunnel
 while true; do
     sleep $INTERVAL
+
+    # Kiểm tra trạng thái Tunnel: Nếu Tunnel tắt -> Tự động dừng toàn bộ hệ thống
+    TUNNEL_STATUS=$(pm2 describe tunnel 2>/dev/null | grep -o "online" | head -n 1)
+    if [ "$TUNNEL_STATUS" != "online" ]; then
+        echo -e "\n${RED}[!] Phát hiện Cloudflare Tunnel đã ngắt kết nối hoặc tắt.${NC}"
+        cleanup
+    fi
+
     read -r CURR_RX CURR_TX <<< "$(get_bytes)"
-    
     SPEED_RX=$(( (CURR_RX - PREV_RX) / 1024 / INTERVAL ))
     SPEED_TX=$(( (CURR_TX - PREV_TX) / 1024 / INTERVAL ))
     PREV_RX=$CURR_RX
     PREV_TX=$CURR_TX
 
-    # Chỉ lấy RAM còn trống khả dụng (available)
     RAM_FREE=$(free -m | awk '/Mem:/ {print $7}')
     [ -z "$RAM_FREE" ] && RAM_FREE=$(free -m | awk '/Mem:/ {print $4}')
 
-    # Chỉ lấy ROM còn trống (available)
     DISK_FREE=$(df -h /data 2>/dev/null | awk 'NR==2 {print $4}')
 
     BAT_INFO=$(termux-battery-status 2>/dev/null | grep -o '"percentage": [0-9]*' | cut -d' ' -f2)
     [ -z "$BAT_INFO" ] && BAT_INFO="N/A"
 
-    WEB_STATUS=$(pm2 describe web-panel 2>/dev/null | grep -o "online" | head -n 1)
-    TUNNEL_STATUS=$(pm2 describe tunnel 2>/dev/null | grep -o "online" | head -n 1)
-
-    if [ "$WEB_STATUS" = "online" ] && [ "$TUNNEL_STATUS" = "online" ]; then
-        STATUS_DISPLAY="${GREEN}RUNNING (ONLINE)${NC}"
-    elif [ "$WEB_STATUS" = "online" ] || [ "$TUNNEL_STATUS" = "online" ]; then
-        STATUS_DISPLAY="${YELLOW}STARTING / RESTARTING...${NC}"
-    else
-        STATUS_DISPLAY="${RED}OFFLINE${NC}"
-    fi
+    BOT_STATUS=$(pm2 describe discord-bot 2>/dev/null | grep -o "online" | head -n 1)
+    [ "$BOT_STATUS" = "online" ] && BOT_DISPLAY="${GREEN}ONLINE${NC}" || BOT_DISPLAY="${RED}OFFLINE${NC}"
 
     CURRENT_TIME=$(date +%s)
     DIFF_SEC=$(( CURRENT_TIME - START_TIME ))
@@ -146,7 +148,8 @@ while true; do
        |___/                             
 LOGO
     echo -e "${NC}=================================================="
-    echo -e "  • Trạng thái : $STATUS_DISPLAY"
+    echo -e "  • Trạng thái : ${GREEN}RUNNING (ONLINE)${NC}"
+    echo -e "  • Bot Discord: $BOT_DISPLAY"
     echo -e "  • Uptime     : $SERVER_UPTIME"
     echo -e "  • Tốc độ mạng: ↓ ${SPEED_RX} KB/s  |  ↑ ${SPEED_TX} KB/s"
     echo -e "${NC}--------------------------------------------------"
@@ -156,5 +159,5 @@ LOGO
     echo -e "${NC}--------------------------------------------------"
     echo -e "  • Link Web   : ${CYAN}${TUNNEL_URL:-Đang kết nối...}${NC}"
     echo -e "${NC}=================================================="
-    echo -e "${YELLOW}[!] Bấm Ctrl+C hoặc đóng hẳn Termux để dừng Server.${NC}"
+    echo -e "${YELLOW}[!] Bấm Ctrl+C, vuốt tắt Termux, hoặc tắt tunnel để bảo trì.${NC}"
 done
