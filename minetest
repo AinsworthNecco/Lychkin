@@ -3,10 +3,10 @@
 # Webhook Discord của bạn
 DISCORD_WEBHOOK="https://discord.com/api/webhooks/1522976376246763673/4OiFCAvV0Z7Bd22nIV6ZYFWXIrsxwtufoZUCpIH5J_dOuMHztuIWbcJSDqgT9Q2dDgnq"
 
-# Link ảnh hiển thị (Thay bằng URL ảnh .png / .jpg bạn thích)
-IMAGE_URL="https://i.pinimg.com/736x/ab/01/b7/ab01b7e72800fb8650f17edbe56e87f4.jpg"
+# Link ảnh hiển thị trên Discord Webhook (Ảnh banner embed)
+IMAGE_URL="https://i.pinimg.com/736x/2a/da/e2/2adae27f829b69b2c3803664cf4f7b9e.jpg"
 
-# Khoảng thời gian làm mới Dashboard (5 giây giúp máy mát và tiết kiệm pin)
+# Chu kỳ làm mới Dashboard (5 giây giúp máy mát và tiết kiệm pin)
 INTERVAL=5
 
 # 1. Nạp biến môi trường chuẩn Termux
@@ -15,6 +15,9 @@ export PATH="$PREFIX/bin:$PATH"
 
 # 2. Giữ máy thức không rơi vào ngủ sâu
 termux-wake-lock 2>/dev/null
+
+# Ghi lại mốc thời gian server bắt đầu chạy
+START_TIME=$(date +%s)
 
 # Hàm dọn dẹp khi tắt Termux hoặc bấm Ctrl+C
 cleanup() {
@@ -26,11 +29,6 @@ cleanup() {
     exit 0
 }
 trap cleanup SIGINT SIGTERM SIGHUP EXIT
-
-# Tự cài đặt chafa nếu chưa có (để hiển thị ảnh ASCII màu)
-if ! command -v chafa &> /dev/null; then
-    pkg install chafa -y >/dev/null 2>&1
-fi
 
 # 3. Tạo thư mục làm việc trong Download
 TARGET_DIR="/sdcard/Download/ServerWorkspace"
@@ -69,13 +67,7 @@ for i in {1..30}; do
   fi
 done
 
-# 9. Tải ảnh hiển thị tạm
-TMP_IMAGE="$HOME/banner_temp.png"
-if [ -n "$IMAGE_URL" ]; then
-    curl -sL "$IMAGE_URL" -o "$TMP_IMAGE" 2>/dev/null
-fi
-
-# 10. Bắn thông báo và ảnh về Discord Webhook
+# 9. Bắn thông báo kèm ảnh vào Discord Webhook
 if [ -n "$TUNNEL_URL" ]; then
   curl -H "Content-Type: application/json" \
        -X POST \
@@ -103,12 +95,12 @@ get_bytes() {
 
 read -r PREV_RX PREV_TX <<< "$(get_bytes)"
 
-# 11. Vòng lặp Dashboard Realtime
+# 10. Vòng lặp Dashboard Realtime
 while true; do
     sleep $INTERVAL
     read -r CURR_RX CURR_TX <<< "$(get_bytes)"
     
-    # Tính tốc độ mạng (chia cho INTERVAL để ra KB/s chính xác)
+    # Tính tốc độ mạng (KB/s)
     SPEED_RX=$(( (CURR_RX - PREV_RX) / 1024 / INTERVAL ))
     SPEED_TX=$(( (CURR_TX - PREV_TX) / 1024 / INTERVAL ))
     PREV_RX=$CURR_RX
@@ -140,17 +132,23 @@ while true; do
         STATUS_DISPLAY="${RED}OFFLINE${NC}"
     fi
 
-    # Uptime
-    SYS_UPTIME=$(uptime -p 2>/dev/null | sed 's/up //')
-    [ -z "$SYS_UPTIME" ] && SYS_UPTIME="$(uptime | awk -F',' '{print $1}' | sed 's/.*up //')"
+    # Tính Server Uptime từ lúc chạy script
+    CURRENT_TIME=$(date +%s)
+    DIFF_SEC=$(( CURRENT_TIME - START_TIME ))
+    UP_DAYS=$(( DIFF_SEC / 86400 ))
+    UP_HOURS=$(( (DIFF_SEC % 86400) / 3600 ))
+    UP_MINS=$(( (DIFF_SEC % 3600) / 60 ))
+    UP_SECS=$(( DIFF_SEC % 60 ))
+
+    SERVER_UPTIME=""
+    [ $UP_DAYS -gt 0 ] && SERVER_UPTIME="${UP_DAYS}d "
+    [ $UP_HOURS -gt 0 ] && SERVER_UPTIME="${SERVER_UPTIME}${UP_HOURS}h "
+    SERVER_UPTIME="${SERVER_UPTIME}${UP_MINS}m ${UP_SECS}s"
 
     clear
-    # Hiển thị ảnh nếu tải thành công, ngược lại dùng chữ ASCII
-    if [ -f "$TMP_IMAGE" ]; then
-        chafa --size=36x12 "$TMP_IMAGE" 2>/dev/null
-    else
-        echo -e "${CYAN}"
-        cat << "LOGO"
+    # In Logo ASCII Lychkin
+    echo -e "${CYAN}"
+    cat << "LOGO"
   _                  _     _     _       
  | |   _   _  ___  | |__ | | __(_) _ __  
  | |  | | | |/ __| | '_ \| |/ /| || '_ \ 
@@ -158,11 +156,9 @@ while true; do
  |_____\__, |\___| |_| |_|_|\_\|_||_| |_|
        |___/                             
 LOGO
-    fi
-
     echo -e "${NC}=================================================="
     echo -e "  • Trạng thái : $STATUS_DISPLAY"
-    echo -e "  • Uptime     : $SYS_UPTIME"
+    echo -e "  • Uptime     : $SERVER_UPTIME"
     echo -e "  • Tốc độ mạng: ↓ ${SPEED_RX} KB/s  |  ↑ ${SPEED_TX} KB/s"
     echo -e "${NC}--------------------------------------------------"
     echo -e "  • RAM        : ${RAM_USED} MB / ${RAM_TOTAL} MB (${RAM_PERCENT}%)"
