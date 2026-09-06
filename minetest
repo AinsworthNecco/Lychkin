@@ -1,21 +1,24 @@
 #!/bin/bash
 
+# Webhook Discord nhận link khởi động
 DISCORD_WEBHOOK="https://discord.com/api/webhooks/1522976376246763673/4OiFCAvV0Z7Bd22nIV6ZYFWXIrsxwtufoZUCpIH5J_dOuMHztuIWbcJSDqgT9Q2dDgnq"
 IMAGE_URL="https://i.pinimg.com/736x/14/cd/b8/14cdb8ffeb8017a8a431f12f6c65f2a0.jpg"
 
 export PREFIX="/data/data/com.termux/files/usr"
 export PATH="$PREFIX/bin:$PATH"
 
+# Giữ máy thức không bị sleep sâu
 termux-wake-lock 2>/dev/null
 
 START_TIME=$(date +%s)
 
+# Dọn dẹp sạch sẽ khi dừng
 cleanup() {
-    echo -e "\n\033[0;31m[!] Đang tắt và giải phóng toàn bộ dịch vụ server...\033[0m"
-    pm2 delete web-panel tunnel discord-bot server-manager 2>/dev/null
+    echo -e "\n\033[0;31m[!] Đang tắt và giải phóng toàn bộ server...\033[0m"
+    pm2 delete web-panel tunnel discord-bot 2>/dev/null
     pm2 kill 2>/dev/null
     termux-wake-unlock 2>/dev/null
-    echo -e "\033[0;32m[✓] Server đã offline hoàn toàn. Thiết bị sẵn sàng bảo trì.\033[0m"
+    echo -e "\033[0;32m[✓] Server đã offline hoàn toàn. Sẵn sàng bảo trì máy.\033[0m"
     exit 0
 }
 trap cleanup SIGINT SIGTERM SIGHUP EXIT
@@ -30,8 +33,10 @@ auth: none
 cert: false
 EOF
 
-pm2 delete web-panel tunnel discord-bot server-manager 2>/dev/null
+# Dọn các tiến trình cũ
+pm2 delete web-panel tunnel discord-bot 2>/dev/null
 
+# Khởi chạy Web Panel & Cloudflare Tunnel
 pm2 start "code-server --bind-addr 127.0.0.1:8080 --auth none $TARGET_DIR" --name "web-panel" >/dev/null 2>&1
 sleep 4
 
@@ -39,16 +44,14 @@ CLOUDFLARE_LOG="$HOME/cloudflare.log"
 rm -f "$CLOUDFLARE_LOG"
 pm2 start "cloudflared tunnel --url http://127.0.0.1:8080" --name "tunnel" --output "$CLOUDFLARE_LOG" --error "$CLOUDFLARE_LOG" >/dev/null 2>&1
 
+# Khởi chạy duy nhất Bot chính (main.py)
 if [ -f "$TARGET_DIR/main.py" ]; then
     pm2 start "$TARGET_DIR/main.py" --name "discord-bot" --interpreter python --cwd "$TARGET_DIR" >/dev/null 2>&1
 fi
 
-if [ -f "$TARGET_DIR/manager.py" ]; then
-    pm2 start "$TARGET_DIR/manager.py" --name "server-manager" --interpreter python --cwd "$TARGET_DIR" >/dev/null 2>&1
-fi
-
 pm2 save >/dev/null 2>&1
 
+# Lấy link tunnel
 echo "Đang khởi động Server và lấy link kết nối..."
 TUNNEL_URL=""
 for i in {1..30}; do
@@ -61,13 +64,14 @@ for i in {1..30}; do
   fi
 done
 
+# Gửi link về Discord
 if [ -n "$TUNNEL_URL" ]; then
   curl -H "Content-Type: application/json" \
        -X POST \
        -d "{
          \"embeds\": [{
            \"title\": \"🚀 Hệ thống Server đã sẵn sàng!\",
-           \"description\": \"📂 **Workspace:** \`/sdcard/Download/ServerWorkspace\`\n🔗 **Web Panel:** $TUNNEL_URL\n🤖 **Bot Python:** Đang chạy\n⚡ **Bot Quản trị:** Sẵn sàng điều khiển\",
+           \"description\": \"📂 **Workspace:** \`/sdcard/Download/ServerWorkspace\`\n🔗 **Web Panel:** $TUNNEL_URL\n🤖 **Bot Python:** Đang chạy\",
            \"color\": 16033721,
            \"image\": { \"url\": \"$IMAGE_URL\" }
          }]
@@ -94,7 +98,9 @@ format_bytes() {
     fi
 }
 
+# Vòng lặp hiển thị Termux: Ngủ đúng các mốc 10 phút chẵn
 while true; do
+    # Tự động ngắt toàn bộ nếu Tunnel sập
     TUNNEL_STATUS=$(pm2 describe tunnel 2>/dev/null | grep -o "online" | head -n 1)
     if [ "$TUNNEL_STATUS" != "online" ]; then
         echo -e "\n${RED}[!] Phát hiện Cloudflare Tunnel đã ngắt kết nối hoặc tắt.${NC}"
@@ -110,11 +116,8 @@ while true; do
     RX_FMT=$(format_bytes "${TOTAL_RX:-0}")
     TX_FMT=$(format_bytes "${TOTAL_TX:-0}")
 
-    MAIN_BOT_STATUS=$(pm2 describe discord-bot 2>/dev/null | grep -o "online" | head -n 1)
-    [ "$MAIN_BOT_STATUS" = "online" ] && MAIN_BOT_DISPLAY="${GREEN}ONLINE${NC}" || MAIN_BOT_DISPLAY="${RED}OFFLINE${NC}"
-
-    MGR_BOT_STATUS=$(pm2 describe server-manager 2>/dev/null | grep -o "online" | head -n 1)
-    [ "$MGR_BOT_STATUS" = "online" ] && MGR_BOT_DISPLAY="${GREEN}ONLINE${NC}" || MGR_BOT_DISPLAY="${RED}OFFLINE${NC}"
+    BOT_STATUS=$(pm2 describe discord-bot 2>/dev/null | grep -o "online" | head -n 1)
+    [ "$BOT_STATUS" = "online" ] && BOT_DISPLAY="${GREEN}ONLINE${NC}" || BOT_DISPLAY="${RED}OFFLINE${NC}"
 
     CURRENT_TIME=$(date +%s)
     DIFF_SEC=$(( CURRENT_TIME - START_TIME ))
@@ -140,8 +143,7 @@ while true; do
 LOGO
     echo -e "${NC}=================================================="
     echo -e "  • Web & Tunnel : ${GREEN}RUNNING (ONLINE)${NC}"
-    echo -e "  • Bot Discord  : $MAIN_BOT_DISPLAY"
-    echo -e "  • Bot Quản trị : $MGR_BOT_DISPLAY"
+    echo -e "  • Bot Discord  : $BOT_DISPLAY"
     echo -e "  • Uptime       : $SERVER_UPTIME"
     echo -e "  • Tổng Data    : ↓ $RX_FMT  |  ↑ $TX_FMT"
     echo -e "${NC}--------------------------------------------------"
@@ -153,6 +155,7 @@ LOGO
     echo -e "${YELLOW}[!] Cập nhật mỗi 10 phút chẵn (:00, :10, :20, :30, :40, :50).${NC}"
     echo -e "${YELLOW}[!] Bấm Ctrl+C hoặc đóng Termux để tắt toàn bộ.${NC}"
 
+    # Căn giờ ngủ đúng mốc 10 phút chẵn tiếp theo
     CURR_MIN=$(date +%-M)
     CURR_SEC=$(date +%-S)
     REM=$(( CURR_MIN % 10 ))
