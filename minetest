@@ -3,10 +3,10 @@
 # Webhook Discord của bạn
 DISCORD_WEBHOOK="https://discord.com/api/webhooks/1522976376246763673/4OiFCAvV0Z7Bd22nIV6ZYFWXIrsxwtufoZUCpIH5J_dOuMHztuIWbcJSDqgT9Q2dDgnq"
 
-# Link ảnh hiển thị trên Discord Webhook (Ảnh banner embed)
-IMAGE_URL="https://i.pinimg.com/736x/2a/da/e2/2adae27f829b69b2c3803664cf4f7b9e.jpg"
+# Link ảnh hiển thị trên Discord Webhook
+IMAGE_URL="https://i.pinimg.com/1200x/a6/f7/a3/a6f7a31443989f866e216ed18348b593.jpg"
 
-# Chu kỳ làm mới Dashboard (5 giây giúp máy mát và tiết kiệm pin)
+# Chu kỳ làm mới Dashboard (5 giây)
 INTERVAL=5
 
 # 1. Nạp biến môi trường chuẩn Termux
@@ -16,10 +16,8 @@ export PATH="$PREFIX/bin:$PATH"
 # 2. Giữ máy thức không rơi vào ngủ sâu
 termux-wake-lock 2>/dev/null
 
-# Ghi lại mốc thời gian server bắt đầu chạy
 START_TIME=$(date +%s)
 
-# Hàm dọn dẹp khi tắt Termux hoặc bấm Ctrl+C
 cleanup() {
     echo -e "\n\033[0;31m[!] Đang tắt và giải phóng toàn bộ server...\033[0m"
     pm2 delete web-panel tunnel 2>/dev/null
@@ -30,7 +28,7 @@ cleanup() {
 }
 trap cleanup SIGINT SIGTERM SIGHUP EXIT
 
-# 3. Tạo thư mục làm việc trong Download
+# 3. Thư mục lưu trữ
 TARGET_DIR="/sdcard/Download/ServerWorkspace"
 mkdir -p "$TARGET_DIR"
 
@@ -42,7 +40,7 @@ auth: none
 cert: false
 EOF
 
-# 5. Dọn dẹp tiến trình cũ
+# 5. Dọn tiến trình cũ
 pm2 delete web-panel tunnel 2>/dev/null
 
 # 6. Khởi chạy code-server
@@ -67,7 +65,7 @@ for i in {1..30}; do
   fi
 done
 
-# 9. Bắn thông báo kèm ảnh vào Discord Webhook
+# 9. Bắn Discord Webhook
 if [ -n "$TUNNEL_URL" ]; then
   curl -H "Content-Type: application/json" \
        -X POST \
@@ -82,7 +80,6 @@ if [ -n "$TUNNEL_URL" ]; then
        "$DISCORD_WEBHOOK" > /dev/null 2>&1
 fi
 
-# Màu sắc ANSI
 CYAN='\033[0;36m'
 GREEN='\033[0;32m'
 YELLOW='\033[1;33m'
@@ -95,32 +92,26 @@ get_bytes() {
 
 read -r PREV_RX PREV_TX <<< "$(get_bytes)"
 
-# 10. Vòng lặp Dashboard Realtime
+# 10. Dashboard hiển thị
 while true; do
     sleep $INTERVAL
     read -r CURR_RX CURR_TX <<< "$(get_bytes)"
     
-    # Tính tốc độ mạng (KB/s)
     SPEED_RX=$(( (CURR_RX - PREV_RX) / 1024 / INTERVAL ))
     SPEED_TX=$(( (CURR_TX - PREV_TX) / 1024 / INTERVAL ))
     PREV_RX=$CURR_RX
     PREV_TX=$CURR_TX
 
-    # RAM
-    RAM_TOTAL=$(free -m | awk '/Mem:/ {print $2}')
-    RAM_USED=$(free -m | awk '/Mem:/ {print $3}')
-    [ -n "$RAM_TOTAL" ] && [ "$RAM_TOTAL" -gt 0 ] && RAM_PERCENT=$(( RAM_USED * 100 / RAM_TOTAL )) || RAM_PERCENT=0
+    # Chỉ lấy RAM còn trống khả dụng (available)
+    RAM_FREE=$(free -m | awk '/Mem:/ {print $7}')
+    [ -z "$RAM_FREE" ] && RAM_FREE=$(free -m | awk '/Mem:/ {print $4}')
 
-    # ROM (/data)
-    DISK_TOTAL=$(df -h /data 2>/dev/null | awk 'NR==2 {print $2}')
-    DISK_USED=$(df -h /data 2>/dev/null | awk 'NR==2 {print $3}')
-    DISK_PERCENT=$(df -h /data 2>/dev/null | awk 'NR==2 {print $5}')
+    # Chỉ lấy ROM còn trống (available)
+    DISK_FREE=$(df -h /data 2>/dev/null | awk 'NR==2 {print $4}')
 
-    # Pin
     BAT_INFO=$(termux-battery-status 2>/dev/null | grep -o '"percentage": [0-9]*' | cut -d' ' -f2)
     [ -z "$BAT_INFO" ] && BAT_INFO="N/A"
 
-    # Trạng thái dịch vụ
     WEB_STATUS=$(pm2 describe web-panel 2>/dev/null | grep -o "online" | head -n 1)
     TUNNEL_STATUS=$(pm2 describe tunnel 2>/dev/null | grep -o "online" | head -n 1)
 
@@ -132,7 +123,6 @@ while true; do
         STATUS_DISPLAY="${RED}OFFLINE${NC}"
     fi
 
-    # Tính Server Uptime từ lúc chạy script
     CURRENT_TIME=$(date +%s)
     DIFF_SEC=$(( CURRENT_TIME - START_TIME ))
     UP_DAYS=$(( DIFF_SEC / 86400 ))
@@ -146,7 +136,6 @@ while true; do
     SERVER_UPTIME="${SERVER_UPTIME}${UP_MINS}m ${UP_SECS}s"
 
     clear
-    # In Logo ASCII Lychkin
     echo -e "${CYAN}"
     cat << "LOGO"
   _                  _     _     _       
@@ -161,8 +150,8 @@ LOGO
     echo -e "  • Uptime     : $SERVER_UPTIME"
     echo -e "  • Tốc độ mạng: ↓ ${SPEED_RX} KB/s  |  ↑ ${SPEED_TX} KB/s"
     echo -e "${NC}--------------------------------------------------"
-    echo -e "  • RAM        : ${RAM_USED} MB / ${RAM_TOTAL} MB (${RAM_PERCENT}%)"
-    echo -e "  • Bộ nhớ ROM : ${DISK_USED} / ${DISK_TOTAL} (${DISK_PERCENT})"
+    echo -e "  • RAM trống  : ${RAM_FREE} MB"
+    echo -e "  • ROM trống  : ${DISK_FREE}"
     echo -e "  • Pin        : ${BAT_INFO}%"
     echo -e "${NC}--------------------------------------------------"
     echo -e "  • Link Web   : ${CYAN}${TUNNEL_URL:-Đang kết nối...}${NC}"
