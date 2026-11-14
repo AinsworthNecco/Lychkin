@@ -1,6 +1,5 @@
 #!/bin/bash
 
-# Cấu hình Webhook & Ảnh Embed
 DISCORD_WEBHOOK="https://discord.com/api/webhooks/1522976376246763673/4OiFCAvV0Z7Bd22nIV6ZYFWXIrsxwtufoZUCpIH5J_dOuMHztuIWbcJSDqgT9Q2dDgnq"
 IMAGE_URL="https://i.pinimg.com/736x/14/cd/b8/14cdb8ffeb8017a8a431f12f6c65f2a0.jpg"
 ROOT_DIR="/sdcard/Download"
@@ -12,37 +11,29 @@ termux-wake-lock 2>/dev/null
 START_TIME=$(date +%s)
 
 cleanup() {
-    echo -e "\n\033[0;31m[!] Đang tắt Web Panel & Tunnel (các bot pm2 vẫn giữ trạng thái)...\033[0m"
+    echo -e "\n\033[0;31m[!] Đang tắt Web Panel & Tunnel...\033[0m"
     pm2 delete web-panel tunnel 2>/dev/null
     termux-wake-unlock 2>/dev/null
-    echo -e "\033[0;32m[✓] Đã đóng cổng điều khiển từ xa.\033[0m"
     exit 0
 }
 trap cleanup SIGINT SIGTERM SIGHUP EXIT
 
-# 1. Cấp quyền bộ nhớ nếu chưa có
-if [ ! -d "$ROOT_DIR" ]; then
-    termux-setup-storage
-    sleep 3
-fi
+[ ! -d "$ROOT_DIR" ] && termux-setup-storage && sleep 3
 
-# 2. Tự động cài đặt trọn bộ môi trường Host (Node.js, Python, Git, Cloudflared, code-server)
 if ! command -v code-server >/dev/null 2>&1 || ! command -v node >/dev/null 2>&1 || ! command -v cloudflared >/dev/null 2>&1; then
     echo "[*] Đang cài đặt môi trường Server Host..."
     pkg update -y
     pkg install tur-repo -y
-    if [ -f "$PREFIX/etc/apt/sources.list.d/tur.list" ]; then
-        sed -i 's|https://tur.kcubeterm.com|https://mirrors.tuna.tsinghua.edu.cn/termux/apt/tur-packages|g' "$PREFIX/etc/apt/sources.list.d/tur.list"
-    fi
+    for f in "$PREFIX"/etc/apt/sources.list.d/*.list; do
+        [ -f "$f" ] && sed -i 's|https://tur.kcubeterm.com|https://mirrors.tuna.tsinghua.edu.cn/termux/apt/tur-packages|g' "$f"
+    done
     pkg update -y
     pkg install nodejs-lts python git cloudflared code-server -y
 fi
 command -v pm2 >/dev/null 2>&1 || npm install -g pm2 >/dev/null 2>&1
 
-# Cho phép Git hoạt động trong mọi thư mục con bên trong /sdcard/Download
 git config --global --add safe.directory '*' 2>/dev/null
 
-# 3. Cấu hình code-server không mật khẩu, lấy /sdcard/Download làm thư mục gốc
 mkdir -p ~/.config/code-server
 cat << 'EOF' > ~/.config/code-server/config.yaml
 bind-addr: 127.0.0.1:8080
@@ -50,17 +41,22 @@ auth: none
 cert: false
 EOF
 
-# 4. Khởi chạy Web Panel & Tunnel
+# Khởi chạy code-server đúng chuẩn tham số pm2 và đợi cổng 8080 sẵn sàng
 pm2 delete web-panel tunnel 2>/dev/null
-pm2 start "code-server --bind-addr 127.0.0.1:8080 --auth none $ROOT_DIR" --name "web-panel" >/dev/null 2>&1
-sleep 3
+pm2 start code-server --name "web-panel" -- --bind-addr 127.0.0.1:8080 --auth none "$ROOT_DIR" >/dev/null 2>&1
+
+echo "Đang đợi Web Panel mở cổng 8080..."
+for i in {1..15}; do
+    curl -s http://127.0.0.1:8080 >/dev/null 2>&1 && break
+    sleep 1
+done
 
 CLOUDFLARE_LOG="$HOME/cloudflare.log"
 rm -f "$CLOUDFLARE_LOG"
-pm2 start "cloudflared tunnel --url http://127.0.0.1:8080" --name "tunnel" --output "$CLOUDFLARE_LOG" --error "$CLOUDFLARE_LOG" >/dev/null 2>&1
+pm2 start cloudflared --name "tunnel" --output "$CLOUDFLARE_LOG" --error "$CLOUDFLARE_LOG" -- tunnel --url http://127.0.0.1:8080 >/dev/null 2>&1
 pm2 save >/dev/null 2>&1
 
-echo "Đang khởi động Server Host và lấy link kết nối..."
+echo "Đang lấy link kết nối..."
 TUNNEL_URL=""
 for i in {1..30}; do
     sleep 1
@@ -70,7 +66,6 @@ for i in {1..30}; do
     fi
 done
 
-# 5. Gửi link truy cập về Discord
 if [ -n "$TUNNEL_URL" ]; then
     curl -H "Content-Type: application/json" \
          -X POST \
@@ -93,23 +88,18 @@ NC='\033[0m'
 
 format_bytes() {
     local b=$1
-    if [ "$b" -ge 1073741824 ]; then
-        awk -v b="$b" 'BEGIN {printf "%.2f GB", b/1073741824}'
-    elif [ "$b" -ge 1048576 ]; then
-        awk -v b="$b" 'BEGIN {printf "%.2f MB", b/1048576}'
-    elif [ "$b" -ge 1024 ]; then
-        awk -v b="$b" 'BEGIN {printf "%.2f KB", b/1024}'
-    else
-        echo "${b} B"
-    fi
+    if [ "$b" -ge 1073741824 ]; then awk -v b="$b" 'BEGIN {printf "%.2f GB", b/1073741824}'
+    elif [ "$b" -ge 1048576 ]; then awk -v b="$b" 'BEGIN {printf "%.2f MB", b/1048576}'
+    elif [ "$b" -ge 1024 ]; then awk -v b="$b" 'BEGIN {printf "%.2f KB", b/1024}'
+    else echo "${b} B"; fi
 }
 
 while true; do
     TUNNEL_STATUS=$(pm2 describe tunnel 2>/dev/null | grep -o "online" | head -n 1)
-    if [ "$TUNNEL_STATUS" != "online" ]; then
-        echo -e "\n${RED}[!] Cloudflare Tunnel đã ngắt kết nối.${NC}"
-        cleanup
-    fi
+    [ "$TUNNEL_STATUS" != "online" ] && echo -e "\n${RED}[!] Cloudflare Tunnel đã ngắt kết nối.${NC}" && cleanup
+
+    WEB_STATUS=$(pm2 describe web-panel 2>/dev/null | grep -o "online" | head -n 1)
+    [ "$WEB_STATUS" = "online" ] && WEB_DISPLAY="${GREEN}ONLINE${NC}" || WEB_DISPLAY="${RED}OFFLINE (Lỗi code-server)${NC}"
 
     ACTIVE_APPS=$(pm2 jlist 2>/dev/null | grep -o '"status":"online"' | wc -l)
     USER_APPS=$(( ACTIVE_APPS > 2 ? ACTIVE_APPS - 2 : 0 ))
@@ -145,7 +135,7 @@ while true; do
         |___/                             
 LOGO
     echo -e "${NC}=================================================="
-    echo -e "  • Web & Tunnel : ${GREEN}RUNNING (ONLINE)${NC}"
+    echo -e "  • Web Panel    : $WEB_DISPLAY"
     echo -e "  • Dự án chạy   : ${GREEN}${USER_APPS} apps${NC} (qua PM2)"
     echo -e "  • Uptime       : $SERVER_UPTIME"
     echo -e "  • Tổng Data    : ↓ $RX_FMT  |  ↑ $TX_FMT"
