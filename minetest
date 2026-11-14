@@ -3,90 +3,56 @@
 # Cấu hình Webhook & Ảnh Embed
 DISCORD_WEBHOOK="https://discord.com/api/webhooks/1522976376246763673/4OiFCAvV0Z7Bd22nIV6ZYFWXIrsxwtufoZUCpIH5J_dOuMHztuIWbcJSDqgT9Q2dDgnq"
 IMAGE_URL="https://i.pinimg.com/736x/14/cd/b8/14cdb8ffeb8017a8a431f12f6c65f2a0.jpg"
-WEB_PASSWORD="lychkin2026"
+ROOT_DIR="/sdcard/Download"
 
 export PREFIX="/data/data/com.termux/files/usr"
 export PATH="$PREFIX/bin:$PATH"
-
-BOT_DIR="/sdcard/Download/minebot"
-ENV_FILE="$HOME/.minebot_env"
 
 termux-wake-lock 2>/dev/null
 START_TIME=$(date +%s)
 
 cleanup() {
-    echo -e "\n\033[0;31m[!] Đang tắt và giải phóng toàn bộ server...\033[0m"
-    pm2 delete web-panel tunnel minebot 2>/dev/null
-    pm2 kill 2>/dev/null
+    echo -e "\n\033[0;31m[!] Đang tắt Web Panel & Tunnel (các bot pm2 vẫn giữ trạng thái)...\033[0m"
+    pm2 delete web-panel tunnel 2>/dev/null
     termux-wake-unlock 2>/dev/null
-    echo -e "\033[0;32m[✓] Server đã offline hoàn toàn.\033[0m"
+    echo -e "\033[0;32m[✓] Đã đóng cổng điều khiển từ xa.\033[0m"
     exit 0
 }
 trap cleanup SIGINT SIGTERM SIGHUP EXIT
 
-# 1. Cấp quyền truy cập /sdcard nếu chưa có
-if [ ! -d "/sdcard/Download" ]; then
-    echo "[*] Đang yêu cầu quyền truy cập bộ nhớ điện thoại..."
+# 1. Cấp quyền bộ nhớ nếu chưa có
+if [ ! -d "$ROOT_DIR" ]; then
     termux-setup-storage
     sleep 3
 fi
 
-# 2. Cài đặt gói hệ thống (chỉ chạy ở lần đầu tiên)
+# 2. Tự động cài đặt trọn bộ môi trường Host (Node.js, Python, Git, Cloudflared, code-server)
 if ! command -v code-server >/dev/null 2>&1 || ! command -v node >/dev/null 2>&1 || ! command -v cloudflared >/dev/null 2>&1; then
-    echo "[*] Đang cài đặt Node.js, Git, Cloudflared, code-server..."
+    echo "[*] Đang cài đặt môi trường Server Host..."
     pkg update -y
     pkg install tur-repo -y
-    pkg install nodejs-lts git cloudflared code-server -y
+    if [ -f "$PREFIX/etc/apt/sources.list.d/tur.list" ]; then
+        sed -i 's|https://tur.kcubeterm.com|https://mirrors.tuna.tsinghua.edu.cn/termux/apt/tur-packages|g' "$PREFIX/etc/apt/sources.list.d/tur.list"
+    fi
+    pkg update -y
+    pkg install nodejs-lts python git cloudflared code-server -y
 fi
 command -v pm2 >/dev/null 2>&1 || npm install -g pm2 >/dev/null 2>&1
 
-# 3. Lưu GitHub Token cục bộ trên Termux
-if [ ! -f "$ENV_FILE" ]; then
-    echo -n "Nhập GitHub Token (ghp_...) để tải repo minebot: "
-    read -r INPUT_TOKEN < /dev/tty
-    echo "GH_TOKEN=\"$INPUT_TOKEN\"" > "$ENV_FILE"
-    chmod 600 "$ENV_FILE"
-fi
-source "$ENV_FILE"
-REPO_URL="https://${GH_TOKEN}@github.com/AinsworthNecco/minebot.git"
+# Cho phép Git hoạt động trong mọi thư mục con bên trong /sdcard/Download
+git config --global --add safe.directory '*' 2>/dev/null
 
-# Khắc phục lỗi Git báo "dubious ownership" khi thao tác trên /sdcard
-git config --global --add safe.directory "$BOT_DIR" 2>/dev/null
-
-# 4. Clone lần đầu hoặc tự động Pull code mới vào /sdcard/Download/minebot
-if [ ! -d "$BOT_DIR/.git" ]; then
-    echo "[*] Đang tải mã nguồn về /sdcard/Download/minebot..."
-    git clone "$REPO_URL" "$BOT_DIR" || { echo "[!] Sai Token hoặc lỗi mạng!"; rm -f "$ENV_FILE"; exit 1; }
-    cd "$BOT_DIR" || exit 1
-    npm install --omit=dev --no-bin-links
-else
-    cd "$BOT_DIR" || exit 1
-    git remote set-url origin "$REPO_URL"
-    BEFORE_HASH=$(git rev-parse HEAD)
-    git pull origin main >/dev/null 2>&1
-    AFTER_HASH=$(git rev-parse HEAD)
-    if [ "$BEFORE_HASH" != "$AFTER_HASH" ]; then
-        echo "[*] Có bản cập nhật mới, đang cài lại thư viện..."
-        npm install --omit=dev --no-bin-links >/dev/null 2>&1
-    fi
-fi
-
-# Tạo sẵn config.json từ file mẫu nếu chưa có
-if [ ! -f "$BOT_DIR/config.json" ] && [ -f "$BOT_DIR/config.example.json" ]; then
-    cp "$BOT_DIR/config.example.json" "$BOT_DIR/config.json"
-fi
-
-# 5. Cấu hình code-server trỏ thẳng vào /sdcard/Download/minebot
+# 3. Cấu hình code-server không mật khẩu, lấy /sdcard/Download làm thư mục gốc
 mkdir -p ~/.config/code-server
-cat << EOF > ~/.config/code-server/config.yaml
+cat << 'EOF' > ~/.config/code-server/config.yaml
 bind-addr: 127.0.0.1:8080
-auth: password
-password: $WEB_PASSWORD
+auth: none
 cert: false
 EOF
 
+# 4. Khởi chạy Web Panel & Tunnel
 pm2 delete web-panel tunnel 2>/dev/null
-pm2 start "code-server $BOT_DIR" --name "web-panel" >/dev/null 2>&1
+pm2 start "code-server --bind-addr 127.0.0.1:8080 --auth none $ROOT_DIR" --name "web-panel" >/dev/null 2>&1
 sleep 3
 
 CLOUDFLARE_LOG="$HOME/cloudflare.log"
@@ -94,8 +60,7 @@ rm -f "$CLOUDFLARE_LOG"
 pm2 start "cloudflared tunnel --url http://127.0.0.1:8080" --name "tunnel" --output "$CLOUDFLARE_LOG" --error "$CLOUDFLARE_LOG" >/dev/null 2>&1
 pm2 save >/dev/null 2>&1
 
-# Bắt link tunnel
-echo "Đang khởi động Server và lấy link kết nối..."
+echo "Đang khởi động Server Host và lấy link kết nối..."
 TUNNEL_URL=""
 for i in {1..30}; do
     sleep 1
@@ -105,14 +70,14 @@ for i in {1..30}; do
     fi
 done
 
-# Gửi Embed về Discord
+# 5. Gửi link truy cập về Discord
 if [ -n "$TUNNEL_URL" ]; then
     curl -H "Content-Type: application/json" \
          -X POST \
          -d "{
            \"embeds\": [{
-             \"title\": \"🚀 Hệ thống Host Minebot đã sẵn sàng!\",
-             \"description\": \"📂 **Workspace:** \`/sdcard/Download/minebot\`\n🔗 **Web Panel:** $TUNNEL_URL\n🔑 **Mật khẩu:** \`$WEB_PASSWORD\`\",
+             \"title\": \"🖥️ Termux Server Host đã Online!\",
+             \"description\": \"📂 **Thư mục tổng:** \`/sdcard/Download\`\n🔗 **Web Panel:** $TUNNEL_URL\",
              \"color\": 16033721,
              \"image\": { \"url\": \"$IMAGE_URL\" }
            }]
@@ -146,6 +111,9 @@ while true; do
         cleanup
     fi
 
+    ACTIVE_APPS=$(pm2 jlist 2>/dev/null | grep -o '"status":"online"' | wc -l)
+    USER_APPS=$(( ACTIVE_APPS > 2 ? ACTIVE_APPS - 2 : 0 ))
+
     RAM_FREE=$(free -m | awk '/Mem:/ {print $7}')
     [ -z "$RAM_FREE" ] && RAM_FREE=$(free -m | awk '/Mem:/ {print $4}')
     DISK_FREE=$(df -h /data 2>/dev/null | awk 'NR==2 {print $4}')
@@ -153,9 +121,6 @@ while true; do
     read -r TOTAL_RX TOTAL_TX <<< "$(awk 'NR>2 && $1 !~ /lo/ {rx+=$2; tx+=$10} END {print rx, tx}' /proc/net/dev 2>/dev/null)"
     RX_FMT=$(format_bytes "${TOTAL_RX:-0}")
     TX_FMT=$(format_bytes "${TOTAL_TX:-0}")
-
-    BOT_STATUS=$(pm2 describe minebot 2>/dev/null | grep -o "online" | head -n 1)
-    [ "$BOT_STATUS" = "online" ] && BOT_DISPLAY="${GREEN}ONLINE${NC}" || BOT_DISPLAY="${YELLOW}CHỜ BẬT TRÊN WEB${NC}"
 
     CURRENT_TIME=$(date +%s)
     DIFF_SEC=$(( CURRENT_TIME - START_TIME ))
@@ -180,18 +145,19 @@ while true; do
         |___/                             
 LOGO
     echo -e "${NC}=================================================="
-    echo -e "  • Web Panel    : ${GREEN}RUNNING (ONLINE)${NC}"
-    echo -e "  • Minebot      : $BOT_DISPLAY"
+    echo -e "  • Web & Tunnel : ${GREEN}RUNNING (ONLINE)${NC}"
+    echo -e "  • Dự án chạy   : ${GREEN}${USER_APPS} apps${NC} (qua PM2)"
     echo -e "  • Uptime       : $SERVER_UPTIME"
     echo -e "  • Tổng Data    : ↓ $RX_FMT  |  ↑ $TX_FMT"
     echo -e "${NC}--------------------------------------------------"
     echo -e "  • RAM trống    : ${RAM_FREE} MB"
     echo -e "  • ROM trống    : ${DISK_FREE}"
+    echo -e "  • Thư mục gốc  : /sdcard/Download"
     echo -e "${NC}--------------------------------------------------"
     echo -e "  • Link Web     : ${CYAN}${TUNNEL_URL:-Đang kết nối...}${NC}"
     echo -e "${NC}=================================================="
     echo -e "${YELLOW}[!] Cập nhật mỗi 10 phút chẵn (:00, :10, :20, :30, :40, :50).${NC}"
-    echo -e "${YELLOW}[!] Bấm Ctrl+C hoặc đóng Termux để tắt toàn bộ.${NC}"
+    echo -e "${YELLOW}[!] Bấm Ctrl+C để đóng cổng Web Panel.${NC}"
 
     CURR_MIN=$(date +%-M)
     CURR_SEC=$(date +%-S)
