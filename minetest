@@ -24,9 +24,6 @@ if ! command -v code-server >/dev/null 2>&1 || ! command -v node >/dev/null 2>&1
     echo "[*] Đang cài đặt môi trường Server Host..."
     pkg update -y
     pkg install tur-repo -y
-    for f in "$PREFIX"/etc/apt/sources.list.d/*.list; do
-        [ -f "$f" ] && sed -i 's|https://tur.kcubeterm.com|https://mirrors.tuna.tsinghua.edu.cn/termux/apt/tur-packages|g' "$f"
-    done
     pkg update -y
     pkg install nodejs-lts python git cloudflared code-server -y
 fi
@@ -41,7 +38,6 @@ auth: none
 cert: false
 EOF
 
-# Khởi chạy code-server đúng chuẩn tham số pm2 và đợi cổng 8080 sẵn sàng
 pm2 delete web-panel tunnel 2>/dev/null
 pm2 start code-server --name "web-panel" -- --bind-addr 127.0.0.1:8080 --auth none "$ROOT_DIR" >/dev/null 2>&1
 
