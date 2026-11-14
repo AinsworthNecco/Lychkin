@@ -12,7 +12,8 @@ START_TIME=$(date +%s)
 
 cleanup() {
     echo -e "\n\033[0;31m[!] Đang tắt Web Panel & Tunnel...\033[0m"
-    pm2 delete web-panel tunnel 2>/dev/null
+    pkill -f "code-server" 2>/dev/null
+    pm2 delete tunnel 2>/dev/null
     termux-wake-unlock 2>/dev/null
     exit 0
 }
@@ -31,21 +32,29 @@ command -v pm2 >/dev/null 2>&1 || npm install -g pm2 >/dev/null 2>&1
 
 git config --global --add safe.directory '*' 2>/dev/null
 
-mkdir -p ~/.config/code-server
-cat << 'EOF' > ~/.config/code-server/config.yaml
-bind-addr: 127.0.0.1:8080
-auth: none
-cert: false
-EOF
-
+# Dọn tiến trình cũ và chạy trực tiếp code-server qua nohup
+pkill -f "code-server" 2>/dev/null
 pm2 delete web-panel tunnel 2>/dev/null
-pm2 start code-server --name "web-panel" -- --bind-addr 127.0.0.1:8080 --auth none "$ROOT_DIR" >/dev/null 2>&1
+
+CODE_LOG="$HOME/code-server.log"
+rm -f "$CODE_LOG"
+nohup code-server --bind-addr 127.0.0.1:8080 --auth none --disable-telemetry "$ROOT_DIR" > "$CODE_LOG" 2>&1 &
 
 echo "Đang đợi Web Panel mở cổng 8080..."
-for i in {1..15}; do
-    curl -s http://127.0.0.1:8080 >/dev/null 2>&1 && break
+WEB_READY=0
+for i in {1..30}; do
+    if curl -s -o /dev/null http://127.0.0.1:8080; then
+        WEB_READY=1
+        break
+    fi
     sleep 1
 done
+
+if [ "$WEB_READY" -eq 0 ]; then
+    echo -e "\033[0;31m[!] code-server không mở được cổng 8080. Chi tiết lỗi:\033[0m"
+    cat "$CODE_LOG"
+    exit 1
+fi
 
 CLOUDFLARE_LOG="$HOME/cloudflare.log"
 rm -f "$CLOUDFLARE_LOG"
@@ -94,11 +103,15 @@ while true; do
     TUNNEL_STATUS=$(pm2 describe tunnel 2>/dev/null | grep -o "online" | head -n 1)
     [ "$TUNNEL_STATUS" != "online" ] && echo -e "\n${RED}[!] Cloudflare Tunnel đã ngắt kết nối.${NC}" && cleanup
 
-    WEB_STATUS=$(pm2 describe web-panel 2>/dev/null | grep -o "online" | head -n 1)
-    [ "$WEB_STATUS" = "online" ] && WEB_DISPLAY="${GREEN}ONLINE${NC}" || WEB_DISPLAY="${RED}OFFLINE (Lỗi code-server)${NC}"
+    if curl -s -o /dev/null http://127.0.0.1:8080; then
+        WEB_DISPLAY="${GREEN}ONLINE${NC}"
+    else
+        WEB_DISPLAY="${RED}OFFLINE (Đang khởi động lại...)${NC}"
+        nohup code-server --bind-addr 127.0.0.1:8080 --auth none --disable-telemetry "$ROOT_DIR" > "$CODE_LOG" 2>&1 &
+    fi
 
     ACTIVE_APPS=$(pm2 jlist 2>/dev/null | grep -o '"status":"online"' | wc -l)
-    USER_APPS=$(( ACTIVE_APPS > 2 ? ACTIVE_APPS - 2 : 0 ))
+    USER_APPS=$(( ACTIVE_APPS > 1 ? ACTIVE_APPS - 1 : 0 ))
 
     RAM_FREE=$(free -m | awk '/Mem:/ {print $7}')
     [ -z "$RAM_FREE" ] && RAM_FREE=$(free -m | awk '/Mem:/ {print $4}')
